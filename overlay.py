@@ -116,7 +116,8 @@ BODY_COLORS = [
 SPRITES_DIR = Path(__file__).parent / "Sprites"
 
 # Skin cycling order for real sessions (index 0 = first real session)
-REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru"]
+REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru",
+                      "ember_mage", "forest_scout", "frost_wanderer"]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -313,6 +314,9 @@ def _load_sprites(registry: "SpriteRegistry") -> None:
         ("amongo",   "amongo.png",       40, 40),
         ("bunnylot", "BunnyLot.png",     40, 56),
         ("michimaru","Michimaru.png",    40, 51),
+        ("ember_mage",     "ember_mage.png",     50, 50),
+        ("forest_scout",   "forest_scout.png",   50, 50),
+        ("frost_wanderer", "frost_wanderer.png", 50, 50),
     ]
     for name, fname, fw, fh in sheets:
         path = SPRITES_DIR / fname
@@ -1968,7 +1972,7 @@ class OverlayApp:
         def _on_agent_change(*_):
             aid = lbl_to_id.get(sel_agent.get())
             if aid and aid in agents: _select(agents[aid].skin)
-        sel_agent.trace("w", _on_agent_change)
+        sel_agent.trace_add("write", _on_agent_change)
 
     def _apply_skin(self, agent_id, skin):
         with self.scanner._lock:
