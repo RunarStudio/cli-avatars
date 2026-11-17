@@ -48,6 +48,17 @@ except ImportError:
     print("[WARN] pywinctl not installed — window terrain disabled.")
     print("       Install: pip install pywinctl")
 
+# Window perches (WINDOW-PERCHES-PLAN.md): real frames via DWM, visible top
+# edges only. DPI awareness must be set before tk.Tk() is created.
+try:
+    import win32 as w32
+    import perchas
+    HAS_W32 = True
+    print(f"[INFO] DPI mode: {w32.set_dpi_aware()}")
+except Exception as _w32_err:
+    HAS_W32 = False
+    print(f"[WARN] win32 perches unavailable ({_w32_err}) — falling back to pywinctl.")
+
 try:
     from PIL import Image, ImageTk, ImageDraw
     HAS_PIL = True
@@ -69,7 +80,7 @@ except Exception as _sprite_err:
 # ═══════════════════════════════════════════════════════════════
 
 OVERLAY_FPS       = 20
-WINDOW_SCAN_RATE  = 0.5
+WINDOW_SCAN_RATE  = 0.25   # s between window scans (one scan ≈ 1–2 ms)
 SESSION_SCAN_RATE = 2.0
 GRAVITY           = 0.55
 WALK_SPEED        = 1.8
@@ -77,6 +88,8 @@ JUMP_VEL          = -10.0
 AVATAR_W          = 32
 AVATAR_H          = 32
 FLOOR_MARGIN      = 2
+PERCH_MIN_LEN     = 40    # px: shorter visible pieces of a window top are dropped
+PERCH_MIN_Y       = 40    # px: perches higher than this would put the avatar's head off screen
 CHROMA_KEY        = "#010101"
 
 SPRING_REST   = 80    # px rest length of elastic line
@@ -606,6 +619,7 @@ class Avatar:
         self.vy         = 0.0
         self.dir        = 1
         self.on_ground  = False
+        self.perch_hwnd = None   # window the avatar stands on (rides it when it moves)
         self.frame      = 0
         self.ftick      = 0
         self.idle_t     = 0
@@ -638,21 +652,54 @@ class Avatar:
                 return w, h
         return AVATAR_W, AVATAR_H
 
+    def _foot_pad(self):
+        """Empty rows under the sprite's feet (sprite_loader measures them per sheet)."""
+        if self.registry and hasattr(self.registry, "get_foot_pad"):
+            return self.registry.get_foot_pad(self.agent.skin, self._anim_status)
+        return 0
+
     @property
     def _anim_status(self) -> str:
         if self.agent.status == S.IDLE and (abs(self.vx) > 0.1 or self._wall_climb is not None):
             return S.BUSY
         return self.agent.status
 
-    def update(self, floors, walls=()):
+    @staticmethod
+    def _wall_top_dir(wx, wy1, floors):
+        """+1 if a perch starts at this wall's top (left side), -1 if it ends there (right side), else 0."""
+        for (fx1, fy, fx2, _) in floors:
+            if abs(fy - wy1) <= 2:
+                if abs(fx1 - wx) <= 2: return 1
+                if abs(fx2 - wx) <= 2: return -1
+        return 0
+
+    def update(self, floors, walls=(), floor_hwnds=()):
         self.aw, self.ah = self._sprite_size()
+        fh = self.ah - self._foot_pad()   # feet height: physics uses this, drawing uses ah
+        last_fh = getattr(self, "_last_fh", fh)
+        if self.on_ground and fh != last_fh:
+            self.y -= fh - last_fh        # animation changed: keep the feet on the floor
+        self._last_fh = fh
 
         # Wall climbing overrides normal gravity + walk when active
         if self._wall_climb is not None and not self.spring_mode:
             wx, wy1, wy2 = self._wall_climb
+            # Wall with a perch on top: climb until the feet reach it, then step on
+            # Remember the direction once seen, so one scan without the perch can't cancel the climb
+            top_dir = self._wall_top_dir(wx, wy1, floors) or getattr(self, "_climb_dir", 0)
+            self._climb_dir = top_dir
+            target  = wy1 - fh if top_dir else wy1
             near_x = abs((self.x + self.aw / 2) - wx) < WALL_MARGIN + 6
-            in_y   = self.y < wy2 and self.y + self.ah > wy1
-            if near_x and in_y and self.y > wy1:
+            in_y   = self.y < wy2 and self.y + fh >= wy1
+            if top_dir and near_x and self.y <= target + 1:
+                self._wall_climb, self._climb_dir = None, 0
+                self.y   = float(target)
+                self.vy  = 0.0
+                self.dir = top_dir
+                self.vx  = WALK_SPEED * top_dir
+                self.x   = float(wx + 4) if top_dir > 0 else float(wx - self.aw - 4)
+            elif near_x and in_y and self.y > target:
+                self.on_ground, self.perch_hwnd = False, None   # climbing: not riding a window
                 self.vy = -WALL_CLIMB_SPEED
                 self.vx  = 0.0
                 self.x   = float(wx - self.aw // 2)   # stay glued to wall x
@@ -666,9 +713,9 @@ class Avatar:
                     self._burst_requested = True
                 self._prev_status = curr
                 return
-            else:
-                # Reached top or fell off wall — kick off horizontally
-                self._wall_climb = None
+            elif self._wall_climb is not None:
+                # Reached a covered top or fell off wall — kick off horizontally
+                self._wall_climb, self._climb_dir = None, 0
                 self.vx = WALK_SPEED * self.dir
                 self.vy = JUMP_VEL * 0.3
 
@@ -678,10 +725,12 @@ class Avatar:
 
         all_floors = floors + [(0, self.sh-2, self.sw, self.sh)]
         self.on_ground = False
-        for (fx1, fy, fx2, _) in all_floors:
+        self.perch_hwnd = None
+        for i, (fx1, fy, fx2, _) in enumerate(all_floors):
             if fx1 <= nx + self.aw/2 <= fx2:
-                if self.y + self.ah <= fy <= ny + self.ah:
-                    ny, self.vy, self.on_ground = fy - self.ah, 0.0, True
+                if self.y + fh <= fy <= ny + fh:
+                    ny, self.vy, self.on_ground = fy - fh, 0.0, True
+                    self.perch_hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
                     break
 
         if not self.spring_mode:
@@ -704,7 +753,7 @@ class Avatar:
             if self._wall_climb is None and walls:
                 cx = self.x + self.aw / 2
                 for (wx, wy1, wy2) in walls:
-                    if abs(cx - wx) < WALL_MARGIN and wy1 <= self.y + self.ah and self.y <= wy2:
+                    if abs(cx - wx) < WALL_MARGIN and wy1 <= self.y + fh and self.y <= wy2:
                         if random.random() < WALL_CLIMB_CHANCE:
                             self._wall_climb = (wx, wy1, wy2)
                             break
@@ -914,11 +963,45 @@ class SessionScanner:
 # ═══════════════════════════════════════════════════════════════
 
 class WindowTerrain:
-    def __init__(self, own_title):
+    def __init__(self, own_title, screen=None):
         self._floors: list[tuple] = []
         self._walls:  list[tuple] = []
         self._lock   = threading.Lock()
         self._own    = own_title
+        self._screen = screen     # (left, top, right, bottom) of the overlay
+        self._floor_hwnds: list[int] = []          # window of each floor (win32 path)
+        self._win_pos: dict[int, tuple] = {}       # hwnd -> (left, top)
+
+    def _scan(self):
+        if HAS_W32 and self._screen:
+            self._scan_w32()
+        else:
+            self._scan_pwc()
+
+    def _scan_w32(self):
+        """Perches = visible pieces of non-maximized window tops (perchas.py)."""
+        try:
+            wins = w32.list_windows()      # skips minimized, cloaked, our own process
+            perches = perchas.build_perches(wins, self._screen, min_len=PERCH_MIN_LEN)
+            kept   = [p for p in perches if p.y >= PERCH_MIN_Y]
+            floors = [(p.x1, p.y, p.x2, p.y + FLOOR_MARGIN) for p in kept]
+            hwnds  = [p.hwnd for p in kept]
+            walls  = perchas.build_walls(wins, self._screen, min_len=PERCH_MIN_LEN)
+            pos    = {w.hwnd: (w.rect[0], w.rect[1]) for w in wins if not w.maximized}
+        except Exception as e:
+            print(f"[WARN] Terrain (win32): {e}")
+            return
+        with self._lock:
+            self._floors      = floors
+            self._walls       = walls
+            self._floor_hwnds = hwnds
+            self._win_pos     = pos
+
+    def get_snapshot(self):
+        """(floors, walls, floor_hwnds, window positions), all from the same scan."""
+        with self._lock:
+            return (list(self._floors), list(self._walls),
+                    list(self._floor_hwnds), dict(self._win_pos))
 
     def get_floors(self):
         with self._lock: return list(self._floors)
@@ -927,9 +1010,22 @@ class WindowTerrain:
         with self._lock: return list(self._walls)
 
     def loop(self):
-        while True: self._scan(); time.sleep(WINDOW_SCAN_RATE)
+        n, times = 0, []
+        while True:
+            t0 = time.perf_counter()
+            self._scan()
+            n += 1
+            if 20 < n <= 40:               # skip startup (sprite loading), then log once
+                times.append((time.perf_counter() - t0) * 1000)
+                if n == 40:
+                    times.sort()
+                    print(f"[INFO] Terrain scan: median {times[10]:.2f} ms, min {times[0]:.2f}, "
+                          f"max {times[-1]:.2f} ({'win32' if HAS_W32 else 'pywinctl'}), "
+                          f"every {WINDOW_SCAN_RATE}s")
+            time.sleep(WINDOW_SCAN_RATE)
 
-    def _scan(self):
+    def _scan_pwc(self):
+        """Old path (pywinctl): includes shadows, ignores z-order. Fallback only."""
         if not HAS_WINCTL: return
         candidates = []   # (width, x1, y1, x2, y2)
         try:
@@ -1027,7 +1123,8 @@ class OverlayApp:
         self.canvas.pack(fill="both", expand=True)
 
         self.scanner = SessionScanner()
-        self.terrain = WindowTerrain(self.TITLE)
+        self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
+        self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict[str, Avatar] = {}
         self.sub_avatars: dict[str, list[Avatar]] = {}   # parent_id → [sub Avatar, …]
         self._lingering_subs: list["Avatar"] = []         # task-done subs waiting to float away
@@ -1078,8 +1175,9 @@ class OverlayApp:
 
     def _tick(self):
         agents = self.scanner.get_agents()
-        floors = self.terrain.get_floors()
-        walls  = self.terrain.get_walls()
+        floors, walls, floor_hwnds, win_pos = self.terrain.get_snapshot()
+        moves = perchas.window_moves(self._last_win_pos, win_pos) if HAS_W32 else {}
+        self._last_win_pos = win_pos
 
         # ── Main avatars ──────────────────────────────────────────────
         for aid in self.avatars.keys() - agents.keys():
@@ -1099,6 +1197,12 @@ class OverlayApp:
             # Refresh activity timestamp while agent is doing work
             if av.agent.status in (S.BUSY, S.THINKING):
                 av.last_active = time.time()
+            # Transcript writes count as activity; an old file means a stale session
+            if not av.agent.is_demo:
+                if not getattr(av, "_seeded", False):
+                    av.last_active = av.agent.last_seen
+                    av._seeded = True
+                av.last_active = max(av.last_active, av.agent.last_seen)
 
             if av._vanishing:
                 # Float upward, then pop with sprite-colored particles
@@ -1126,7 +1230,10 @@ class OverlayApp:
             if av is self._drag_av:
                 av.vx = av.vy = 0.0
             else:
-                av.update(floors, walls)
+                if av.on_ground and av.perch_hwnd in moves:
+                    dx, dy = moves[av.perch_hwnd]      # ride the moving window
+                    av.x += dx; av.y += dy
+                av.update(floors, walls, floor_hwnds)
                 if av.y > self.sh + 80:
                     av.x = float(random.randint(0, max(1, self.sw - av.aw)))
                     av.y = float(self.sh - av.ah - 10)
