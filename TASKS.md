@@ -189,7 +189,16 @@ updated: 2026-11-17
   - A `chat` event draws one allowlisted icon above the sending avatar (`source:id`). The same avatar queues; the bubble holds 3 s, then fades. When two are open, the newer one sits 4 px higher. Bubbles follow the avatar while it walks or perches. Subagent children are unchanged.
   - Art is `Sprites/talk/` (16×16 9-slice frame, separate 4 px tail, 9×9 icons). `Sprites/bubble.png` is the round character sheet (192×240), not a 9-slice, so it is not reused.
   - HUD row `💬 Talks N`: avatar pairs with a chat event in the last 10 s. Grey at 0, white from 1, one blink when a new pair starts.
-  - Not in F3: walking over to meet, free-text bubbles, emotion bubbles on status changes.
+  - Not in F3: free-text bubbles, emotion bubbles on status changes. Walking over to meet is **F4**.
+
+- [x] **F4** Avatars walk to meet on `chat` <!-- id: F4 -->
+  - Same perch (the same window-top segment): both walk to its midpoint and stop 8 screen pixels apart, facing each other. Sprite width is already in screen pixels, so the gap is not scaled again.
+  - Different windows, or either avatar on the floor: both walk off the perch and fall to the taskbar line, then meet at the midpoint of the centers they had when the chat arrived, 8 screen pixels apart. No teleport. A perch with no free edge cancels the meeting.
+  - Subagent children are not a party to the meeting. While the parent is walking or talking they keep their offset on the spring line, one step behind.
+  - States: IDLE, WALK_TO, MEET, TALK, RETURN. TALK holds while chat events for that pair keep arriving. About 10 s after the last one, they wander again. A pair that is already meeting does not restart. A third avatar waits until the current pair finishes.
+  - A self-chat does not walk. A missing avatar or a vanished window cancels the meeting. Meeting points clamp to the screen and to the perch.
+  - Bubbles still follow the speaker. The `💬 Talks N` row is unchanged. Nothing in the packet is executed.
+  - Planner: `meetings.py`. Preview: `docs/media/meet-animation.gif`. Manual check: `docs/claude-hooks.md`.
 
 - [x] **F2** Internal event bus, localhost listener, and `cli-avatars-emit` <!-- id: F2 -->
   - `EventBus` is in-process and thread-safe. `PollingSource` publishes each scan. `EventSource` listens on UDP `127.0.0.1` only (default port 47200). With no packets, scan results are unchanged.
