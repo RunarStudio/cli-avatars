@@ -37,7 +37,15 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Optional
 from pathlib import Path
-from sessions import ClaudeJsonlSource, CompositeSource
+from sessions import ClaudeJsonlSource, CompositeSource, merge_id
+from events import (
+    EventBus,
+    EventSource,
+    PollingSource,
+    StateEvent,
+    agent_key,
+    merge_with_events,
+)
 
 VERSION = "0.4"
 
@@ -849,7 +857,7 @@ class Avatar:
 class SessionScanner:
     CLAUDE_DIR = ClaudeJsonlSource.DEFAULT_DIR
 
-    def __init__(self, sources=None):
+    def __init__(self, sources=None, event_port: Optional[int] = None, listen: bool = True):
         self._agents: dict[str,AgentInfo] = {}
         self._lock    = threading.Lock()
         self._tick    = 0
@@ -859,7 +867,19 @@ class SessionScanner:
         if sources is None:
             self._claude_source = ClaudeJsonlSource(self.CLAUDE_DIR)
             sources = [self._claude_source]
-        self._source = CompositeSource(sources)
+        # Poll results and UDP events both feed the bus. With no UDP events,
+        # merge_with_events returns the polled list unchanged.
+        self.bus = EventBus()
+        self.bus.subscribe(self._on_bus_event)
+        self._events: Optional[EventSource] = None
+        self._source = PollingSource(self.bus, CompositeSource(sources))
+        if listen:
+            try:
+                self._events = EventSource(self.bus, port=event_port)
+                print(f"[INFO] Events: 127.0.0.1:{self._events.port}")
+            except Exception as exc:
+                print(f"[WARN] Event listener not started ({exc}). Polling still works.")
+                self._events = None
 
     def get_agents(self):
         with self._lock: return dict(self._agents)
@@ -867,13 +887,42 @@ class SessionScanner:
     def loop(self):
         while True: self._scan(); time.sleep(SESSION_SCAN_RATE)
 
+    def _on_bus_event(self, event):
+        """Apply a UDP state immediately. Poll publishes are ignored here."""
+        if not isinstance(event, StateEvent) or event.origin != "udp":
+            return
+        aid = agent_key(event.source, event.session_id)
+        with self._lock:
+            agent = self._agents.get(aid)
+            if agent is None or agent.is_demo:
+                return
+            if event.ts < agent.last_seen:
+                return
+            agent.status = event.state
+            agent.last_seen = event.ts
+
+    def _apply_event_rows(self, found: dict):
+        if self._events is None:
+            return
+        for info in self._events.scan():
+            key = merge_id(info)
+            agent = found.get(key)
+            if agent is None or agent.is_demo:
+                continue
+            if info.last_seen >= agent.last_seen:
+                agent.status = info.status
+                agent.last_seen = info.last_seen
+
     def _scan(self):
         self._tick += 1
         if self._claude_source is not None:
             self._claude_source.directory = self.CLAUDE_DIR
         found: dict[str, AgentInfo] = {}
+        infos = self._source.scan()
+        if self._events is not None:
+            infos = merge_with_events(infos, self._events.scan())
 
-        for info in self._source.scan():
+        for info in infos:
             found[info.agent_id] = AgentInfo(
                 agent_id=info.agent_id,
                 name=info.name,
@@ -897,6 +946,7 @@ class SessionScanner:
             found = live
 
         with self._lock:
+            self._apply_event_rows(found)
             for aid, new_a in found.items():
                 old = self._agents.get(aid)
                 if old and not old.is_demo and not new_a.is_demo:
@@ -1638,6 +1688,9 @@ class OverlayApp:
     # ── Right-click ───────────────────────────────────────────────────
 
     def _quit(self):
+        events = getattr(getattr(self, "scanner", None), "_events", None)
+        if events is not None:
+            events.close()
         if getattr(self, "_tray", None):
             try: self._tray.stop()
             except Exception: pass
