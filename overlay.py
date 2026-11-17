@@ -868,7 +868,7 @@ class SessionScanner:
         if self.CLAUDE_DIR.exists():
             for f in self.CLAUDE_DIR.glob("*/*.jsonl"):
                 try:
-                    if time.time() - f.stat().st_mtime > 28800:  # 8 hours
+                    if time.time() - f.stat().st_mtime > 900:  # 15 min: older = ended/stale
                         continue
                     aid = f.stem[:8]                          # session UUID → 1 avatar per session
                     status, tool = self._parse_tail(f)
