@@ -118,6 +118,50 @@ The HUD row `💬 Talks N` counts avatar pairs that sent a chat icon in the last
 
 ---
 
+## Meeting walk (F4)
+
+A `say` between two different avatars makes them walk to each other. The bubble still draws on the sender while they walk, and `💬 Talks N` still counts pairs from the last 10 seconds. Nothing in the packet is executed. The walk uses only the sender id and the recipient id.
+
+- **Same window top.** If both are standing on the same perch, they walk along it to the midpoint and stop 8 screen pixels apart, facing each other.
+- **Different windows, or one on the floor.** Both walk off the perch and drop to the taskbar line (the same fall as when a window closes), then meet at the midpoint of where they were across the screen, 8 screen pixels apart.
+- **Self-chat.** `from` and `to` the same avatar does not walk. The bubble still shows.
+- **They stay.** Further `say` events for that pair keep them together. About 10 seconds after the last one, they wander again.
+- **One meeting at a time.** A chat with a third avatar waits until the current pair finishes.
+- **Subagents.** Child avatars are not part of the meeting. They keep their place on the spring line, one step behind the parent.
+
+Check on Windows, from the repo directory, with the overlay already running:
+
+```bash
+python overlay.py
+```
+
+With two live Claude sessions, each avatar id is the first 8 characters of that session id. Drag both onto the same window top (left-click an avatar), then:
+
+```bash
+python -m cli_avatars_emit say --from claude:FIRSTID1 --to claude:SECONDID --icon speech
+python -m cli_avatars_emit say --from claude:SECONDID --to claude:FIRSTID1 --icon ok
+```
+
+Drag them onto two different window tops, or leave one on the taskbar, and send `say` again. Both should drop to the floor and meet.
+
+When no session file is open, two state packets stand in for two avatars for about two minutes. Wait for the next scan (about 2 seconds) so both are on screen, then talk:
+
+```bash
+python -m cli_avatars_emit state --source claude --id aaaa1111 --state idle
+python -m cli_avatars_emit state --source claude --id bbbb2222 --state idle
+python -m cli_avatars_emit say --from claude:aaaa1111 --to claude:bbbb2222 --icon question
+```
+
+A self-chat, while the single idle avatar is showing, stays put and only shows the bubble:
+
+```bash
+python -m cli_avatars_emit say --from claude:demo --to claude:demo --icon speech
+```
+
+![Meeting walk](media/meet-animation.gif)
+
+---
+
 ## UDP Packet Format
 
 `cli-avatars-emit` sends one UTF-8 JSON object. You only need to build this by hand if you are not using the command. Include the token from the local token file. Do not log the token.

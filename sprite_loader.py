@@ -33,8 +33,10 @@ from typing import Optional
 try:
     from PIL import Image, ImageTk
     HAS_PIL = True
+    _FLIP_H = getattr(getattr(Image, "Transpose", Image), "FLIP_LEFT_RIGHT")
 except ImportError:
     HAS_PIL = False
+    _FLIP_H = None
     print("[sprite_loader] Pillow not installed. Run: pip install pillow")
 
 try:
@@ -153,6 +155,8 @@ class SpriteSheet:
         # _photos[row][col] = ImageTk.PhotoImage or None (lazy, cached on first use)
         self._frames: list[list[Image.Image]] = []
         self._photos: list[list[Optional[ImageTk.PhotoImage]]] = []
+        # Mirrored PhotoImages, keyed by the source frame's id. Facing left.
+        self._mirror_cache: dict[int, ImageTk.PhotoImage] = {}
         self._slice_all()
 
     def _slice_all(self):
@@ -207,7 +211,7 @@ class SpriteSheet:
             return 0
         return len(self._frames[row])
 
-    def get_photo(self, row: int, frame_idx: int) -> Optional["ImageTk.PhotoImage"]:
+    def get_photo(self, row: int, frame_idx: int, mirror: bool = False) -> Optional["ImageTk.PhotoImage"]:
         """
         Return a tkinter-compatible PhotoImage for (row, frame).
 
@@ -231,7 +235,16 @@ class SpriteSheet:
         idx = frame_idx % len(frames)
         if self._photos[row][idx] is None:
             self._photos[row][idx] = ImageTk.PhotoImage(frames[idx])
-        return self._photos[row][idx]
+        photo = self._photos[row][idx]
+        if not mirror or photo is None or _FLIP_H is None:
+            return photo
+        image = frames[idx]
+        key = id(image)
+        cached = self._mirror_cache.get(key)
+        if cached is None:
+            cached = ImageTk.PhotoImage(image.transpose(_FLIP_H))
+            self._mirror_cache[key] = cached
+        return cached
 
     def get_render_size(self) -> tuple[int, int]:
         """Returns (width, height) of one rendered cell in pixels."""
@@ -306,6 +319,7 @@ class SpriteRegistry:
         name: str,
         status: str,
         frame: int,
+        mirror: bool = False,
     ) -> Optional["ImageTk.PhotoImage"]:
         """
         Get the right animation frame for a given skin and agent status.
@@ -323,7 +337,7 @@ class SpriteRegistry:
         # If the target row has no frames, fall back to idle (row 0)
         if sheet.get_frame_count(row) == 0:
             row = 0
-        return sheet.get_photo(row, frame)
+        return sheet.get_photo(row, frame, mirror=mirror)
 
     def get_render_size(self, name: str) -> tuple[int, int]:
         """Returns rendered cell (width, height) for the named sheet."""

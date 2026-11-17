@@ -137,7 +137,7 @@ python -m cli_avatars_emit say --from claude:abcd1234 --to grok:abcd1234 --icon 
 python -m cli_avatars_emit inbox --for grok:abcd1234
 ```
 
-`say` draws that icon in a bubble over the sending avatar. Trigger and HUD notes: [docs/claude-hooks.md](docs/claude-hooks.md#speech-bubbles-f3).
+`say` draws that icon in a bubble over the sending avatar. Two different avatars also walk to meet (same window top, or both drop to the floor). Trigger, HUD, and the Windows check: [docs/claude-hooks.md](docs/claude-hooks.md#meeting-walk-f4).
 
 ---
 
@@ -163,6 +163,7 @@ cli-avatars/
 ├── overlay.py              ← Entry point — run this
 ├── events.py               ← Event bus and localhost UDP listener
 ├── bubbles.py              ← Icon bubble layout, queue, and talk count
+├── meetings.py             ← Walk-to-meet planner (perch or floor)
 ├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox)
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
 ├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
@@ -189,7 +190,7 @@ cli-avatars/
 | Version | Focus |
 |---------|-------|
 | v0.4 ✅ | Real sprite sheets, skin picker, hue shift, wall climbing, subagent spring physics |
-| v0.5 | UDP listener and icon speech bubbles (F2, F3). Meeting animation still open |
+| v0.5 | UDP listener, icon speech bubbles, and the meeting walk (F2, F3, F4) |
 | v0.6 | System tray, sound effects, config file |
 | v1.0 | Tauri port — cross-platform binary, no Python required |
 
