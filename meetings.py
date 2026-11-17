@@ -825,7 +825,8 @@ def write_meet_gif(path=None):
         draw.rectangle([0, int(floor_y), screen_w, screen_h], fill=(36, 32, 48, 255))
         draw.line([0, int(floor_y), screen_w, int(floor_y)], fill=(90, 80, 110, 255))
         draw.text((8, 6), title, fill=(230, 230, 240, 255))
-        # Portal on the meeting point, behind both avatars and the child.
+        # Portal first, then the child, the two avatars, then the icon bubbles.
+        # Later pastes cover the rain, so it stays behind the characters.
         if portal_view is not None:
             key = (portal_view.phase, portal_view.index)
             sprite = portal_art.get(key)

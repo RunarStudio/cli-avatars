@@ -5,26 +5,36 @@ mark says where the pair is going and which meeting phase they are in.
 This module turns that into one sprite placement. There is one portal
 per meeting, and a self-chat never produces a mark, so it never opens one.
 
-The sprite is 40x40 logical pixels. Point (20, 36) sits on the surface:
-the perch line, or the top edge of the floor. The same art is used for both.
-``render_portal`` builds the pixels with Pillow. The ring thickness is 1 or
-2 logical pixels; the overlay and the preview use 1. Scale is the same
+The sprite is 64×48 logical pixels. Point (32, 34) is the surface: the
+perch line, or the top edge of the floor. The ellipse is 60×12 and its
+centre sits a few pixels below that point, so the ring lies on the
+avatars' feet instead of floating above them. Rain rises from the ring.
+The same art is used on a perch and on the floor.
+
+``render_portal`` builds the pixels with Pillow. The ring thickness is 1
+or 2 logical pixels; the overlay and the preview use 1. Scale is the same
 integer factor the avatars' bubbles use (``integer_scale``).
 """
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 
 from bubbles import integer_scale
 
-SPRITE = 40
-ANCHOR_X = 20
-ANCHOR_Y = 36
-BEAM_W = 10
-BEAM_MAX = 28
-ELLIPSE_W = 40
+SPRITE_W = 64
+SPRITE_H = 48
+ANCHOR_X = 32
+ANCHOR_Y = 34
+ELLIPSE_W = 60
 ELLIPSE_H = 12
+# Vertical centre of the ellipse, in pixels below the surface anchor.
+ELLIPSE_BELOW = 4
+RISE_MAX = 32
+RAIN_SEED = 47211
+RAIN_COUNT = 22
+LOOP_N = 8
 FRAME_MS = 200
 RING_PX = 1
 
@@ -46,27 +56,24 @@ _OPEN = ("WALK_TO", "MEET", "TALK")
 class PortalSpec:
     """One animation frame, in logical pixels.
 
-    ``alpha`` is the bottom band of the beam (0.60 or 0.45). The middle
-    band is half of that and the top band is 0.
+    ``rise`` is how high the rain climbs above the ellipse. 0 means the
+    rain is off. ``step`` is the rain phase, 0..7, so the loop repeats.
     """
 
     width: int
     height: int
-    beam: int
-    alpha: float
+    rise: int
+    step: int
 
 
 APPEAR_FRAMES = (
-    PortalSpec(4, ELLIPSE_H, 0, 0.60),
-    PortalSpec(ELLIPSE_W, ELLIPSE_H, BEAM_MAX, 0.60),
+    PortalSpec(4, ELLIPSE_H, 0, 0),
+    PortalSpec(ELLIPSE_W, ELLIPSE_H, RISE_MAX // 2, 0),
 )
-LOOP_FRAMES = (
-    PortalSpec(ELLIPSE_W, ELLIPSE_H + 1, BEAM_MAX, 0.60),
-    PortalSpec(ELLIPSE_W, ELLIPSE_H - 1, BEAM_MAX, 0.45),
-    PortalSpec(ELLIPSE_W, ELLIPSE_H + 1, BEAM_MAX, 0.60),
-    PortalSpec(ELLIPSE_W, ELLIPSE_H - 1, BEAM_MAX, 0.45),
+LOOP_FRAMES = tuple(
+    PortalSpec(ELLIPSE_W, ELLIPSE_H, RISE_MAX, step) for step in range(LOOP_N)
 )
-# Close is the appear sequence run backwards.
+# Close is the appear sequence run backwards: rain stops, then the ring shrinks.
 DISAPPEAR_FRAMES = (APPEAR_FRAMES[1], APPEAR_FRAMES[0])
 
 FRAMES = {
@@ -86,22 +93,37 @@ def frame_catalog():
 
 
 def alpha_byte(fraction: float) -> int:
-    """Map a 0..1 alpha onto a byte. 60% is 153 and 30% is 76."""
+    """Map a 0..1 alpha onto a byte."""
     return int(round(float(fraction) * 255))
 
 
-def beam_bands(height: int, base_alpha: float) -> tuple:
-    """Three bands, bottom to top: ``base``, half, then 0.
+@dataclass(frozen=True)
+class Drop:
+    """One seeded rain drop. ``u`` is 0..1 across the ellipse."""
 
-    Returns ``((row_count, alpha_byte), ...)``. A zero-height beam has
-    no bands. The top band is present and fully transparent.
-    """
-    if height <= 0:
-        return ()
-    third = height // 3
-    counts = (third, third, height - 2 * third)
-    levels = (base_alpha, base_alpha / 2.0, 0.0)
-    return tuple((count, alpha_byte(level)) for count, level in zip(counts, levels))
+    u: float
+    birth: int
+    size: int
+    white: bool
+    streak: int
+
+
+def make_drops(count: int = RAIN_COUNT, seed: int = RAIN_SEED) -> tuple:
+    """The rain field. The same seed always rebuilds the same drops."""
+    rng = random.Random(seed)
+    drops = []
+    for _ in range(count):
+        drops.append(Drop(
+            u=rng.uniform(0.06, 0.94),
+            birth=rng.randrange(LOOP_N),
+            size=1 if rng.random() < 0.6 else 2,
+            white=rng.random() < 0.4,
+            streak=rng.choice((1, 2, 3)),
+        ))
+    return tuple(drops)
+
+
+DROPS = make_drops()
 
 
 def frame_index(phase: str, elapsed_s: float):
@@ -124,7 +146,7 @@ def frame_index(phase: str, elapsed_s: float):
 
 
 def portal_top_left(surface_x: float, surface_y: float, scale) -> tuple:
-    """Top-left so logical point (20, 36) lands on the surface point.
+    """Top-left so logical point (32, 34) lands on the surface point.
 
     ``scale`` is the avatar scale. 2.5 draws at 2, the same truncation
     the icon bubbles use.
@@ -245,12 +267,40 @@ def _ring_pixels(filled: set, thickness: int) -> set:
 
 
 def _ellipse_origin(width: int, height: int) -> tuple:
-    """Top-left of the ellipse box. Its bottom-center is the anchor."""
-    return (ANCHOR_X - width // 2, ANCHOR_Y - height + 1)
+    """Top-left of the ellipse box.
+
+    The box is centred on x. Its vertical centre is ``ELLIPSE_BELOW``
+    pixels under the surface, so the ring sits on the feet.
+    """
+    ox = ANCHOR_X - width // 2
+    oy = ANCHOR_Y + ELLIPSE_BELOW - height // 2
+    return ox, oy
+
+
+def rain_heads(spec: PortalSpec) -> tuple:
+    """Head of each visible drop: ``(x, y, rgb)`` in sprite pixels.
+
+    ``y`` decreases as the drop rises. An empty rise draws nothing.
+    The same spec always returns the same heads.
+    """
+    if spec.rise <= 0:
+        return ()
+    ox, oy = _ellipse_origin(spec.width, spec.height)
+    span = max(1, spec.width - 4)
+    heads = []
+    for drop in DROPS:
+        age = (spec.step - drop.birth) % LOOP_N
+        t = (age + 0.15) / float(LOOP_N)
+        above = t * spec.rise
+        head_x = ox + 2 + int(drop.u * span)
+        head_y = oy - int(round(above))
+        rgb = CENTER_RGB if drop.white else RING_RGB
+        heads.append((head_x, head_y, rgb))
+    return tuple(heads)
 
 
 def _paint(image, x: int, y: int, color) -> None:
-    if 0 <= x < SPRITE and 0 <= y < SPRITE:
+    if 0 <= x < SPRITE_W and 0 <= y < SPRITE_H:
         image[x, y] = color
 
 
@@ -260,7 +310,7 @@ def render_portal(spec: PortalSpec, scale=1, ring: int = RING_PX):
 
     factor = integer_scale(scale)
     thickness = 2 if int(ring) >= 2 else 1
-    image = Image.new("RGBA", (SPRITE, SPRITE), (0, 0, 0, 0))
+    image = Image.new("RGBA", (SPRITE_W, SPRITE_H), (0, 0, 0, 0))
     px = image.load()
     filled = _ellipse_fill(spec.width, spec.height)
     ring_px = _ring_pixels(filled, thickness)
@@ -268,7 +318,7 @@ def render_portal(spec: PortalSpec, scale=1, ring: int = RING_PX):
     shadow = (*SHADOW_RGB, SHADOW_ALPHA)
     for x, y in filled:
         _paint(px, ox + x, oy + y + SHADOW_DROP, shadow)
-    _paint_beam(px, spec, oy)
+    _paint_rain(px, spec, ox, oy)
     white = (*CENTER_RGB, 255)
     cyan = (*RING_RGB, 255)
     for x, y in filled - ring_px:
@@ -276,31 +326,37 @@ def render_portal(spec: PortalSpec, scale=1, ring: int = RING_PX):
     for x, y in ring_px:
         _paint(px, ox + x, oy + y, cyan)
     if factor != 1:
-        image = image.resize((SPRITE * factor, SPRITE * factor), Image.Resampling.NEAREST)
+        image = image.resize(
+            (SPRITE_W * factor, SPRITE_H * factor), Image.Resampling.NEAREST)
     return image
 
 
-def _paint_beam(px, spec: PortalSpec, ellipse_top: int) -> None:
-    """10 px column standing on the ellipse. Three alpha bands, bottom to top."""
-    if spec.beam <= 0:
+def _paint_rain(px, spec: PortalSpec, ox: int, oy: int) -> None:
+    """Dots and short streaks rising off the ellipse. Drawn under the ring."""
+    if spec.rise <= 0:
         return
-    left = ANCHOR_X - BEAM_W // 2
-    bottom = ellipse_top - 1
-    bands = beam_bands(spec.beam, spec.alpha)
-    row = 0
-    for count, alpha in bands:
-        for _ in range(count):
-            y = bottom - row
-            row += 1
-            if alpha == 0:
+    span = max(1, spec.width - 4)
+    for drop in DROPS:
+        age = (spec.step - drop.birth) % LOOP_N
+        t = (age + 0.15) / float(LOOP_N)
+        alpha = (1.0 - t) * 0.95
+        if alpha < 0.08:
+            continue
+        head_x = ox + 2 + int(drop.u * span)
+        head_y = oy - int(round(t * spec.rise))
+        rgb = CENTER_RGB if drop.white else RING_RGB
+        for s in range(drop.streak):
+            fade = alpha * (1.0 - 0.35 * s)
+            byte = alpha_byte(fade)
+            if byte <= 0:
                 continue
-            color = (*RING_RGB, alpha)
-            for x in range(left, left + BEAM_W):
-                _paint(px, x, y, color)
+            for dx in range(drop.size):
+                for dy in range(drop.size):
+                    _paint(px, head_x + dx, head_y + s + dy, (*rgb, byte))
 
 
 def write_portal_still(path=None):
-    """All 8 frames at 4x. Top row ring 1 px, bottom row ring 2 px."""
+    """Every frame at 4x. Top row ring 1 px, bottom row ring 2 px."""
     from pathlib import Path
     from PIL import Image, ImageDraw
 
@@ -308,20 +364,21 @@ def write_portal_still(path=None):
     target = Path(path) if path else directory / "meet-portal.png"
     target.parent.mkdir(parents=True, exist_ok=True)
     scale = 4
-    cell = SPRITE * scale
+    cell_w = SPRITE_W * scale
+    cell_h = SPRITE_H * scale
     gap = 8
     label_w = 56
     catalog = frame_catalog()
-    width = label_w + len(catalog) * cell + (len(catalog) - 1) * gap + gap
-    height = gap + 2 * cell + gap + gap
+    width = label_w + len(catalog) * cell_w + (len(catalog) - 1) * gap + gap
+    height = gap + 2 * cell_h + gap + gap
     sheet = Image.new("RGB", (width, height), (22, 22, 31))
     draw = ImageDraw.Draw(sheet)
     for row, (ring, caption) in enumerate(((1, "1 px"), (2, "2 px"))):
-        top = gap + row * (cell + gap)
-        draw.text((8, top + cell // 2 - 6), caption, fill=(230, 230, 240))
+        top = gap + row * (cell_h + gap)
+        draw.text((8, top + cell_h // 2 - 6), caption, fill=(230, 230, 240))
         for col, (_phase, _index, spec) in enumerate(catalog):
             sprite = render_portal(spec, scale, ring)
-            left = label_w + col * (cell + gap)
+            left = label_w + col * (cell_w + gap)
             sheet.paste(sprite, (left, top), sprite)
     sheet.save(target)
     return target

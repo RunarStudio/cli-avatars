@@ -429,14 +429,15 @@ class TestPreview(unittest.TestCase):
                 self.assertGreater(getattr(image, "n_frames", 1), 10)
                 image.seek(0)
                 opening = image.copy()
-                # Portal centre, scaled 2x. Perch midpoint and the floor midpoint.
+                # White centre of the ring, scaled 2x. The ring sits on the feet,
+                # a few pixels below the perch line (y=240) and the floor line (y=456).
                 perch = floor = False
                 for index in range(image.n_frames):
                     image.seek(index)
                     frame = image.convert("RGB")
-                    if frame.getpixel((440, 230)) == (255, 255, 255):
+                    if frame.getpixel((440, 248)) == (255, 255, 255):
                         perch = True
-                    if frame.getpixel((456, 446)) == (255, 255, 255):
+                    if frame.getpixel((456, 464)) == (255, 255, 255):
                         floor = True
                 self.assertTrue(perch)
                 self.assertTrue(floor)

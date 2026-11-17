@@ -210,6 +210,11 @@ updated: 2026-11-17
   - Appear is 2 frames (ellipse 4→40 wide, beam 0→28), then a 4-frame loop while they walk, meet, and talk (ellipse height ±1, beam alpha 60%/45%). Return or cancel plays the 2-frame close. 200 ms per frame. No portal on a self-chat. One portal for the current pair.
   - Art is drawn in `portal.py` (ring `#7FDBFF`, white centre, shadow `#1B2A4A` at 50%, beam in three alpha bands, no outer glow). Ring thickness is 1 px in the app; 2 px is the light-background option. Preview: `docs/media/meet-animation.gif`. Sheet: `docs/media/meet-portal.png`.
 
+- [x] **F4-PORTAL2** Portal lower, behind the characters, wider base, rain <!-- id: F4-PORTAL2 -->
+  - The ellipse was floating above the feet. Its centre now sits 4 px below the surface line, so the ring lies on the perch or the floor.
+  - The base is 60×12. The solid beam is a seeded rain of 1–2 px dots and short streaks in `#7FDBFF` and white, rising up to 32 px and fading. Eight loop frames at 200 ms. Appear grows the ellipse and starts the rain; disappear stops the rain and shrinks the ellipse.
+  - In the overlay the portal is raised over the floor line and then every avatar and child is raised back in front; bubbles are drawn after that. The preview pastes the portal, then the child, the two avatars, and the bubbles. Sheet: `docs/media/meet-portal.png`.
+
 - [x] **F2** Internal event bus, localhost listener, and `cli-avatars-emit` <!-- id: F2 -->
   - `EventBus` is in-process and thread-safe. `PollingSource` publishes each scan. `EventSource` listens on UDP `127.0.0.1` only (default port 47200). With no packets, scan results are unchanged.
   - Shared token file in the per-user data directory, mode 0600 (Windows: user-only ACL). Reject missing tokens, packets over 2 KB, and rate-limit bursts. Strict schema; unknown fields dropped. `note` / `text` go to the rotating log `events.log` and are not shown.

@@ -1760,9 +1760,29 @@ class OverlayApp:
             self._portal_cache[key] = photo
         x, y = portal_top_left(view.surface_x, view.surface_y, scale)
         self.canvas.create_image(int(round(x)), int(round(y)), image=photo, anchor="nw", tags="portal")
+        # Floor lines are recreated after the avatars, so raising the portal
+        # over the floor line would also put it over the characters. Keep the
+        # ring above the floor mark, then put every avatar and child back in front.
+        # Bubbles are drawn next, so they stay in front of the rain.
         self.canvas.tag_lower("portal")
         if self.canvas.find_withtag("floor_line"):
             self.canvas.tag_raise("portal", "floor_line")
+        if self.canvas.find_withtag("elastic"):
+            self.canvas.tag_raise("elastic")
+        self._raise_characters()
+
+    def _raise_characters(self):
+        groups = [self.avatars.values(), self._lingering_subs]
+        for group in groups:
+            for av in group:
+                for iid in (av.spr_id, av.lbl_id):
+                    if iid:
+                        self.canvas.tag_raise(iid)
+        for subs in self.sub_avatars.values():
+            for sv in subs:
+                for iid in (sv.spr_id, sv.lbl_id):
+                    if iid:
+                        self.canvas.tag_raise(iid)
 
     def _draw_talk_bubbles(self):
         """Icon bubble above the sender. Subagent avatars are not in this map."""

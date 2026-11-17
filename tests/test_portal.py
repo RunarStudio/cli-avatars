@@ -29,14 +29,14 @@ from portal import (  # noqa: E402
     RING_RGB,
     SHADOW_ALPHA,
     SHADOW_RGB,
-    SPRITE,
+    SPRITE_H,
+    SPRITE_W,
     PortalPlayer,
     PortalSpec,
-    alpha_byte,
-    beam_bands,
     frame_catalog,
     frame_index,
     portal_top_left,
+    rain_heads,
     render_portal,
     write_portal_still,
 )
@@ -57,19 +57,19 @@ def _pixels(image):
 
 
 class PortalFrames(unittest.TestCase):
-    def test_eight_frames_and_the_reverse_close(self):
+    def test_frames_grow_then_loop_the_rain_then_close(self):
         catalog = frame_catalog()
-        self.assertEqual(len(catalog), 8)
+        self.assertEqual(len(catalog), 12)
         self.assertEqual([phase for phase, _i, _s in catalog[:2]], [APPEAR, APPEAR])
-        self.assertEqual([phase for phase, _i, _s in catalog[2:6]], [LOOP] * 4)
-        self.assertEqual([phase for phase, _i, _s in catalog[6:]], [DISAPPEAR, DISAPPEAR])
-        self.assertEqual(FRAMES[APPEAR][0], PortalSpec(4, 12, 0, 0.60))
-        self.assertEqual(FRAMES[APPEAR][1], PortalSpec(40, 12, 28, 0.60))
+        self.assertEqual([phase for phase, _i, _s in catalog[2:10]], [LOOP] * 8)
+        self.assertEqual([phase for phase, _i, _s in catalog[10:]], [DISAPPEAR, DISAPPEAR])
+        self.assertEqual(FRAMES[APPEAR][0], PortalSpec(4, 12, 0, 0))
+        self.assertEqual(FRAMES[APPEAR][1].width, 60)
+        self.assertEqual(FRAMES[APPEAR][1].rise, 16)
         self.assertEqual(FRAMES[DISAPPEAR], (FRAMES[APPEAR][1], FRAMES[APPEAR][0]))
-        heights = [spec.height for spec in FRAMES[LOOP]]
-        alphas = [spec.alpha for spec in FRAMES[LOOP]]
-        self.assertEqual(heights, [13, 11, 13, 11])
-        self.assertEqual(alphas, [0.60, 0.45, 0.60, 0.45])
+        self.assertEqual([spec.rise for spec in FRAMES[LOOP]], [32] * 8)
+        self.assertEqual([spec.step for spec in FRAMES[LOOP]], list(range(8)))
+        self.assertEqual([spec.height for spec in FRAMES[LOOP]], [12] * 8)
 
     def test_frame_index_uses_200_ms(self):
         self.assertEqual(frame_index(APPEAR, 0), 0)
@@ -79,20 +79,33 @@ class PortalFrames(unittest.TestCase):
         self.assertIsNone(frame_index(DISAPPEAR, 0.4))
         self.assertEqual(frame_index(LOOP, 0), 0)
         self.assertEqual(frame_index(LOOP, 0.6), 3)
-        self.assertEqual(frame_index(LOOP, 0.8), 0)
+        self.assertEqual(frame_index(LOOP, 1.4), 7)
+        self.assertEqual(frame_index(LOOP, 1.6), 0)
         self.assertEqual(FRAME_MS, 200)
 
-    def test_beam_is_three_bands_from_60_percent_to_clear(self):
-        bands = beam_bands(28, 0.60)
-        self.assertEqual(len(bands), 3)
-        self.assertEqual(bands[0], (9, alpha_byte(0.60)))
-        self.assertEqual(bands[1], (9, alpha_byte(0.30)))
-        self.assertEqual(bands[2][1], 0)
-        self.assertEqual(sum(count for count, _a in bands), 28)
-        dim = beam_bands(28, 0.45)
-        self.assertEqual(dim[0][1], alpha_byte(0.45))
-        self.assertEqual(dim[1][1], alpha_byte(0.225))
-        self.assertEqual(beam_bands(0, 0.60), ())
+    def test_rain_is_seeded_rises_and_is_not_a_column(self):
+        self.assertEqual(rain_heads(FRAMES[LOOP][3]), rain_heads(FRAMES[LOOP][3]))
+        self.assertEqual(rain_heads(FRAMES[APPEAR][0]), ())
+        started = rain_heads(FRAMES[APPEAR][1])
+        looped = [rain_heads(FRAMES[LOOP][i]) for i in range(8)]
+        self.assertEqual(len(started), 22)
+        self.assertEqual(len(looped[0]), 22)
+        self.assertNotEqual(looped[0], looped[1])
+        up = down = 0
+        for a, b in zip(looped[0], looped[1]):
+            if b[1] < a[1]:
+                up += 1
+            elif b[1] > a[1]:
+                down += 1
+        self.assertGreater(up, down)
+        self.assertGreater(down, 0)
+        xs = [head[0] for head in looped[0]]
+        self.assertGreater(max(xs) - min(xs), 40)
+        # Half rise on the way in, full rise while they talk.
+        self.assertLess(min(head[1] for head in started), 34)
+        self.assertLess(min(head[1] for head in looped[0]), min(head[1] for head in started))
+        colors = {head[2] for head in looped[0]}
+        self.assertEqual(colors, {RING_RGB, CENTER_RGB})
 
 
 class PortalPlayerTests(unittest.TestCase):
@@ -147,7 +160,10 @@ class PortalPlayerTests(unittest.TestCase):
     def test_anchor_uses_the_integer_avatar_scale(self):
         self.assertEqual(portal_top_left(220, 120, 1), (220 - ANCHOR_X, 120 - ANCHOR_Y))
         # 2.5 truncates to 2, so the anchor stays on a whole pixel.
-        self.assertEqual(portal_top_left(220, 120, 2.5), (220 - 40, 120 - 72))
+        self.assertEqual(
+            portal_top_left(220, 120, 2.5),
+            (220 - ANCHOR_X * 2, 120 - ANCHOR_Y * 2),
+        )
         placed = portal_top_left(220, 120, 2)
         self.assertEqual(
             (placed[0] + ANCHOR_X * 2, placed[1] + ANCHOR_Y * 2),
@@ -228,28 +244,49 @@ class PortalSprite(unittest.TestCase):
         return found
 
     def test_open_frame_uses_only_the_portal_palette(self):
-        image = render_portal(FRAMES[APPEAR][1], 1, 1)
-        self.assertEqual(image.size, (SPRITE, SPRITE))
-        allowed = {
-            (*CENTER_RGB, 255),
-            (*RING_RGB, 255),
-            (*SHADOW_RGB, SHADOW_ALPHA),
-            (*RING_RGB, alpha_byte(0.60)),
-            (*RING_RGB, alpha_byte(0.30)),
-        }
-        self.assertTrue(self._colors(image) <= allowed)
-        beam = {color[3] for color in self._colors(image) if color[:3] == RING_RGB and color[3] != 255}
-        self.assertEqual(beam, {alpha_byte(0.60), alpha_byte(0.30)})
+        image = render_portal(FRAMES[LOOP][0], 1, 1)
+        self.assertEqual(image.size, (SPRITE_W, SPRITE_H))
+        for color in self._colors(image):
+            self.assertIn(color[:3], {RING_RGB, CENTER_RGB, SHADOW_RGB})
+            if color[:3] == SHADOW_RGB:
+                self.assertEqual(color[3], SHADOW_ALPHA)
         self.assertIn((*CENTER_RGB, 255), self._colors(image))
         self.assertIn((*SHADOW_RGB, SHADOW_ALPHA), self._colors(image))
+        faded = [c for c in self._colors(image) if c[3] not in (0, 255)]
+        self.assertTrue(faded)
 
-    def test_appear_starts_with_no_beam_and_loop_alpha_drops(self):
+    def test_ellipse_is_wide_and_sits_on_the_feet(self):
+        image = render_portal(FRAMES[LOOP][0], 1, 1)
+        xs, ys = [], []
+        for x, y, color in _pixels(image):
+            if color[3] == 255 and color[:3] in (RING_RGB, CENTER_RGB):
+                xs.append(x)
+                ys.append(y)
+        self.assertGreaterEqual(max(xs) - min(xs) + 1, 58)
+        self.assertLessEqual(max(ys) - min(ys) + 1, 16)
+        # The body of the ring is on or below the surface row, not floating above it.
+        self.assertGreater(max(ys), ANCHOR_Y)
+        self.assertGreaterEqual((min(ys) + max(ys)) / 2.0, ANCHOR_Y)
+
+    def test_rain_is_scattered_dots_not_a_solid_beam(self):
+        image = render_portal(FRAMES[LOOP][4], 1, 1)
+        columns = {}
+        for x, y, color in _pixels(image):
+            if y >= ANCHOR_Y or color[3] in (0, 255):
+                continue
+            if color[:3] not in (RING_RGB, CENTER_RGB):
+                continue
+            columns.setdefault(x, 0)
+            columns[x] += 1
+        self.assertTrue(columns)
+        self.assertGreater(max(columns) - min(columns), 40)
+        self.assertLess(max(columns.values()), 12)
         tiny = render_portal(FRAMES[APPEAR][0], 1, 1)
-        beam = [color for _x, _y, color in _pixels(tiny) if color[:3] == RING_RGB and color[3] not in (0, 255)]
-        self.assertEqual(beam, [])
-        dim = render_portal(FRAMES[LOOP][1], 1, 1)
-        alphas = {color[3] for color in self._colors(dim) if color[:3] == RING_RGB and color[3] != 255}
-        self.assertEqual(alphas, {alpha_byte(0.45), alpha_byte(0.225)})
+        above = [
+            color for _x, y, color in _pixels(tiny)
+            if y < ANCHOR_Y and color[3] not in (0, 255)
+        ]
+        self.assertEqual(above, [])
 
     def test_two_pixel_ring_is_thicker_and_scale_is_nearest(self):
         thin = render_portal(FRAMES[APPEAR][1], 1, 1)
@@ -258,13 +295,15 @@ class PortalSprite(unittest.TestCase):
             return sum(1 for _x, _y, color in _pixels(image) if color[:3] == RING_RGB and color[3] == 255)
         self.assertGreater(cyan(thick), cyan(thin))
         scaled = render_portal(FRAMES[APPEAR][1], 2.5, 1)
-        self.assertEqual(scaled.size, (SPRITE * 2, SPRITE * 2))
+        self.assertEqual(scaled.size, (SPRITE_W * 2, SPRITE_H * 2))
 
-    def test_still_shows_eight_frames_at_both_thicknesses(self):
+    def test_still_shows_every_frame_at_both_thicknesses(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = write_portal_still(Path(tmp) / "meet-portal.png")
             from PIL import Image
             with Image.open(path) as sheet:
-                self.assertEqual(sheet.size[0], 56 + 8 * 160 + 7 * 8 + 8)
-                self.assertEqual(sheet.size[1], 8 + 2 * 160 + 8 + 8)
+                frames = len(frame_catalog())
+                cell_w, cell_h, gap, label_w = SPRITE_W * 4, SPRITE_H * 4, 8, 56
+                self.assertEqual(sheet.size[0], label_w + frames * cell_w + (frames - 1) * gap + gap)
+                self.assertEqual(sheet.size[1], gap + 2 * cell_h + gap + gap)
                 self.assertEqual(sheet.mode, "RGB")
