@@ -20,7 +20,7 @@ Claude Code supports **hooks** — shell commands (or Python scripts) that run a
 
 ## Current Status
 
-The listener and the `cli-avatars-emit` command are in (task **F2**). Speech bubbles are not drawn yet. A `note` or `text` field is stored in the local rotating log and is not shown.
+The listener and the `cli-avatars-emit` command are in (task **F2**). A `say` event also draws an icon bubble above the sender (task **F3**). A `note` or `text` field is stored in the local rotating log and is not shown.
 
 ---
 
@@ -39,7 +39,7 @@ After `pip install -e .` the same commands are available as `cli-avatars-emit`.
 | Command | What it does |
 |---------|----------------|
 | `state --source claude --id ID --state busy` | `idle`, `busy`, `thinking`, or `subagent` for that session. For Claude, `ID` is the first 8 characters of the session id. |
-| `say --from claude:ID --to grok:ID --icon question` | Queues an icon for the recipient. Icons: `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing`. |
+| `say --from claude:ID --to grok:ID --icon question` | Queues an icon for the recipient and draws it above the sender. Icons: `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing`. |
 | `say ... --note "..."` | The note is written to the local log only. It is not displayed and is not stored in the channel file. |
 | `inbox --for grok:ID` | Prints queued icons for that recipient. The output is untrusted data from the sender. |
 
@@ -97,6 +97,27 @@ The hook script maps `pre_tool` → `busy`, `post_tool` → `thinking`, `stop` �
 
 ---
 
+## Speech bubbles (F3)
+
+With the overlay running, `say` draws one icon above the avatar named by `--from`. The bubble holds for 3 seconds, then fades. A second `say` from the same avatar waits until the first one is gone. `typing` plays three dots. Any other icon is ignored. `--note` stays in the local log and is not drawn.
+
+```bash
+python -m cli_avatars_emit say --from claude:abcd1234 --to grok:abcd1234 --icon question
+```
+
+`abcd1234` is that avatar's id. For Claude it is the first 8 characters of the session id. When no session is open, the idle avatar's id is `demo`:
+
+```bash
+python -m cli_avatars_emit say --from claude:demo --to claude:demo --icon speech
+python -m cli_avatars_emit say --from claude:demo --to claude:demo --icon typing
+```
+
+The HUD row `💬 Talks N` counts avatar pairs that sent a chat icon in the last 10 seconds. It is grey at 0, white from 1, and blinks once when a new pair starts.
+
+![Icon bubbles](media/icon-bubbles.gif)
+
+---
+
 ## UDP Packet Format
 
 `cli-avatars-emit` sends one UTF-8 JSON object. You only need to build this by hand if you are not using the command. Include the token from the local token file. Do not log the token.
@@ -113,7 +134,7 @@ The hook script maps `pre_tool` → `busy`, `post_tool` → `thinking`, `stop` �
 | `source` + `id` | `state` only | Session identity. Claude ids are 8 characters |
 | `state` | `idle`, `busy`, `thinking`, `subagent` | Avatar status |
 | `from`, `to` | `source:id` | Chat sender and recipient |
-| `icon` | `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing` | The only chat payload that is kept for display later |
+| `icon` | `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing` | Drawn in the bubble above the sender. The only chat payload that is shown |
 | `note`, `text` | optional string | Stored in `events.log` only. Never shown |
 
 Unknown fields are dropped. Packets larger than 2 KB are dropped. The listener does not run anything contained in a packet.

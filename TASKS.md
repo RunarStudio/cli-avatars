@@ -185,6 +185,12 @@ updated: 2026-11-17
 
 ## 🟢 v0.5 — AIs talk to each other
 
+- [x] **F3** Icon-only speech bubbles on `chat` <!-- id: F3 -->
+  - A `chat` event draws one allowlisted icon above the sending avatar (`source:id`). The same avatar queues; the bubble holds 3 s, then fades. When two are open, the newer one sits 4 px higher. Bubbles follow the avatar while it walks or perches. Subagent children are unchanged.
+  - Art is `Sprites/talk/` (16×16 9-slice frame, separate 4 px tail, 9×9 icons). `Sprites/bubble.png` is the round character sheet (192×240), not a 9-slice, so it is not reused.
+  - HUD row `💬 Talks N`: avatar pairs with a chat event in the last 10 s. Grey at 0, white from 1, one blink when a new pair starts.
+  - Not in F3: walking over to meet, free-text bubbles, emotion bubbles on status changes.
+
 - [x] **F2** Internal event bus, localhost listener, and `cli-avatars-emit` <!-- id: F2 -->
   - `EventBus` is in-process and thread-safe. `PollingSource` publishes each scan. `EventSource` listens on UDP `127.0.0.1` only (default port 47200). With no packets, scan results are unchanged.
   - Shared token file in the per-user data directory, mode 0600 (Windows: user-only ACL). Reject missing tokens, packets over 2 KB, and rate-limit bursts. Strict schema; unknown fields dropped. `note` / `text` go to the rotating log `events.log` and are not shown.

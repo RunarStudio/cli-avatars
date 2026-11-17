@@ -137,6 +137,8 @@ python -m cli_avatars_emit say --from claude:abcd1234 --to grok:abcd1234 --icon 
 python -m cli_avatars_emit inbox --for grok:abcd1234
 ```
 
+`say` draws that icon in a bubble over the sending avatar. Trigger and HUD notes: [docs/claude-hooks.md](docs/claude-hooks.md#speech-bubbles-f3).
+
 ---
 
 ## Dependencies
@@ -160,6 +162,7 @@ pip install -r requirements.txt
 cli-avatars/
 ├── overlay.py              ← Entry point — run this
 ├── events.py               ← Event bus and localhost UDP listener
+├── bubbles.py              ← Icon bubble layout, queue, and talk count
 ├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox)
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
 ├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
@@ -170,7 +173,8 @@ cli-avatars/
 │   ├── bubble.png
 │   ├── meowatar.png
 │   ├── michimaru.png
-│   └── ponmi.png
+│   ├── ponmi.png
+│   └── talk/               ← speech-bubble frame, tail, icons
 ├── meowatar_preview/       ← GIF previews of animations
 ├── ponmi_preview/          ← Ponmi sprite GIFs
 └── docs/
@@ -185,7 +189,7 @@ cli-avatars/
 | Version | Focus |
 |---------|-------|
 | v0.4 ✅ | Real sprite sheets, skin picker, hue shift, wall climbing, subagent spring physics |
-| v0.5 | UDP hook listener, emotion bubbles, avatar-to-avatar interaction |
+| v0.5 | UDP listener and icon speech bubbles (F2, F3). Meeting animation still open |
 | v0.6 | System tray, sound effects, config file |
 | v1.0 | Tauri port — cross-platform binary, no Python required |
 
