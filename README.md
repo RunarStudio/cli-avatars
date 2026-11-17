@@ -129,7 +129,13 @@ Row convention:
 
 ## Claude Code Hooks (Real-Time Events)
 
-By default, the overlay polls JSONL session files every 2 seconds. For instant status updates, drop `claude_hooks_example.py` into your project's `.claude/hooks/` folder. Full guide: [docs/claude-hooks.md](docs/claude-hooks.md)
+By default, the overlay polls JSONL session files every 2 seconds. For instant status updates, hooks call `cli-avatars-emit`, which sends a localhost UDP packet the overlay applies on top of that poll. Full guide: [docs/claude-hooks.md](docs/claude-hooks.md)
+
+```bash
+python -m cli_avatars_emit state --source claude --id abcd1234 --state busy
+python -m cli_avatars_emit say --from claude:abcd1234 --to grok:abcd1234 --icon question
+python -m cli_avatars_emit inbox --for grok:abcd1234
+```
 
 ---
 
@@ -153,8 +159,10 @@ pip install -r requirements.txt
 ```
 cli-avatars/
 ├── overlay.py              ← Entry point — run this
+├── events.py               ← Event bus and localhost UDP listener
+├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox)
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
-├── claude_hooks_example.py ← Drop into .claude/hooks/ for instant events
+├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
 ├── gen_ponmi.py            ← Generator for the ponmi sprite sheet
 ├── requirements.txt
 ├── Sprites/                ← PNG sprite sheets

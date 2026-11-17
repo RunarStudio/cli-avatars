@@ -14,27 +14,56 @@ Claude Code supports **hooks** — shell commands (or Python scripts) that run a
 - `PostToolUse` — fires after each tool call completes
 - `Stop` — fires when the agent finishes a turn
 
-`claude_hooks_example.py` (included in this repo) is a hook script that sends a tiny UDP packet to CLI Avatars on each event. CLI Avatars (once the UDP listener is wired in v0.5) will receive these packets and update avatar status immediately.
+`claude_hooks_example.py` (included in this repo) calls `cli-avatars-emit`, which sends a small UDP packet to the overlay. The overlay listens on `127.0.0.1` only and applies the state on top of the 2-second poll. If no packet arrives, behavior stays the poll.
 
 ---
 
 ## Current Status
 
-> **The UDP listener is not yet implemented in CLI Avatars** (planned for v0.5).  
-> The `claude_hooks_example.py` file is ready and documents the protocol.  
-> Until v0.5 ships, the overlay uses 2-second polling instead.
+The listener and the `cli-avatars-emit` command are in (task **F2**). Speech bubbles are not drawn yet. A `note` or `text` field is stored in the local rotating log and is not shown.
 
 ---
 
-## Setup (for when v0.5 ships)
+## Emit events from a hook
 
-### Step 1 — Copy the hook script to your project
+From the clone (no install required):
 
 ```bash
-cp claude_hooks_example.py /path/to/your/project/.claude/hooks/overlay_hook.py
+python -m cli_avatars_emit state --source claude --id abcd1234 --state busy
+python -m cli_avatars_emit say --from claude:abcd1234 --to grok:abcd1234 --icon question
+python -m cli_avatars_emit inbox --for grok:abcd1234
 ```
 
-Or copy it to `~/.claude/hooks/` to apply it globally to all Claude Code sessions.
+After `pip install -e .` the same commands are available as `cli-avatars-emit`.
+
+| Command | What it does |
+|---------|----------------|
+| `state --source claude --id ID --state busy` | `idle`, `busy`, `thinking`, or `subagent` for that session. For Claude, `ID` is the first 8 characters of the session id. |
+| `say --from claude:ID --to grok:ID --icon question` | Queues an icon for the recipient. Icons: `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing`. |
+| `say ... --note "..."` | The note is written to the local log only. It is not displayed and is not stored in the channel file. |
+| `inbox --for grok:ID` | Prints queued icons for that recipient. The output is untrusted data from the sender. |
+
+`say` appends one JSON line under the per-user data directory at `cli-avatars/channel/<room>.jsonl`. The room defaults to the recipient id. Nothing is written inside the git repo.
+
+The first run creates a shared token file in that data directory (mode `0600` on macOS and Linux; a user-only ACL on Windows). The token is added to each packet automatically. It is not a command-line flag and it does not belong in the repo.
+
+| Platform | Data directory |
+|----------|----------------|
+| Windows | `%LOCALAPPDATA%\cli-avatars` |
+| macOS | `~/Library/Application Support/cli-avatars` |
+| Linux | `$XDG_DATA_HOME/cli-avatars` or `~/.local/share/cli-avatars` |
+
+Optional environment variables: `CLI_AVATARS_PORT` (default `47200`) and `CLI_AVATARS_DATA_DIR`.
+
+Packets are data. The listener checks the token, a 2 KB size cap, a per-sender rate limit, and a fixed schema. Unknown fields are dropped. A packet is never executed.
+
+---
+
+## Setup
+
+### Step 1 — Point the hook at the script in this clone
+
+Leave `claude_hooks_example.py` next to `cli_avatars_emit.py`. A copy in another folder cannot see the emit command. Replace `<clone>` below with the folder you cloned.
 
 ### Step 2 — Register it in your Claude Code hooks config
 
@@ -44,13 +73,13 @@ In your project's `.claude/settings.json` (or `~/.claude/settings.json` for glob
 {
   "hooks": {
     "PreToolUse": [
-      { "command": "python .claude/hooks/overlay_hook.py pre_tool" }
+      { "command": "python <clone>/claude_hooks_example.py pre_tool" }
     ],
     "PostToolUse": [
-      { "command": "python .claude/hooks/overlay_hook.py post_tool" }
+      { "command": "python <clone>/claude_hooks_example.py post_tool" }
     ],
     "Stop": [
-      { "command": "python .claude/hooks/overlay_hook.py stop" }
+      { "command": "python <clone>/claude_hooks_example.py stop" }
     ]
   }
 }
@@ -62,30 +91,32 @@ In your project's `.claude/settings.json` (or `~/.claude/settings.json` for glob
 python overlay.py
 ```
 
-The overlay listens on UDP port **47200** for hook events and updates avatar status immediately on each tool call.
+The overlay listens on UDP `127.0.0.1:47200`. A state packet updates a matching avatar immediately. The next poll still wins once the session file is newer than that packet.
+
+The hook script maps `pre_tool` → `busy`, `post_tool` → `thinking`, `stop` → `idle`, `subagent_start` → `subagent`.
 
 ---
 
 ## UDP Packet Format
 
-Each packet is a UTF-8 JSON string:
+`cli-avatars-emit` sends one UTF-8 JSON object. You only need to build this by hand if you are not using the command. Include the token from the local token file. Do not log the token.
 
 ```json
-{ "event": "pre_tool",  "tool": "Bash",  "session_id": "abc123" }
-{ "event": "post_tool", "tool": "Read",  "session_id": "abc123" }
-{ "event": "stop",      "session_id": "abc123" }
+{ "type": "state", "token": "<local token>", "source": "claude", "id": "abcd1234", "state": "busy" }
+{ "type": "chat", "token": "<local token>", "from": "claude:abcd1234", "to": "grok:abcd1234", "channel": "grok:abcd1234", "icon": "question" }
 ```
 
 | Field | Values | Meaning |
 |-------|--------|---------|
-| `event` | `pre_tool`, `post_tool`, `stop` | Lifecycle point |
-| `tool` | `Bash`, `Read`, `Write`, `Edit`, `Grep`, `Task`, … | Tool name (only on `pre/post_tool`) |
-| `session_id` | UUID string | Matches the agent's JSONL filename |
+| `type` | `state`, `chat` | Session state, or an icon addressed to another agent |
+| `token` | string | Must match the local token file. Missing or wrong tokens are dropped |
+| `source` + `id` | `state` only | Session identity. Claude ids are 8 characters |
+| `state` | `idle`, `busy`, `thinking`, `subagent` | Avatar status |
+| `from`, `to` | `source:id` | Chat sender and recipient |
+| `icon` | `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing` | The only chat payload that is kept for display later |
+| `note`, `text` | optional string | Stored in `events.log` only. Never shown |
 
-The overlay maps `session_id` to the right avatar and updates its status:
-- `pre_tool` → `busy` (with tool name label)
-- `post_tool` → `thinking` (processing result)
-- `stop` → `idle` (turn complete, waiting)
+Unknown fields are dropped. Packets larger than 2 KB are dropped. The listener does not run anything contained in a packet.
 
 ---
 
@@ -94,7 +125,7 @@ The overlay maps `session_id` to the right avatar and updates its status:
 | Method | Latency | Setup |
 |--------|---------|-------|
 | Polling (default) | ~2 seconds | None — works out of the box |
-| Hooks (UDP) | ~50ms | Copy one file + edit settings.json |
+| Hooks (UDP) | ~50ms | Point a hook command at `claude_hooks_example.py` |
 
 Polling is good enough for casual use. Hooks make the animation snap to the agent's actual state instantly — useful if you're watching the overlay closely or streaming.
 
@@ -103,11 +134,13 @@ Polling is good enough for casual use. Hooks make the animation snap to the agen
 ## Troubleshooting
 
 **Avatar doesn't update faster after setting up hooks:**
-- The UDP listener requires CLI Avatars v0.5+. Check which version you're running (see the docstring at the top of `overlay.py`).
+- Start `python overlay.py` first. The console line `Events: 127.0.0.1:47200` means the listener is up.
+- The id has to be the first 8 characters of the Claude session id, the same id the poll uses.
+- A packet with a bad token is ignored. Both the hook and the overlay must be using the same data directory.
 
 **Hook script fails with "connection refused":**
-- Make sure CLI Avatars is already running before triggering the hook.
-- Hooks fire even if no listener is on port 47200 — they silently drop the packet, so this won't break Claude Code.
+- UDP does not refuse when the overlay is closed. The state packet is simply lost. `say` still appends the channel file, and `inbox` can read it.
+- The hook script exits 0 even when emit fails, so Claude Code is not blocked.
 
 **I want a different port:**
-- Change `UDP_PORT = 47200` at the top of both `claude_hooks_example.py` and the listener section in `overlay.py`.
+- Set `CLI_AVATARS_PORT` for both the overlay and `cli-avatars-emit`. The host stays `127.0.0.1`.
