@@ -104,6 +104,22 @@ class Stage:
 
 
 @dataclass(frozen=True)
+class MeetingMark:
+    """Where the portal sits for the current pair.
+
+    ``x`` and ``y`` are the meeting point on the surface: the perch midpoint
+    while they share a window, or the floor midpoint of the centers they had
+    when the walk started. ``y`` is the perch line or the top of the floor.
+    """
+
+    pair: tuple
+    phase: str
+    kind: str
+    x: float
+    y: float
+
+
+@dataclass(frozen=True)
 class Steer:
     """One frame of movement for an avatar that is in a meeting.
 
@@ -367,6 +383,31 @@ class MeetingPlanner:
             return None
         return self._active.pair
 
+    def mark(self, stage: Stage) -> Optional[MeetingMark]:
+        """The meeting point for the portal, or None when nobody is meeting.
+
+        A self-chat never becomes active, so it has no mark. The queued
+        third avatar is not a second mark.
+        """
+        meet = self._active
+        if meet is None:
+            return None
+        x = float(meet.anchor)
+        y = float(stage.floor_y)
+        if meet.kind == "perch":
+            left = stage.poses.get(meet.left_id)
+            right = stage.poses.get(meet.right_id)
+            span = _shared_span(left, right, stage) if left is not None and right is not None else None
+            if span is not None and span.perch_id == meet.perch_id:
+                x = (span.x1 + span.x2) / 2.0
+                y = float(span.y)
+            else:
+                for item in stage.perches:
+                    if item.perch_id == meet.perch_id:
+                        y = float(item.y)
+                        break
+        return MeetingMark(meet.pair, meet.phase, meet.kind, x, y)
+
     def note(self, sender: str, recipient: str, now: float,
              avatar_ids: Iterable[str]) -> str:
         """Record one chat. Ids are ``source:id`` or the avatar id itself.
@@ -575,6 +616,10 @@ class MeetingBoard:
                 self.planner.note(sender, recipient, ts, ids)
             return self.planner.step(stage, now, speed)
 
+    def mark(self, stage: Stage) -> Optional[MeetingMark]:
+        with self._lock:
+            return self.planner.mark(stage)
+
     def release(self, agent_id: str) -> None:
         with self._lock:
             self.planner.release(agent_id)
@@ -699,6 +744,7 @@ def write_meet_gif(path=None):
     from pathlib import Path
     from PIL import Image, ImageDraw
     from bubbles import VisibleBubble, render_bubble
+    from portal import PortalPlayer, portal_top_left, render_portal
 
     directory = Path(__file__).resolve().parent / "docs" / "media"
     target = Path(path) if path else directory / "meet-animation.gif"
@@ -739,9 +785,11 @@ def write_meet_gif(path=None):
         return stage, child, "Different windows: both drop to the floor", ("question", "speech")
 
     shots = []
+    portal_art = {}
 
     def play(stage, child, title, icons):
         planner = MeetingPlanner()
+        portal = PortalPlayer()
         planner.note("a", "b", 0.0, stage.poses)
         now = 0.0
         child_xy = child
@@ -754,9 +802,10 @@ def write_meet_gif(path=None):
                 (stage.poses["a"].x, stage.poses["a"].y),
                 child_xy,
             )
+            view = portal.advance(planner.mark(stage), now)
             if tick % 3 == 0:
                 images.append(draw_frame(
-                    stage, child_xy, title, icons, frames, tinted, child_frame, tick, ground,
+                    stage, child_xy, title, icons, frames, tinted, child_frame, tick, ground, view,
                 ))
             if planner.phase("a") == Phase.TALK:
                 break
@@ -765,7 +814,7 @@ def write_meet_gif(path=None):
             images.extend([images[-1]] * 8)
         return images
 
-    def draw_frame(stage, child_xy, title, icons, walk, blue, child, tick, bg):
+    def draw_frame(stage, child_xy, title, icons, walk, blue, child, tick, bg, portal_view):
         from bubbles import integer_scale
         canvas = Image.new("RGBA", (screen_w, screen_h), bg)
         draw = ImageDraw.Draw(canvas)
@@ -776,6 +825,15 @@ def write_meet_gif(path=None):
         draw.rectangle([0, int(floor_y), screen_w, screen_h], fill=(36, 32, 48, 255))
         draw.line([0, int(floor_y), screen_w, int(floor_y)], fill=(90, 80, 110, 255))
         draw.text((8, 6), title, fill=(230, 230, 240, 255))
+        # Portal on the meeting point, behind both avatars and the child.
+        if portal_view is not None:
+            key = (portal_view.phase, portal_view.index)
+            sprite = portal_art.get(key)
+            if sprite is None:
+                sprite = render_portal(portal_view.spec, 1, 1)
+                portal_art[key] = sprite
+            px, py = portal_top_left(portal_view.surface_x, portal_view.surface_y, 1)
+            _paste(canvas, sprite, px, py, 1)
         # Subagent: bubble skin, hanging on the spring. Not a second parent.
         cx, cy = child_xy
         parent = stage.poses["a"]

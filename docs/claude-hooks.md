@@ -158,7 +158,13 @@ A self-chat, while the single idle avatar is showing, stays put and only shows t
 python -m cli_avatars_emit say --from claude:demo --to claude:demo --icon speech
 ```
 
+A portal opens on that meeting point when the walk starts and closes when they wander off or the meeting is cancelled. Nothing is drawn for a self-chat.
+
 ![Meeting walk](media/meet-animation.gif)
+
+Frame sheet, 4×. Top row is the 1 px ring, bottom row is the 2 px ring:
+
+![Meeting portal frames](media/meet-portal.png)
 
 ---
 

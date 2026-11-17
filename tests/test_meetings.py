@@ -429,6 +429,17 @@ class TestPreview(unittest.TestCase):
                 self.assertGreater(getattr(image, "n_frames", 1), 10)
                 image.seek(0)
                 opening = image.copy()
+                # Portal centre, scaled 2x. Perch midpoint and the floor midpoint.
+                perch = floor = False
+                for index in range(image.n_frames):
+                    image.seek(index)
+                    frame = image.convert("RGB")
+                    if frame.getpixel((440, 230)) == (255, 255, 255):
+                        perch = True
+                    if frame.getpixel((456, 446)) == (255, 255, 255):
+                        floor = True
+                self.assertTrue(perch)
+                self.assertTrue(floor)
             # One scaled Caine, cropped to the left side of the opening frame.
             # A second full-size copy (the old bug) roughly doubles the red pixels.
             one = parent_frame_red(_load_walk_frames()[0])

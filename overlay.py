@@ -49,6 +49,7 @@ from events import (
 )
 from bubbles import BubbleBoard, integer_scale, render_bubble
 from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
+from portal import PortalPlayer, portal_top_left, render_portal
 
 VERSION = "0.4"
 
@@ -1213,6 +1214,8 @@ class OverlayApp:
         self._bubble_icon_photo = None
         self._bubble_icon_id    = None
         self._tray = None
+        self._portal = PortalPlayer()
+        self._portal_cache = {}
 
         threading.Thread(target=self.scanner.loop, daemon=True).start()
         threading.Thread(target=self.terrain.loop, daemon=True).start()
@@ -1468,6 +1471,7 @@ class OverlayApp:
         self._bursts   = [b for b in self._bursts   if b.tick(self.canvas)]
         self._glitches = [g for g in self._glitches if g.tick()]
 
+        self._draw_portal(floors, floor_hwnds)
         self._draw_talk_bubbles()
         self._update_hud_win(agents)
         self.root.after(1000 // OVERLAY_FPS, self._tick)
@@ -1733,6 +1737,32 @@ class OverlayApp:
             child.bind("<ButtonPress-1>",   _drag_start)
             child.bind("<B1-Motion>",       _drag_move)
             child.bind("<ButtonRelease-1>", _drag_end)
+
+    def _draw_portal(self, floors, floor_hwnds):
+        """One portal on the meeting surface, behind the avatars."""
+        self.canvas.delete("portal")
+        if not HAS_PIL:
+            return
+        try:
+            stage = self._meeting_stage(floors, floor_hwnds)
+            view = self._portal.advance(self.scanner.meetings.mark(stage), time.time())
+        except Exception:
+            logging.getLogger("cli_avatars.portal").exception("portal draw failed")
+            return
+        if view is None:
+            return
+        scale = integer_scale(AVATAR_SCALE)
+        key = (view.phase, view.index, scale)
+        photo = self._portal_cache.get(key)
+        if photo is None:
+            image = render_portal(view.spec, scale, 1)
+            photo = ImageTk.PhotoImage(image)
+            self._portal_cache[key] = photo
+        x, y = portal_top_left(view.surface_x, view.surface_y, scale)
+        self.canvas.create_image(int(round(x)), int(round(y)), image=photo, anchor="nw", tags="portal")
+        self.canvas.tag_lower("portal")
+        if self.canvas.find_withtag("floor_line"):
+            self.canvas.tag_raise("portal", "floor_line")
 
     def _draw_talk_bubbles(self):
         """Icon bubble above the sender. Subagent avatars are not in this map."""
