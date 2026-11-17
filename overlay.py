@@ -33,11 +33,11 @@ import threading
 import time
 import math
 import random
-import json
 import traceback
 from dataclasses import dataclass, field
 from typing import Optional
 from pathlib import Path
+from sessions import ClaudeJsonlSource, CompositeSource
 
 VERSION = "0.4"
 
@@ -847,13 +847,19 @@ class Avatar:
 # ═══════════════════════════════════════════════════════════════
 
 class SessionScanner:
-    CLAUDE_DIR = Path.home() / ".claude" / "projects"
+    CLAUDE_DIR = ClaudeJsonlSource.DEFAULT_DIR
 
-    def __init__(self):
+    def __init__(self, sources=None):
         self._agents: dict[str,AgentInfo] = {}
         self._lock    = threading.Lock()
         self._tick    = 0
         self._skin_idx = 0   # cycles through REAL_SESSION_SKINS for new sessions
+        # Built-in Claude source only. Retargeted each scan so CLAUDE_DIR stays live.
+        self._claude_source: Optional[ClaudeJsonlSource] = None
+        if sources is None:
+            self._claude_source = ClaudeJsonlSource(self.CLAUDE_DIR)
+            sources = [self._claude_source]
+        self._source = CompositeSource(sources)
 
     def get_agents(self):
         with self._lock: return dict(self._agents)
@@ -863,31 +869,18 @@ class SessionScanner:
 
     def _scan(self):
         self._tick += 1
+        if self._claude_source is not None:
+            self._claude_source.directory = self.CLAUDE_DIR
         found: dict[str, AgentInfo] = {}
 
-        if self.CLAUDE_DIR.exists():
-            for f in self.CLAUDE_DIR.glob("*/*.jsonl"):
-                try:
-                    if time.time() - f.stat().st_mtime > 900:  # 15 min: older = ended/stale
-                        continue
-                    aid = f.stem[:8]                          # session UUID → 1 avatar per session
-                    status, tool = self._parse_tail(f)
-                    sub_dir = f.parent / f.stem / "subagents"
-                    if sub_dir.exists():
-                        cutoff = time.time() - 1800
-                        subs = sum(1 for sf in sub_dir.glob("*.jsonl")
-                                   if sf.stat().st_mtime > cutoff)
-                    else:
-                        subs = 0
-                    found[aid] = AgentInfo(
-                        agent_id=aid,
-                        name=f"Claude-{aid[:4]}",
-                        status=status, tool=tool, subagents=subs,
-                        last_seen=f.stat().st_mtime,
-                        skin="__new__", is_demo=False,
-                        workspace_hash=f.parent.name)
-                except Exception:
-                    pass
+        for info in self._source.scan():
+            found[info.agent_id] = AgentInfo(
+                agent_id=info.agent_id,
+                name=info.name,
+                status=info.status, tool=info.tool, subagents=info.subagents,
+                last_seen=info.last_seen,
+                skin=info.skin, is_demo=info.is_demo,
+                workspace_hash=info.workspace_hash, pid=info.pid)
 
         # No real sessions → single idle demo avatar (hue assigned at spawn)
         if not found:
@@ -939,28 +932,6 @@ class SessionScanner:
                     pass
         except Exception:
             pass
-
-    def _parse_tail(self, path) -> tuple[str, str]:
-        try:
-            with open(path, "rb") as f:
-                size = f.seek(0, 2)
-                f.seek(max(0, size - 4096))
-                lines = f.read().decode("utf-8", errors="ignore").splitlines()
-            for line in reversed(lines[-30:]):
-                if '"tool_use"' in line:
-                    try:
-                        obj = json.loads(line)
-                        for block in obj.get("message", {}).get("content", []):
-                            if isinstance(block, dict) and block.get("type") == "tool_use":
-                                return S.BUSY, block.get("name", "")
-                    except Exception:
-                        pass
-                    return S.BUSY, ""
-                if '"thinking"' in line:
-                    return S.THINKING, ""
-        except Exception:
-            pass
-        return S.IDLE, ""
 
 
 # ═══════════════════════════════════════════════════════════════

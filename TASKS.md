@@ -184,6 +184,8 @@ updated: 2026-05-14
 
 ## 🔵 v0.5 — Tauri Port
 
+- Step 1 done: SessionSource adapter layer (ClaudeJsonlSource)
+
 - [ ] **Port rendering to PixiJS / HTML5 Canvas inside Tauri webview**
 - [ ] **Rust sidecar for window enumeration** (faster than pywinctl)
 - [ ] **Cross-platform binary** (no Python install required)
