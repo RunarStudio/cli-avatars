@@ -200,6 +200,16 @@ updated: 2026-11-17
   - Bubbles still follow the speaker. The `💬 Talks N` row is unchanged. Nothing in the packet is executed.
   - Planner: `meetings.py`. Preview: `docs/media/meet-animation.gif`. Manual check: `docs/claude-hooks.md`.
 
+- [x] **F4-BUG1** Duplicated avatar in the meeting preview <!-- id: F4-BUG1 -->
+  - Complaint: in `docs/media/meet-animation.gif` the left Caine is drawn twice, almost on top of itself, both on the perch and on the floor.
+  - Cause: the preview pasted a second full-size copy of the parent's walk cell about 16 px away and called it a subagent. The overlay does not. Each main avatar is drawn once in `_tick`. A real subagent is a separate avatar, skin `bubble`, and only exists when that session has subagents. During a meeting it keeps its own offset on the spring line; it is not a clone of the parent's sprite.
+  - Fix: the preview child is the bubble cell, one step behind the parent on the spring. It is not a second Caine.
+
+- [x] **F4-PORTAL** Glowing portal on the meeting point <!-- id: F4-PORTAL -->
+  - A 40×40 portal opens on the surface where the pair will meet, as soon as they start walking. The anchor pixel (20, 36) sits on the perch line, or on the top edge of the floor. The same sprite is used for both. It scales with the avatars' integer factor and is drawn behind them.
+  - Appear is 2 frames (ellipse 4→40 wide, beam 0→28), then a 4-frame loop while they walk, meet, and talk (ellipse height ±1, beam alpha 60%/45%). Return or cancel plays the 2-frame close. 200 ms per frame. No portal on a self-chat. One portal for the current pair.
+  - Art is drawn in `portal.py` (ring `#7FDBFF`, white centre, shadow `#1B2A4A` at 50%, beam in three alpha bands, no outer glow). Ring thickness is 1 px in the app; 2 px is the light-background option. Preview: `docs/media/meet-animation.gif`. Sheet: `docs/media/meet-portal.png`.
+
 - [x] **F2** Internal event bus, localhost listener, and `cli-avatars-emit` <!-- id: F2 -->
   - `EventBus` is in-process and thread-safe. `PollingSource` publishes each scan. `EventSource` listens on UDP `127.0.0.1` only (default port 47200). With no packets, scan results are unchanged.
   - Shared token file in the per-user data directory, mode 0600 (Windows: user-only ACL). Reject missing tokens, packets over 2 KB, and rate-limit bursts. Strict schema; unknown fields dropped. `note` / `text` go to the rotating log `events.log` and are not shown.

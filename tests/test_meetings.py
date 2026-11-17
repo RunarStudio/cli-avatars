@@ -22,9 +22,12 @@ from meetings import (  # noqa: E402
     Phase,
     Stage,
     child_follow,
+    child_hang,
     place_pair,
     tick_world,
     write_meet_gif,
+    _load_child_frame,
+    _load_walk_frames,
 )
 
 W = 32.0
@@ -34,6 +37,26 @@ FEET = 40.0
 
 def pose(aid, x, y, perch, on_ground=True, w=W):
     return AvatarPose(aid, float(x), float(y), w, H, FEET, on_ground, perch, 1, 0.0)
+
+
+def reddish_pixels(image) -> int:
+    """Caine's body is the only strong red in the preview. The bubble is blue."""
+    rgb = image.convert("RGB")
+    px = rgb.load()
+    width, height = rgb.size
+    count = 0
+    for y in range(height):
+        for x in range(width):
+            r, g, b = px[x, y]
+            if r > 150 and g < 140 and r > g + 40 and r > b + 30:
+                count += 1
+    return count
+
+
+def parent_frame_red(cell) -> int:
+    from PIL import Image
+    scaled = cell.resize((cell.width * 2, cell.height * 2), Image.Resampling.NEAREST)
+    return reddish_pixels(scaled)
 
 
 def stage(poses, perches, screen_w=400, screen_h=300, floor_y=280):
@@ -379,6 +402,23 @@ class TestChild(unittest.TestCase):
 
 
 class TestPreview(unittest.TestCase):
+    def test_f4_bug1_child_is_not_a_second_full_size_caine(self):
+        """The left avatar is one Caine. The hanger is the smaller bubble subagent."""
+        parent_frame = _load_walk_frames()[0]
+        child = _load_child_frame()
+        self.assertNotEqual(parent_frame.tobytes(), child.tobytes())
+        parent_box = parent_frame.getbbox()
+        child_box = child.getbbox()
+        parent_area = (parent_box[2] - parent_box[0]) * (parent_box[3] - parent_box[1])
+        child_area = (child_box[2] - child_box[0]) * (child_box[3] - child_box[1])
+        self.assertLess(child_area, parent_area * 0.75)
+
+        parent = AvatarPose("a", 120, 80, 48, 48, 40, True, 1, 1, 0.0)
+        x, y = child_hang(parent, child.size[0], child.size[1])
+        # The old preview sat a second full cell 16 px to the left, overlapping.
+        self.assertLessEqual(x + child.size[0], parent.x - 8)
+        self.assertLess(abs(y - parent.y), parent.h)
+
     def test_gif_renders_both_scenes(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = write_meet_gif(Path(tmp) / "meet.gif")
@@ -387,6 +427,26 @@ class TestPreview(unittest.TestCase):
             from PIL import Image
             with Image.open(path) as image:
                 self.assertGreater(getattr(image, "n_frames", 1), 10)
+                image.seek(0)
+                opening = image.copy()
+                # Portal centre, scaled 2x. Perch midpoint and the floor midpoint.
+                perch = floor = False
+                for index in range(image.n_frames):
+                    image.seek(index)
+                    frame = image.convert("RGB")
+                    if frame.getpixel((440, 230)) == (255, 255, 255):
+                        perch = True
+                    if frame.getpixel((456, 446)) == (255, 255, 255):
+                        floor = True
+                self.assertTrue(perch)
+                self.assertTrue(floor)
+            # One scaled Caine, cropped to the left side of the opening frame.
+            # A second full-size copy (the old bug) roughly doubles the red pixels.
+            one = parent_frame_red(_load_walk_frames()[0])
+            left = opening.crop((0, 0, 480, opening.height))
+            found = reddish_pixels(left)
+            self.assertGreater(found, one * 0.5)
+            self.assertLess(found, one * 1.35)
 
 
 if __name__ == "__main__":

@@ -164,6 +164,7 @@ cli-avatars/
 ├── events.py               ← Event bus and localhost UDP listener
 ├── bubbles.py              ← Icon bubble layout, queue, and talk count
 ├── meetings.py             ← Walk-to-meet planner (perch or floor)
+├── portal.py               ← Portal on the meeting point (anchor, frames, sprite)
 ├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox)
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
 ├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
