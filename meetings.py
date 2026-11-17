@@ -580,6 +580,58 @@ class MeetingBoard:
             self.planner.release(agent_id)
 
 
+def _load_child_frame():
+    """The subagent skin the overlay spawns (``bubble``), not the parent's sheet.
+
+    A meeting preview must not paste the parent walk cell a second time.
+    The bubble glyph sits in the middle of the cell, so it reads smaller
+    than Caine even though the cell is the same size the app draws.
+    """
+    from pathlib import Path
+    from PIL import Image
+    path = Path(__file__).resolve().parent / "Sprites" / "bubble.png"
+    if path.is_file():
+        sheet = Image.open(path).convert("RGBA")
+        # Row 1 is busy. Overlay subagents are created with status busy.
+        return sheet.crop((0, 48, 48, 96))
+    image = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    px = image.load()
+    for y in range(4, 12):
+        for x in range(4, 12):
+            px[x, y] = (90, 170, 255, 255)
+    return image
+
+
+def child_hang(parent: AvatarPose, child_w: float, child_h: float) -> tuple[float, float]:
+    """Top-left of a child one step behind the parent on the spring.
+
+    A full cell to the left, plus a gap, and a little lower. The cells do
+    not overlap, so it cannot read as a second copy of the parent. ``child_h``
+    is unused; the drop is a fixed step so a parent standing on the taskbar
+    still leaves the child on screen.
+    """
+    del child_h
+    return (parent.x - child_w - 8.0, parent.y + 8.0)
+
+
+def spring_points(x0, y0, x1, y1, segs: int = 8):
+    """Zigzag samples for the purple spring line the overlay draws."""
+    dx, dy = x1 - x0, y1 - y0
+    dist = math.hypot(dx, dy) or 1.0
+    px, py = -dy / dist, dx / dist
+    amp = min(6.0, dist * 0.12)
+    points = []
+    for i in range(segs + 1):
+        t = i / segs
+        mx, my = x0 + dx * t, y0 + dy * t
+        if i == 0 or i == segs:
+            points.append((mx, my))
+        else:
+            sign = 1.0 if i % 2 else -1.0
+            points.append((mx + px * amp * sign, my + py * amp * sign))
+    return points
+
+
 def _load_walk_frames():
     """Caine walk cells (row 1), or a small fallback figure."""
     from pathlib import Path
@@ -653,6 +705,7 @@ def write_meet_gif(path=None):
     target.parent.mkdir(parents=True, exist_ok=True)
 
     frames = _load_walk_frames()
+    child_frame = _load_child_frame()
     pad = _foot_pad(frames[0])
     aw, ah = frames[0].size
     feet = ah - pad
@@ -670,19 +723,19 @@ def write_meet_gif(path=None):
 
     def scene_same():
         perch = PerchSpan(1, 40, 400, 120)
-        a = pose("a", 58, perch)
+        a = pose("a", 120, perch)
         b = pose("b", 300, perch)
         stage = Stage(screen_w, screen_h, floor_y, (perch,), {"a": a, "b": b})
-        child = (a.x - 18, a.y + 6)
+        child = child_hang(a, child_frame.size[0], child_frame.size[1])
         return stage, child, "Same window: meet on the perch", ("speech", "ok")
 
     def scene_floor():
         high = PerchSpan(1, 24, 150, 78)
         low = PerchSpan(2, 270, 416, 104)
-        a = pose("a", 36, high)
+        a = pose("a", 96, high)
         b = pose("b", 312, low)
         stage = Stage(screen_w, screen_h, floor_y, (high, low), {"a": a, "b": b})
-        child = (a.x - 16, a.y + 6)
+        child = child_hang(a, child_frame.size[0], child_frame.size[1])
         return stage, child, "Different windows: both drop to the floor", ("question", "speech")
 
     shots = []
@@ -703,7 +756,7 @@ def write_meet_gif(path=None):
             )
             if tick % 3 == 0:
                 images.append(draw_frame(
-                    stage, child_xy, title, icons, frames, tinted, tick, ground,
+                    stage, child_xy, title, icons, frames, tinted, child_frame, tick, ground,
                 ))
             if planner.phase("a") == Phase.TALK:
                 break
@@ -712,7 +765,7 @@ def write_meet_gif(path=None):
             images.extend([images[-1]] * 8)
         return images
 
-    def draw_frame(stage, child_xy, title, icons, walk, blue, tick, bg):
+    def draw_frame(stage, child_xy, title, icons, walk, blue, child, tick, bg):
         from bubbles import integer_scale
         canvas = Image.new("RGBA", (screen_w, screen_h), bg)
         draw = ImageDraw.Draw(canvas)
@@ -723,15 +776,16 @@ def write_meet_gif(path=None):
         draw.rectangle([0, int(floor_y), screen_w, screen_h], fill=(36, 32, 48, 255))
         draw.line([0, int(floor_y), screen_w, int(floor_y)], fill=(90, 80, 110, 255))
         draw.text((8, 6), title, fill=(230, 230, 240, 255))
-        # Child first, one step behind avatar "a", on the spring line.
+        # Subagent: bubble skin, hanging on the spring. Not a second parent.
         cx, cy = child_xy
         parent = stage.poses["a"]
-        draw.line(
-            [parent.x + parent.w / 2, parent.y + parent.h / 2, cx + aw / 2, cy + ah / 2],
-            fill=(170, 68, 255, 255),
-            width=1,
+        points = spring_points(
+            parent.x + parent.w / 2, parent.y + parent.h / 2,
+            cx + child.size[0] / 2, cy + child.size[1] / 2,
         )
-        _paste(canvas, walk[(tick // 4) % len(walk)], cx, cy, parent.facing)
+        for i in range(len(points) - 1):
+            draw.line([points[i], points[i + 1]], fill=(170, 68, 255, 255), width=1)
+        _paste(canvas, child, cx, cy, 1)
         order = ("a", "b")
         art = {"a": walk, "b": blue}
         for aid in order:
