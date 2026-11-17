@@ -1,44 +1,72 @@
 #!/usr/bin/env python3
-"""
-Claude Code Hooks integration example
-Place this in your project as .claude/hooks/notify_overlay.py
-then register in settings.json:
+"""Claude Code hook that pushes avatar state through cli-avatars-emit.
 
-{
-  "hooks": {
-    "PostToolUse":  [{"command": "python .claude/hooks/notify_overlay.py tool_use $TOOL_NAME"}],
-    "Stop":         [{"command": "python .claude/hooks/notify_overlay.py done"}],
-    "SubagentStart":[{"command": "python .claude/hooks/notify_overlay.py subagent_start"}],
-    "SubagentStop": [{"command": "python .claude/hooks/notify_overlay.py subagent_stop"}]
-  }
-}
+Keep this file inside the cli-avatars clone (next to cli_avatars_emit.py).
+Point the hook command at this path. The script always exits 0, so a missing
+overlay cannot block the agent.
+
+It reads the Claude hook JSON on stdin, takes the first 8 characters of
+session_id (the same id the jsonl scanner uses), and emits one state.
+No free text is sent.
+
+    python claude_hooks_example.py pre_tool
+    python claude_hooks_example.py stop
+    python claude_hooks_example.py pre_tool abcd1234
 """
 
-import sys
-import socket
 import json
-import time
+import sys
+from pathlib import Path
 
-OVERLAY_HOST = "127.0.0.1"
-OVERLAY_PORT = 47200   # overlay listens on this UDP port
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-def notify(event: str, data: dict = None):
-    payload = json.dumps({
-        "event": event,
-        "data":  data or {},
-        "ts":    time.time(),
-    }).encode()
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+# Hook argv name -> avatar state. Unknown names are ignored.
+_STATES = {
+    "pre_tool": "busy",
+    "tool_use": "busy",
+    "post_tool": "thinking",
+    "stop": "idle",
+    "done": "idle",
+    "subagent_start": "subagent",
+    "subagent_stop": "idle",
+}
+
+
+def _session_id(argv: list[str]) -> str:
+    if len(argv) > 2 and argv[2]:
+        return argv[2][:8]
+    raw = ""
+    try:
+        if not sys.stdin.isatty():
+            raw = sys.stdin.read()
+    except Exception:
+        raw = ""
+    sid = ""
+    if raw.strip().startswith("{"):
         try:
-            sock.sendto(payload, (OVERLAY_HOST, OVERLAY_PORT))
-        except Exception as e:
-            print(f"[hooks] overlay notify failed: {e}")
+            sid = str(json.loads(raw).get("session_id") or "")
+        except (json.JSONDecodeError, AttributeError):
+            sid = ""
+    return sid[:8]
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv if argv is None else argv)
+    state = _STATES.get(args[1] if len(args) > 1 else "")
+    sid = _session_id(args)
+    if not state or not sid or not sid[:1].isalnum():
+        return 0
+    try:
+        from cli_avatars_emit import main as emit_main
+        emit_main(["state", "--source", "claude", "--id", sid, "--state", state])
+    except SystemExit:
+        return 0
+    except Exception as exc:
+        print(f"[hooks] emit failed: {exc}")
+    return 0
+
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    if not args:
-        sys.exit(0)
-    event = args[0]
-    extra = {"tool_name": args[1]} if len(args) > 1 else {}
-    notify(event, extra)
-    print(f"[hooks] sent: {event} {extra}")
+    sys.exit(main())

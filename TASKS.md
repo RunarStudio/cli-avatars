@@ -3,7 +3,7 @@ type: tasks
 project: "[[Project - CLI Avatars]]"
 status: active
 tags: [cli-avatars, tasks, development]
-updated: 2026-05-14
+updated: 2026-11-17
 ---
 
 # CLI Avatars — Task Board
@@ -116,6 +116,7 @@ updated: 2026-05-14
 ## 🟠 v0.3 — Richer Agent Interaction
 
 - [ ] **UDP listener for instant hook events**
+  - Superseded by **F2** (`<!-- id: F2 -->`): localhost listener, shared token, and `cli-avatars-emit`. The pose map below is still open.
   - Add `UDPListener` thread in `overlay.py` listening on port 47200
   - Parse events from `claude_hooks_example.py` and update `AgentInfo` directly (bypass poll delay)
 
@@ -181,6 +182,14 @@ updated: 2026-05-14
   - Bind `<B1-Motion>` on HUD canvas items to move the panel
 
 ---
+
+## 🟢 v0.5 — AIs talk to each other
+
+- [x] **F2** Internal event bus, localhost listener, and `cli-avatars-emit` <!-- id: F2 -->
+  - `EventBus` is in-process and thread-safe. `PollingSource` publishes each scan. `EventSource` listens on UDP `127.0.0.1` only (default port 47200). With no packets, scan results are unchanged.
+  - Shared token file in the per-user data directory, mode 0600 (Windows: user-only ACL). Reject missing tokens, packets over 2 KB, and rate-limit bursts. Strict schema; unknown fields dropped. `note` / `text` go to the rotating log `events.log` and are not shown.
+  - States: `idle`, `busy`, `thinking`, `subagent`. Chat icons: `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing`. Channel queue: `channel/<room>.jsonl` in that data directory, never in the repo.
+  - Not in F2: bubble rendering, walking to meet, Grok transcript parsing, MCP, Discord, git channel.
 
 ## 🔵 v0.5 — Tauri Port
 
