@@ -6,7 +6,7 @@ Run: python -m unittest discover -s tests
 import json
 import os
 import socket
-import stat
+import subprocess
 import sys
 import tempfile
 import threading
@@ -39,6 +39,74 @@ from events import (  # noqa: E402
     room_file_name,
 )
 from sessions import SessionInfo, SessionSource  # noqa: E402
+
+
+def _decode_icacls(data: bytes) -> str:
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16")
+    if data and data.count(b"\x00") > len(data) // 4:
+        return data.decode("utf-16-le", errors="replace")
+    for encoding in ("utf-8", "mbcs", "oem"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def _assert_can_read_and_write(path: Path) -> None:
+    if path.is_dir():
+        probe = path / "write-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return
+    original = path.read_bytes()
+    path.write_bytes(original)
+
+
+def assert_private_to_current_user(test: unittest.TestCase, path: Path) -> None:
+    """The current user can read and write ``path``, and nobody else is granted.
+
+    On Windows this reads the DACL with icacls. The test skips only when
+    icacls itself cannot be run, because then the ACL cannot be checked.
+    """
+    _assert_can_read_and_write(path)
+    if os.name != "nt":
+        mode = file_mode(path)
+        test.assertEqual(mode & 0o077, 0)
+        if path.is_dir():
+            test.assertEqual(mode & 0o700, 0o700)
+        else:
+            test.assertEqual(mode & 0o700, 0o600)
+        return
+    try:
+        result = subprocess.run(
+            ["icacls", str(path)],
+            check=False,
+            capture_output=True,
+            shell=False,
+        )
+    except OSError as exc:
+        test.skipTest(f"icacls is not available, so the Windows ACL cannot be checked ({exc})")
+    if result.returncode != 0 and not result.stdout:
+        test.skipTest(
+            f"icacls cannot read the ACL (exit {result.returncode}), so the Windows case cannot be checked"
+        )
+    text = _decode_icacls(result.stdout)
+    aces = [line.strip() for line in text.splitlines() if ":(" in line]
+    test.assertTrue(aces, f"icacls returned no ACEs:\n{text}")
+    user = os.environ.get("USERNAME") or os.environ.get("USER") or ""
+    test.assertTrue(user, "USERNAME is required to check the Windows ACL")
+    test.assertEqual(len(aces), 1, f"expected one ACE, got:\n{text}")
+    ace = aces[0]
+    test.assertIn(user, ace)
+    test.assertNotIn("(I)", ace)
+    permissions = ace.split(":(", 1)[-1]
+    # icacls prints full control as "(F)" or as a trailing F, as in "(OI)(CI)F".
+    test.assertTrue(
+        "(F)" in permissions or permissions.rstrip().endswith("F"),
+        f"ACE is not full control:\n{ace}",
+    )
 
 
 TOKEN = "t" * 24
@@ -101,6 +169,17 @@ class _TempDir(unittest.TestCase):
         return path.read_text(encoding="utf-8")
 
 
+class TestWindowsGrant(unittest.TestCase):
+    def test_inherit_flags_are_directory_only(self):
+        self.assertEqual(events._icacls_grant("USER", directory=False), "USER:F")
+        self.assertEqual(
+            events._icacls_grant(r"PC\USER", directory=True),
+            r"PC\USER:(OI)(CI)F",
+        )
+        self.assertNotIn("(OI)", events._icacls_grant("USER", directory=False))
+        self.assertNotIn("(CI)", events._icacls_grant("USER", directory=False))
+
+
 class TestDataDir(unittest.TestCase):
     def test_override_and_platforms(self):
         self.assertEqual(
@@ -137,10 +216,8 @@ class TestDataDir(unittest.TestCase):
             self.assertGreaterEqual(len(token), 20)
             path = root / "token"
             self.assertTrue(path.is_file())
-            if os.name != "nt":
-                self.assertEqual(file_mode(path) & 0o077, 0)
-                self.assertEqual(file_mode(root) & 0o077, 0)
-                self.assertEqual(stat.S_IMODE(path.stat().st_mode) & 0o700, 0o600)
+            assert_private_to_current_user(self, path)
+            assert_private_to_current_user(self, root)
 
 
 class TestEventBus(unittest.TestCase):
@@ -421,8 +498,7 @@ class TestEmitCLI(_TempDir):
         self.assertNotIn(note, body)
         self.assertNotIn(token, body)
         self.assertNotIn("text", body)
-        if os.name != "nt":
-            self.assertEqual(file_mode(channel) & 0o077, 0)
+        assert_private_to_current_user(self, channel)
 
         inbox = self._emit_stdout(["inbox", "--for", "grok:abcd1234"])
         self.assertTrue(inbox.startswith("untrusted data from the sender"))

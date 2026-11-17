@@ -130,6 +130,37 @@ def default_port() -> int:
     return port
 
 
+def _icacls_grant(principal: str, *, directory: bool) -> str:
+    """icacls permission for one user-only ACE.
+
+    ``(OI)(CI)`` is valid on directories only. On a file, icacls ignores the
+    whole grant. Combined with ``/inheritance:r`` that leaves an empty DACL,
+    and the user who just created the file can no longer open it.
+    """
+    if directory:
+        return f"{principal}:(OI)(CI)F"
+    return f"{principal}:F"
+
+
+def _windows_principal() -> str:
+    """Account icacls should grant. Domain-qualified so the name resolves."""
+    user = os.environ.get("USERNAME") or os.environ.get("USER") or ""
+    domain = os.environ.get("USERDOMAIN") or ""
+    if domain and user:
+        return f"{domain}\\{user}"
+    return user
+
+
+def _run_icacls(args: list[str]) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        ["icacls", *args],
+        check=False,
+        capture_output=True,
+        shell=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+
+
 def _restrict_to_user(path: Path) -> None:
     """Best-effort: only the current user can read this path.
 
@@ -149,17 +180,22 @@ def _restrict_to_user(path: Path) -> None:
 
 
 def _restrict_windows(path: Path) -> None:
-    user = os.environ.get("USERNAME") or os.environ.get("USER")
-    if not user:
+    principal = _windows_principal()
+    if not principal:
         return
-    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    subprocess.run(
-        ["icacls", str(path), "/inheritance:r", "/grant:r", f"{user}:(OI)(CI)F"],
-        check=False,
-        capture_output=True,
-        shell=False,
-        creationflags=flags,
-    )
+    grant = _icacls_grant(principal, directory=path.is_dir())
+    try:
+        result = _run_icacls([str(path), "/inheritance:r", "/grant:r", grant])
+    except OSError:
+        return
+    if result.returncode == 0:
+        return
+    # inheritance:r may already have cleared the DACL. Put the parent's
+    # ACEs back so a failed grant cannot lock the current user out.
+    try:
+        _run_icacls([str(path), "/reset"])
+    except OSError:
+        pass
 
 
 def ensure_private_dir(path: Path) -> Path:
