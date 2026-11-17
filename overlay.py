@@ -26,6 +26,7 @@ Controls:
 """
 
 import ctypes
+import logging
 import re
 import tkinter as tk
 from tkinter import ttk
@@ -46,6 +47,7 @@ from events import (
     agent_key,
     merge_with_events,
 )
+from bubbles import BubbleBoard, integer_scale, render_bubble
 
 VERSION = "0.4"
 
@@ -870,7 +872,9 @@ class SessionScanner:
         # Poll results and UDP events both feed the bus. With no UDP events,
         # merge_with_events returns the polled list unchanged.
         self.bus = EventBus()
+        self.bubbles = BubbleBoard()
         self.bus.subscribe(self._on_bus_event)
+        self.bus.subscribe(self.bubbles.on_event)
         self._events: Optional[EventSource] = None
         self._source = PollingSource(self.bus, CompositeSource(sources))
         if listen:
@@ -1413,6 +1417,7 @@ class OverlayApp:
         self._bursts   = [b for b in self._bursts   if b.tick(self.canvas)]
         self._glitches = [g for g in self._glitches if g.tick()]
 
+        self._draw_talk_bubbles()
         self._update_hud_win(agents)
         self.root.after(1000 // OVERLAY_FPS, self._tick)
 
@@ -1581,8 +1586,14 @@ class OverlayApp:
         # Status label — updated every tick
         self._hud_status_lbl = tk.Label(win, text="", bg=BG, fg=FG,
                                         font=FONT, anchor="w", justify="left",
-                                        padx=10, pady=8)
+                                        padx=10, pady=(8, 0))
         self._hud_status_lbl.pack(fill="x")
+        talk0 = self.scanner.bubbles.talks_at(time.time())
+        self._hud_talks_lbl = tk.Label(
+            win, text="  " + talk0.text, bg=BG, fg=talk0.color,
+            font=FONT, anchor="w", justify="left", padx=10, pady=(2, 8),
+        )
+        self._hud_talks_lbl.pack(fill="x")
 
         tk.Frame(win, height=1, bg="#223366").pack(fill="x", padx=8, pady=(4, 0))
         tk.Label(win, text="HOW TO USE", font=("Consolas", 10, "bold"),
@@ -1624,11 +1635,51 @@ class OverlayApp:
             child.bind("<B1-Motion>",       _drag_move)
             child.bind("<ButtonRelease-1>", _drag_end)
 
+    def _draw_talk_bubbles(self):
+        """Icon bubble above the sender. Subagent avatars are not in this map."""
+        self.canvas.delete("talk_bubble")
+        if not HAS_PIL:
+            return
+        scale = integer_scale(AVATAR_SCALE)
+        boxes = {
+            aid: (av.x, av.y, av.aw, av.ah)
+            for aid, av in self.avatars.items()
+        }
+        try:
+            placed = self.scanner.bubbles.place(time.time(), boxes, scale)
+        except Exception:
+            logging.getLogger("cli_avatars.bubbles").exception("bubble layout failed")
+            return
+        cache = getattr(self, "_talk_cache", None)
+        if cache is None or cache[0] != scale:
+            cache = (scale, {})
+            self._talk_cache = cache
+        store = cache[1]
+        photos = []
+        for item in placed:
+            key = (item.icon, item.typing_frame, scale, round(item.alpha, 2))
+            photo = store.get(key)
+            if photo is None:
+                image = render_bubble(item.icon, scale, item.typing_frame, item.alpha)
+                if image is None:
+                    continue
+                photo = ImageTk.PhotoImage(image)
+                store[key] = photo
+            photos.append(photo)
+            self.canvas.create_image(
+                item.x, item.y, image=photo, anchor="nw", tags="talk_bubble",
+            )
+        self._talk_photos = photos
+
     def _update_hud_win(self, agents):
         if not (self._hud_win and self._hud_win.winfo_exists()):
             return
         rows, _ = _hud_status_text(agents)
         self._hud_status_lbl.config(text="\n".join(text for text, _ in rows))
+        talks = getattr(self, "_hud_talks_lbl", None)
+        if talks is not None and talks.winfo_exists():
+            talk = self.scanner.bubbles.talks_at(time.time())
+            talks.config(text="  " + talk.text, fg=talk.color)
 
     # ── Left-click drag ───────────────────────────────────────────────
 

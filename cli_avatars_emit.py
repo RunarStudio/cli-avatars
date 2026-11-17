@@ -137,7 +137,11 @@ def build_parser() -> argparse.ArgumentParser:
     state.add_argument("--state", required=True, choices=_STATE_CHOICES)
     state.set_defaults(func=cmd_state)
 
-    say = sub.add_parser("say", parents=[common], help="queue a chat icon for another agent")
+    say = sub.add_parser(
+        "say",
+        parents=[common],
+        help="queue a chat icon and show it above the sender",
+    )
     say.add_argument("--from", dest="from_id", required=True, help="source:id of the sender")
     say.add_argument("--to", required=True, help="source:id of the recipient")
     say.add_argument("--icon", required=True, choices=sorted(ICONS))

@@ -13,6 +13,7 @@ cli-avatars-emit = "cli_avatars_emit:main"
 
 [tool.setuptools]
 py-modules = [
+    "bubbles",
     "cli_avatars_emit",
     "events",
     "sessions",
