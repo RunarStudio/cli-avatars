@@ -171,6 +171,26 @@ class SpriteSheet:
                 row_frames.append(cell)
             self._frames.append(row_frames)
             self._photos.append([None] * len(row_frames))
+        self.row_foot_pad = [self._measure_foot_pad(row) for row in self._frames]
+
+    def _measure_foot_pad(self, frames) -> int:
+        """Empty rows under the lowest visible pixel of one animation row.
+
+        Physics stands the avatar on (cell bottom - pad), so the feet,
+        not the empty bottom of the cell, touch the floor.
+        """
+        lowest = 0
+        for cell in frames:
+            bbox = cell.getchannel("A").getbbox()
+            if bbox:
+                lowest = max(lowest, bbox[3])
+        return self.cell_h - lowest if lowest else 0
+
+    def get_foot_pad(self, row: int) -> int:
+        """Pad for a row, with the same idle fallback as get_photo()."""
+        if row >= len(self.row_foot_pad) or not self._frames[row]:
+            row = 0
+        return self.row_foot_pad[row] if self.row_foot_pad else 0
 
     def _is_blank(self, cell: "Image.Image") -> bool:
         """Returns True if a cell has no visible pixels (alpha sum below threshold)."""
@@ -310,6 +330,14 @@ class SpriteRegistry:
         with self._lock:
             sheet = self._sheets.get(name)
         return sheet.get_render_size() if sheet else (48, 48)
+
+    def get_foot_pad(self, name: str, status: str) -> int:
+        """Empty rows below the feet for this skin's animation (0 if unknown)."""
+        with self._lock:
+            sheet = self._sheets.get(name)
+        if not sheet or not hasattr(sheet, "row_foot_pad"):
+            return 0
+        return sheet.get_foot_pad(ANIM_ROW.get(status, 0))
 
     def reload_all(self, scale: float) -> None:
         """Reload every file-backed sheet at a new scale. Skips in-memory hue variants."""

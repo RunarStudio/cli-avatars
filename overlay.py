@@ -26,6 +26,7 @@ Controls:
 """
 
 import ctypes
+import re
 import tkinter as tk
 from tkinter import ttk
 import threading
@@ -48,6 +49,17 @@ except ImportError:
     print("[WARN] pywinctl not installed — window terrain disabled.")
     print("       Install: pip install pywinctl")
 
+# Window perches (WINDOW-PERCHES-PLAN.md): real frames via DWM, visible top
+# edges only. DPI awareness must be set before tk.Tk() is created.
+try:
+    import win32 as w32
+    import perchas
+    HAS_W32 = True
+    print(f"[INFO] DPI mode: {w32.set_dpi_aware()}")
+except Exception as _w32_err:
+    HAS_W32 = False
+    print(f"[WARN] win32 perches unavailable ({_w32_err}) — falling back to pywinctl.")
+
 try:
     from PIL import Image, ImageTk, ImageDraw
     HAS_PIL = True
@@ -69,7 +81,7 @@ except Exception as _sprite_err:
 # ═══════════════════════════════════════════════════════════════
 
 OVERLAY_FPS       = 20
-WINDOW_SCAN_RATE  = 0.5
+WINDOW_SCAN_RATE  = 0.25   # s between window scans (one scan ≈ 1–2 ms)
 SESSION_SCAN_RATE = 2.0
 GRAVITY           = 0.55
 WALK_SPEED        = 1.8
@@ -77,6 +89,8 @@ JUMP_VEL          = -10.0
 AVATAR_W          = 32
 AVATAR_H          = 32
 FLOOR_MARGIN      = 2
+PERCH_MIN_LEN     = 40    # px: shorter visible pieces of a window top are dropped
+PERCH_MIN_Y       = 40    # px: perches higher than this would put the avatar's head off screen
 CHROMA_KEY        = "#010101"
 
 SPRING_REST   = 80    # px rest length of elastic line
@@ -103,7 +117,8 @@ BODY_COLORS = [
 SPRITES_DIR = Path(__file__).parent / "Sprites"
 
 # Skin cycling order for real sessions (index 0 = first real session)
-REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru"]
+REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru",
+                      "ember_mage", "forest_scout", "frost_wanderer"]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -300,6 +315,9 @@ def _load_sprites(registry: "SpriteRegistry") -> None:
         ("amongo",   "amongo.png",       40, 40),
         ("bunnylot", "BunnyLot.png",     40, 56),
         ("michimaru","Michimaru.png",    40, 51),
+        ("ember_mage",     "ember_mage.png",     50, 50),
+        ("forest_scout",   "forest_scout.png",   50, 50),
+        ("frost_wanderer", "frost_wanderer.png", 50, 50),
     ]
     for name, fname, fw, fh in sheets:
         path = SPRITES_DIR / fname
@@ -606,6 +624,7 @@ class Avatar:
         self.vy         = 0.0
         self.dir        = 1
         self.on_ground  = False
+        self.perch_hwnd = None   # window the avatar stands on (rides it when it moves)
         self.frame      = 0
         self.ftick      = 0
         self.idle_t     = 0
@@ -638,21 +657,54 @@ class Avatar:
                 return w, h
         return AVATAR_W, AVATAR_H
 
+    def _foot_pad(self):
+        """Empty rows under the sprite's feet (sprite_loader measures them per sheet)."""
+        if self.registry and hasattr(self.registry, "get_foot_pad"):
+            return self.registry.get_foot_pad(self.agent.skin, self._anim_status)
+        return 0
+
     @property
     def _anim_status(self) -> str:
         if self.agent.status == S.IDLE and (abs(self.vx) > 0.1 or self._wall_climb is not None):
             return S.BUSY
         return self.agent.status
 
-    def update(self, floors, walls=()):
+    @staticmethod
+    def _wall_top_dir(wx, wy1, floors):
+        """+1 if a perch starts at this wall's top (left side), -1 if it ends there (right side), else 0."""
+        for (fx1, fy, fx2, _) in floors:
+            if abs(fy - wy1) <= 2:
+                if abs(fx1 - wx) <= 2: return 1
+                if abs(fx2 - wx) <= 2: return -1
+        return 0
+
+    def update(self, floors, walls=(), floor_hwnds=()):
         self.aw, self.ah = self._sprite_size()
+        fh = self.ah - self._foot_pad()   # feet height: physics uses this, drawing uses ah
+        last_fh = getattr(self, "_last_fh", fh)
+        if self.on_ground and fh != last_fh:
+            self.y -= fh - last_fh        # animation changed: keep the feet on the floor
+        self._last_fh = fh
 
         # Wall climbing overrides normal gravity + walk when active
         if self._wall_climb is not None and not self.spring_mode:
             wx, wy1, wy2 = self._wall_climb
+            # Wall with a perch on top: climb until the feet reach it, then step on
+            # Remember the direction once seen, so one scan without the perch can't cancel the climb
+            top_dir = self._wall_top_dir(wx, wy1, floors) or getattr(self, "_climb_dir", 0)
+            self._climb_dir = top_dir
+            target  = wy1 - fh if top_dir else wy1
             near_x = abs((self.x + self.aw / 2) - wx) < WALL_MARGIN + 6
-            in_y   = self.y < wy2 and self.y + self.ah > wy1
-            if near_x and in_y and self.y > wy1:
+            in_y   = self.y < wy2 and self.y + fh >= wy1
+            if top_dir and near_x and self.y <= target + 1:
+                self._wall_climb, self._climb_dir = None, 0
+                self.y   = float(target)
+                self.vy  = 0.0
+                self.dir = top_dir
+                self.vx  = WALK_SPEED * top_dir
+                self.x   = float(wx + 4) if top_dir > 0 else float(wx - self.aw - 4)
+            elif near_x and in_y and self.y > target:
+                self.on_ground, self.perch_hwnd = False, None   # climbing: not riding a window
                 self.vy = -WALL_CLIMB_SPEED
                 self.vx  = 0.0
                 self.x   = float(wx - self.aw // 2)   # stay glued to wall x
@@ -666,9 +718,9 @@ class Avatar:
                     self._burst_requested = True
                 self._prev_status = curr
                 return
-            else:
-                # Reached top or fell off wall — kick off horizontally
-                self._wall_climb = None
+            elif self._wall_climb is not None:
+                # Reached a covered top or fell off wall — kick off horizontally
+                self._wall_climb, self._climb_dir = None, 0
                 self.vx = WALK_SPEED * self.dir
                 self.vy = JUMP_VEL * 0.3
 
@@ -678,10 +730,12 @@ class Avatar:
 
         all_floors = floors + [(0, self.sh-2, self.sw, self.sh)]
         self.on_ground = False
-        for (fx1, fy, fx2, _) in all_floors:
+        self.perch_hwnd = None
+        for i, (fx1, fy, fx2, _) in enumerate(all_floors):
             if fx1 <= nx + self.aw/2 <= fx2:
-                if self.y + self.ah <= fy <= ny + self.ah:
-                    ny, self.vy, self.on_ground = fy - self.ah, 0.0, True
+                if self.y + fh <= fy <= ny + fh:
+                    ny, self.vy, self.on_ground = fy - fh, 0.0, True
+                    self.perch_hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
                     break
 
         if not self.spring_mode:
@@ -704,7 +758,7 @@ class Avatar:
             if self._wall_climb is None and walls:
                 cx = self.x + self.aw / 2
                 for (wx, wy1, wy2) in walls:
-                    if abs(cx - wx) < WALL_MARGIN and wy1 <= self.y + self.ah and self.y <= wy2:
+                    if abs(cx - wx) < WALL_MARGIN and wy1 <= self.y + fh and self.y <= wy2:
                         if random.random() < WALL_CLIMB_CHANCE:
                             self._wall_climb = (wx, wy1, wy2)
                             break
@@ -814,7 +868,7 @@ class SessionScanner:
         if self.CLAUDE_DIR.exists():
             for f in self.CLAUDE_DIR.glob("*/*.jsonl"):
                 try:
-                    if time.time() - f.stat().st_mtime > 28800:  # 8 hours
+                    if time.time() - f.stat().st_mtime > 900:  # 15 min: older = ended/stale
                         continue
                     aid = f.stem[:8]                          # session UUID → 1 avatar per session
                     status, tool = self._parse_tail(f)
@@ -914,11 +968,45 @@ class SessionScanner:
 # ═══════════════════════════════════════════════════════════════
 
 class WindowTerrain:
-    def __init__(self, own_title):
+    def __init__(self, own_title, screen=None):
         self._floors: list[tuple] = []
         self._walls:  list[tuple] = []
         self._lock   = threading.Lock()
         self._own    = own_title
+        self._screen = screen     # (left, top, right, bottom) of the overlay
+        self._floor_hwnds: list[int] = []          # window of each floor (win32 path)
+        self._win_pos: dict[int, tuple] = {}       # hwnd -> (left, top)
+
+    def _scan(self):
+        if HAS_W32 and self._screen:
+            self._scan_w32()
+        else:
+            self._scan_pwc()
+
+    def _scan_w32(self):
+        """Perches = visible pieces of non-maximized window tops (perchas.py)."""
+        try:
+            wins = w32.list_windows()      # skips minimized, cloaked, our own process
+            perches = perchas.build_perches(wins, self._screen, min_len=PERCH_MIN_LEN)
+            kept   = [p for p in perches if p.y >= PERCH_MIN_Y]
+            floors = [(p.x1, p.y, p.x2, p.y + FLOOR_MARGIN) for p in kept]
+            hwnds  = [p.hwnd for p in kept]
+            walls  = perchas.build_walls(wins, self._screen, min_len=PERCH_MIN_LEN)
+            pos    = {w.hwnd: (w.rect[0], w.rect[1]) for w in wins if not w.maximized}
+        except Exception as e:
+            print(f"[WARN] Terrain (win32): {e}")
+            return
+        with self._lock:
+            self._floors      = floors
+            self._walls       = walls
+            self._floor_hwnds = hwnds
+            self._win_pos     = pos
+
+    def get_snapshot(self):
+        """(floors, walls, floor_hwnds, window positions), all from the same scan."""
+        with self._lock:
+            return (list(self._floors), list(self._walls),
+                    list(self._floor_hwnds), dict(self._win_pos))
 
     def get_floors(self):
         with self._lock: return list(self._floors)
@@ -927,9 +1015,22 @@ class WindowTerrain:
         with self._lock: return list(self._walls)
 
     def loop(self):
-        while True: self._scan(); time.sleep(WINDOW_SCAN_RATE)
+        n, times = 0, []
+        while True:
+            t0 = time.perf_counter()
+            self._scan()
+            n += 1
+            if 20 < n <= 40:               # skip startup (sprite loading), then log once
+                times.append((time.perf_counter() - t0) * 1000)
+                if n == 40:
+                    times.sort()
+                    print(f"[INFO] Terrain scan: median {times[10]:.2f} ms, min {times[0]:.2f}, "
+                          f"max {times[-1]:.2f} ({'win32' if HAS_W32 else 'pywinctl'}), "
+                          f"every {WINDOW_SCAN_RATE}s")
+            time.sleep(WINDOW_SCAN_RATE)
 
-    def _scan(self):
+    def _scan_pwc(self):
+        """Old path (pywinctl): includes shadows, ignores z-order. Fallback only."""
         if not HAS_WINCTL: return
         candidates = []   # (width, x1, y1, x2, y2)
         try:
@@ -1027,7 +1128,8 @@ class OverlayApp:
         self.canvas.pack(fill="both", expand=True)
 
         self.scanner = SessionScanner()
-        self.terrain = WindowTerrain(self.TITLE)
+        self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
+        self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict[str, Avatar] = {}
         self.sub_avatars: dict[str, list[Avatar]] = {}   # parent_id → [sub Avatar, …]
         self._lingering_subs: list["Avatar"] = []         # task-done subs waiting to float away
@@ -1078,8 +1180,9 @@ class OverlayApp:
 
     def _tick(self):
         agents = self.scanner.get_agents()
-        floors = self.terrain.get_floors()
-        walls  = self.terrain.get_walls()
+        floors, walls, floor_hwnds, win_pos = self.terrain.get_snapshot()
+        moves = perchas.window_moves(self._last_win_pos, win_pos) if HAS_W32 else {}
+        self._last_win_pos = win_pos
 
         # ── Main avatars ──────────────────────────────────────────────
         for aid in self.avatars.keys() - agents.keys():
@@ -1099,6 +1202,12 @@ class OverlayApp:
             # Refresh activity timestamp while agent is doing work
             if av.agent.status in (S.BUSY, S.THINKING):
                 av.last_active = time.time()
+            # Transcript writes count as activity; an old file means a stale session
+            if not av.agent.is_demo:
+                if not getattr(av, "_seeded", False):
+                    av.last_active = av.agent.last_seen
+                    av._seeded = True
+                av.last_active = max(av.last_active, av.agent.last_seen)
 
             if av._vanishing:
                 # Float upward, then pop with sprite-colored particles
@@ -1126,7 +1235,10 @@ class OverlayApp:
             if av is self._drag_av:
                 av.vx = av.vy = 0.0
             else:
-                av.update(floors, walls)
+                if av.on_ground and av.perch_hwnd in moves:
+                    dx, dy = moves[av.perch_hwnd]      # ride the moving window
+                    av.x += dx; av.y += dy
+                av.update(floors, walls, floor_hwnds)
                 if av.y > self.sh + 80:
                     av.x = float(random.randint(0, max(1, self.sw - av.aw)))
                     av.y = float(self.sh - av.ah - 10)
@@ -1657,211 +1769,287 @@ class OverlayApp:
         except Exception:
             pass
 
-    # ── Skin picker ───────────────────────────────────────────────────
+    # ── Skin picker ("character select") ──────────────────────────────
+    # Layout from docs/skin-select-concept.html: roster left, animated stage
+    # centre, agent / hue / scale / apply + "on screen now" right.
+
+    PICK = dict(night="#141526", panel="#1d1f36", slot="#262948", line="#3a3e6b",
+                ink="#e8e6f4", dim="#9a98b8", select="#ffcf4a", ground="#c6cccf")
+    PICK_ANIMS = [(0, "idle",  S.IDLE), (1, "walk",  S.BUSY), (2, "sit", S.THINKING),
+                  (3, "stand", S.DONE), (4, "jump",  S.SUBAGENT)]
+    PICK_FRAME_MS = 150
 
     def _open_skin_picker(self):
         if self._picker and self._picker.winfo_exists():
             self._picker.lift(); return
         win = tk.Toplevel(self.root)
         win.title("Avatar Skins")
-        win.geometry("300x440+80+80")
-        win.resizable(False, False)
+        win.geometry("1000x700+80+60")
+        win.minsize(900, 640)
         win.attributes("-topmost", True)
-        win.configure(bg="#0d0d1a")
+        win.configure(bg=self.PICK["night"])
         self._picker = win
         self._build_picker_ui(win)
 
-    def _build_picker_ui(self, win):
-        BG  = "#0d0d1a"; FG = "#aaccff"; SEL = "#223366"; FONT = ("Courier",9)
+    @staticmethod
+    def _picker_sheet(name):
+        if not REGISTRY: return None
+        with REGISTRY._lock:
+            return REGISTRY._sheets.get(name)
 
-        agents    = self.scanner.get_agents()
+    def _picker_frame(self, cache, name, row, t_ms, box, hue=0):
+        """PhotoImage of skin `name`, animation `row`, at time t_ms, fit in box×box.
+        Returns (photo, feet_offset_px) or (None, 0). Cached per sheet/frame/size/hue."""
+        sheet = self._picker_sheet(name)
+        if not sheet or not sheet._frames: return None, 0
+        frames = sheet._frames[row] if row < len(sheet._frames) and sheet._frames[row] else None
+        if frames is None:
+            row = next((r for r, f in enumerate(sheet._frames) if f), None)
+            if row is None: return None, 0
+            frames = sheet._frames[row]
+        i = (t_ms // self.PICK_FRAME_MS) % len(frames)
+        key = (id(sheet), row, i, box, hue)
+        if key not in cache:
+            img = frames[i]
+            if hue and HAS_SPRITES:
+                img = hue_rotate_image(img, float(hue))
+            k = box / max(img.width, img.height)
+            if k >= 2: k = int(k)                   # whole-number upscale keeps pixels crisp
+            if k != 1:
+                img = img.resize((max(1, int(img.width * k)), max(1, int(img.height * k))), Image.NEAREST)
+            pads = getattr(sheet, "row_foot_pad", None)
+            pad = int((pads[row] if pads and row < len(pads) else 0) * k)
+            cache[key] = (ImageTk.PhotoImage(img), pad)
+        return cache[key]
+
+    def _build_picker_ui(self, win):
+        P = self.PICK
+        TITLE = ("Consolas", 18, "bold"); LBL = ("Consolas", 9, "bold")
+        BODY = ("Consolas", 10); SMALL = ("Consolas", 9)
+        cache: dict = {}
+        draws: list = []            # (canvas, item_id, fn() -> (skin, row, hue), box, floor_y, cx)
+
+        agents = self.scanner.get_agents()
         agent_ids = list(agents.keys())
-        labels    = [f"{a.name} {'[D]' if a.is_demo else '[R]'}" for a in agents.values()]
+        labels = [f"{a.name} {'[demo]' if a.is_demo else ''}".strip() for a in agents.values()]
         lbl_to_id = dict(zip(labels, agent_ids))
 
-        top = tk.Frame(win, bg=BG, pady=6)
-        top.pack(fill="x", padx=10)
-        tk.Label(top, text="Agent:", bg=BG, fg=FG, font=FONT).pack(side="left")
+        raw = REGISTRY.list_sheets() if REGISTRY else []
+        skins = [n for n in raw if not re.search(r"_h\d+$", n)]
+        state = {"skin": (agents[agent_ids[0]].skin.split("_h")[0] if agent_ids else
+                          (skins[0] if skins else "")), "row": 0}
+        if state["skin"] not in skins and skins: state["skin"] = skins[0]
 
+        # ── header ────────────────────────────────────────────────
+        head = tk.Frame(win, bg=P["night"]); head.pack(fill="x", padx=16, pady=(14, 8))
+        tk.Label(head, text="CHOOSE YOUR SKIN", font=TITLE, bg=P["night"], fg=P["ink"]).pack(side="left")
+        tk.Label(head, text=f"{len(skins)} skins · {len(agent_ids)} agents", font=SMALL,
+                 bg=P["night"], fg=P["dim"], bd=1, relief="solid", padx=8).pack(side="right")
+
+        grid = tk.Frame(win, bg=P["night"]); grid.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+        grid.columnconfigure(1, weight=1); grid.rowconfigure(0, weight=1)
+
+        def panel(col, width=None):
+            f = tk.Frame(grid, bg=P["panel"], highlightthickness=2, highlightbackground=P["line"],
+                         padx=12, pady=12, width=width or 0)
+            f.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 12, 0))
+            return f
+
+        def label(parent, text):
+            return tk.Label(parent, text=text.upper(), font=LBL, bg=P["panel"], fg=P["dim"], anchor="w")
+
+        # ── roster (left) ─────────────────────────────────────────
+        left = panel(0)
+        label(left, "Skins").pack(fill="x")
+        outer = tk.Frame(left, bg=P["panel"]); outer.pack(fill="both", expand=True, pady=(8, 0))
+        rc = tk.Canvas(outer, bg=P["panel"], highlightthickness=0, width=232)   # wheel scrolls; no light scrollbar
+        rc.pack(side="left", fill="both", expand=True)
+        roster = tk.Frame(rc, bg=P["panel"]); rc.create_window((0, 0), window=roster, anchor="nw")
+        roster.bind("<Configure>", lambda e: rc.configure(scrollregion=rc.bbox("all")))
+        rc.bind("<MouseWheel>", lambda e: rc.yview_scroll(int(-e.delta / 120), "units"))
+
+        cards: dict = {}
+        CARD = 84
+        for i, sn in enumerate(skins):
+            card = tk.Frame(roster, bg=P["slot"], highlightthickness=2, width=108, height=CARD + 30,
+                            highlightbackground=P["line"], cursor="hand2")
+            card.grid(row=i // 2, column=i % 2, padx=3, pady=3)
+            card.pack_propagate(False)                  # same size for every card
+            cv = tk.Canvas(card, width=CARD, height=CARD, bg=P["slot"], highlightthickness=0)
+            cv.pack(padx=4, pady=(4, 0))
+            item = cv.create_image(CARD // 2, CARD, anchor="s")
+            draws.append((cv, item, (lambda s=sn: (s, 0, 0)), CARD - 8, CARD - 4, CARD // 2))
+            tk.Label(card, text=sn.replace("_", " "), font=("Consolas", 8), bg=P["slot"], fg=P["ink"]).pack(pady=(0, 4))
+            for w in (card, cv, *card.winfo_children()):
+                w.bind("<Button-1>", lambda e, s=sn: select(s))
+                w.bind("<MouseWheel>", lambda e: rc.yview_scroll(int(-e.delta / 120), "units"))
+            cards[sn] = card
+        if not skins:
+            tk.Label(roster, text="No skins loaded.", font=BODY, bg=P["panel"], fg=P["dim"]).grid()
+
+        # ── stage (centre) ────────────────────────────────────────
+        mid = panel(1)
+        hud = tk.Frame(mid, bg=P["night"]); hud.pack(fill="x")
+        hud_name = tk.Label(hud, font=LBL, bg=P["night"], fg=P["ink"]); hud_name.pack(side="left", padx=6, pady=4)
+        hud_state = tk.Label(hud, font=LBL, bg=P["night"], fg=P["select"]); hud_state.pack(side="right", padx=6)
+        SW, SH, GROUND_H = 380, 330, 36
+        stage = tk.Canvas(mid, width=SW, height=SH, bg=P["night"], highlightthickness=2,
+                          highlightbackground=P["line"])
+        stage.pack(fill="x")
+        stage.create_rectangle(0, SH - GROUND_H, 4000, SH + 4, fill=P["ground"], outline="", tags="ground")
+        big = stage.create_image(SW // 2, SH - GROUND_H, anchor="s")
+        stage_box = [SH - GROUND_H - 20]
+        draws.append((stage, big, (lambda: (state["skin"], state["row"], hue_var.get())),
+                      None, None, None))
+
+        def _on_stage_resize(e):
+            stage.coords("ground", 0, e.height - GROUND_H, e.width, e.height + 4)
+            stage_box[0] = max(64, e.height - GROUND_H - 20)
+        stage.bind("<Configure>", _on_stage_resize)
+
+        label(mid, "Agent state → animation").pack(fill="x", pady=(10, 4))
+        states = tk.Frame(mid, bg=P["panel"]); states.pack(fill="x")
+        state_btns = []
+        for idx, (row, name, st) in enumerate(self.PICK_ANIMS):
+            b = tk.Label(states, text=f"{name}\n{st}", font=SMALL, bg=P["slot"], fg=P["ink"],
+                         justify="left", padx=8, pady=3, highlightthickness=2,
+                         highlightbackground=P["line"], cursor="hand2")
+            b.pack(side="left", padx=(0, 6))
+            b.bind("<Button-1>", lambda e, r=row: (state.update(row=r), refresh()))
+            state_btns.append(b)
+        meta = tk.Label(mid, font=SMALL, bg=P["panel"], fg=P["ink"], justify="left", anchor="w")
+        meta.pack(fill="x", pady=(10, 0))
+
+        # ── apply panel (right) ───────────────────────────────────
+        right = panel(2)
+        label(right, "Agent").pack(fill="x")
         sel_agent = tk.StringVar(win, value=labels[0] if labels else "")
         if labels:
-            m = tk.OptionMenu(top, sel_agent, *labels)
-            m.config(bg=SEL,fg=FG,activebackground="#334477",activeforeground="white",
-                     font=FONT,highlightthickness=0,bd=0)
-            m["menu"].config(bg=SEL,fg=FG,font=FONT)
-            m.pack(side="left",padx=6)
+            om = tk.OptionMenu(right, sel_agent, *labels)
+            om.config(bg=P["slot"], fg=P["ink"], activebackground=P["line"], activeforeground=P["ink"],
+                      font=BODY, highlightthickness=0, bd=0, width=22, anchor="w")
+            om["menu"].config(bg=P["slot"], fg=P["ink"], font=BODY)
+            om.pack(fill="x", pady=(4, 10))
+        else:
+            tk.Label(right, text="No sessions", font=BODY, bg=P["panel"], fg=P["dim"]).pack(anchor="w", pady=(4, 10))
 
-        # ── Scale slider ──────────────────────────────────────────
-        tk.Frame(win, bg="#223366", height=1).pack(fill="x", padx=10, pady=(6,2))
-        sc_row = tk.Frame(win, bg=BG, pady=3)
-        sc_row.pack(fill="x", padx=10)
-        tk.Label(sc_row, text="Scale:", bg=BG, fg=FG, font=FONT).pack(side="left")
-        _sc_lbl = tk.Label(sc_row, text=f"{AVATAR_SCALE:.1f}×",
-                           bg=BG, fg="#44ff88", font=FONT, width=4)
-        _sc_lbl.pack(side="right")
+        hue_lbl = label(right, "Hue 0°"); hue_lbl.pack(fill="x")
+        hue_var = tk.IntVar(win, value=0)
+        tk.Scale(right, variable=hue_var, from_=0, to=345, resolution=15, orient="horizontal",
+                 showvalue=False, bg=P["panel"], troughcolor=P["slot"], highlightthickness=0,
+                 activebackground=P["select"], command=lambda v: refresh()).pack(fill="x", pady=(2, 10))
+
+        sc_lbl = label(right, f"Scale {AVATAR_SCALE:.1f}×"); sc_lbl.pack(fill="x")
         def _on_scale(val):
             global AVATAR_SCALE
-            AVATAR_SCALE = round(float(val) * 2) / 2   # snap to 0.5 steps
-            _sc_lbl.config(text=f"{AVATAR_SCALE:.1f}×")
-            if REGISTRY:
-                REGISTRY.reload_all(AVATAR_SCALE)
-        tk.Scale(sc_row, from_=0.5, to=4.0, resolution=0.5, orient="horizontal",
-                 command=_on_scale, bg=BG, fg=FG, troughcolor="#223366",
-                 highlightthickness=0, showvalue=False, length=140,
-                 ).pack(side="left", padx=6)
-        tk.Frame(win, bg="#223366", height=1).pack(fill="x", padx=10, pady=(2,4))
+            AVATAR_SCALE = round(float(val) * 2) / 2
+            sc_lbl.config(text=f"SCALE {AVATAR_SCALE:.1f}×")
+            if REGISTRY: REGISTRY.reload_all(AVATAR_SCALE)
+            cache.clear()
+        sc = tk.Scale(right, from_=0.5, to=4.0, resolution=0.5, orient="horizontal", showvalue=False,
+                      bg=P["panel"], troughcolor=P["slot"], highlightthickness=0, command=_on_scale)
+        sc.set(AVATAR_SCALE); sc.pack(fill="x", pady=(2, 12))
 
-        # ── Hue shift slider ──────────────────────────────────────────
-        hue_row = tk.Frame(win, bg=BG, pady=3)
-        hue_row.pack(fill="x", padx=10)
-        tk.Label(hue_row, text="Hue shift:", bg=BG, fg=FG, font=FONT).pack(side="left")
-        _hue_lbl = tk.Label(hue_row, text="0°", bg=BG, fg="#44ff88", font=FONT, width=5)
-        _hue_lbl.pack(side="right")
-        hue_var = tk.IntVar(win, value=0)
-        def _on_hue(val):
-            _hue_lbl.config(text=f"{int(float(val))}°")
-            _update_preview()
-        tk.Scale(hue_row, variable=hue_var, from_=0, to=359, resolution=1,
-                 orient="horizontal", bg=BG, fg=FG, troughcolor="#223366",
-                 highlightthickness=0, showvalue=False, length=140,
-                 command=_on_hue).pack(side="left", padx=6)
+        apply_btn = tk.Label(right, text="APPLY SKIN", font=("Consolas", 13, "bold"), bg=P["select"],
+                             fg=P["night"], pady=8, cursor="hand2")
+        apply_btn.pack(fill="x")
+        toast = tk.Label(right, text="", font=SMALL, bg=P["panel"], fg=P["select"],
+                         wraplength=230, justify="left", anchor="w")
+        toast.pack(fill="x", pady=(6, 8))
 
-        # ── Hue preview ───────────────────────────────────────────────
-        preview_row = tk.Frame(win, bg=BG)
-        preview_row.pack(fill="x", padx=10, pady=(4, 2))
-        _preview_canvas = tk.Canvas(preview_row, width=64, height=64, bg="#111122",
-                                    highlightthickness=1, highlightbackground="#223366")
-        _preview_canvas.pack(side="left")
-        _preview_lbl = tk.Label(preview_row, text="— no skin —", bg=BG,
-                                fg="#556677", font=FONT, anchor="w", justify="left")
-        _preview_lbl.pack(side="left", padx=(10, 0))
-        _preview_photo: list = [None]
+        label(right, "On screen now").pack(fill="x")
+        sess_box = tk.Frame(right, bg=P["panel"]); sess_box.pack(fill="both", expand=True, pady=(4, 0))
 
-        def _update_preview():
-            sn  = sel_skin.get()
-            hue = hue_var.get()
-            if not REGISTRY or not sn or not REGISTRY.has(sn):
-                return
-            with REGISTRY._lock:
-                sheet = REGISTRY._sheets.get(sn)
-            if not sheet or not sheet._frames or not sheet._frames[0]:
-                return
-            frame = sheet._frames[0][0]
-            if hue != 0 and HAS_SPRITES:
-                frame = hue_rotate_image(frame, float(hue))
-            size = 64
-            thumb = frame.resize((size, size), Image.NEAREST)
-            _preview_photo[0] = ImageTk.PhotoImage(thumb)
-            _preview_canvas.delete("all")
-            _preview_canvas.create_image(size // 2, size // 2,
-                                         image=_preview_photo[0], anchor="center")
-            _preview_lbl.config(text=f"{sn}\nhue {hue}°", fg=FG)
+        def render_sessions():
+            for w in sess_box.winfo_children(): w.destroy()
+            draws[:] = [d for d in draws if not getattr(d[0], "_sess", False)]
+            live = self.scanner.get_agents()
+            for aid, a in list(live.items())[:6]:
+                r = tk.Frame(sess_box, bg=P["slot"], highlightthickness=2, highlightbackground=P["line"])
+                r.pack(fill="x", pady=2)
+                cv = tk.Canvas(r, width=40, height=40, bg=P["slot"], highlightthickness=0); cv._sess = True
+                cv.pack(side="left", padx=4, pady=2)
+                it = cv.create_image(20, 40, anchor="s")
+                row = next((rw for rw, _, st in self.PICK_ANIMS if st == a.status), 0)
+                draws.append((cv, it, (lambda s=a.skin, rw=row: (s, rw, 0)), 36, 38, 20))
+                tk.Label(r, text=a.name[:18], font=SMALL, bg=P["slot"], fg=P["ink"]).pack(side="left")
+                tk.Label(r, text=a.status, font=SMALL, bg=P["slot"], fg=P["dim"]).pack(side="right", padx=6)
+            if not live:
+                tk.Label(sess_box, text="—", font=BODY, bg=P["panel"], fg=P["dim"]).pack(anchor="w")
 
-        tk.Frame(win, bg="#223366", height=1).pack(fill="x", padx=10, pady=(4, 4))
-
-        tk.Label(win, text="  Choose skin:", bg=BG, fg=FG, font=FONT, anchor="w"
-                 ).pack(fill="x",padx=10,pady=(4,0))
-
-        # Apply button and separator packed at bottom BEFORE the expanding skin list
-        # so they are always visible regardless of how many skins are loaded.
-        def _apply():
-            aid  = lbl_to_id.get(sel_agent.get())
-            base = sel_skin.get()
-            hue  = hue_var.get()
-            if aid and base:
-                if hue != 0:
-                    variant = f"{base}_h{hue}"
-                    if REGISTRY and not REGISTRY.has(variant):
-                        REGISTRY.load_hue_variant(variant, base, float(hue))
-                    skin = variant
-                else:
-                    skin = base
-                self._apply_skin(aid, skin)
-                btn.config(text="Applied!", fg="#44ff88")
-                win.after(1200, lambda: btn.config(text="Apply", fg=FG))
-
-        btn = tk.Button(win, text="Apply", command=_apply,
-            bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
-            font=("Courier",10,"bold"), relief="flat", padx=14, pady=5, cursor="hand2")
-        btn.pack(side="bottom", pady=8)
-        tk.Frame(win, bg="#223366", height=1).pack(side="bottom", fill="x", padx=10, pady=2)
-
-        scroll_outer = tk.Frame(win, bg=BG)
-        scroll_outer.pack(fill="both", expand=True, padx=10, pady=4)
-
-        sb = tk.Scrollbar(scroll_outer, orient="vertical", bg="#223366",
-                          troughcolor=BG, highlightthickness=0, bd=0)
-        sb.pack(side="right", fill="y")
-
-        sc = tk.Canvas(scroll_outer, bg=BG, highlightthickness=0, yscrollcommand=sb.set)
-        sc.pack(side="left", fill="both", expand=True)
-        sb.config(command=sc.yview)
-
-        sf = tk.Frame(sc, bg=BG)
-        sf_id = sc.create_window((0, 0), window=sf, anchor="nw")
-
-        def _on_inner_configure(e):
-            sc.configure(scrollregion=sc.bbox("all"))
-        def _on_canvas_configure(e):
-            sc.itemconfig(sf_id, width=e.width)
-        sf.bind("<Configure>", _on_inner_configure)
-        sc.bind("<Configure>", _on_canvas_configure)
-
-        def _on_mousewheel(e):
-            sc.yview_scroll(int(-1 * (e.delta / 120)), "units")
-
-        sel_skin = tk.StringVar(win, value="meowatar")
-        row_frames: dict[str,tk.Frame] = {}
-        photos: list = []
-
-        raw_names  = REGISTRY.list_sheets() if REGISTRY else []
-        skin_names = [sn for sn in raw_names
-                      if sn != "bubble"
-                      and not (sn.startswith("amongo_h") and sn[8:].isdigit())]
-        if not skin_names:
-            tk.Label(sf, text="No skins loaded.", bg=BG, fg="#556677", font=FONT).pack(anchor="w")
-        else:
-            for sn in skin_names:
-                row = tk.Frame(sf, bg=BG, cursor="hand2", pady=3)
-                row.pack(fill="x")
-                row_frames[sn] = row
-                pc = tk.Canvas(row, width=48, height=48, bg=BG,
-                               highlightthickness=1, highlightbackground="#223366")
-                pc.pack(side="left", padx=(0,8))
-                if REGISTRY:
-                    ph = REGISTRY.get_thumbnail(sn, 48)
-                    if ph: photos.append(ph); pc.create_image(24,24,image=ph,anchor="center")
-                tk.Label(row,text=sn,bg=BG,fg=FG,font=("Courier",10,"bold"),anchor="w").pack(side="left")
-
-        win._photos = photos
-
-        for w in (sc, sf):
-            w.bind("<MouseWheel>", _on_mousewheel)
-
-        def _select(sn):
-            sel_skin.set(sn)
-            _update_preview()
-            for n,f in row_frames.items():
-                c = SEL if n==sn else BG
-                f.config(bg=c)
-                for ch in f.winfo_children():
-                    try: ch.config(bg=c)
-                    except Exception: pass
-
-        for sn, row in row_frames.items():
-            row.bind("<Button-1>", lambda e,s=sn: _select(s))
-            row.bind("<MouseWheel>", _on_mousewheel)
-            for ch in row.winfo_children():
-                ch.bind("<Button-1>", lambda e,s=sn: _select(s))
-                ch.bind("<MouseWheel>", _on_mousewheel)
-
-        if agent_ids:
-            _select(agents[agent_ids[0]].skin)
-
-        def _on_agent_change(*_):
+        def apply(_e=None):
             aid = lbl_to_id.get(sel_agent.get())
-            if aid and aid in agents: _select(agents[aid].skin)
-        sel_agent.trace("w", _on_agent_change)
+            base, hue = state["skin"], hue_var.get()
+            if not aid or not base: return
+            skin = base
+            if hue:
+                skin = f"{base}_h{hue}"
+                if REGISTRY and not REGISTRY.has(skin):
+                    REGISTRY.load_hue_variant(skin, base, float(hue))
+            self._apply_skin(aid, skin)
+            toast.config(text=f"{sel_agent.get()} is now {base.replace('_', ' ')}"
+                              f"{f' ({hue}°)' if hue else ''}.")
+            win.after(250, render_sessions)
+        apply_btn.bind("<Button-1>", apply)
+
+        # ── behaviour ─────────────────────────────────────────────
+        def select(sn):
+            state["skin"] = sn; refresh()
+
+        def refresh():
+            sn, row = state["skin"], state["row"]
+            for n, c in cards.items():
+                c.config(highlightbackground=P["select"] if n == sn else P["line"])
+            for idx, b in enumerate(state_btns):
+                b.config(highlightbackground=P["select"] if self.PICK_ANIMS[idx][0] == row else P["line"])
+            name, st = next((nm, s) for r, nm, s in self.PICK_ANIMS if r == row)
+            hud_name.config(text=sn.replace("_", " ").upper())
+            hud_state.config(text=f"state: {st}")
+            hue_lbl.config(text=f"HUE {hue_var.get()}°")
+            sheet = self._picker_sheet(sn)
+            if sheet:
+                n = len(sheet._frames[row]) if row < len(sheet._frames) else 0
+                pads = getattr(sheet, "row_foot_pad", [])
+                meta.config(text=(f"Row     {row} · {name}\n"
+                                  f"Frames  {f'{n} × {self.PICK_FRAME_MS} ms' if n else 'empty → uses idle'}\n"
+                                  f"Cell    {sheet.cell_w}×{sheet.cell_h} px at {sheet.scale}×\n"
+                                  f"Feet    {pads[row] if row < len(pads) else 0} px empty below"))
+
+        def on_agent(*_):
+            aid = lbl_to_id.get(sel_agent.get())
+            live = self.scanner.get_agents()
+            if aid in live:
+                sk = live[aid].skin
+                m = re.search(r"_h(\d+)$", sk)
+                hue_var.set(int(m.group(1)) if m else 0)
+                state["skin"] = sk[:m.start()] if m else sk
+                refresh()
+        sel_agent.trace_add("write", on_agent)
+
+        t0 = time.perf_counter()
+        def tick():
+            if not win.winfo_exists(): return
+            t = int((time.perf_counter() - t0) * 1000)
+            for cv, item, fn, box, floor_y, cx in draws:
+                try:
+                    skin, row, hue = fn()
+                    if box is None:                     # the stage: size follows the canvas
+                        box = stage_box[0]
+                        floor_y = int(stage.winfo_height()) - GROUND_H if stage.winfo_height() > 1 else SH - GROUND_H
+                        cx = max(1, stage.winfo_width()) // 2
+                    photo, pad = self._picker_frame(cache, skin, row, t, box, hue)
+                    if photo:
+                        cv.itemconfig(item, image=photo)
+                        cv.coords(item, cx, floor_y + pad)   # feet on the floor line
+                except tk.TclError:
+                    pass
+            if len(cache) > 1500: cache.clear()
+            win.after(50, tick)
+
+        render_sessions()
+        if labels: on_agent()
+        refresh()
+        tick()
 
     def _apply_skin(self, agent_id, skin):
         with self.scanner._lock:
