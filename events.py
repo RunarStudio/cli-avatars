@@ -161,6 +161,110 @@ def _run_icacls(args: list[str]) -> subprocess.CompletedProcess[bytes]:
     )
 
 
+# Permission tail icacls prints: "(F)", "(OI)(CI)(F)", "(OI)(CI)F", "(I)(F)", or "F".
+_ICACLS_PERMS = re.compile(r"(?:\([A-Za-z]+\))+[A-Za-z]*|[A-Za-z]+")
+
+
+def decode_icacls(data: bytes) -> str:
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16")
+    if data and data.count(b"\x00") > len(data) // 4:
+        return data.decode("utf-16-le", errors="replace")
+    for encoding in ("utf-8", "mbcs", "oem"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def parse_icacls_aces(text: str, listed_path: str = "") -> list[tuple[str, str]]:
+    """Return ``(principal, permissions)`` for each ACE in icacls output.
+
+    The first ACE shares a line with the path. That path may contain a
+    drive-letter colon and spaces, so the ACE is read from the end of the
+    line. Later ACEs are indented. The summary line has no permission spec.
+    """
+    aces: list[tuple[str, str]] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        parsed = _split_icacls_ace(_strip_listed_path(line, listed_path))
+        if parsed is not None:
+            aces.append(parsed)
+    return aces
+
+
+def _strip_listed_path(line: str, listed_path: str) -> str:
+    if not listed_path:
+        return line
+    if line.startswith('"'):
+        end = line.find('"', 1)
+        if end != -1 and os.path.normcase(line[1:end]) == os.path.normcase(listed_path):
+            return line[end + 1:].lstrip()
+    if os.path.normcase(line).startswith(os.path.normcase(listed_path)):
+        return line[len(listed_path):].lstrip()
+    return line
+
+
+def _split_icacls_ace(text: str) -> tuple[str, str] | None:
+    idx = text.rfind(":(")
+    if idx > 0:
+        perms = text[idx + 1:].strip()
+        principal = text[:idx].strip()
+    else:
+        match = re.search(r":([A-Za-z]+)\s*$", text)
+        if match is None or match.start() == 0:
+            return None
+        perms = match.group(1)
+        principal = text[:match.start()].strip()
+    if _ICACLS_PERMS.fullmatch(perms) is None or not principal:
+        return None
+    if re.search(r"[A-Za-z]:[\\/]", principal):
+        return None
+    return principal, perms
+
+
+def perm_tokens(perms: str) -> set[str]:
+    flags = {flag.upper() for flag in re.findall(r"\(([A-Za-z]+)\)", perms)}
+    simple = re.sub(r"\([A-Za-z]+\)", "", perms).strip().upper()
+    if simple:
+        flags.add(simple)
+    return flags
+
+
+def is_full_control(perms: str) -> bool:
+    """Full control, optionally inheritable. An inherited ACE is not."""
+    flags = perm_tokens(perms)
+    if "I" in flags:
+        return False
+    return "F" in flags and flags <= {"F", "OI", "CI"}
+
+
+def _same_account(left: str, right: str) -> bool:
+    if left.casefold() == right.casefold():
+        return True
+    return left.rsplit("\\", 1)[-1].casefold() == right.rsplit("\\", 1)[-1].casefold()
+
+
+def other_principals(text: str, listed_path: str, principal: str) -> list[str]:
+    """Principals on ``listed_path`` other than ``principal``.
+
+    ``/grant:r`` replaces only that account's ACE. A directory that already
+    existed (for example a temp dir) keeps its other explicit entries, such
+    as SYSTEM, Administrators, and OWNER RIGHTS. Those still have to be removed
+    so another normal user is not left on the DACL.
+    """
+    found: list[str] = []
+    for ace_principal, _perms in parse_icacls_aces(text, listed_path):
+        if _same_account(ace_principal, principal):
+            continue
+        if ace_principal not in found:
+            found.append(ace_principal)
+    return found
+
+
 def _restrict_to_user(path: Path) -> None:
     """Best-effort: only the current user can read this path.
 
@@ -183,19 +287,22 @@ def _restrict_windows(path: Path) -> None:
     principal = _windows_principal()
     if not principal:
         return
+    target = str(path)
     grant = _icacls_grant(principal, directory=path.is_dir())
     try:
-        result = _run_icacls([str(path), "/inheritance:r", "/grant:r", grant])
+        # Grant first so the user still has an explicit ACE, then delete every
+        # other explicit ACE. /grant:r does not do that second step.
+        result = _run_icacls([target, "/inheritance:r", "/grant:r", grant])
+        if result.returncode != 0:
+            _run_icacls([target, "/reset"])
+            return
+        listed = _run_icacls([target])
+        if listed.returncode != 0 and not listed.stdout:
+            return
+        for other in other_principals(decode_icacls(listed.stdout), target, principal):
+            _run_icacls([target, "/remove", other])
     except OSError:
         return
-    if result.returncode == 0:
-        return
-    # inheritance:r may already have cleared the DACL. Put the parent's
-    # ACEs back so a failed grant cannot lock the current user out.
-    try:
-        _run_icacls([str(path), "/reset"])
-    except OSError:
-        pass
 
 
 def ensure_private_dir(path: Path) -> Path:

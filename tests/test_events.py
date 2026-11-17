@@ -5,7 +5,6 @@ Run: python -m unittest discover -s tests
 
 import json
 import os
-import re
 import socket
 import subprocess
 import sys
@@ -34,25 +33,17 @@ from events import (  # noqa: E402
     format_inbox,
     load_or_create_token,
     merge_with_events,
+    decode_icacls,
+    is_full_control,
+    other_principals,
+    parse_icacls_aces,
     parse_packet,
+    perm_tokens,
     read_inbox,
     resolve_data_dir,
     room_file_name,
 )
 from sessions import SessionInfo, SessionSource  # noqa: E402
-
-
-def _decode_icacls(data: bytes) -> str:
-    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        return data.decode("utf-16")
-    if data and data.count(b"\x00") > len(data) // 4:
-        return data.decode("utf-16-le", errors="replace")
-    for encoding in ("utf-8", "mbcs", "oem"):
-        try:
-            return data.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return data.decode("utf-8", errors="replace")
 
 
 def _assert_can_read_and_write(path: Path) -> None:
@@ -63,86 +54,6 @@ def _assert_can_read_and_write(path: Path) -> None:
         return
     original = path.read_bytes()
     path.write_bytes(original)
-
-
-# icacls permission tail: "(F)", "(OI)(CI)(F)", "(OI)(CI)F", "(I)(F)", or "F".
-_ICACLS_PERMS = re.compile(r"(?:\([A-Za-z]+\))+[A-Za-z]*|[A-Za-z]+")
-
-
-def parse_icacls_aces(text: str, listed_path: str = "") -> list[tuple[str, str]]:
-    """Return ``(principal, permissions)`` for each ACE in icacls output.
-
-    The first ACE is printed on the same line as the path. That path can
-    contain a drive-letter colon and spaces, so the ACE is taken from the
-    end of the line (``DOMAIN\\name:(F)``), not from the first colon.
-    Later ACEs are indented on their own lines. The trailing summary
-    (``Successfully processed`` and its translations) has no permission
-    spec and is ignored.
-    """
-    aces: list[tuple[str, str]] = []
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        body = _strip_listed_path(line, listed_path)
-        parsed = _split_icacls_ace(body)
-        if parsed is not None:
-            aces.append(parsed)
-    return aces
-
-
-def _strip_listed_path(line: str, listed_path: str) -> str:
-    if not listed_path:
-        return line
-    if line.startswith('"'):
-        end = line.find('"', 1)
-        if end != -1:
-            quoted = line[1:end]
-            if os.path.normcase(quoted) == os.path.normcase(listed_path):
-                return line[end + 1:].lstrip()
-    folded = os.path.normcase(line)
-    target = os.path.normcase(listed_path)
-    if folded.startswith(target):
-        return line[len(listed_path):].lstrip()
-    return line
-
-
-def _split_icacls_ace(text: str) -> tuple[str, str] | None:
-    """Split ``principal:(perms)`` from the end of one icacls line."""
-    idx = text.rfind(":(")
-    if idx > 0:
-        perms = text[idx + 1:].strip()
-        principal = text[:idx].strip()
-    else:
-        # A simple right with no parentheses: DOMAIN\name:F
-        match = re.search(r":([A-Za-z]+)\s*$", text)
-        if match is None or match.start() == 0:
-            return None
-        perms = match.group(1)
-        principal = text[:match.start()].strip()
-    if _ICACLS_PERMS.fullmatch(perms) is None or not principal:
-        return None
-    # Still holding the file path means the drive colon was not the separator
-    # we wanted, and the path was not stripped. Do not treat that as an ACE.
-    if re.search(r"[A-Za-z]:[\\/]", principal):
-        return None
-    return principal, perms
-
-
-def _perm_tokens(perms: str) -> set[str]:
-    flags = {flag.upper() for flag in re.findall(r"\(([A-Za-z]+)\)", perms)}
-    simple = re.sub(r"\([A-Za-z]+\)", "", perms).strip().upper()
-    if simple:
-        flags.add(simple)
-    return flags
-
-
-def _is_full_control(perms: str) -> bool:
-    """Full control, optionally inheritable to children. Inherited ACEs are not."""
-    flags = _perm_tokens(perms)
-    if "I" in flags:
-        return False
-    return "F" in flags and flags <= {"F", "OI", "CI"}
 
 
 def assert_private_to_current_user(test: unittest.TestCase, path: Path) -> None:
@@ -173,7 +84,7 @@ def assert_private_to_current_user(test: unittest.TestCase, path: Path) -> None:
         test.skipTest(
             f"icacls cannot read the ACL (exit {result.returncode}), so the Windows case cannot be checked"
         )
-    text = _decode_icacls(result.stdout)
+    text = decode_icacls(result.stdout)
     aces = parse_icacls_aces(text, str(path))
     test.assertEqual(len(aces), 1, f"expected one ACE, got {aces!r} from:\n{text}")
     principal, perms = aces[0]
@@ -181,8 +92,8 @@ def assert_private_to_current_user(test: unittest.TestCase, path: Path) -> None:
     test.assertTrue(user, "USERNAME is required to check the Windows ACL")
     account = principal.rsplit("\\", 1)[-1]
     test.assertEqual(account.casefold(), user.casefold(), f"ACE principal is {principal!r}")
-    test.assertNotIn("I", _perm_tokens(perms))
-    test.assertTrue(_is_full_control(perms), f"ACE is not full control: {principal}:{perms}")
+    test.assertNotIn("I", perm_tokens(perms))
+    test.assertTrue(is_full_control(perms), f"ACE is not full control: {principal}:{perms}")
 
 
 TOKEN = "t" * 24
@@ -254,7 +165,7 @@ class TestIcaclsParse(unittest.TestCase):
         )
         aces = parse_icacls_aces(text, r"D:\Temp\cli-avatars\token")
         self.assertEqual(aces, [(r"SPIDERHOST\ada", "(F)")])
-        self.assertTrue(_is_full_control(aces[0][1]))
+        self.assertTrue(is_full_control(aces[0][1]))
 
     def test_spaces_in_the_path_and_a_summary_in_another_language(self):
         listed = r"D:\Temp\My Folder\token file.txt"
@@ -271,8 +182,8 @@ class TestIcaclsParse(unittest.TestCase):
         listed = r"D:\Temp\My Folder"
         text = f"\"{listed}\" SPIDERHOST\\ada:(OI)(CI)(F)\n"
         self.assertEqual(parse_icacls_aces(text, listed), [(r"SPIDERHOST\ada", "(OI)(CI)(F)")])
-        self.assertTrue(_is_full_control("(OI)(CI)(F)"))
-        self.assertTrue(_is_full_control("(OI)(CI)F"))
+        self.assertTrue(is_full_control("(OI)(CI)(F)"))
+        self.assertTrue(is_full_control("(OI)(CI)F"))
 
     def test_indented_extra_ace_is_counted_and_inherited_is_not_full_control(self):
         listed = r"D:\Temp\cli-avatars\token"
@@ -286,9 +197,9 @@ class TestIcaclsParse(unittest.TestCase):
             [principal for principal, _perms in aces],
             [r"BUILTIN\Administrators", r"NT AUTHORITY\SYSTEM", r"SPIDERHOST\ada"],
         )
-        self.assertFalse(_is_full_control("(I)(F)"))
-        self.assertIn("I", _perm_tokens("(I)(F)"))
-        self.assertNotIn("I", _perm_tokens("(OI)(CI)(F)"))
+        self.assertFalse(is_full_control("(I)(F)"))
+        self.assertIn("I", perm_tokens("(I)(F)"))
+        self.assertNotIn("I", perm_tokens("(OI)(CI)(F)"))
 
     def test_simple_right_without_parentheses(self):
         text = r"D:\Temp\cli-avatars\token SPIDERHOST\ada:F" "\n"
@@ -296,9 +207,32 @@ class TestIcaclsParse(unittest.TestCase):
             parse_icacls_aces(text, r"D:\Temp\cli-avatars\token"),
             [(r"SPIDERHOST\ada", "F")],
         )
-        self.assertTrue(_is_full_control("F"))
-        self.assertFalse(_is_full_control("M"))
-        self.assertFalse(_is_full_control("(RX)"))
+        self.assertTrue(is_full_control("F"))
+        self.assertFalse(is_full_control("M"))
+        self.assertFalse(is_full_control("(RX)"))
+
+    def test_existing_directory_aces_other_than_the_user_are_removed(self):
+        # /grant:r leaves explicit ACEs that were already on a temp directory.
+        listed = r"D:\Temp\cli-avatars-data"
+        text = (
+            f"{listed} SPIDERHOST\\ada:(OI)(CI)(F)\n"
+            "         NT AUTHORITY\\SYSTEM:(OI)(CI)(F)\n"
+            "         BUILTIN\\Administrators:(OI)(CI)(F)\n"
+            "         OWNER RIGHTS:(OI)(CI)(F)\n"
+            "         BUILTIN\\Users:(OI)(CI)(F)\n"
+            "         Everyone:(OI)(CI)(F)\n"
+            "Successfully processed 1 files; Failed processing 0 files\n"
+        )
+        self.assertEqual(
+            other_principals(text, listed, r"SPIDERHOST\ada"),
+            [
+                r"NT AUTHORITY\SYSTEM",
+                r"BUILTIN\Administrators",
+                "OWNER RIGHTS",
+                r"BUILTIN\Users",
+                "Everyone",
+            ],
+        )
 
 
 class TestWindowsGrant(unittest.TestCase):
