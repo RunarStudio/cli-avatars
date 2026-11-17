@@ -48,6 +48,7 @@ from events import (
     merge_with_events,
 )
 from bubbles import BubbleBoard, integer_scale, render_bubble
+from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
 
 VERSION = "0.4"
 
@@ -463,7 +464,7 @@ def _parse_sprite(rows, body_rgba, skin_rgba=(255,200,150,255), dark_rgba=(40,40
             dr.rectangle([x0,y0,x0+scale-1,y0+scale-1], fill=color)
     return img
 
-def make_photo(body_hex, status, frame):
+def make_photo(body_hex, status, frame, mirror=False):
     if not HAS_PIL:
         return None
     br,bg,bb = tuple(int(body_hex.lstrip("#")[i:i+2],16) for i in (0,2,4))
@@ -481,6 +482,9 @@ def make_photo(body_hex, status, frame):
     if status == S.ERROR:
         dr.line([8,12,20,24], fill=(255,60,60,200), width=2)
         dr.line([20,12,8,24], fill=(255,60,60,200), width=2)
+    if mirror:
+        flip = getattr(getattr(Image, "Transpose", Image), "FLIP_LEFT_RIGHT")
+        img = img.transpose(flip)
     return ImageTk.PhotoImage(img)
 
 
@@ -659,6 +663,7 @@ class Avatar:
         self._vanish_frames  = 0
         # Set when task finishes and subagent moves to lingering list
         self._task_done_at: Optional[float] = None
+        self._meet_lock = False
 
     def _sprite_size(self):
         if self.registry:
@@ -688,7 +693,7 @@ class Avatar:
                 if abs(fx2 - wx) <= 2: return -1
         return 0
 
-    def update(self, floors, walls=(), floor_hwnds=()):
+    def update(self, floors, walls=(), floor_hwnds=(), steer=None):
         self.aw, self.ah = self._sprite_size()
         fh = self.ah - self._foot_pad()   # feet height: physics uses this, drawing uses ah
         last_fh = getattr(self, "_last_fh", fh)
@@ -696,8 +701,15 @@ class Avatar:
             self.y -= fh - last_fh        # animation changed: keep the feet on the floor
         self._last_fh = fh
 
+        # A meeting steer replaces wander and wall climbing. Gravity and the
+        # perch/floor catch below stay as they are, so leaving a perch is a fall.
+        locked = steer is not None and steer.lock
+        if locked and self._wall_climb is not None:
+            self._wall_climb = None
+            self._climb_dir = 0
+
         # Wall climbing overrides normal gravity + walk when active
-        if self._wall_climb is not None and not self.spring_mode:
+        if self._wall_climb is not None and not self.spring_mode and not locked:
             wx, wy1, wy2 = self._wall_climb
             # Wall with a perch on top: climb until the feet reach it, then step on
             # Remember the direction once seen, so one scan without the perch can't cancel the climb
@@ -734,6 +746,13 @@ class Avatar:
                 self.vx = WALK_SPEED * self.dir
                 self.vy = JUMP_VEL * 0.3
 
+        if locked:
+            # This frame, not the next one. Wander stores vx for the following frame.
+            self.vx = float(steer.vx)
+            if steer.facing:
+                self.dir = 1 if steer.facing > 0 else -1
+            self._meet_lock = True
+
         self.vy += GRAVITY
         nx = self.x + self.vx
         ny = self.y + self.vy
@@ -748,7 +767,10 @@ class Avatar:
                     self.perch_hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
                     break
 
-        if not self.spring_mode:
+        if not self.spring_mode and not locked:
+            if self._meet_lock:
+                self._meet_lock = False
+                self.idle_t = 0
             # Normal walk AI
             if self.agent.status == S.THINKING and self.on_ground and random.random() < 0.04:
                 self.vy = JUMP_VEL * 0.5
@@ -794,11 +816,13 @@ class Avatar:
         px, py = int(self.x), int(self.y)
         sc     = STATUS_COLOR.get(self.agent.status, "#aaaaaa")
 
+        mirror = self.dir < 0
         photo = None
         if self.registry:
-            photo = self.registry.get_photo(self.agent.skin, self._anim_status, self.frame)
+            photo = self.registry.get_photo(
+                self.agent.skin, self._anim_status, self.frame, mirror=mirror)
         if photo is None:
-            photo = make_photo(self.color, self.agent.status, self.frame)
+            photo = make_photo(self.color, self.agent.status, self.frame, mirror=mirror)
 
         if photo:
             if self._spr_mode == "rect" and self.spr_id:
@@ -875,6 +899,9 @@ class SessionScanner:
         self.bubbles = BubbleBoard()
         self.bus.subscribe(self._on_bus_event)
         self.bus.subscribe(self.bubbles.on_event)
+        # F4: chat between two avatars plans a walk. Bubbles stay on this bus too.
+        self.meetings = MeetingBoard()
+        self.bus.subscribe(self.meetings.on_event)
         self._events: Optional[EventSource] = None
         self._source = PollingSource(self.bus, CompositeSource(sources))
         if listen:
@@ -1211,6 +1238,7 @@ class OverlayApp:
 
         # ── Main avatars ──────────────────────────────────────────────
         for aid in self.avatars.keys() - agents.keys():
+            self.scanner.meetings.release(aid)
             self.avatars.pop(aid).cleanup(self.canvas)
             for sv in self.sub_avatars.pop(aid, []):
                 sv.cleanup(self.canvas)
@@ -1220,19 +1248,36 @@ class OverlayApp:
             self.avatars[aid] = Avatar(agent, self.sw, self.sh, self._cidx, REGISTRY)
             self._cidx += 1
 
+        # Ride window moves before the meeting plan, so a perch that slid
+        # still has both avatars on it when the midpoint is measured.
+        origins = {aid: (av.x, av.y) for aid, av in self.avatars.items()}
+        for aid, av in self.avatars.items():
+            if aid not in agents:
+                continue
+            av.agent = agents[aid]
+            self._refresh_activity(av)
+            if av._vanishing or av is self._drag_av:
+                continue
+            if not av.agent.is_demo and time.time() - av.last_active > 300:
+                continue
+            if av.on_ground and av.perch_hwnd in moves:
+                dx, dy = moves[av.perch_hwnd]
+                av.x += dx
+                av.y += dy
+        if self._drag_av is not None:
+            self.scanner.meetings.release(self._drag_av.agent.agent_id)
+        try:
+            steers = self.scanner.meetings.step(
+                self._meeting_stage(floors, floor_hwnds), time.time(), WALK_SPEED,
+            )
+        except Exception:
+            logging.getLogger("cli_avatars.meetings").exception("meeting step failed")
+            steers = {}
+
         vanished_aids = []
         for aid, av in self.avatars.items():
             av.agent = agents[aid]
-
-            # Refresh activity timestamp while agent is doing work
-            if av.agent.status in (S.BUSY, S.THINKING):
-                av.last_active = time.time()
-            # Transcript writes count as activity; an old file means a stale session
-            if not av.agent.is_demo:
-                if not getattr(av, "_seeded", False):
-                    av.last_active = av.agent.last_seen
-                    av._seeded = True
-                av.last_active = max(av.last_active, av.agent.last_seen)
+            self._refresh_activity(av)
 
             if av._vanishing:
                 # Float upward, then pop with sprite-colored particles
@@ -1260,10 +1305,7 @@ class OverlayApp:
             if av is self._drag_av:
                 av.vx = av.vy = 0.0
             else:
-                if av.on_ground and av.perch_hwnd in moves:
-                    dx, dy = moves[av.perch_hwnd]      # ride the moving window
-                    av.x += dx; av.y += dy
-                av.update(floors, walls, floor_hwnds)
+                av.update(floors, walls, floor_hwnds, steers.get(aid))
                 if av.y > self.sh + 80:
                     av.x = float(random.randint(0, max(1, self.sw - av.aw)))
                     av.y = float(self.sh - av.ah - 10)
@@ -1365,8 +1407,17 @@ class OverlayApp:
                             sv.x + sv.aw / 2, sv.y + sv.ah / 2, "#cc66ff"))
                         to_remove.append(sv)
                 else:
-                    sv.update(floors, walls)
-                    sv.draw(self.canvas)
+                    steer = steers.get(aid) if parent_av is not None else None
+                    if (steer is not None and steer.lock and parent_av is not None
+                            and aid in origins):
+                        sv.x, sv.y = child_follow(
+                            origins[aid], (parent_av.x, parent_av.y), (sv.x, sv.y))
+                        sv.vx = 0.0
+                        sv.vy = 0.0
+                        sv.draw(self.canvas)
+                    else:
+                        sv.update(floors, walls)
+                        sv.draw(self.canvas)
 
             for sv in to_remove:
                 sv.cleanup(self.canvas)
@@ -1420,6 +1471,54 @@ class OverlayApp:
         self._draw_talk_bubbles()
         self._update_hud_win(agents)
         self.root.after(1000 // OVERLAY_FPS, self._tick)
+
+    def _refresh_activity(self, av: "Avatar") -> None:
+        """Bump last_active from status and the session timestamp. Idempotent."""
+        if av.agent.status in (S.BUSY, S.THINKING):
+            av.last_active = time.time()
+        if not av.agent.is_demo:
+            if not getattr(av, "_seeded", False):
+                av.last_active = av.agent.last_seen
+                av._seeded = True
+            av.last_active = max(av.last_active, av.agent.last_seen)
+
+    def _meeting_stage(self, floors, floor_hwnds) -> Stage:
+        """Poses and perches for the meeting planner. The screen floor is not a perch."""
+        perches = []
+        for i, floor in enumerate(floors):
+            fx1, fy, fx2, _ = floor
+            hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
+            pid = int(hwnd) if hwnd is not None else -(i + 1)
+            perches.append(PerchSpan(pid, float(fx1), float(fx2), float(fy)))
+        floor_y = float(self.sh - 2)
+        poses = {}
+        for aid, av in self.avatars.items():
+            if av._vanishing:
+                continue
+            fh = float(av.ah - av._foot_pad())
+            pid = av.perch_hwnd
+            if pid is not None:
+                pid = int(pid)
+            elif av.on_ground and abs((av.y + fh) - floor_y) > 4:
+                cx = av.x + av.aw / 2.0
+                feet = av.y + fh
+                for span in perches:
+                    if span.x1 - 1 <= cx <= span.x2 + 1 and abs(span.y - feet) <= 4:
+                        pid = span.perch_id
+                        break
+            poses[aid] = AvatarPose(
+                agent_id=aid,
+                x=float(av.x),
+                y=float(av.y),
+                w=float(av.aw),
+                h=float(av.ah),
+                feet=fh,
+                on_ground=bool(av.on_ground),
+                perch_id=pid,
+                facing=1 if av.dir >= 0 else -1,
+                vy=float(av.vy),
+            )
+        return Stage(float(self.sw), float(self.sh), floor_y, tuple(perches), poses)
 
     # ── Spring physics ────────────────────────────────────────────────
 
