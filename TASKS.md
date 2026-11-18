@@ -280,6 +280,14 @@ updated: 2026-11-18
   - The app stores, shows, and notifies. It does not execute text and it does not call a model. Summaries are written by an agent through emit, or by the person.
   - Schema: `docs/chat-schema.md`. Protocol: `docs/claude-hooks.md`. Preview: `docs/media/chat-topics.png`.
 
+- [x] **P3E-HOOKS** Claude Code sessions use the local chat <!-- id: P3E-HOOKS -->
+  - `hooks/claude_chat_hook.py` is a stdlib hook. It reads the official Claude Code JSON on stdin (`session_id`, `cwd`, `hook_event_name`, `transcript_path`). The agent id is the first 8 characters of `session_id`, the same id `ClaudeJsonlSource` takes from the transcript file name. The topic id defaults to the cwd folder name, as a slug.
+  - SessionStart and UserPromptSubmit print a short context block (topic summary, pins, unread messages and decision answers) and mark those messages read. Nothing new prints nothing. Output is capped at 2000 characters. `needs_summary` counts as new.
+  - Stop emits `idle`. When `chat.auto_notes` is true (the default), a sanitised note from the last assistant message (240 characters) is stored with `say --note`. Set `chat.auto_notes` to false to disable it. A Stop that is already continuing does not store a second note.
+  - Any failure exits 0. Store locks time out. The script does not run message text.
+  - `cli-avatars-emit hooks install` merges SessionStart, UserPromptSubmit, and Stop into `%USERPROFILE%\.claude\settings.json`. `--dry-run` is the default and prints a diff. `--apply` writes a timestamped backup first and is idempotent. `hooks uninstall --apply` removes only those entries.
+  - Agent instructions: `docs/agent-chat-protocol.md`.
+
 ## 🔵 v0.5 — Tauri Port
 
 - Step 1 done: SessionSource adapter layer (ClaudeJsonlSource)

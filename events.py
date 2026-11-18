@@ -772,6 +772,7 @@ def append_channel(
     directory: Path,
     entry: Mapping[str, object],
     note_limit: int = DISPLAY_NOTE_LIMIT,
+    timeout: float = LOCK_TIMEOUT,
 ) -> Path:
     """Append one channel record and restrict the file to the current user.
 
@@ -819,7 +820,7 @@ def append_channel(
         record["kind"] = "msg"
     path = channel_path(directory, str(record["channel"]))
     line = json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n"
-    with directory_lock(path.parent):
+    with directory_lock(path.parent, timeout=timeout):
         if path.is_symlink():
             raise EventRejected("schema")
         with open(path, "a", encoding="utf-8", newline="\n") as handle:
