@@ -38,7 +38,15 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Optional
 from pathlib import Path
-from sessions import ClaudeJsonlSource, CompositeSource, merge_id
+from sessions import (
+    ClaudeJsonlSource,
+    CompositeSource,
+    SessionInfo,
+    default_sources,
+    merge_id,
+    subagent_for,
+)
+from hud import hud_status_lines
 from events import (
     EventBus,
     EventSource,
@@ -437,6 +445,7 @@ class AgentInfo:
     is_demo:        bool  = False
     workspace_hash: str   = ""
     pid:            int   = 0
+    source:         str   = ""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -889,11 +898,15 @@ class SessionScanner:
         self._lock    = threading.Lock()
         self._tick    = 0
         self._skin_idx = 0   # cycles through REAL_SESSION_SKINS for new sessions
-        # Built-in Claude source only. Retargeted each scan so CLAUDE_DIR stays live.
+        # Built-in sources. Claude is retargeted each scan so CLAUDE_DIR stays live.
+        # Grok is registered here (see default_sources) even while it returns nothing.
         self._claude_source: Optional[ClaudeJsonlSource] = None
         if sources is None:
-            self._claude_source = ClaudeJsonlSource(self.CLAUDE_DIR)
-            sources = [self._claude_source]
+            sources = default_sources()
+            self._claude_source = next(
+                (src for src in sources if isinstance(src, ClaudeJsonlSource)),
+                None,
+            )
         # Poll results and UDP events both feed the bus. With no UDP events,
         # merge_with_events returns the polled list unchanged.
         self.bus = EventBus()
@@ -932,6 +945,7 @@ class SessionScanner:
                 return
             agent.status = event.state
             agent.last_seen = event.ts
+            agent.source = event.source
 
     def _apply_event_rows(self, found: dict):
         if self._events is None:
@@ -944,6 +958,8 @@ class SessionScanner:
             if info.last_seen >= agent.last_seen:
                 agent.status = info.status
                 agent.last_seen = info.last_seen
+                if info.source:
+                    agent.source = info.source
 
     def _scan(self):
         self._tick += 1
@@ -961,14 +977,16 @@ class SessionScanner:
                 status=info.status, tool=info.tool, subagents=info.subagents,
                 last_seen=info.last_seen,
                 skin=info.skin, is_demo=info.is_demo,
-                workspace_hash=info.workspace_hash, pid=info.pid)
+                workspace_hash=info.workspace_hash, pid=info.pid,
+                source=info.source)
 
         # No real sessions → single idle demo avatar (hue assigned at spawn)
         if not found:
             found["demo"] = AgentInfo(
                 agent_id="demo", name="Caine",
                 status=S.IDLE, skin="amongo",
-                subagents=TEST_SUBAGENTS, is_demo=True)
+                subagents=TEST_SUBAGENTS, is_demo=True,
+                source="")
 
         self._match_pids(found)
 
@@ -1129,24 +1147,15 @@ def _alpha_stipple(alpha: float) -> str:
 # ═══════════════════════════════════════════════════════════════
 
 def _hud_status_text(agents) -> tuple[list[tuple[str,str]], bool]:
-    """Return (rows, no_sess) for the HUD status panel."""
-    real     = sum(1 for a in agents.values() if not a.is_demo)
-    demo     = sum(1 for a in agents.values() if a.is_demo)
-    busy     = sum(1 for a in agents.values() if a.status == S.BUSY)
-    subs     = sum(a.subagents for a in agents.values())
-    thinking = sum(1 for a in agents.values() if a.status == S.THINKING)
+    """Return (rows, no_sessions) for the HUD status panel.
 
-    no_sess    = (real == 0 and list(agents.keys()) == ["caine"])
-    sess_color = "#44ff88" if real > 0 else ("#aaaaaa" if no_sess else "#aaccff")
-    sess_line  = "  Waiting for session..." if no_sess else f"  Sessions  : {real} real / {demo} demo"
-
-    rows = [
-        (sess_line,                      sess_color),
-        (f"  Busy      : {busy}",        STATUS_COLOR[S.BUSY]     if busy     else "#aaccff"),
-        (f"  Thinking  : {thinking}",    STATUS_COLOR[S.THINKING] if thinking else "#aaccff"),
-        (f"  Subagents : {subs}",        STATUS_COLOR[S.SUBAGENT] if subs     else "#aaccff"),
-    ]
-    return rows, no_sess
+    One row per source that has sessions, plus a total that includes
+    subagents from every source. The talks row is a separate label.
+    """
+    lines = hud_status_lines(agents)
+    waiting = bool(lines) and lines[0].strip().startswith("Waiting")
+    color = "#aaaaaa" if waiting else "#aaccff"
+    return [(line, color) for line in lines], waiting
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1371,10 +1380,22 @@ class OverlayApp:
             while len(sub_list) < effective_target:
                 px = (parent_av.x if parent_av else self.sw/2) + random.randint(-80,80)
                 py = (parent_av.y if parent_av else 100)
+                child = subagent_for(SessionInfo(
+                    agent_id=aid,
+                    name=agent.name,
+                    status=agent.status,
+                    source=agent.source,
+                    is_demo=agent.is_demo,
+                    workspace_hash=agent.workspace_hash,
+                ), len(sub_list))
                 sub_info = AgentInfo(
-                    agent_id=f"{aid}_sub_{len(sub_list)}",
-                    name=f"sub-{len(sub_list)+1}",
-                    status=S.BUSY, skin="bubble",
+                    agent_id=child.agent_id,
+                    name=child.name,
+                    status=child.status,
+                    skin=child.skin,
+                    is_demo=child.is_demo,
+                    workspace_hash=child.workspace_hash,
+                    source=child.source,
                 )
                 sv = Avatar(sub_info, self.sw, self.sh,
                             self._cidx + 100 + len(sub_list), REGISTRY,
@@ -1652,7 +1673,7 @@ class OverlayApp:
         win.overrideredirect(True)
         win.attributes("-topmost", False)      # can go behind other windows
         win.configure(bg=BG)
-        win.geometry("340x400+10+10")
+        win.geometry("560x460+10+10")
         win.resizable(True, True)
         try:
             win.wm_attributes("-alpha", 0.92)

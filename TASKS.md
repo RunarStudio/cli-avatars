@@ -3,7 +3,7 @@ type: tasks
 project: "[[Project - CLI Avatars]]"
 status: active
 tags: [cli-avatars, tasks, development]
-updated: 2026-11-17
+updated: 2026-11-18
 ---
 
 # CLI Avatars — Task Board
@@ -215,6 +215,14 @@ updated: 2026-11-17
   - Shared token file in the per-user data directory, mode 0600 (Windows: user-only ACL). Reject missing tokens, packets over 2 KB, and rate-limit bursts. Strict schema; unknown fields dropped. `note` / `text` go to the rotating log `events.log` and are not shown.
   - States: `idle`, `busy`, `thinking`, `subagent`. Chat icons: `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing`. Channel queue: `channel/<room>.jsonl` in that data directory, never in the repo.
   - Not in F2: bubble rendering, walking to meet, Grok transcript parsing, MCP, Discord, git channel.
+
+## 🟣 Phase 1 — Reliable status
+
+- [x] **P1-HUD** HUD counters per AI source <!-- id: P1-HUD -->
+  - Every agent carries `source` (`claude`, `grok`, `emit`, …) from its SessionSource or from the emit event. A subagent inherits its parent's source.
+  - The HUD shows one row per source that has sessions: `Claude 3 | busy 1 thinking 1 idle 1 | sub 2`. A total line counts subagents from every source, and each source row shows its own `sub` count. The `💬 Talks N` row stays.
+  - `GrokBuildSource` is registered and returns no sessions until transcripts are parsed. It does not read auth or credential files. The sessions directory is `%USERPROFILE%/.grok/sessions`.
+  - Preview: `docs/media/hud-per-source.png`.
 
 ## 🔵 v0.5 — Tauri Port
 
