@@ -87,6 +87,15 @@ from events import (
     merge_with_events,
 )
 from inbox import ToPicker, agents_from_registry, send_message, send_room
+from decisions import (
+    answer_decision,
+    decisions_caption,
+    list_decisions,
+    open_agent_ids,
+    open_count,
+    place_open_decisions,
+    split_decisions,
+)
 from bubbles import BubbleBoard, integer_scale, render_bubble
 from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
 from portal import PortalPlayer, portal_top_left, render_portal
@@ -1233,6 +1242,11 @@ class OverlayApp:
         self._chat_all_var = None
         self._chat_agent_vars = {}
         self._chat_send_status = None
+        self._chat_view = "timeline"
+        self._decision_sig = None
+        self._decision_count = 0
+        self._chat_timeline_btn = None
+        self._chat_decisions_btn = None
         self.root = tk.Tk()
         self.root.title(self.TITLE)
         _ico = Path(__file__).parent / "Caine_Icon.ico"
@@ -1565,6 +1579,7 @@ class OverlayApp:
 
         self._draw_portal(floors, floor_hwnds)
         self._draw_talk_bubbles()
+        self._draw_decision_bubbles()
         self._update_hud_win(agents)
         try:
             self._update_rooms_win()
@@ -1809,9 +1824,14 @@ class OverlayApp:
         talk0 = self.scanner.bubbles.talks_at(time.time())
         self._hud_talks_lbl = tk.Label(
             win, text="  " + talk0.text, bg=BG, fg=talk0.color,
-            font=FONT, anchor="w", justify="left", padx=10, pady=(2, 8),
+            font=FONT, anchor="w", justify="left", padx=10, pady=(2, 0),
         )
         self._hud_talks_lbl.pack(fill="x")
+        self._hud_decisions_lbl = tk.Label(
+            win, text="  " + decisions_caption(0), bg=BG, fg="#aaaaaa",
+            font=FONT, anchor="w", justify="left", padx=10, pady=(0, 8),
+        )
+        self._hud_decisions_lbl.pack(fill="x")
 
         tk.Frame(win, height=1, bg="#223366").pack(fill="x", padx=8, pady=(4, 0))
         tk.Label(win, text="HOW TO USE", font=("Consolas", 10, "bold"),
@@ -1918,6 +1938,45 @@ class OverlayApp:
             )
         self._talk_photos = photos
 
+    def _draw_decision_bubbles(self):
+        """Decision icon while that avatar has an open decision.
+
+        The glyph is the code placeholder in ``bubbles.decision_placeholder``
+        (TODO(Caine art)). One bubble per avatar, on the top-right.
+        """
+        self.canvas.delete("decision_bubble")
+        if not HAS_PIL:
+            return
+        scale = integer_scale(AVATAR_SCALE)
+        boxes = {
+            aid: (av.x, av.y, av.aw, av.ah)
+            for aid, av in self.avatars.items()
+        }
+        for subs in self.sub_avatars.values():
+            for sv in subs:
+                boxes[sv.agent.agent_id] = (sv.x, sv.y, sv.aw, sv.ah)
+        try:
+            agents = open_agent_ids(self._chat_directory(), timeout=0.05)
+            placed = place_open_decisions(agents, boxes, scale)
+        except EventRejected:
+            return
+        except Exception:
+            logging.getLogger("cli_avatars.decisions").exception("decision bubble failed")
+            return
+        if not placed:
+            return
+        key = ("decision", scale)
+        photo = self._decision_photo if getattr(self, "_decision_photo_key", None) == key else None
+        if photo is None:
+            image = render_bubble("decision", scale, 0, 1.0)
+            if image is None:
+                return
+            photo = ImageTk.PhotoImage(image)
+            self._decision_photo = photo
+            self._decision_photo_key = key
+        for _agent_id, x, y, _w, _h in placed:
+            self.canvas.create_image(x, y, image=photo, anchor="nw", tags="decision_bubble")
+
     def _update_hud_win(self, agents):
         if not (self._hud_win and self._hud_win.winfo_exists()):
             return
@@ -1927,6 +1986,21 @@ class OverlayApp:
         if talks is not None and talks.winfo_exists():
             talk = self.scanner.bubbles.talks_at(time.time())
             talks.config(text="  " + talk.text, fg=talk.color)
+        decisions = getattr(self, "_hud_decisions_lbl", None)
+        if decisions is not None and decisions.winfo_exists():
+            count = self._decision_count
+            try:
+                count = open_count(self._chat_directory(), timeout=0.05)
+                self._decision_count = count
+            except EventRejected:
+                count = self._decision_count
+            except Exception:
+                logging.getLogger("cli_avatars.decisions").exception("decision count failed")
+                count = self._decision_count
+            decisions.config(
+                text="  " + decisions_caption(count),
+                fg="#ffffff" if count else "#aaaaaa",
+            )
 
     # ── Rooms list (alongside the desktop) ────────────────────────────
 
@@ -2339,6 +2413,22 @@ class OverlayApp:
         tk.Label(title_bar, text="  Chat", bg="#111133",
                  fg="#88aaff", font=("Courier", 11, "bold"), anchor="w").pack(side="left")
 
+        tabs = tk.Frame(win, bg=bg)
+        tabs.pack(fill="x", padx=8, pady=(8, 0))
+        self._chat_timeline_btn = tk.Button(
+            tabs, text="Timeline", command=lambda: self._set_chat_view("timeline"),
+            bg="#334477", fg="white", activebackground="#4466aa", activeforeground="white",
+            font=("Courier", 9), relief="flat", padx=10, pady=2, cursor="hand2",
+        )
+        self._chat_timeline_btn.pack(side="left", padx=(0, 4))
+        self._chat_decisions_btn = tk.Button(
+            tabs, text="Decisions", command=lambda: self._set_chat_view("decisions"),
+            bg="#223366", fg="#aaccff", activebackground="#4466aa", activeforeground="white",
+            font=("Courier", 9), relief="flat", padx=10, pady=2, cursor="hand2",
+        )
+        self._chat_decisions_btn.pack(side="left")
+        self._paint_chat_tabs()
+
         filters = tk.Frame(win, bg=bg)
         filters.pack(fill="x", padx=8, pady=(8, 2))
         self._chat_room_var = tk.StringVar(value=ALL_ROOMS)
@@ -2482,6 +2572,9 @@ class OverlayApp:
         if self._chat_room_var is None or self._chat_source_var is None:
             return
         self._refresh_chat_recipients()
+        if getattr(self, "_chat_view", "timeline") == "decisions":
+            self._update_decision_tab(force)
+            return
         lines = self._chat_tail_reader().poll()
         self._sync_chat_menu(self._chat_room_menu, room_menu(lines), self._chat_room_var)
         self._sync_chat_menu(self._chat_source_menu, source_menu(lines), self._chat_source_var)
@@ -2511,6 +2604,159 @@ class OverlayApp:
         self._render_chat_lines(rows)
         if canvas is not None:
             canvas.after_idle(lambda saved=saved: self._restore_chat_scroll(saved))
+
+    def _set_chat_view(self, view: str) -> None:
+        self._chat_view = view
+        self._paint_chat_tabs()
+        self._update_chat_win(force=True)
+
+    def _paint_chat_tabs(self) -> None:
+        view = getattr(self, "_chat_view", "timeline")
+        pairs = (
+            ("timeline", getattr(self, "_chat_timeline_btn", None)),
+            ("decisions", getattr(self, "_chat_decisions_btn", None)),
+        )
+        for name, btn in pairs:
+            if btn is None:
+                continue
+            try:
+                if not btn.winfo_exists():
+                    continue
+            except Exception:
+                continue
+            if view == name:
+                btn.config(bg="#334477", fg="white")
+            else:
+                btn.config(bg="#223366", fg="#aaccff")
+
+    def _decision_face(self, agent_id: str) -> tuple[str, str]:
+        agents = self.scanner.get_agents()
+        info = None
+        if isinstance(agents, dict):
+            info = agents.get(agent_id)
+            if info is None:
+                source, sep, session_id = str(agent_id).partition(":")
+                if sep and source == "claude":
+                    info = agents.get(session_id)
+            if info is None:
+                for candidate in agents.values():
+                    if getattr(candidate, "agent_id", None) == agent_id:
+                        info = candidate
+                        break
+        if info is None or getattr(info, "is_demo", False):
+            return agent_id, "caine"
+        name = getattr(info, "name", "") or agent_id
+        skin = skin_base(getattr(info, "skin", "") or "") or "caine"
+        return str(name), skin
+
+    def _update_decision_tab(self, force: bool) -> None:
+        try:
+            rows = list_decisions(self._chat_directory(), timeout=0.2)
+        except EventRejected:
+            return
+        open_rows, answered = split_decisions(rows)
+        sig = (
+            tuple((row["id"], row["status"], row.get("choice", "")) for row in open_rows),
+            tuple((row["id"], row.get("choice", ""), row.get("answered_ts")) for row in answered),
+        )
+        if not force and sig == self._decision_sig:
+            return
+        self._decision_sig = sig
+        self._render_decision_cards(open_rows, answered)
+        canvas = getattr(self, "_chat_canvas", None)
+        if canvas is not None:
+            canvas.after_idle(lambda: canvas.yview_moveto(0.0))
+
+    def _render_decision_cards(self, open_rows, answered) -> None:
+        parent = self._chat_list
+        for child in parent.winfo_children():
+            child.destroy()
+        bg = "#0d0d1a"
+        tk.Label(parent, text="Open", bg=bg, fg="#88aaff",
+                 font=("Courier", 10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
+        if not open_rows:
+            tk.Label(parent, text="No open decisions", bg=bg, fg="#9a98b8",
+                     font=("Courier", 10), anchor="w").pack(anchor="w", padx=12, pady=4)
+        for row in open_rows:
+            self._render_decision_card(parent, row, answered=False)
+        tk.Label(parent, text="Answered", bg=bg, fg="#88aaff",
+                 font=("Courier", 10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(12, 2))
+        if not answered:
+            tk.Label(parent, text="None yet", bg=bg, fg="#9a98b8",
+                     font=("Courier", 9), anchor="w").pack(anchor="w", padx=12, pady=2)
+        for row in answered:
+            self._render_decision_card(parent, row, answered=True)
+        tk.Label(parent, text="Stored locally. Nothing here runs.", bg=bg, fg="#55556a",
+                 font=("Courier", 8), anchor="w").pack(anchor="w", padx=12, pady=(8, 8))
+        self._bind_chat_scroll(parent)
+
+    def _render_decision_card(self, parent, row, *, answered: bool) -> None:
+        bg = "#12121f" if answered else "#16162a"
+        card = tk.Frame(parent, bg=bg)
+        card.pack(fill="x", padx=8, pady=3)
+        name, skin = self._decision_face(str(row["from"]))
+        thumb = self._chat_photo("thumb", skin, lambda s=skin: idle_thumbnail(s, 32))
+        if thumb is not None:
+            shot = tk.Label(card, image=thumb, bg=bg)
+            shot.image = thumb
+            shot.pack(side="left", padx=6, pady=6)
+        else:
+            swatch = tk.Frame(card, bg="#223366", width=32, height=32)
+            swatch.pack(side="left", padx=6, pady=6)
+            swatch.pack_propagate(False)
+        body = tk.Frame(card, bg=bg)
+        body.pack(side="left", fill="x", expand=True, padx=4, pady=4)
+        tk.Label(body, text=name, bg=bg, fg="#e8e6f4",
+                 font=("Courier", 10, "bold"), anchor="w").pack(anchor="w")
+        tk.Label(body, text=str(row["room"]), bg=bg, fg="#9a98b8",
+                 font=("Courier", 8), anchor="w").pack(anchor="w")
+        tk.Label(body, text=str(row["question"]), bg=bg, fg="#e8e6f4",
+                 font=("Courier", 9), anchor="w", justify="left",
+                 wraplength=420).pack(anchor="w", pady=(2, 4))
+        if answered:
+            choice = str(row.get("choice", ""))
+            label = choice
+            for item in row["options"]:
+                if item["letter"] == choice:
+                    label = f"{choice}  {item['text']}"
+                    break
+            tk.Label(body, text="Answered " + label, bg=bg, fg="#9a98b8",
+                     font=("Courier", 9), anchor="w", justify="left",
+                     wraplength=420).pack(anchor="w")
+            return
+        buttons = tk.Frame(body, bg=bg)
+        buttons.pack(anchor="w", fill="x")
+        decision_id = str(row["id"])
+        for item in row["options"]:
+            letter = str(item["letter"])
+            tk.Button(
+                buttons,
+                text=f"{letter}  {item['text']}",
+                command=lambda decision_id=decision_id, letter=letter: self._answer_decision(decision_id, letter),
+                bg="#334477", fg="white", activebackground="#4466aa",
+                activeforeground="white", font=("Courier", 9),
+                relief="flat", padx=8, pady=2, cursor="hand2",
+                wraplength=360, justify="left",
+            ).pack(anchor="w", pady=1)
+
+    def _answer_decision(self, decision_id: str, choice: str) -> None:
+        """Store the choice. The option text is data, not a command."""
+        try:
+            answer_decision(self._chat_directory(), decision_id, choice)
+        except EventRejected as exc:
+            if exc.reason == "answered":
+                self._set_chat_status("Already answered")
+            elif exc.reason == "missing":
+                self._set_chat_status("Unknown decision")
+            else:
+                self._set_chat_status("Not sent")
+            self._update_chat_win(force=True)
+            return
+        except Exception:
+            self._set_chat_status("Not sent")
+            return
+        self._set_chat_status("Answered")
+        self._update_chat_win(force=True)
 
     def _render_chat_lines(self, rows) -> None:
         parent = self._chat_list

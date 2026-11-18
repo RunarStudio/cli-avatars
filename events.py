@@ -58,7 +58,11 @@ ORIGIN_UDP = "udp"
 ORIGIN_POLL = "poll"
 
 STATE_VALUES = frozenset({"idle", "busy", "thinking", "subagent"})
-ICONS = frozenset({"speech", "question", "ok", "warn", "error", "thought", "typing"})
+# ``decision`` is the open-decision bubble. Its 16×16 cell is still a code
+# placeholder (TODO(Caine art) in bubbles.py); it is not a sheet file.
+ICONS = frozenset({
+    "speech", "question", "ok", "warn", "error", "thought", "typing", "decision",
+})
 
 _SOURCE = re.compile(r"^[A-Za-z][A-Za-z0-9_\-]{0,31}$")
 _SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,63}$")

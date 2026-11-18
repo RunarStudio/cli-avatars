@@ -247,7 +247,8 @@ class TestBoard(unittest.TestCase):
 
 class TestArt(unittest.TestCase):
     def test_allowlist_matches_events_and_has_no_gui_imports(self):
-        self.assertEqual(set(STATIC_ICONS) | {"typing"}, set(ICONS))
+        self.assertEqual(set(STATIC_ICONS) | {"typing", "decision"}, set(ICONS))
+        self.assertNotIn("decision", bubbles.ICON_CELLS)
         text = Path(bubbles.__file__).read_text(encoding="utf-8")
         for name in ("tkinter", "pywinctl", "pystray", "eval(", "exec(", "os.system"):
             self.assertNotIn(name, text)

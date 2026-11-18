@@ -601,12 +601,38 @@ def nine_slice(src, dst_w: int, dst_h: int, corner: int = CORNER):
 
 
 def _cell_index(icon: str, typing_frame: int) -> Optional[int]:
+    if icon == "decision":
+        # Drawn by decision_placeholder. Not a cell on icons.png.
+        return None
     if icon == "typing":
         return len(STATIC_ICONS) + (int(typing_frame) % TYPING_FRAMES)
     try:
         return STATIC_ICONS.index(icon)
     except ValueError:
         return None
+
+
+def decision_placeholder(size: int = 16):
+    """TODO(Caine art): 16×16 stand-in until the decision cell arrives.
+
+    Drawn in code. There is no sprite file for this icon. ``size`` scales
+    that 16×16 cell with nearest-neighbour so the pixels stay crisp.
+    """
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    paper = (255, 248, 230, 255)
+    ink = (32, 40, 72, 255)
+    mark = (255, 207, 74, 255)
+    draw.rectangle([1, 1, 14, 14], fill=paper, outline=ink)
+    draw.rectangle([3, 3, 6, 6], outline=ink)
+    draw.rectangle([3, 9, 6, 12], fill=mark, outline=ink)
+    draw.rectangle([8, 4, 12, 5], fill=ink)
+    draw.rectangle([8, 10, 12, 11], fill=ink)
+    if isinstance(size, int) and size > 0 and size != 16:
+        image = image.resize((size, size), _nearest())
+    return image
 
 
 def render_frame(dst_w: int = FRAME_LOGICAL, dst_h: int = FRAME_LOGICAL):
@@ -625,16 +651,20 @@ def render_bubble(icon: str, scale: int, typing_frame: int = 0, alpha: float = 1
         if icon not in ICONS:
             log.info("ignored unknown icon: %s", _icon_label(icon))
         return None
-    index = _cell_index(icon, typing_frame)
-    if index is None:
-        log.info("ignored unknown icon: %s", _icon_label(icon))
-        return None
     from PIL import Image
     art = _load_art()
     frame = render_frame(FRAME_LOGICAL, FRAME_LOGICAL)
-    icons = art["icons"]
-    x0 = index * ICON_PX
-    cell = icons.crop((x0, 0, x0 + ICON_PX, ICON_PX))
+    if icon == "decision":
+        # TODO(Caine art): the sheet has no decision cell yet.
+        cell = decision_placeholder(ICON_PX)
+    else:
+        index = _cell_index(icon, typing_frame)
+        if index is None:
+            log.info("ignored unknown icon: %s", _icon_label(icon))
+            return None
+        icons = art["icons"]
+        x0 = index * ICON_PX
+        cell = icons.crop((x0, 0, x0 + ICON_PX, ICON_PX))
     frame.paste(cell, (CORNER + ICON_PAD, CORNER + ICON_PAD), cell)
     width, height = FRAME_LOGICAL, FRAME_LOGICAL + TAIL_H - TAIL_OVERLAP
     canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))

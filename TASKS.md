@@ -257,6 +257,13 @@ updated: 2026-11-18
   - `inbox read --agent ID [--since ID] [--json]` prints unread rows and stores the cursor at `inbox/<agent_id>.cursor`. `reply --agent ID --to MSG --note "..."` appends the reply to the channel so the panel shows it.
   - Schema: `docs/chat-schema.md`. Hook and agent instructions: `docs/claude-hooks.md`. Preview: `docs/media/chat-send.png`.
 
+- [x] **P3C-DECISIONS** Decision cards in local chat <!-- id: P3C-DECISIONS -->
+  - `cli-avatars-emit decide --agent ID --room ROOM --question "..." --option a="..." --option b="..."` stores a kind `decision` (uuid, status `open`) on the channel and in `decisions.jsonl`. Two to six options, letters a–f with no gaps. Each option is sanitised and capped at 120 characters. The question is capped at 240. The app does not execute the question or the options.
+  - The Chat panel Decisions tab lists open cards (thumbnail, name, room, question, lettered buttons) and a short history of answered ones. Choosing a letter writes kind `decision_answer` (`decision_id`, `choice`, `ts`, `from` `user`, `text` the chosen label) to that agent's inbox and the channel, and marks the decision answered. A second answer, or an unknown id, is rejected.
+  - `inbox read` returns `decision_answer` rows with the other messages. `decisions list [--open] [--json]` lists the index. The HUD row is `Decisions N`.
+  - While a decision is open, the desktop avatar shows a `decision` bubble. The icon is on the allowlist. The glyph is a code placeholder (`TODO(Caine art)`) until the 16×16 cell arrives. No new sprite file.
+  - Schema: `docs/chat-schema.md`. How an agent asks and reads the answer: `docs/claude-hooks.md`. Preview: `docs/media/chat-decisions.png`.
+
 ## 🔵 v0.5 — Tauri Port
 
 - Step 1 done: SessionSource adapter layer (ClaudeJsonlSource)
