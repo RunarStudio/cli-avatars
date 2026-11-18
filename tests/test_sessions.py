@@ -215,6 +215,72 @@ class TestClaudeJsonlSource(unittest.TestCase):
         self.assertEqual([s.agent_id for s in found], ["good0001"])
         self.assertEqual(found[0].tool, "Edit")
 
+    def test_project_is_the_cwd_folder_name_only(self):
+        line = json.dumps({
+            "cwd": "/work/cli-avatars",
+            "message": {"content": [{"type": "text", "text": "hi"}]},
+        })
+        _write(self.root / "ws" / "proj0001-s.jsonl", [line], age=5)
+        found = self.src.scan()[0]
+        self.assertEqual(found.project, "cli-avatars")
+        self.assertNotIn("/work", str(found))
+        self.assertFalse(found.failed)
+
+    def test_windows_cwd_keeps_only_the_folder(self):
+        line = json.dumps({
+            "cwd": "D:\\work\\sprites",
+            "message": {"content": [{"type": "text", "text": "hi"}]},
+        })
+        _write(self.root / "ws" / "win00001-s.jsonl", [line], age=5)
+        found = self.src.scan()[0]
+        self.assertEqual(found.project, "sprites")
+        text = str(found)
+        self.assertNotIn("D:", text)
+        self.assertNotIn("\\", text)
+        self.assertNotIn("/work", text)
+
+    def test_error_result_sets_failed_and_drops_the_message(self):
+        line = json.dumps({
+            "type": "result",
+            "subtype": "error_during_execution",
+            "is_error": True,
+            "result": "boom",
+        })
+        _write(self.root / "ws" / "err00001-s.jsonl", [line], age=5)
+        found = self.src.scan()[0]
+        self.assertTrue(found.failed)
+        self.assertEqual(found.status, "idle")
+        self.assertNotIn("boom", str(found))
+
+    def test_tool_use_after_an_error_is_not_a_crash(self):
+        err = json.dumps({"type": "result", "is_error": True, "subtype": "success"})
+        _write(self.root / "ws" / "cont0001-s.jsonl", [err, _tool("Bash")], age=5)
+        found = self.src.scan()[0]
+        self.assertFalse(found.failed)
+        self.assertEqual((found.status, found.tool), ("busy", "Bash"))
+
+    def test_successful_result_is_not_a_crash(self):
+        line = json.dumps({
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": "finished-cleanly",
+        })
+        _write(self.root / "ws" / "ok000001-s.jsonl", [line], age=5)
+        found = self.src.scan()[0]
+        self.assertFalse(found.failed)
+        self.assertEqual(found.status, "idle")
+        self.assertNotIn("finished-cleanly", str(found))
+
+    def test_tool_error_is_not_a_session_crash(self):
+        line = json.dumps({
+            "message": {"content": [{"type": "tool_result", "is_error": True, "content": "nope"}]},
+        })
+        _write(self.root / "ws" / "toolerr1-s.jsonl", [line], age=5)
+        found = self.src.scan()[0]
+        self.assertFalse(found.failed)
+        self.assertEqual(found.status, "idle")
+
 
 class TestCompositeSource(unittest.TestCase):
     def test_claude_ids_are_not_prefixed_other_sources_are(self):

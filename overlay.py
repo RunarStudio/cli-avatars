@@ -36,6 +36,7 @@ import math
 import random
 import traceback
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Optional
 from pathlib import Path
 from sessions import (
@@ -47,6 +48,19 @@ from sessions import (
     subagent_for,
 )
 from hud import hud_status_lines
+from rooms import (
+    build_rooms,
+    config_with_rooms,
+    fade_hex,
+    fade_image,
+    idle_thumbnail,
+    load_config,
+    meta_line,
+    project_folder,
+    rooms_from_config,
+    save_rooms_pref,
+    warn_icon,
+)
 from events import (
     EventBus,
     EventSource,
@@ -446,6 +460,9 @@ class AgentInfo:
     workspace_hash: str   = ""
     pid:            int   = 0
     source:         str   = ""
+    project:        str   = ""
+    parent_id:      Optional[str] = None
+    failed:         bool  = False
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -978,7 +995,8 @@ class SessionScanner:
                 last_seen=info.last_seen,
                 skin=info.skin, is_demo=info.is_demo,
                 workspace_hash=info.workspace_hash, pid=info.pid,
-                source=info.source)
+                source=info.source, project=info.project,
+                parent_id=info.parent_id, failed=info.failed)
 
         # No real sessions → single idle demo avatar (hue assigned at spawn)
         if not found:
@@ -1003,6 +1021,8 @@ class SessionScanner:
                     new_a.skin = old.skin   # preserve existing skin across scans
                     if old.pid:
                         new_a.pid = old.pid
+                    if not new_a.project and old.project:
+                        new_a.project = old.project
                 elif not new_a.is_demo and new_a.skin == "__new__":
                     new_a.skin = REAL_SESSION_SKINS[self._skin_idx % len(REAL_SESSION_SKINS)]
                     self._skin_idx += 1
@@ -1025,9 +1045,12 @@ class SessionScanner:
                     if not cwd:
                         continue
                     h = hash_of(cwd)
+                    folder = project_folder(cwd)
                     for ai in found.values():
                         if ai.workspace_hash and ai.workspace_hash.lower() == h:
                             ai.pid = proc.info['pid']  # all sessions in same workspace share pid
+                            if folder and not ai.project:
+                                ai.project = folder
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
         except Exception:
@@ -1166,6 +1189,15 @@ class OverlayApp:
     TITLE = "AI Agent Overlay"
 
     def __init__(self):
+        self._config_path = Path(__file__).resolve().parent / "config.json"
+        self.config = load_config(self._config_path)
+        self._rooms_shown = rooms_from_config(self.config)
+        self._rooms_win = None
+        self._rooms_btn = None
+        self._rooms_sig = None
+        self._rooms_thumbs = {}
+        self._rooms_warns = {}
+        self._rooms_drag = None
         self.root = tk.Tk()
         self.root.title(self.TITLE)
         _ico = Path(__file__).parent / "Caine_Icon.ico"
@@ -1396,6 +1428,10 @@ class OverlayApp:
                     is_demo=child.is_demo,
                     workspace_hash=child.workspace_hash,
                     source=child.source,
+                    project=agent.project,
+                    parent_id=aid,
+                    last_seen=agent.last_seen,
+                    failed=False,
                 )
                 sv = Avatar(sub_info, self.sw, self.sh,
                             self._cidx + 100 + len(sub_list), REGISTRY,
@@ -1495,6 +1531,10 @@ class OverlayApp:
         self._draw_portal(floors, floor_hwnds)
         self._draw_talk_bubbles()
         self._update_hud_win(agents)
+        try:
+            self._update_rooms_win()
+        except Exception:
+            logging.getLogger("cli_avatars.rooms").exception("rooms list failed")
         self.root.after(1000 // OVERLAY_FPS, self._tick)
 
     def _refresh_activity(self, av: "Avatar") -> None:
@@ -1618,7 +1658,10 @@ class OverlayApp:
             print(f"[overlay] bubble icon load failed: {e}")
 
     def _bring_all_to_front(self):
-        for win in [self._hud_win, self._picker, self._config_win]:
+        wins = [self._hud_win, self._picker, self._config_win]
+        if self._rooms_shown:
+            wins.append(self._rooms_win)
+        for win in wins:
             if win and win.winfo_exists():
                 win.deiconify()
                 win.lift()
@@ -1703,7 +1746,12 @@ class OverlayApp:
         tk.Button(btn_row, text="Config", command=self._open_config_screen,
                   bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
                   font=FONT, relief="flat", padx=10, pady=3, cursor="hand2"
-                  ).pack(side="left")
+                  ).pack(side="left", padx=(0, 4))
+        self._rooms_btn = tk.Button(btn_row, text="Rooms", command=self._toggle_rooms,
+                  bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
+                  font=FONT, relief="flat", padx=10, pady=3, cursor="hand2")
+        self._rooms_btn.pack(side="left")
+        self._paint_rooms_button()
 
         tk.Frame(win, bg=SEL, height=1).pack(fill="x", padx=8, pady=(4, 0))
 
@@ -1758,6 +1806,9 @@ class OverlayApp:
             child.bind("<ButtonPress-1>",   _drag_start)
             child.bind("<B1-Motion>",       _drag_move)
             child.bind("<ButtonRelease-1>", _drag_end)
+
+        if self._rooms_shown:
+            self._open_rooms_win()
 
     def _draw_portal(self, floors, floor_hwnds):
         """One portal on the meeting surface, behind the avatars."""
@@ -1830,6 +1881,296 @@ class OverlayApp:
         if talks is not None and talks.winfo_exists():
             talk = self.scanner.bubbles.talks_at(time.time())
             talks.config(text="  " + talk.text, fg=talk.color)
+
+    # ── Rooms list (alongside the desktop) ────────────────────────────
+
+    def _remember_rooms(self) -> None:
+        self.config = config_with_rooms(self.config, self._rooms_shown)
+        try:
+            save_rooms_pref(self._config_path, self._rooms_shown)
+        except OSError:
+            pass
+
+    def _paint_rooms_button(self) -> None:
+        btn = getattr(self, "_rooms_btn", None)
+        if btn is None:
+            return
+        try:
+            if not btn.winfo_exists():
+                return
+        except Exception:
+            return
+        if self._rooms_shown:
+            btn.config(bg="#334477", fg="white")
+        else:
+            btn.config(bg="#223366", fg="#aaccff")
+
+    def _toggle_rooms(self) -> None:
+        if self._rooms_shown:
+            self._close_rooms()
+            return
+        self._rooms_shown = True
+        self._open_rooms_win()
+        self._paint_rooms_button()
+        self._remember_rooms()
+
+    def _close_rooms(self) -> None:
+        win = getattr(self, "_rooms_win", None)
+        if win is not None:
+            try:
+                if win.winfo_exists():
+                    win.withdraw()
+            except Exception:
+                pass
+        self._rooms_shown = False
+        self._rooms_sig = None
+        self._paint_rooms_button()
+        self._remember_rooms()
+
+    def _open_rooms_win(self) -> None:
+        win = getattr(self, "_rooms_win", None)
+        if win is not None:
+            try:
+                if win.winfo_exists():
+                    win.deiconify()
+                    win.lift()
+                    self._update_rooms_win(force=True)
+                    return
+            except Exception:
+                pass
+        self._build_rooms_win()
+        self._update_rooms_win(force=True)
+
+    def _rooms_records(self):
+        """Top-level sessions, plus each live sub avatar as its own row."""
+        records = list(self.scanner.get_agents().values())
+        for subs in self.sub_avatars.values():
+            for sv in subs:
+                if sv._floating_away:
+                    continue
+                agent = sv.agent
+                records.append(SimpleNamespace(
+                    agent_id=agent.agent_id,
+                    name=agent.name,
+                    status=agent.status,
+                    source=agent.source,
+                    project=agent.project,
+                    parent_id=agent.parent_id,
+                    last_seen=sv.last_active,
+                    skin=agent.skin,
+                    is_demo=agent.is_demo,
+                    failed=agent.failed,
+                    subagents=0,
+                ))
+        return records
+
+    def _scroll_rooms(self, event) -> None:
+        canvas = getattr(self, "_rooms_canvas", None)
+        if canvas is None:
+            return
+        try:
+            if not canvas.winfo_exists():
+                return
+        except Exception:
+            return
+        if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
+            canvas.yview_scroll(-1, "units")
+        else:
+            canvas.yview_scroll(1, "units")
+
+    def _bind_rooms_scroll(self, widget) -> None:
+        widget.bind("<Button-4>", self._scroll_rooms)
+        widget.bind("<Button-5>", self._scroll_rooms)
+        widget.bind("<MouseWheel>", self._scroll_rooms)
+        for child in widget.winfo_children():
+            self._bind_rooms_scroll(child)
+
+    def _room_thumb(self, skin: str, dimmed: bool):
+        if not HAS_PIL:
+            return None
+        key = (skin, bool(dimmed))
+        if key in self._rooms_thumbs:
+            return self._rooms_thumbs[key]
+        photo = None
+        try:
+            image = idle_thumbnail(skin, 32)
+            if image is not None:
+                if dimmed:
+                    image = fade_image(image, 0.5)
+                photo = ImageTk.PhotoImage(image)
+        except Exception:
+            photo = None
+        self._rooms_thumbs[key] = photo
+        return photo
+
+    def _room_warn(self, dimmed: bool):
+        if not HAS_PIL:
+            return None
+        key = bool(dimmed)
+        if key in self._rooms_warns:
+            return self._rooms_warns[key]
+        photo = None
+        try:
+            image = warn_icon(16)
+            if image is not None:
+                if dimmed:
+                    image = fade_image(image, 0.55)
+                photo = ImageTk.PhotoImage(image)
+        except Exception:
+            photo = None
+        self._rooms_warns[key] = photo
+        return photo
+
+    def _build_rooms_win(self) -> None:
+        bg = "#0d0d1a"
+        win = tk.Toplevel(self.root)
+        win.title("Rooms")
+        win.overrideredirect(True)
+        win.attributes("-topmost", False)
+        win.configure(bg=bg)
+        win.geometry("440x520+580+10")
+        try:
+            win.attributes("-alpha", 0.94)
+        except Exception:
+            pass
+        self._rooms_win = win
+
+        title_bar = tk.Frame(win, bg="#111133", pady=6, cursor="fleur")
+        title_bar.pack(fill="x")
+        tk.Button(title_bar, text="x", command=self._close_rooms,
+                  bg="#111133", fg="#445566",
+                  activebackground="#330011", activeforeground="#ff6666",
+                  font=("Courier", 10), relief="flat", bd=0,
+                  padx=6, pady=0, cursor="hand2"
+                  ).pack(side="right", padx=(0, 4))
+        tk.Label(title_bar, text="  Rooms", bg="#111133",
+                 fg="#88aaff", font=("Courier", 11, "bold"), anchor="w").pack(side="left")
+
+        body = tk.Frame(win, bg=bg)
+        body.pack(fill="both", expand=True)
+        canvas = tk.Canvas(body, bg=bg, highlightthickness=0, bd=0)
+        self._rooms_canvas = canvas
+        inner = tk.Frame(canvas, bg=bg)
+        self._rooms_list = inner
+        window_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_inner(_event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas(event):
+            canvas.itemconfig(window_id, width=event.width)
+
+        inner.bind("<Configure>", _on_inner)
+        canvas.bind("<Configure>", _on_canvas)
+        canvas.pack(fill="both", expand=True)
+        self._bind_rooms_scroll(canvas)
+
+        def _drag_start(event):
+            self._rooms_drag = (event.x_root - win.winfo_x(), event.y_root - win.winfo_y())
+
+        def _drag_move(event):
+            if self._rooms_drag:
+                ox, oy = self._rooms_drag
+                win.geometry(f"+{event.x_root - ox}+{event.y_root - oy}")
+
+        def _drag_end(_event):
+            self._rooms_drag = None
+
+        title_bar.bind("<ButtonPress-1>", _drag_start)
+        title_bar.bind("<B1-Motion>", _drag_move)
+        title_bar.bind("<ButtonRelease-1>", _drag_end)
+        for child in title_bar.winfo_children():
+            if isinstance(child, tk.Label):
+                child.bind("<ButtonPress-1>", _drag_start)
+                child.bind("<B1-Motion>", _drag_move)
+                child.bind("<ButtonRelease-1>", _drag_end)
+
+    def _update_rooms_win(self, force: bool = False) -> None:
+        if not self._rooms_shown:
+            return
+        win = getattr(self, "_rooms_win", None)
+        if win is None or not win.winfo_exists():
+            return
+        cards = build_rooms(self._rooms_records(), time.time())
+        sig = tuple(cards)
+        if not force and sig == self._rooms_sig:
+            return
+        self._rooms_sig = sig
+        self._render_room_cards(cards)
+
+    def _render_room_cards(self, cards) -> None:
+        parent = self._rooms_list
+        for child in parent.winfo_children():
+            child.destroy()
+        if not cards:
+            empty = tk.Label(parent, text="No orchestrators", bg="#0d0d1a",
+                             fg="#9a98b8", font=("Courier", 10), anchor="w")
+            empty.pack(anchor="w", padx=12, pady=12)
+            self._bind_rooms_scroll(parent)
+            return
+        for card in cards:
+            self._render_room_card(parent, card)
+        self._bind_rooms_scroll(parent)
+
+    def _render_room_card(self, parent, card) -> None:
+        bg = "#101018" if card.dimmed else "#16162a"
+        ink = "#6a6a80" if card.dimmed else "#e8e6f4"
+        meta = "#55556a" if card.dimmed else "#9a98b8"
+        edge = "#1c1c30" if card.dimmed else "#223366"
+        frame = tk.Frame(parent, bg=bg, highlightbackground=edge,
+                         highlightthickness=1, padx=8, pady=6)
+        frame.pack(fill="x", padx=10, pady=4)
+
+        thumb = self._room_thumb(card.skin, card.dimmed)
+        if thumb is not None:
+            shot = tk.Label(frame, image=thumb, bg=bg)
+            shot.image = thumb
+            shot.pack(side="left", anchor="n", padx=(0, 8))
+        else:
+            swatch = tk.Frame(frame, bg=fade_hex(card.dot) if card.dimmed else card.dot,
+                              width=32, height=32)
+            swatch.pack_propagate(False)
+            swatch.pack(side="left", anchor="n", padx=(0, 8))
+
+        body = tk.Frame(frame, bg=bg)
+        body.pack(side="left", fill="x", expand=True)
+        head = tk.Frame(body, bg=bg)
+        head.pack(fill="x")
+        tk.Label(head, text=card.name, bg=bg, fg=ink,
+                 font=("Courier", 10, "bold")).pack(side="left")
+        if card.mark:
+            tk.Label(head, text=card.mark, bg=bg, fg="#c6c6dc",
+                     font=("Courier", 10, "bold")).pack(side="left", padx=(8, 0))
+        tk.Label(head, text=card.activity, bg=bg, fg=ink,
+                 font=("Courier", 10)).pack(side="right")
+        dot = fade_hex(card.dot) if card.dimmed else card.dot
+        tk.Label(head, text="●", bg=bg, fg=dot,
+                 font=("Courier", 10)).pack(side="right", padx=(0, 4))
+        if card.warn:
+            icon = self._room_warn(card.dimmed)
+            if icon is not None:
+                warn = tk.Label(head, image=icon, bg=bg)
+                warn.image = icon
+                warn.pack(side="right", padx=(0, 4))
+
+        tk.Label(body, text=meta_line(card), bg=bg, fg=meta,
+                 font=("Courier", 9), anchor="w").pack(fill="x")
+        for sub in card.subs:
+            row = tk.Frame(body, bg=bg)
+            row.pack(fill="x", pady=(1, 0))
+            sub_dot = fade_hex(sub.dot) if card.dimmed else sub.dot
+            tk.Label(row, text="●", bg=bg, fg=sub_dot,
+                     font=("Courier", 8)).pack(side="left")
+            tk.Label(row, text=sub.name, bg=bg, fg=ink,
+                     font=("Courier", 9)).pack(side="left", padx=(4, 0))
+            if sub.warn:
+                icon = self._room_warn(False)
+                if icon is not None:
+                    mark = tk.Label(row, image=icon, bg=bg)
+                    mark.image = icon
+                    mark.pack(side="left", padx=(4, 0))
+            tk.Label(row, text=sub.activity, bg=bg, fg=meta,
+                     font=("Courier", 9)).pack(side="right")
 
     # ── Left-click drag ───────────────────────────────────────────────
 
