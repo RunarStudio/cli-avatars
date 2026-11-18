@@ -282,13 +282,33 @@ def other_principals(text: str, listed_path: str, principal: str) -> list[str]:
     return found
 
 
+# Paths this process already restricted. On Windows that is icacls, a
+# subprocess (2-3 runs, ~0.1 s each), and one chat send used to restrict the
+# same folders and inbox files ~8 times: ~2 s per send. A restricted path
+# stays restricted, and files created inside a restricted folder inherit its
+# user-only ACL, so each path is done once per process.
+_RESTRICTED_GUARD = threading.Lock()
+_RESTRICTED: set[str] = set()
+
+
+def _restricted_key(path: Path) -> str:
+    try:
+        return os.path.normcase(str(path.resolve()))
+    except OSError:
+        return os.path.normcase(str(path))
+
+
 def _restrict_to_user(path: Path) -> None:
-    """Best-effort: only the current user can read this path.
+    """Best-effort: only the current user can read this path (once per path per process).
 
     POSIX: mode 0700 for directories, 0600 for files.
     Windows: drop inherited ACEs and grant the current user full control.
     The arguments are this path and the OS user name, never packet fields.
     """
+    key = _restricted_key(path)
+    with _RESTRICTED_GUARD:
+        if key in _RESTRICTED:
+            return
     try:
         if os.name == "nt":
             _restrict_windows(path)
@@ -297,7 +317,10 @@ def _restrict_to_user(path: Path) -> None:
         else:
             os.chmod(path, 0o600)
     except OSError:
-        pass
+        return
+    if path.exists():
+        with _RESTRICTED_GUARD:
+            _RESTRICTED.add(key)
 
 
 def _restrict_windows(path: Path) -> None:
