@@ -224,6 +224,17 @@ updated: 2026-11-18
   - `GrokBuildSource` is registered and returns no sessions until transcripts are parsed. It does not read auth or credential files. The sessions directory is `%USERPROFILE%/.grok/sessions`.
   - Preview: `docs/media/hud-per-source.png`.
 
+## 🟣 Phase 2 — Orchestrator rooms
+
+- [x] **P2-ROOMS** Rooms list of top-level sessions <!-- id: P2-ROOMS -->
+  - A HUD button `Rooms`, next to Skins and Config, toggles a compact list. The walking desktop is unchanged and stays on screen while the list is open.
+  - One card per orchestrator: the avatar's idle-frame thumbnail, its name, its source (Claude, Grok or Emit), the project folder name only, a state dot, and last activity as `Ns ago`. Subagents sit under the card as small rows with their own dots.
+  - Dots, as Caine proposed: idle grey `#9a98b8`, busy blue `#4488ff`, thinking violet `#aa44ff`, subagent in the accent `#ffcf4a`.
+  - Active orchestrators come first, newest activity first inside that group. Idle for more than 5 minutes is dimmed and marked `Zzz`.
+  - A session whose newest result is an error (`failed`, or status `error`) shows the existing warn icon. When that signal is absent, the icon is skipped.
+  - The boolean `rooms` in `config.json` is read at startup and written back only when that file already exists.
+  - Model and tests: `rooms.py`. Preview: `docs/media/rooms-list.png`.
+
 ## 🔵 v0.5 — Tauri Port
 
 - Step 1 done: SessionSource adapter layer (ClaudeJsonlSource)

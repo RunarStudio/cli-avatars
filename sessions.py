@@ -12,6 +12,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Optional
 
+from rooms import project_folder
+
 # Status strings match overlay.S. Duplicated so this module does not import overlay.
 IDLE = "idle"
 THINKING = "thinking"
@@ -20,6 +22,53 @@ BUSY = "busy"
 # Same thresholds the overlay scanner used before this split.
 STALE_AFTER = 900       # seconds; older session jsonl is treated as ended
 SUBAGENT_FRESH = 1800   # seconds; subagent jsonl newer than this still counts
+
+# Claude result subtypes that mean the turn ended in an error.
+_ERROR_SUBTYPES = frozenset({
+    "error",
+    "error_during_execution",
+    "error_max_turns",
+    "error_max_budget_usd",
+    "error_max_structured_output_retries",
+})
+
+
+def _result_failed(line: str) -> Optional[bool]:
+    """Whether this line is a session result, and if that result is an error.
+
+    ``None`` when the line is not a result. Tool errors are not session
+    endings, so they return ``None``. The result text is not returned.
+    """
+    if '"type"' not in line or "result" not in line:
+        return None
+    try:
+        obj = json.loads(line)
+    except Exception:
+        return None
+    if not isinstance(obj, dict) or obj.get("type") != "result":
+        return None
+    if obj.get("is_error") is True:
+        return True
+    subtype = obj.get("subtype")
+    if isinstance(subtype, str) and subtype in _ERROR_SUBTYPES:
+        return True
+    return False
+
+
+def _folder_in_text(text: str) -> str:
+    """First ``cwd`` folder name in ``text``. The rest of the path is dropped."""
+    for line in text.splitlines():
+        if '"cwd"' not in line:
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(obj, dict):
+            folder = project_folder(obj.get("cwd"))
+            if folder:
+                return folder
+    return ""
 
 
 @dataclass
@@ -38,6 +87,8 @@ class SessionInfo:
     pid:            int   = 0
     source:         str   = ""
     parent_id:      Optional[str] = None
+    project:        str   = ""
+    failed:         bool  = False
 
 
 class SessionSource(ABC):
@@ -69,7 +120,7 @@ class ClaudeJsonlSource(SessionSource):
                 if time.time() - f.stat().st_mtime > STALE_AFTER:
                     continue
                 aid = f.stem[:8]
-                status, tool = self._parse_tail(f)
+                status, tool, failed = self._parse_tail(f)
                 sub_dir = f.parent / f.stem / "subagents"
                 if sub_dir.exists():
                     cutoff = time.time() - SUBAGENT_FRESH
@@ -84,32 +135,57 @@ class ClaudeJsonlSource(SessionSource):
                     last_seen=f.stat().st_mtime,
                     skin="__new__", is_demo=False,
                     workspace_hash=f.parent.name,
-                    source=self.name, parent_id=None))
+                    source=self.name, parent_id=None,
+                    project=self._project_name(f), failed=failed))
             except Exception:
                 pass
         return found
 
-    def _parse_tail(self, path) -> tuple[str, str]:
+    def _parse_tail(self, path) -> tuple[str, str, bool]:
         try:
             with open(path, "rb") as f:
                 size = f.seek(0, 2)
                 f.seek(max(0, size - 4096))
                 lines = f.read().decode("utf-8", errors="ignore").splitlines()
             for line in reversed(lines[-30:]):
+                ended = _result_failed(line)
+                if ended is not None:
+                    # A finished turn wins over the word "tool_use" inside its text.
+                    return IDLE, "", ended
                 if '"tool_use"' in line:
                     try:
                         obj = json.loads(line)
                         for block in obj.get("message", {}).get("content", []):
                             if isinstance(block, dict) and block.get("type") == "tool_use":
-                                return BUSY, block.get("name", "")
+                                name = block.get("name", "")
+                                return BUSY, name if isinstance(name, str) else "", False
                     except Exception:
                         pass
-                    return BUSY, ""
+                    return BUSY, "", False
                 if '"thinking"' in line:
-                    return THINKING, ""
+                    return THINKING, "", False
         except Exception:
             pass
-        return IDLE, ""
+        return IDLE, "", False
+
+    def _project_name(self, path) -> str:
+        """Folder name from a ``cwd`` field. The path itself is not kept."""
+        try:
+            with open(path, "rb") as handle:
+                head = handle.read(4096)
+                size = handle.seek(0, 2)
+                tail = b""
+                if size > 4096:
+                    handle.seek(max(0, size - 4096))
+                    tail = handle.read(4096)
+        except OSError:
+            return ""
+        # The tail is the current cwd. The head covers a short transcript.
+        for blob in (tail, head):
+            folder = _folder_in_text(blob.decode("utf-8", errors="ignore"))
+            if folder:
+                return folder
+        return ""
 
 
 def grok_sessions_dir() -> Path:
@@ -163,6 +239,8 @@ def subagent_for(parent: SessionInfo, index: int) -> SessionInfo:
         pid=0,
         source=parent.source,
         parent_id=parent.agent_id,
+        project=parent.project,
+        failed=False,
     )
 
 
