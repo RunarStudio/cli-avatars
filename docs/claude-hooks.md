@@ -268,7 +268,7 @@ Unknown fields are dropped. Packets larger than 2 KB are dropped. The listener d
 
 ## Local chat (P3-CHAT-NOTE, P3B-SEND)
 
-The Chat panel is a view of the channel logs, plus a send box. Sending writes files. It does not start a process and it does not open a socket. The overlay never executes message text. Schema: [chat-schema.md](chat-schema.md).
+The chat window is a view of the channel logs, plus a composer. The HUD Chat button opens it, and a left-click on an avatar opens that avatar's topic. Sending writes files to an orchestrator inbox. It does not start a process and it does not open a socket. The overlay never executes message text. Schema: [chat-schema.md](chat-schema.md). Protocol: [agent-chat-protocol.md](agent-chat-protocol.md).
 
 ![Chat panel with the send box](media/chat-send.png)
 
@@ -320,7 +320,7 @@ python -m cli_avatars_emit decide --agent abcd1234 --room hooks --question "Same
 
 `--agent` is the inbox key, the same id `inbox read` uses. For Claude that is the first 8 characters of the session id. `--room` is the channel name. `--option` is repeated, `letter=text`, letters `a` through `f` with no gaps, two to six options. The question is sanitised and capped at 240 characters. Each option is sanitised and capped at 120. The record is kind `decision`, status `open`, with a uuid. It is appended to `channel/<room>.jsonl` and to `decisions.jsonl` in the data directory. Both files are owner-only.
 
-The Chat panel has a Decisions tab: open cards (thumbnail, name, room, question, lettered buttons) and a short history of answered ones. The person clicks a letter. That writes kind `decision_answer` to this agent's inbox and to the channel, and marks the decision answered. `from` is `user`. The fields are `decision_id`, `choice` (the letter), `ts`, and `text` (the chosen label). Clicking again, or an unknown id, is rejected and writes nothing.
+The chat window draws decision cards in the topic thread: the question, lettered buttons while it is open, and a Pin button once it is answered. The person clicks a letter. That writes kind `decision_answer` to this agent's inbox and to the channel, and marks the decision answered. `from` is `user`. The fields are `decision_id`, `choice` (the letter), `ts`, and `text` (the chosen label). Clicking again, or an unknown id, is rejected and writes nothing. Pin stores the answered card on the topic. Choosing a letter does not pin it.
 
 While the decision is open, that avatar shows a `decision` bubble. The HUD row is `Decisions N`. The bubble glyph is drawn in code (`TODO(Caine art)`) until the 16×16 cell arrives. It is not a sprite file.
 

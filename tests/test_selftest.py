@@ -31,6 +31,7 @@ class SelftestTests(unittest.TestCase):
             cwd=ROOT,
             capture_output=True,
             text=True,
+            timeout=60,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("selftest: ok", result.stdout)

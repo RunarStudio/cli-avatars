@@ -288,6 +288,13 @@ updated: 2026-11-18
   - `cli-avatars-emit hooks install` merges SessionStart, UserPromptSubmit, and Stop into `%USERPROFILE%\.claude\settings.json`. `--dry-run` is the default and prints a diff. `--apply` writes a timestamped backup first and is idempotent. `hooks uninstall --apply` removes only those entries.
   - Agent instructions: `docs/agent-chat-protocol.md`.
 
+- [x] **P3F-CHATWIN** Discord-style chat window <!-- id: P3F-CHATWIN -->
+  - `ChatWindow` is the main chat window: topics grouped by project (status chip, unread count, open-decision count), the selected thread (clock, thumbnail, name, source, icon, note, decision cards with lettered buttons and Pin), a collapsible summary and pins, and a composer. The right column lists active avatars, with subagents under their orchestrator. The window is resizable. When `config.json` already exists, `chat.window` remembers x, y, width, and height.
+  - Daniel talks to orchestrators. `routing.py` resolves the composer. Defaults: a Claude avatar or a Claude subagent writes to the top-level Claude session (the parent id). The Grok avatar writes to the live Grok session id, or the stable id `grok` until a session exists. `chat.routes` in `config.json` overrides this. The To chip shows the resolved recipient and can pick another orchestrator or All orchestrators. Subagents never receive the person's message directly.
+  - A left-click on an avatar, without dragging, opens that avatar's topic addressed to its orchestrator. A click on a subagent opens the parent's topic. Dragging and right-click stay as they were. The HUD Chat button opens the same window.
+  - The orchestrator forwards work onward and posts the result with `cli-avatars-emit say --note` or `reply`. The app stores and shows that text. It does not execute it and it does not start a CLI.
+  - `--selftest` builds the window off-screen from simulated rows. Preview: `docs/media/chat-window.png`. Protocol: `docs/agent-chat-protocol.md`.
+
 ## 🔵 v0.5 — Tauri Port
 
 - Step 1 done: SessionSource adapter layer (ClaudeJsonlSource)
