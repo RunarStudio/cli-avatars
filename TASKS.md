@@ -235,6 +235,16 @@ updated: 2026-11-18
   - The boolean `rooms` in `config.json` is read at startup and written back only when that file already exists.
   - Model and tests: `rooms.py`. Preview: `docs/media/rooms-list.png`.
 
+## 🟣 Phase 3 — Local chat
+
+- [x] **P3-CHAT** Read-only local chat <!-- id: P3-CHAT -->
+  - A HUD button `Chat`, next to Rooms, toggles one timeline. The walking desktop stays on screen. There is no send box.
+  - The timeline is every message in the local channel logs (`channel/<room>.jsonl`), merged across rooms and sorted by time. The panel tails those files: a quiet poll reads no bytes again. A replaced file is read from the start because the old offset is no longer valid.
+  - Each line shows `HH:MM`, the sender's idle thumbnail, the sender's name, its source (Claude, Grok or Emit), the allowlisted icon, and the note text when the line carries `note` or `text`. Control characters are stripped and the note is capped. The text is data. It is drawn only in this panel. Desktop bubbles stay icon-only, and nothing in a line is executed.
+  - Filters: all rooms or one room, and all sources or one source. The list follows the newest line unless the reader has scrolled up.
+  - `say --note` is unchanged: the note stays in the rotating log and is not copied into the channel file or the bubble.
+  - Model and tests: `chatlog.py`. Preview: `docs/media/local-chat.png`.
+
 ## 🔵 v0.5 — Tauri Port
 
 - Step 1 done: SessionSource adapter layer (ClaudeJsonlSource)
