@@ -578,9 +578,12 @@ class TestEmitCLI(_TempDir):
         channel = self.data / "channel" / "grok_abcd1234.jsonl"
         body = channel.read_text(encoding="utf-8")
         token = (self.data / "token").read_text(encoding="utf-8").strip()
-        self.assertNotIn(note, body)
+        stored = json.loads(body)
+        self.assertEqual(stored["note"], note)
+        self.assertEqual(stored["icon"], "question")
+        self.assertNotIn("token", stored)
         self.assertNotIn(token, body)
-        self.assertNotIn("text", body)
+        self.assertNotIn('"text"', body)
         assert_private_to_current_user(self, channel)
 
         inbox = self._emit_stdout(["inbox", "--for", "grok:abcd1234"])

@@ -17,12 +17,20 @@ import math
 import os
 import stat
 import time
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from events import CHANNEL_DIR_NAME, ICONS, _ACTOR, _CHANNEL, _SOURCE
+from events import (
+    CHANNEL_DIR_NAME,
+    ICONS,
+    UUID_RE,
+    _ACTOR,
+    _CHANNEL,
+    _SESSION_ID,
+    _SOURCE,
+    sanitize_text,
+)
 from hud import source_label
 
 MAX_NOTE = 240
@@ -38,6 +46,8 @@ _DEFAULT_SKIN = {
     "claude": "caine",
     "grok": "michimaru",
     "emit": "bubble",
+    "user": "caine",
+    "agent": "bubble",
 }
 
 # Sheet names already in Sprites/. A log field is never used as a path.
@@ -73,6 +83,7 @@ class ChatLine:
     icon: str
     note: str
     skin: str
+    reply_to: str = ""
 
 
 class ScrollFollow:
@@ -98,24 +109,6 @@ class ScrollFollow:
         return self.pinned
 
 
-def sanitize_text(value: object, limit: int = MAX_NOTE) -> str:
-    """Strip control and format characters, then cap the length.
-
-    The result is display data. It is not a command, a format string, or a path.
-    """
-    if not isinstance(value, str) or limit <= 0:
-        return ""
-    kept: list[str] = []
-    for ch in value:
-        if unicodedata.category(ch) in {"Cc", "Cf", "Cs"}:
-            continue
-        code = ord(ch)
-        if code < 32 or code == 127:
-            continue
-        kept.append(ch)
-    return "".join(kept).strip()[:limit]
-
-
 def default_skin(source: str) -> str:
     return _DEFAULT_SKIN.get(source.casefold(), "caine")
 
@@ -129,8 +122,24 @@ def format_clock(ts: float, localtime: Callable = time.localtime) -> str:
 
 
 def _id_part(sender: str) -> str:
-    _source, _, ident = sender.partition(":")
+    source, sep, ident = sender.partition(":")
+    if not sep:
+        return source[:NAME_LIMIT]
     return ident[:NAME_LIMIT]
+
+
+def _sender_source(sender: str) -> str | None:
+    """``user``, ``source:id``, or a bare session id. Anything else is dropped."""
+    if sender == "user":
+        return "user"
+    if _ACTOR.fullmatch(sender):
+        source, _, _ident = sender.partition(":")
+        if _SOURCE.fullmatch(source) is None:
+            return None
+        return source
+    if _SESSION_ID.fullmatch(sender):
+        return "agent"
+    return None
 
 
 def shown_name(line: ChatLine, live: object = None) -> str:
@@ -170,10 +179,10 @@ def parse_record(obj: object, localtime: Callable = time.localtime) -> ChatLine 
     if not isinstance(obj, dict):
         return None
     sender = obj.get("from")
-    if not isinstance(sender, str) or _ACTOR.fullmatch(sender) is None:
+    if not isinstance(sender, str):
         return None
-    source, _, _ident = sender.partition(":")
-    if _SOURCE.fullmatch(source) is None:
+    source = _sender_source(sender)
+    if source is None:
         return None
     room = obj.get("channel")
     if not isinstance(room, str):
@@ -191,7 +200,11 @@ def parse_record(obj: object, localtime: Callable = time.localtime) -> ChatLine 
         return None
     name = sanitize_text(obj.get("name"), NAME_LIMIT)
     if not name:
-        name = _id_part(sender)
+        name = "You" if sender == "user" else (_id_part(sender) or sender[:NAME_LIMIT])
+    reply_to = ""
+    raw_reply = obj.get("reply_to")
+    if isinstance(raw_reply, str) and UUID_RE.fullmatch(raw_reply):
+        reply_to = raw_reply.lower()
     return ChatLine(
         ts=ts,
         clock=format_clock(ts, localtime),
@@ -203,6 +216,7 @@ def parse_record(obj: object, localtime: Callable = time.localtime) -> ChatLine 
         icon=str(icon),
         note=_message_text(obj),
         skin=default_skin(source),
+        reply_to=reply_to,
     )
 
 
@@ -581,12 +595,27 @@ def _chips(draw, origin: tuple[int, int], labels: Sequence[str], selected: str, 
         x += width + 6
 
 
-def write_chat_preview(path: Path | str | None = None) -> Path:
-    """Draw the read-only timeline from ``sample_lines``. Returns the PNG path."""
+def _checkbox(draw, xy: tuple[int, int], label: str, checked: bool, font) -> int:
+    x, y = xy
+    size = 14
+    draw.rectangle([x, y, x + size, y + size], outline=_hex("#88aaff"), width=1)
+    if checked:
+        draw.rectangle([x + 3, y + 3, x + size - 3, y + size - 3], fill=_hex("#88aaff"))
+    draw.text((x + size + 8, y - 2), label, font=font, fill=_hex("#e8e6f4"))
+    return size + 8 + int(font.getlength(label)) + 18
+
+
+def write_chat_preview(path: Path | str | None = None, *, send_box: bool = False) -> Path:
+    """Draw the timeline from ``sample_lines``. Returns the PNG path.
+
+    ``send_box`` adds the To picker, the text entry, and the Send button.
+    The picture is simulated data. It does not read the data directory.
+    """
     from PIL import Image, ImageDraw
     from rooms import idle_thumbnail
 
-    target = Path(path) if path else Path(__file__).resolve().parent / "docs" / "media" / "local-chat.png"
+    default_name = "chat-send.png" if send_box else "local-chat.png"
+    target = Path(path) if path else Path(__file__).resolve().parent / "docs" / "media" / default_name
     target.parent.mkdir(parents=True, exist_ok=True)
     lines = sample_lines()
 
@@ -611,7 +640,9 @@ def write_chat_preview(path: Path | str | None = None) -> Path:
     margin = 16
     row_h = 56
     top = 128
-    height = top + row_h * len(lines) + 36
+    composer_h = 168 if send_box else 0
+    footer = 0 if send_box else 36
+    height = top + row_h * len(lines) + footer + composer_h
 
     image = Image.new("RGB", (width, height), bg)
     draw = ImageDraw.Draw(image)
@@ -645,15 +676,44 @@ def write_chat_preview(path: Path | str | None = None) -> Path:
         if glyph is not None:
             _paste(image, glyph, (360, y + 16))
         draw.text((388, y + 16), item.note, font=body, fill=ink)
+        if item.reply_to:
+            draw.text((388, y + 34), "reply " + item.reply_to[:8], font=small, fill=meta)
 
-    draw.text((margin, height - 26), "Read only", font=small, fill=meta)
+    if send_box:
+        y0 = top + row_h * len(lines) + 8
+        draw.line([margin, y0, width - margin, y0], fill=line, width=1)
+        draw.text((margin, y0 + 12), "To: 2 agents", font=small, fill=meta)
+        x = margin
+        y_checks = y0 + 36
+        x += _checkbox(draw, (x, y_checks), "All", False, chip_font)
+        x += _checkbox(draw, (x, y_checks), "Claude-west", True, chip_font)
+        _checkbox(draw, (x, y_checks), "Grok-north", True, chip_font)
+        entry_y = y0 + 68
+        entry_right = width - margin - 84
+        draw.rectangle([margin, entry_y, entry_right, entry_y + 32], fill=_hex("#12121f"), outline=line)
+        draw.text((margin + 10, entry_y + 7), "Same window. I can send this.", font=body, fill=ink)
+        draw.rectangle([entry_right + 8, entry_y, width - margin, entry_y + 32], fill=_hex("#334477"))
+        send_label = "Send"
+        send_w = int(chip_font.getlength(send_label))
+        send_x = entry_right + 8 + (width - margin - (entry_right + 8) - send_w) // 2
+        draw.text((send_x, entry_y + 7), send_label, font=chip_font, fill=(255, 255, 255))
+        draw.text((margin, entry_y + 40), "Stored locally. Nothing here runs.", font=small, fill=meta)
+    else:
+        draw.text((margin, height - 26), "Read only", font=small, fill=meta)
     image.save(target, format="PNG", optimize=True)
     return target
 
 
+def write_send_preview(path: Path | str | None = None) -> Path:
+    """Chat panel with the send box, from simulated lines. Returns the PNG path."""
+    return write_chat_preview(path, send_box=True)
+
+
 def main() -> None:
     write_chat_preview()
+    write_send_preview()
     print("docs/media/local-chat.png")
+    print("docs/media/chat-send.png")
 
 
 if __name__ == "__main__":

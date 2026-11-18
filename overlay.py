@@ -78,6 +78,7 @@ from chatlog import (
 )
 from events import (
     EventBus,
+    EventRejected,
     EventSource,
     PollingSource,
     StateEvent,
@@ -85,6 +86,7 @@ from events import (
     app_data_dir,
     merge_with_events,
 )
+from inbox import ToPicker, agents_from_registry, send_message, send_room
 from bubbles import BubbleBoard, integer_scale, render_bubble
 from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
 from portal import PortalPlayer, portal_top_left, render_portal
@@ -1224,6 +1226,13 @@ class OverlayApp:
         self._chat_drag = None
         self._chat_room_var = None
         self._chat_source_var = None
+        self._chat_picker = ToPicker()
+        self._chat_agent_sig = None
+        self._chat_entry = None
+        self._chat_to_list = None
+        self._chat_all_var = None
+        self._chat_agent_vars = {}
+        self._chat_send_status = None
         self.root = tk.Tk()
         self.root.title(self.TITLE)
         _ico = Path(__file__).parent / "Caine_Icon.ico"
@@ -2312,7 +2321,7 @@ class OverlayApp:
         win.overrideredirect(True)
         win.attributes("-topmost", False)
         win.configure(bg=bg)
-        win.geometry("640x480+20+490")
+        win.geometry("640x560+20+490")
         try:
             win.attributes("-alpha", 0.94)
         except Exception:
@@ -2348,8 +2357,7 @@ class OverlayApp:
         self._chat_room_menu = _filter_row("Room", self._chat_room_var, ALL_ROOMS)
         self._chat_source_menu = _filter_row("Source", self._chat_source_var, ALL_SOURCES)
 
-        tk.Label(win, text="Read only", bg=bg, fg="#55556a",
-                 font=("Courier", 8), anchor="w").pack(side="bottom", fill="x", padx=12, pady=(0, 6))
+        self._build_chat_composer(win, bg)
 
         body = tk.Frame(win, bg=bg)
         body.pack(fill="both", expand=True)
@@ -2473,6 +2481,7 @@ class OverlayApp:
             return
         if self._chat_room_var is None or self._chat_source_var is None:
             return
+        self._refresh_chat_recipients()
         lines = self._chat_tail_reader().poll()
         self._sync_chat_menu(self._chat_room_menu, room_menu(lines), self._chat_room_var)
         self._sync_chat_menu(self._chat_source_menu, source_menu(lines), self._chat_source_var)
@@ -2542,6 +2551,9 @@ class OverlayApp:
                  font=("Courier", 9), anchor="w").pack(anchor="w")
         tk.Label(meta, text=line.room, bg=bg, fg="#9a98b8",
                  font=("Courier", 8), anchor="w").pack(anchor="w")
+        if line.reply_to:
+            tk.Label(meta, text="reply " + line.reply_to[:8], bg=bg, fg="#9a98b8",
+                     font=("Courier", 8), anchor="w").pack(anchor="w")
         icon = self._chat_photo("icon", line.icon, lambda name=line.icon: talk_icon(name, 18))
         if icon is not None:
             glyph = tk.Label(row, image=icon, bg=bg)
@@ -2554,6 +2566,187 @@ class OverlayApp:
                  font=("Courier", 9), anchor="w", justify="left",
                  wraplength=260).grid(row=0, column=5, padx=(4, 8), pady=4, sticky="ew")
         row.grid_columnconfigure(5, weight=1)
+
+    def _build_chat_composer(self, win, bg: str) -> None:
+        """To picker, text entry, and Send. Writes files only."""
+        composer = tk.Frame(win, bg=bg)
+        composer.pack(side="bottom", fill="x", padx=8, pady=(0, 8))
+        header = tk.Frame(composer, bg=bg)
+        header.pack(fill="x")
+        tk.Label(header, text="To", bg=bg, fg="#9a98b8",
+                 font=("Courier", 9), width=4, anchor="w").pack(side="left")
+        self._chat_to_caption = tk.Label(
+            header, text="All", bg=bg, fg="#e8e6f4", font=("Courier", 9), anchor="w",
+        )
+        self._chat_to_caption.pack(side="left")
+
+        wrap = tk.Frame(composer, bg=bg)
+        wrap.pack(fill="x", pady=(2, 4))
+        canvas = tk.Canvas(wrap, bg=bg, height=72, highlightthickness=0, bd=0)
+        scroll = tk.Scrollbar(wrap, command=canvas.yview)
+        canvas.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="x", expand=True)
+        listing = tk.Frame(canvas, bg=bg)
+        self._chat_to_list = listing
+        window_id = canvas.create_window((0, 0), window=listing, anchor="nw")
+
+        def _on_list(_event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas(event):
+            canvas.itemconfig(window_id, width=event.width)
+
+        listing.bind("<Configure>", _on_list)
+        canvas.bind("<Configure>", _on_canvas)
+
+        text_row = tk.Frame(composer, bg=bg)
+        text_row.pack(fill="x")
+        entry = tk.Entry(
+            text_row, bg="#12121f", fg="#e8e6f4", insertbackground="#e8e6f4",
+            relief="flat", font=("Courier", 10),
+        )
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 6), ipady=3)
+        entry.bind("<Return>", lambda _event: self._send_chat())
+        self._chat_entry = entry
+        tk.Button(
+            text_row, text="Send", command=self._send_chat,
+            bg="#334477", fg="white", activebackground="#4466aa",
+            activeforeground="white", font=("Courier", 10),
+            relief="flat", padx=12, pady=3, cursor="hand2",
+        ).pack(side="right")
+        self._chat_send_status = tk.Label(
+            composer, text="Stored locally. Nothing here runs.",
+            bg=bg, fg="#55556a", font=("Courier", 8), anchor="w",
+        )
+        self._chat_send_status.pack(fill="x", pady=(4, 0))
+
+    def _set_chat_status(self, text: str) -> None:
+        label = getattr(self, "_chat_send_status", None)
+        if label is None:
+            return
+        try:
+            if label.winfo_exists():
+                label.config(text=text)
+        except Exception:
+            return
+
+    def _refresh_chat_recipients(self) -> None:
+        listing = getattr(self, "_chat_to_list", None)
+        if listing is None:
+            return
+        try:
+            if not listing.winfo_exists():
+                return
+        except Exception:
+            return
+        known = agents_from_registry(self.scanner.get_agents(), time.time())
+        sig = tuple((agent.agent_id, agent.name) for agent in known)
+        caption = getattr(self, "_chat_to_caption", None)
+        if caption is not None:
+            try:
+                caption.config(text=self._chat_picker.label(known))
+            except Exception:
+                pass
+        if sig == self._chat_agent_sig and listing.winfo_children():
+            return
+        self._chat_agent_sig = sig
+        for child in listing.winfo_children():
+            child.destroy()
+        bg = "#0d0d1a"
+        all_var = tk.IntVar(value=1 if self._chat_picker.all else 0)
+        self._chat_all_var = all_var
+        tk.Checkbutton(
+            listing, text="All", variable=all_var, command=self._on_chat_all,
+            bg=bg, fg="#e8e6f4", selectcolor="#12121f",
+            activebackground=bg, activeforeground="white",
+            font=("Courier", 9), anchor="w",
+        ).pack(anchor="w")
+        self._chat_agent_vars = {}
+        for agent in known:
+            checked = 0 if self._chat_picker.all else int(agent.agent_id in self._chat_picker.checked)
+            var = tk.IntVar(value=checked)
+            self._chat_agent_vars[agent.agent_id] = var
+            tk.Checkbutton(
+                listing,
+                text=agent.name,
+                variable=var,
+                command=lambda agent_id=agent.agent_id: self._on_chat_one(agent_id),
+                bg=bg, fg="#e8e6f4", selectcolor="#12121f",
+                activebackground=bg, activeforeground="white",
+                font=("Courier", 9), anchor="w",
+            ).pack(anchor="w")
+        if not known:
+            tk.Label(listing, text="No agents", bg=bg, fg="#9a98b8",
+                     font=("Courier", 9), anchor="w").pack(anchor="w")
+
+    def _paint_chat_to_caption(self) -> None:
+        caption = getattr(self, "_chat_to_caption", None)
+        if caption is None:
+            return
+        try:
+            known = agents_from_registry(self.scanner.get_agents(), time.time())
+            caption.config(text=self._chat_picker.label(known))
+        except Exception:
+            return
+
+    def _on_chat_all(self) -> None:
+        var = self._chat_all_var
+        if var is not None and var.get():
+            self._chat_picker.choose_all()
+            for agent_var in self._chat_agent_vars.values():
+                agent_var.set(0)
+        else:
+            self._chat_picker.all = False
+            self._chat_picker.checked = []
+        self._paint_chat_to_caption()
+
+    def _on_chat_one(self, agent_id: str) -> None:
+        var = self._chat_agent_vars.get(agent_id)
+        self._chat_picker.all = False
+        if var is not None and var.get():
+            if agent_id not in self._chat_picker.checked:
+                self._chat_picker.checked.append(agent_id)
+        else:
+            self._chat_picker.checked = [
+                item for item in self._chat_picker.checked if item != agent_id
+            ]
+        if self._chat_all_var is not None:
+            self._chat_all_var.set(0)
+        self._paint_chat_to_caption()
+
+    def _send_chat(self) -> None:
+        """Write the inbox files and one channel line."""
+        entry = getattr(self, "_chat_entry", None)
+        if entry is None:
+            return
+        try:
+            raw = entry.get()
+        except Exception:
+            return
+        known = agents_from_registry(self.scanner.get_agents(), time.time())
+        recipients = self._chat_picker.recipients(known)
+        if not recipients:
+            self._set_chat_status("No agents")
+            return
+        choice = self._chat_room_var.get() if self._chat_room_var is not None else "All rooms"
+        try:
+            send_message(
+                self._chat_directory(),
+                sender="user",
+                recipients=recipients,
+                text=raw,
+                room=send_room(choice),
+            )
+        except EventRejected:
+            self._set_chat_status("Not sent")
+            return
+        try:
+            entry.delete(0, "end")
+        except Exception:
+            return
+        self._set_chat_status("Sent")
+        self._update_chat_win(force=True)
 
     # ── Left-click drag ───────────────────────────────────────────────
 

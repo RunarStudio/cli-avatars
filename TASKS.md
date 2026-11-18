@@ -212,7 +212,7 @@ updated: 2026-11-18
 
 - [x] **F2** Internal event bus, localhost listener, and `cli-avatars-emit` <!-- id: F2 -->
   - `EventBus` is in-process and thread-safe. `PollingSource` publishes each scan. `EventSource` listens on UDP `127.0.0.1` only (default port 47200). With no packets, scan results are unchanged.
-  - Shared token file in the per-user data directory, mode 0600 (Windows: user-only ACL). Reject missing tokens, packets over 2 KB, and rate-limit bursts. Strict schema; unknown fields dropped. `note` / `text` go to the rotating log `events.log` and are not shown.
+  - Shared token file in the per-user data directory, mode 0600 (Windows: user-only ACL). Reject missing tokens, packets over 2 KB, and rate-limit bursts. Strict schema; unknown fields dropped. `note` / `text` go to the rotating log `events.log`. The desktop bubble does not show them. A sanitised channel copy is **P3-CHAT-NOTE**.
   - States: `idle`, `busy`, `thinking`, `subagent`. Chat icons: `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing`. Channel queue: `channel/<room>.jsonl` in that data directory, never in the repo.
   - Not in F2: bubble rendering, walking to meet, Grok transcript parsing, MCP, Discord, git channel.
 
@@ -242,8 +242,20 @@ updated: 2026-11-18
   - The timeline is every message in the local channel logs (`channel/<room>.jsonl`), merged across rooms and sorted by time. The panel tails those files: a quiet poll reads no bytes again. A replaced file is read from the start because the old offset is no longer valid.
   - Each line shows `HH:MM`, the sender's idle thumbnail, the sender's name, its source (Claude, Grok or Emit), the allowlisted icon, and the note text when the line carries `note` or `text`. Control characters are stripped and the note is capped. The text is data. It is drawn only in this panel. Desktop bubbles stay icon-only, and nothing in a line is executed.
   - Filters: all rooms or one room, and all sources or one source. The list follows the newest line unless the reader has scrolled up.
-  - `say --note` is unchanged: the note stays in the rotating log and is not copied into the channel file or the bubble.
+  - `say --note` at the time of P3-CHAT stayed in the rotating log only. **P3-CHAT-NOTE** also copies a sanitised note onto the channel file. The bubble stays icon-only.
   - Model and tests: `chatlog.py`. Preview: `docs/media/local-chat.png`.
+
+- [x] **P3-CHAT-NOTE** `say --note` is copied into the channel log <!-- id: P3-CHAT-NOTE -->
+  - `cli-avatars-emit say --note` still appends the rotating log. It also appends one channel record. The note uses the Chat panel's sanitisation: control characters stripped, 240 characters, icon on the allowlist.
+  - The append keeps the channel directory lock and the owner-only ACL. The note is data. Nothing in it is executed. The desktop bubble stays icon-only.
+  - The Chat panel shows the line on its next tail.
+
+- [x] **P3B-SEND** Local send box and per-agent inbox <!-- id: P3B-SEND -->
+  - Inbox files are `inbox/<agent_id>.jsonl` in the per-user data directory, with the same owner-only ACL and atomic append as the channel. The Chat panel Send button writes those files and one channel line. It does not start a process and it does not open a socket.
+  - To is one agent, several agents, or All. All is the rooms registry (top-level sessions and their sub rows). Demo avatars are not included.
+  - Schema: `id`, `ts`, `from` (`user` or an agent id), `to` (list), `room` / `topic` (default `general`), `kind` (`msg`; `decision` and `decision_answer` are reserved), `text` (sanitised, 2000), `reply_to` optional.
+  - `inbox read --agent ID [--since ID] [--json]` prints unread rows and stores the cursor at `inbox/<agent_id>.cursor`. `reply --agent ID --to MSG --note "..."` appends the reply to the channel so the panel shows it.
+  - Schema: `docs/chat-schema.md`. Hook and agent instructions: `docs/claude-hooks.md`. Preview: `docs/media/chat-send.png`.
 
 ## 🔵 v0.5 — Tauri Port
 

@@ -133,11 +133,12 @@ By default, the overlay polls JSONL session files every 2 seconds. For instant s
 
 ```bash
 python -m cli_avatars_emit state --source claude --id abcd1234 --state busy
-python -m cli_avatars_emit say --from claude:abcd1234 --to grok:abcd1234 --icon question
-python -m cli_avatars_emit inbox --for grok:abcd1234
+python -m cli_avatars_emit say --from claude:abcd1234 --to grok:abcd1234 --icon question --note "shown in Chat"
+python -m cli_avatars_emit inbox read --agent abcd1234 --json
+python -m cli_avatars_emit reply --agent abcd1234 --to <message-id> --note "reply"
 ```
 
-`say` draws that icon in a bubble over the sending avatar. Two different avatars also walk to meet (same window top, or both drop to the floor). Trigger, HUD, and the Windows check: [docs/claude-hooks.md](docs/claude-hooks.md#meeting-walk-f4).
+`say` draws that icon in a bubble over the sending avatar. Two different avatars also walk to meet (same window top, or both drop to the floor). A `--note` is sanitised onto the local channel log and shown in the Chat panel; the bubble stays an icon. Trigger, HUD, and the Windows check: [docs/claude-hooks.md](docs/claude-hooks.md#meeting-walk-f4). The inbox and reply commands are in [docs/claude-hooks.md](docs/claude-hooks.md#local-chat-p3-chat-note-p3b-send). Schema: [docs/chat-schema.md](docs/chat-schema.md).
 
 ---
 
@@ -165,7 +166,8 @@ cli-avatars/
 ├── bubbles.py              ← Icon bubble layout, queue, and talk count
 ├── meetings.py             ← Walk-to-meet planner (perch or floor)
 ├── portal.py               ← Portal on the meeting point (anchor, frames, sprite)
-├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox)
+├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox / reply)
+├── inbox.py                ← Per-agent inbox, send fan-out, read cursor, reply
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
 ├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
 ├── gen_ponmi.py            ← Generator for the ponmi sprite sheet
@@ -181,6 +183,7 @@ cli-avatars/
 ├── ponmi_preview/          ← Ponmi sprite GIFs
 └── docs/
     ├── adding-sprites.md   ← How to add custom skins
+    ├── chat-schema.md      ← Channel and inbox message schema
     └── claude-hooks.md     ← How to use the hooks integration
 ```
 

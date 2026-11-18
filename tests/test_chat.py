@@ -30,6 +30,7 @@ from chatlog import (  # noqa: E402
     shown_skin,
     source_menu,
     write_chat_preview,
+    write_send_preview,
 )
 from events import append_channel  # noqa: E402
 
@@ -159,6 +160,30 @@ class TestParse(unittest.TestCase):
         self.assertNotIn("..", blob)
         self.assertNotIn("evil", blob)
         self.assertEqual(line.skin, "caine")
+
+    def test_user_and_reply_lines_stay_display_data(self):
+        line = _line(**{"from": "user", "name": "You", "note": "hello\nthere"})
+        self.assertEqual(line.source, "user")
+        self.assertEqual(line.source_label, "User")
+        self.assertEqual(line.name, "You")
+        self.assertEqual(line.note, "hellothere")
+        self.assertEqual(line.skin, "caine")
+        reply = "12345678-1234-1234-1234-123456789abc"
+        threaded = _line(**{"from": "abcd1234", "name": None, "reply_to": reply, "note": "ok"})
+        self.assertEqual(threaded.source, "agent")
+        self.assertEqual(threaded.name, "abcd1234")
+        self.assertEqual(threaded.reply_to, reply)
+        self.assertEqual(threaded.skin, "bubble")
+        dropped = parse_record(_record(reply_to="../x", note="still here"))
+        self.assertIsNotNone(dropped)
+        self.assertEqual(dropped.reply_to, "")
+        self.assertNotIn("..", dropped.reply_to)
+        kept = parse_record(_record(reply_to="not-a-uuid", note="still here"))
+        self.assertEqual(kept.note, "still here")
+        self.assertEqual(kept.reply_to, "")
+        long_note = "m" * 2000
+        shown = _line(note=long_note)
+        self.assertEqual(len(shown.note), MAX_NOTE)
 
     def test_id_is_the_name_when_the_log_has_none(self):
         line = parse_record(_record(name=None))
@@ -460,8 +485,14 @@ class TestPreview(unittest.TestCase):
             written = write_chat_preview(path)
             self.assertEqual(written, path)
             data = path.read_bytes()
+            send_path = Path(name) / "chat-send.png"
+            send = write_send_preview(send_path)
+            self.assertEqual(send, send_path)
+            send_bytes = send_path.read_bytes()
         self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
         self.assertGreater(len(data), 2000)
+        self.assertTrue(send_bytes.startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertGreater(len(send_bytes), len(data))
 
 
 class TestModuleBoundary(unittest.TestCase):
@@ -470,7 +501,7 @@ class TestModuleBoundary(unittest.TestCase):
         for name in ("tkinter", "pywinctl", "pystray", "eval(", "exec(", "subprocess", "os.system"):
             self.assertNotIn(name, text)
 
-    def test_hud_button_sits_next_to_rooms_and_has_no_send_box(self):
+    def test_hud_button_sits_next_to_rooms_and_has_a_send_box(self):
         text = Path(__file__).resolve().parent.parent.joinpath("overlay.py").read_text(encoding="utf-8")
         rooms_btn = text.index('text="Rooms"')
         chat_btn = text.index('text="Chat"')
@@ -479,9 +510,14 @@ class TestModuleBoundary(unittest.TestCase):
         self.assertIn("filter_lines(", text)
         self.assertIn("ScrollFollow(", text)
         chat = text.split("def _build_chat_win", 1)[1].split("def _on_left_press", 1)[0]
-        self.assertNotIn("tk.Entry", chat)
-        self.assertNotIn("tk.Text", chat)
-        self.assertNotIn('text="Send"', chat)
+        self.assertIn("tk.Entry", chat)
+        self.assertIn("tk.Checkbutton", chat)
+        self.assertIn('text="All"', chat)
+        self.assertIn('text="Send"', chat)
+        self.assertIn("send_message(", chat)
+        self.assertNotIn("subprocess", chat)
+        self.assertNotIn("os.system", chat)
+        self.assertNotIn("socket.", chat)
         bubbles = text.split("def _draw_talk_bubbles", 1)[1].split("def _update_hud_win", 1)[0]
         self.assertNotIn("note", bubbles)
         self.assertNotIn("line.note", bubbles)

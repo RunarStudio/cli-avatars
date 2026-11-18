@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-"""cli-avatars-emit — push a local event or read the local channel queue.
+"""cli-avatars-emit — push a local event, or read a local inbox.
 
 Examples:
     cli-avatars-emit state --source claude --id X --state busy
-    cli-avatars-emit say --from claude:X --to grok:Y --icon question --note "logged only"
+    cli-avatars-emit say --from claude:X --to grok:Y --icon question --note "shown in Chat"
     cli-avatars-emit inbox --for grok:Y
+    cli-avatars-emit inbox read --agent X --json
+    cli-avatars-emit reply --agent X --to <message-id> --note "reply"
 
 State and say also send one UDP packet to 127.0.0.1. Say appends the channel
 queue under the per-user data directory (cli-avatars/channel/<room>.jsonl).
-``--note`` is written to the rotating local log and is not shown on screen.
-Inbox prints queued rows and marks them as untrusted data from the sender.
+``--note`` is sanitised into that channel file and written to the rotating
+log. The desktop bubble stays icon-only.
+
+``inbox read`` prints unread rows for one agent and marks them read.
+``reply`` appends a channel line so the Chat panel shows it. Neither command
+runs the message text.
 
 The shared token is read from the data directory. It is never a command argument.
 """
@@ -39,6 +45,7 @@ from events import (
     parse_packet,
     read_inbox,
 )
+from inbox import format_messages, post_reply, read_unread
 
 _STATE_CHOICES = ("idle", "busy", "thinking", "subagent")
 
@@ -102,6 +109,8 @@ def cmd_say(args: argparse.Namespace) -> int:
         "channel": channel,
         "icon": args.icon,
     }
+    if note:
+        entry["note"] = note
     append_channel(directory, entry)
     _log_note(directory, note)
     send_packet(packet, args.port)
@@ -109,9 +118,25 @@ def cmd_say(args: argparse.Namespace) -> int:
 
 
 def cmd_inbox(args: argparse.Namespace) -> int:
+    if not args.recipient:
+        print("rejected: schema", file=sys.stderr)
+        return 2
     directory = _data_dir(args.data_dir)
     entries = read_inbox(args.recipient, directory)
     sys.stdout.write(format_inbox(entries))
+    return 0
+
+
+def cmd_inbox_read(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    entries = read_unread(directory, args.agent, since=args.since)
+    sys.stdout.write(format_messages(entries, as_json=bool(args.as_json)))
+    return 0
+
+
+def cmd_reply(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    post_reply(directory, agent_id=args.agent, message_id=args.to, note=args.note or "")
     return 0
 
 
@@ -153,13 +178,29 @@ def build_parser() -> argparse.ArgumentParser:
     say.add_argument(
         "--note",
         default=None,
-        help="optional text stored in the local log only; never shown on screen",
+        help="optional text stored on the channel (Chat panel) and in the local log; not drawn in the bubble",
     )
     say.set_defaults(func=cmd_say)
 
-    inbox = sub.add_parser("inbox", parents=[common], help="print queued chat icons for one recipient")
-    inbox.add_argument("--for", dest="recipient", required=True, help="source:id of the recipient")
+    inbox = sub.add_parser("inbox", parents=[common], help="print queued chat icons, or read an agent inbox")
+    inbox.add_argument("--for", dest="recipient", default=None, help="source:id of the icon-queue recipient")
     inbox.set_defaults(func=cmd_inbox)
+    inbox_sub = inbox.add_subparsers(dest="inbox_cmd")
+    read = inbox_sub.add_parser("read", help="print unread inbox messages and mark them read")
+    read.add_argument("--agent", required=True, help="agent id (Claude: 8-character session id)")
+    read.add_argument("--since", default=None, help="print messages after this message id")
+    read.add_argument("--json", dest="as_json", action="store_true", help="print a JSON array")
+    read.set_defaults(func=cmd_inbox_read)
+
+    reply = sub.add_parser(
+        "reply",
+        parents=[common],
+        help="append a reply to the channel so the Chat panel shows it",
+    )
+    reply.add_argument("--agent", required=True, help="agent id of the sender")
+    reply.add_argument("--to", required=True, help="message id being answered")
+    reply.add_argument("--note", required=True, help="reply text; stored as data, not run")
+    reply.set_defaults(func=cmd_reply)
     return parser
 
 
