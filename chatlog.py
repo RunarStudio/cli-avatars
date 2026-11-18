@@ -2,8 +2,9 @@
 
 Channel logs are ``channel/<room>.jsonl`` under the per-user data directory.
 ``ChannelTail`` merges every room, sorts by time, and reads only new bytes
-on a quiet file. A replaced or shortened file is read again because the old
-offset no longer points at the same bytes.
+on a quiet file. Offsets are byte offsets from a binary read. A line may
+end in LF or CRLF. A replaced or shortened file is read again because the
+old offset no longer points at the same bytes.
 
 ``note`` and ``text`` are data. Control characters are stripped, the line is
 capped, and nothing in it is executed. Desktop bubbles do not read this module.
@@ -13,6 +14,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import stat
 import time
 import unicodedata
 from dataclasses import dataclass
@@ -336,12 +339,12 @@ class ChannelTail:
 
     def _channel_root(self) -> Path | None:
         root = self.directory / CHANNEL_DIR_NAME
-        if root.is_symlink() or not root.is_dir():
+        if _is_link(root) or not root.is_dir():
             return None
         return root
 
     def _safe(self, root: Path, path: Path) -> Path | None:
-        if path.is_symlink() or not path.is_file():
+        if _is_link(path) or not path.is_file():
             return None
         try:
             resolved = path.resolve()
@@ -390,6 +393,8 @@ class ChannelTail:
                 break
             raw = data[:newline]
             data = data[newline + 1:]
+            if raw.endswith(b"\r"):
+                raw = raw[:-1]
             if cursor.skipping:
                 cursor.skipping = False
                 continue
@@ -422,6 +427,30 @@ class ChannelTail:
         except json.JSONDecodeError:
             return None
         return parse_record(obj, self.localtime)
+
+
+def _is_link(path: Path) -> bool:
+    """True for a symlink, or a Windows directory junction.
+
+    Other reparse points, such as a cloud placeholder for a normal file, are
+    left alone. ``is_symlink`` is false for a junction on current Python.
+    """
+    try:
+        if path.is_symlink():
+            return True
+    except OSError:
+        return True
+    if os.name != "nt":
+        return False
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    attrs = getattr(info, "st_file_attributes", 0) or 0
+    if not flag or not attrs & flag:
+        return False
+    return stat.S_ISDIR(info.st_mode)
 
 
 def sample_records() -> list[dict[str, object]]:

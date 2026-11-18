@@ -1,11 +1,14 @@
 """Read-only local chat. Run: python -m unittest discover -s tests"""
 
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -47,6 +50,50 @@ def _record(**overrides) -> dict:
     }
     data.update(overrides)
     return data
+
+
+def _try_file_symlink(link: Path, target: Path) -> bool:
+    """Create a file symlink. False when Windows will not allow one."""
+    try:
+        link.symlink_to(target)
+    except OSError:
+        return False
+    return True
+
+
+def _pretend_symlink(link: Path):
+    """Make ``link`` answer yes to ``is_symlink`` without a real link."""
+    real = Path.is_symlink
+    wanted = os.path.normcase(str(link))
+
+    def is_symlink(self):
+        if os.path.normcase(str(self)) == wanted:
+            return True
+        return real(self)
+
+    return patch.object(Path, "is_symlink", is_symlink)
+
+
+def _point_directory(link: Path, target: Path) -> None:
+    """Point ``link`` at a directory.
+
+    A symlink is used when the OS allows it. Windows without that privilege
+    gets a junction, which does not need Developer Mode.
+    """
+    try:
+        link.symlink_to(target, target_is_directory=True)
+        return
+    except OSError as first:
+        if os.name != "nt":
+            raise
+    completed = subprocess.run(
+        ["cmd", "/d", "/c", "mklink", "/J", str(link), str(target)],
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0 or not link.exists():
+        detail = (completed.stderr or completed.stdout or b"").decode("utf-8", "replace").strip()
+        raise OSError(detail or "directory link was not created") from first
 
 
 def _line(**overrides):
@@ -187,8 +234,8 @@ class TestTail(unittest.TestCase):
 
     def _write(self, name: str, records: list[dict]) -> Path:
         path = self.channel / name
-        body = "".join(json.dumps(record) + "\n" for record in records)
-        path.write_text(body, encoding="utf-8")
+        body = b"".join(json.dumps(record).encode("utf-8") + b"\n" for record in records)
+        path.write_bytes(body)
         return path
 
     def test_merges_rooms_sorts_by_time_and_does_not_reread(self):
@@ -213,13 +260,34 @@ class TestTail(unittest.TestCase):
         path = self._write("hooks.jsonl", [_record(note="one")])
         tail = ChannelTail(self.data)
         first = tail.poll()
-        extra = json.dumps(_record(ts=1_700_000_280, note="two")) + "\n"
-        with path.open("a", encoding="utf-8") as handle:
+        extra = (json.dumps(_record(ts=1_700_000_280, note="two")) + "\n").encode("utf-8")
+        with path.open("ab") as handle:
             handle.write(extra)
         second = tail.poll()
-        self.assertEqual(tail.last_bytes, len(extra.encode("utf-8")))
+        self.assertEqual(tail.last_bytes, len(extra))
         self.assertEqual([line.note for line in second], ["one", "two"])
         self.assertIs(second[0], first[0])
+        tail.poll()
+        self.assertEqual(tail.last_bytes, 0)
+
+    def test_crlf_is_one_record_and_offsets_stay_in_bytes(self):
+        path = self.channel / "hooks.jsonl"
+        first = json.dumps(_record(note="crlf")).encode("utf-8")
+        path.write_bytes(first + b"\r")
+        tail = ChannelTail(self.data)
+        self.assertEqual(tail.poll(), [])
+        with path.open("ab") as handle:
+            handle.write(b"\n")
+        found = tail.poll()
+        self.assertEqual([line.note for line in found], ["crlf"])
+        self.assertEqual(tail.last_bytes, 1)
+        self.assertNotIn("\r", found[0].note)
+        extra = (json.dumps(_record(ts=1_700_000_280, note="next")) + "\r\n").encode("utf-8")
+        with path.open("ab") as handle:
+            handle.write(extra)
+        second = tail.poll()
+        self.assertEqual(tail.last_bytes, len(extra))
+        self.assertEqual([line.note for line in second], ["crlf", "next"])
         tail.poll()
         self.assertEqual(tail.last_bytes, 0)
 
@@ -287,46 +355,53 @@ class TestTail(unittest.TestCase):
         tail = ChannelTail(self.data)
         before = tail.poll()
         stays = next(line for line in before if line.note == "stays")
-        path.write_text(json.dumps(_record(ts=4, note="new")) + "\n", encoding="utf-8")
+        path.write_bytes((json.dumps(_record(ts=4, note="new")) + "\n").encode("utf-8"))
         after = tail.poll()
         self.assertEqual(sorted(line.note for line in after), ["new", "stays"])
         self.assertIs(next(line for line in after if line.note == "stays"), stays)
 
-    def test_deleted_symlink_and_nested_files_are_not_messages(self):
+    def test_unlinked_log_drops_its_lines(self):
         path = self._write("hooks.jsonl", [_record(note="gone")])
         tail = ChannelTail(self.data)
         self.assertEqual(tail.poll()[0].note, "gone")
         path.unlink()
         self.assertEqual(tail.poll(), [])
 
-        outside = self.data / "outside.jsonl"
-        outside.write_text(json.dumps(_record(note="do not read")) + "\n", encoding="utf-8")
-        link = self.channel / "link.jsonl"
-        try:
-            link.symlink_to(outside)
-        except OSError:
-            self.skipTest("symlinks are not available")
+    def test_nested_jsonl_is_not_a_channel_log(self):
         nested = self.channel / "nested"
         nested.mkdir()
-        (nested / "inner.jsonl").write_text(
-            json.dumps(_record(note="nested")) + "\n", encoding="utf-8",
+        (nested / "inner.jsonl").write_bytes(
+            (json.dumps(_record(note="nested")) + "\n").encode("utf-8"),
         )
-        self.assertEqual(tail.poll(), [])
-        self.assertFalse(any(line.note == "do not read" for line in tail.lines))
+        self.assertEqual(ChannelTail(self.data).poll(), [])
 
-    def test_channel_dir_symlink_is_not_followed(self):
+    def test_file_symlink_inside_channel_is_not_read(self):
+        payload = (json.dumps(_record(note="do not read")) + "\n").encode("utf-8")
+        outside = self.data / "outside.jsonl"
+        outside.write_bytes(payload)
+        link = self.channel / "link.jsonl"
+        if _try_file_symlink(link, outside):
+            self.assertEqual(ChannelTail(self.data).poll(), [])
+            return
+        # No privilege to create a file symlink. The file is real, and
+        # is_symlink() is what the reader consults, so answer yes for this path.
+        link.write_bytes(payload)
+        with _pretend_symlink(link):
+            lines = ChannelTail(self.data).poll()
+        self.assertFalse(any(line.note == "do not read" for line in lines))
+
+    def test_channel_dir_link_is_not_followed(self):
         real = self.data / "elsewhere"
         real.mkdir()
-        (real / "hooks.jsonl").write_text(
-            json.dumps(_record(note="elsewhere")) + "\n", encoding="utf-8",
+        (real / "hooks.jsonl").write_bytes(
+            (json.dumps(_record(note="elsewhere")) + "\n").encode("utf-8"),
         )
         self.channel.rmdir()
         try:
-            self.channel.symlink_to(real, target_is_directory=True)
-        except OSError:
-            self.skipTest("symlinks are not available")
-        tail = ChannelTail(self.data)
-        self.assertEqual(tail.poll(), [])
+            _point_directory(self.channel, real)
+        except OSError as exc:
+            self.skipTest(f"directory links are not available ({exc})")
+        self.assertEqual(ChannelTail(self.data).poll(), [])
 
     def test_append_channel_line_without_a_note_still_shows(self):
         append_channel(self.data, {
