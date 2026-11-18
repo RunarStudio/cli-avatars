@@ -4,6 +4,10 @@ Polling session sources and the UDP listener both publish here. Packets are
 data: they are validated, logged, and handed to subscribers. Nothing in a
 packet is executed, imported, or displayed as free text.
 
+Free text in a packet is not drawn on the desktop. ``say --note`` also stores
+a sanitised copy on the channel log, which the Chat panel reads as data.
+The listener does not execute a packet.
+
 The shared token and the channel queue live in the per-user data directory
 (never in the repo):
 
@@ -17,6 +21,7 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -26,11 +31,13 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Callable, Mapping, Optional
+from typing import Callable, Iterator, Mapping, Optional
 
 from sessions import SessionInfo, SessionSource, merge_id
 
@@ -38,6 +45,9 @@ LOOPBACK = "127.0.0.1"
 DEFAULT_PORT = 47200
 MAX_PACKET_BYTES = 2048
 MAX_NOTE_CHARS = 400
+# Chat panel cap. Inbox text uses INBOX_TEXT_LIMIT; the panel still shows 240.
+DISPLAY_NOTE_LIMIT = 240
+INBOX_TEXT_LIMIT = 2000
 EVENT_STATE_TTL = 120.0
 LOG_MAX_BYTES = 256 * 1024
 LOG_BACKUPS = 3
@@ -56,6 +66,9 @@ _ACTOR = re.compile(
     r"^[A-Za-z][A-Za-z0-9_\-]{0,31}:[A-Za-z0-9][A-Za-z0-9_\-]{0,63}$"
 )
 _CHANNEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,63}$")
+UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 _LOGGER_NAME = "cli_avatars.events"
 _INBOX_FIELDS = ("ts", "from", "to", "channel", "icon")
@@ -360,11 +373,37 @@ def configure_logging(directory: Path) -> logging.Logger:
     return logger
 
 
-def close_logging() -> None:
+def close_logging(directory: Optional[Path] = None) -> None:
+    """Close and drop rotating file handlers so the log can be deleted.
+
+    Windows will not remove ``events.log`` while a handler still has it open.
+    ``directory`` limits the close to that data directory. With no directory,
+    every file handler on this logger is closed. The null handler stays.
+    """
     logger = logging.getLogger(_LOGGER_NAME)
+    wanted: set[str] = set()
+    if directory is not None:
+        log = Path(directory) / "events.log"
+        wanted.add(os.path.normcase(os.path.abspath(log)))
+        try:
+            wanted.add(os.path.normcase(str(log.resolve())))
+        except OSError:
+            pass
     for handler in list(logger.handlers):
         if isinstance(handler, logging.NullHandler):
             continue
+        if wanted:
+            base = getattr(handler, "baseFilename", None)
+            if not base:
+                continue
+            names = {os.path.normcase(os.path.abspath(str(base)))}
+            try:
+                names.add(os.path.normcase(str(Path(base).resolve())))
+            except OSError:
+                pass
+            if names.isdisjoint(wanted):
+                continue
+        handler.flush()
         handler.close()
         logger.removeHandler(handler)
 
@@ -532,57 +571,256 @@ def channel_path(directory: Path, room: str) -> Path:
     return resolved
 
 
-def _lock_handle(handle) -> None:
+def sanitize_text(value: object, limit: int = DISPLAY_NOTE_LIMIT) -> str:
+    """Strip control and format characters, then cap the length.
+
+    The result is display data. It is not a command, a format string, or a path.
+    """
+    if not isinstance(value, str) or limit <= 0:
+        return ""
+    kept: list[str] = []
+    for ch in value:
+        if unicodedata.category(ch) in {"Cc", "Cf", "Cs"}:
+            continue
+        code = ord(ch)
+        if code < 32 or code == 127:
+            continue
+        kept.append(ch)
+    return "".join(kept).strip()[:limit]
+
+
+def _clean_note(entry: Mapping[str, object], limit: int) -> str:
+    parts: list[str] = []
+    for key in ("note", "text"):
+        value = entry.get(key)
+        if isinstance(value, str) and value:
+            cleaned = sanitize_text(value, limit)
+            if cleaned:
+                parts.append(cleaned)
+    if not parts:
+        return ""
+    return sanitize_text(" ".join(parts), limit)
+
+
+def _stored_from(value: object) -> str:
+    if not isinstance(value, str) or not value or len(value) > 128:
+        raise EventRejected("schema")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        raise EventRejected("schema")
+    return value
+
+
+def _stored_to(value: object) -> str | list[str]:
+    if isinstance(value, str):
+        if not value or len(value) > 128 or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+            raise EventRejected("schema")
+        return value
+    if isinstance(value, list) and 1 <= len(value) <= 64:
+        stored: list[str] = []
+        for item in value:
+            if not isinstance(item, str) or not item or len(item) > 128:
+                raise EventRejected("schema")
+            if any(ord(ch) < 32 or ord(ch) == 127 for ch in item):
+                raise EventRejected("schema")
+            if item not in stored:
+                stored.append(item)
+        if stored:
+            return stored
+    raise EventRejected("schema")
+
+
+def _optional_name(entry: Mapping[str, object]) -> str:
+    if "name" not in entry or entry.get("name") is None:
+        return ""
+    value = entry.get("name")
+    if not isinstance(value, str):
+        raise EventRejected("schema")
+    return sanitize_text(value, 48)
+
+
+def _optional_uuid(entry: Mapping[str, object], key: str) -> str:
+    if key not in entry or entry.get(key) is None:
+        return ""
+    value = entry.get(key)
+    if not isinstance(value, str) or UUID_RE.fullmatch(value) is None:
+        raise EventRejected("schema")
+    return value.lower()
+
+
+_DIR_LOCKS_GUARD = threading.Lock()
+_DIR_LOCKS: dict[str, threading.Lock] = {}
+
+
+def _thread_lock(root: Path) -> threading.Lock:
+    """In-process lock. File locks are not reliable between threads of one process."""
+    try:
+        key = os.path.normcase(str(root.resolve()))
+    except OSError:
+        key = os.path.normcase(str(root))
+    with _DIR_LOCKS_GUARD:
+        lock = _DIR_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _DIR_LOCKS[key] = lock
+        return lock
+
+
+# Serialises the CRT lock call itself. ``LK_LOCK`` sleeps inside the C
+# runtime and can deadlock another thread's unlock. Threads take the
+# per-directory lock below; this one only covers the syscall.
+_FILE_LOCK_CALLS = threading.Lock()
+
+# How long a process waits for another process to drop ``.lock``.
+LOCK_TIMEOUT = 10.0
+
+
+@contextmanager
+def directory_lock(root: Path, timeout: float = LOCK_TIMEOUT) -> Iterator[None]:
+    """Exclusive lock for atomic appends in ``root`` (``root/.lock``).
+
+    Threads in this process take a ``threading.Lock`` first, so they never
+    call the file lock on a region this process already holds. Other
+    processes still serialise on the lock file. The file lock is
+    non-blocking with a bounded backoff. The descriptor is closed before
+    this function returns. It is not cached.
+    """
+    with _thread_lock(root):
+        ensure_private_dir(root)
+        lock_path = root / ".lock"
+        if lock_path.is_symlink():
+            raise EventRejected("schema")
+        flags = os.O_RDWR | os.O_CREAT
+        if hasattr(os, "O_BINARY"):
+            flags |= os.O_BINARY
+        fd = os.open(str(lock_path), flags, 0o600)
+        acquired = False
+        try:
+            _prepare_lock_byte(fd)
+            _acquire_file_lock(fd, timeout)
+            acquired = True
+            yield
+        finally:
+            try:
+                if acquired:
+                    _release_file_lock(fd)
+            finally:
+                os.close(fd)
+
+
+def _prepare_lock_byte(fd: int) -> None:
+    """``msvcrt.locking`` needs a byte to exist. One zero byte is enough."""
+    try:
+        size = os.lseek(fd, 0, os.SEEK_END)
+    except OSError:
+        size = 0
+    if size < 1:
+        os.lseek(fd, 0, os.SEEK_SET)
+        os.write(fd, b"\0")
+    os.lseek(fd, 0, os.SEEK_SET)
+
+
+def _try_file_lock(fd: int) -> None:
+    """One non-blocking attempt. ``OSError`` means another process holds it."""
     if os.name == "nt":
         import msvcrt
-        handle.seek(0)
-        if handle.read(1) == b"":
-            handle.write(b"\0")
-            handle.flush()
-        handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-    else:
-        import fcntl
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        os.lseek(fd, 0, os.SEEK_SET)
+        # LK_NBLCK returns at once. LK_LOCK sleeps inside the CRT and can
+        # deadlock a thread in this process that is trying to unlock.
+        with _FILE_LOCK_CALLS:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        return
+    import fcntl
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
-def _unlock_handle(handle) -> None:
+def _acquire_file_lock(fd: int, timeout: float) -> None:
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    delay = 0.01
+    while True:
+        try:
+            _try_file_lock(fd)
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise EventRejected("lock")
+            time.sleep(delay)
+            delay = min(delay * 2, 0.05)
+
+
+def _release_file_lock(fd: int) -> None:
     if os.name == "nt":
         import msvcrt
-        handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        os.lseek(fd, 0, os.SEEK_SET)
+        with _FILE_LOCK_CALLS:
+            try:
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                return
+        return
+    import fcntl
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    except OSError:
+        return
 
 
-def append_channel(directory: Path, entry: Mapping[str, object]) -> Path:
-    """Append one chat record. Only queue fields are stored — never note/text/token."""
+def append_channel(
+    directory: Path,
+    entry: Mapping[str, object],
+    note_limit: int = DISPLAY_NOTE_LIMIT,
+) -> Path:
+    """Append one channel record and restrict the file to the current user.
+
+    ``note`` and ``text`` are sanitised (control characters removed, then
+    capped) and stored as ``note`` when anything remains. The token is never
+    stored. ``kind`` is stored only for ``msg``. The write holds the channel
+    directory lock and flushes before the lock is released.
+    """
     room = entry.get("channel") or entry.get("to")
     if not isinstance(room, str):
         raise EventRejected("schema")
-    record = {
-        "ts": float(entry["ts"]) if isinstance(entry.get("ts"), (int, float)) else time.time(),
-        "from": entry["from"],
-        "to": entry["to"],
-        "channel": entry.get("channel") or entry["to"],
-        "icon": entry["icon"],
-    }
-    if record["icon"] not in ICONS:
+    icon = entry.get("icon")
+    if icon not in ICONS:
         raise EventRejected("schema")
+    raw_ts = entry.get("ts")
+    if isinstance(raw_ts, bool) or not isinstance(raw_ts, (int, float)):
+        ts = time.time()
+    else:
+        ts = float(raw_ts)
+        if not math.isfinite(ts):
+            raise EventRejected("schema")
+    record: dict[str, object] = {
+        "ts": ts,
+        "from": _stored_from(entry.get("from")),
+        "to": _stored_to(entry.get("to")),
+        "channel": room,
+        "icon": str(icon),
+    }
+    limit = note_limit if isinstance(note_limit, int) and note_limit > 0 else DISPLAY_NOTE_LIMIT
+    note = _clean_note(entry, limit)
+    if note:
+        record["note"] = note
+    name = _optional_name(entry)
+    if name:
+        record["name"] = name
+    message_id = _optional_uuid(entry, "id")
+    if message_id:
+        record["id"] = message_id
+    reply = _optional_uuid(entry, "reply_to")
+    if reply:
+        record["reply_to"] = reply
+    if "kind" in entry and entry.get("kind") is not None:
+        if entry.get("kind") != "msg":
+            raise EventRejected("schema")
+        record["kind"] = "msg"
     path = channel_path(directory, str(record["channel"]))
     line = json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n"
-    root = path.parent
-    lock_path = root / ".lock"
-    lock_path.touch(exist_ok=True)
-    with open(lock_path, "a+b") as lock:
-        _lock_handle(lock)
-        try:
-            with open(path, "a", encoding="utf-8") as handle:
-                handle.write(line)
-                handle.flush()
-        finally:
-            _unlock_handle(lock)
+    with directory_lock(path.parent):
+        if path.is_symlink():
+            raise EventRejected("schema")
+        with open(path, "a", encoding="utf-8", newline="\n") as handle:
+            handle.write(line)
+            handle.flush()
     _restrict_to_user(path)
     return path
 
@@ -870,7 +1108,8 @@ class EventSource(SessionSource):
                 stamped.sender, stamped.recipient, stamped.channel, stamped.icon,
             )
         if note:
-            # Free text stays in this log. It is not put on the event or the channel file.
+            # Free text stays in this log. It is not put on the event.
+            # say --note writes the channel copy itself; this listener does not.
             self.log.info("local-only text stored")
             self.log.info("local-only text: %s", note)
         self._bump("accepted")

@@ -16,6 +16,7 @@ py-modules = [
     "bubbles",
     "cli_avatars_emit",
     "events",
+    "inbox",
     "sessions",
     "overlay",
     "sprite_loader",
