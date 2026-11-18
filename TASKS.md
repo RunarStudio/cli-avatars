@@ -264,6 +264,14 @@ updated: 2026-11-18
   - While a decision is open, the desktop avatar shows a `decision` bubble. The icon is on the allowlist. The glyph is a code placeholder (`TODO(Caine art)`) until the 16×16 cell arrives. No new sprite file.
   - Schema: `docs/chat-schema.md`. How an agent asks and reads the answer: `docs/claude-hooks.md`. Preview: `docs/media/chat-decisions.png`.
 
+- [x] **P3D-TOPICS** Topics keep AI context small <!-- id: P3D-TOPICS -->
+  - A topic is the room id already stored on channel, inbox, and decision records. Unknown rooms become an open topic. Files are `topics/<id>.json` in the per-user data directory, owner-only, with the same directory lock (timeout, handle closed before the lock returns).
+  - Fields: id, title, project (folder name only; a path is rejected), branch, status (`open`, `waiting_on_user`, `done`), members, summary (1500), pins (at most 30, each 240, kind `fact` or `decision`), created, updated.
+  - `topic show` returns only the summary, the pins, and the last 10 messages, plus `needs_summary` when more than 50 messages arrived since the summary was replaced. The Chat panel shows the last 200 messages per topic. The jsonl on disk is not deleted.
+  - The Rooms list is topics grouped by project: status chip, member thumbnails, open decision count, and the existing per-orchestrator state dots. Clicking a topic filters Chat and the send box. Answered decision cards show a Pin button. Pins in the header have Unpin. Nothing is pinned silently.
+  - The app stores, shows, and notifies. It does not execute text and it does not call a model. Summaries are written by an agent through emit, or by the person.
+  - Schema: `docs/chat-schema.md`. Protocol: `docs/claude-hooks.md`. Preview: `docs/media/chat-topics.png`.
+
 ## 🔵 v0.5 — Tauri Port
 
 - Step 1 done: SessionSource adapter layer (ClaudeJsonlSource)

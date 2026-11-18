@@ -336,6 +336,8 @@ def send_message(
         if not isinstance(agent_id, str):
             raise EventRejected("schema")
         inbox_stem(agent_id)
+    from topics import ensure_topic
+    ensure_topic(directory, str(record["room"]), ts=float(record["ts"]))
     _write_inboxes(directory, record)
     _append_channel_message(directory, record)
     return record
@@ -393,6 +395,8 @@ def post_reply(
         "text": note,
         "reply_to": parent["id"],
     }, write=True)
+    from topics import ensure_topic
+    ensure_topic(directory, str(record["room"]), ts=float(record["ts"]))
     _append_channel_message(directory, record)
     return record
 
