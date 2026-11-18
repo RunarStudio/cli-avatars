@@ -383,7 +383,9 @@ def idle_thumbnail(skin: object, size: int = 32):
     if cached is not None:
         return cached.copy()
     filename, cell_w, cell_h = spec
-    path = Path(__file__).resolve().parent / "Sprites" / filename
+    from bundle_paths import asset_path
+
+    path = asset_path("Sprites", filename)
     if not path.is_file():
         return None
     try:
@@ -420,7 +422,9 @@ def warn_icon(size: int = 16):
 
     if size <= 0:
         return None
-    path = Path(__file__).resolve().parent / "Sprites" / "talk" / "icons.png"
+    from bundle_paths import asset_path
+
+    path = asset_path("Sprites", "talk", "icons.png")
     if not path.is_file():
         return None
     try:

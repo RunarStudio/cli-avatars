@@ -28,6 +28,7 @@ Controls:
 import ctypes
 import logging
 import re
+import sys
 import tkinter as tk
 from tkinter import ttk
 import threading
@@ -114,6 +115,7 @@ from topics import (
 from bubbles import BubbleBoard, integer_scale, render_bubble
 from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
 from portal import PortalPlayer, portal_top_left, render_portal
+from bundle_paths import asset_path
 
 VERSION = "0.4"
 
@@ -190,7 +192,7 @@ BODY_COLORS = [
     "#ffaa22", "#22ccff", "#ff4488", "#88ff44",
 ]
 
-SPRITES_DIR = Path(__file__).parent / "Sprites"
+SPRITES_DIR = asset_path("Sprites")
 
 # Skin cycling order for real sessions (index 0 = first real session)
 REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru",
@@ -1265,7 +1267,7 @@ class OverlayApp:
         self._topics_stamp = None
         self.root = tk.Tk()
         self.root.title(self.TITLE)
-        _ico = Path(__file__).parent / "Caine_Icon.ico"
+        _ico = asset_path("Caine_Icon.ico")
         if not _ico.exists():
             _ico = Path(__file__).parent.parent / "Images" / "Caine_Icon.ico"
         if _ico.exists():
@@ -1706,7 +1708,7 @@ class OverlayApp:
     # ── HUD status window ─────────────────────────────────────────────
 
     def _load_bubble_icon(self):
-        img_path = Path(__file__).parent / "Sprites" / "bubble.png"
+        img_path = asset_path("Sprites", "bubble.png")
         if not HAS_PIL or not img_path.exists():
             return
         try:
@@ -1744,7 +1746,7 @@ class OverlayApp:
             return
         try:
             import pystray
-            caine_path = Path(__file__).parent / "Caine_Icon.png"
+            caine_path = asset_path("Caine_Icon.png")
             if not caine_path.exists():
                 caine_path = Path(__file__).parent.parent / "Images" / "Caine_Icon.png"
             if caine_path.exists():
@@ -1784,11 +1786,17 @@ class OverlayApp:
         FONT = ("Courier", 10); BFONT = ("Courier", 11, "bold")
 
         win = tk.Toplevel(self.root)
+        offscreen = getattr(self, "_offscreen", False)
+        if offscreen:
+            win.withdraw()
         win.title("AI Overlay")
         win.overrideredirect(True)
         win.attributes("-topmost", False)      # can go behind other windows
         win.configure(bg=BG)
-        win.geometry("560x460+10+10")
+        if offscreen:
+            win.geometry("560x460+20000+20000")
+        else:
+            win.geometry("560x460+10+10")
         win.resizable(True, True)
         try:
             win.wm_attributes("-alpha", 0.92)
@@ -3851,6 +3859,80 @@ class OverlayApp:
         self.root.mainloop()
 
 
-if __name__ == "__main__":
+def run_selftest() -> int:
+    """Load bundled sprites and build the HUD without mapping a window.
+
+    Returns 0 when the widgets construct, 1 when an asset or Tk option fails.
+    Used by ``build.ps1`` as ``cli-avatars.exe --selftest``.
+    """
+    problems: list[str] = []
+    required = (
+        asset_path("Sprites", "caine.png"),
+        asset_path("Sprites", "bubble.png"),
+        asset_path("Sprites", "talk", "frame.png"),
+        asset_path("Sprites", "talk", "tail.png"),
+        asset_path("Sprites", "talk", "icons.png"),
+    )
+    for path in required:
+        if not path.is_file():
+            problems.append("missing " + path.name)
+    if REGISTRY is None:
+        problems.append("sprite registry unavailable")
+    else:
+        try:
+            _load_sprites(REGISTRY)
+        except Exception as exc:
+            problems.append("sprites: " + str(exc))
+        else:
+            if not REGISTRY.has("caine"):
+                problems.append("caine sheet did not load")
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.geometry("320x200+20000+20000")
+        host = OverlayApp.__new__(OverlayApp)
+        host.root = root
+        host._offscreen = True
+        host.scanner = SimpleNamespace(bubbles=BubbleBoard())
+        host._rooms_shown = False
+        host._chat_shown = False
+        host._rooms_btn = None
+        host._chat_btn = None
+        host._hud_drag_origin = None
+        host._create_hud_win()
+        root.update_idletasks()
+        hud = getattr(host, "_hud_win", None)
+        if hud is None or not hud.winfo_exists():
+            problems.append("HUD window was not created")
+        else:
+            hud.withdraw()
+    except tk.TclError as exc:
+        problems.append("tk: " + str(exc))
+    except Exception as exc:
+        problems.append(type(exc).__name__ + ": " + str(exc))
+    finally:
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+    if problems:
+        for item in problems:
+            print("selftest: " + item, file=sys.stderr)
+        return 1
+    print("selftest: ok")
+    return 0
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    args = sys.argv[1:] if argv is None else list(argv)
+    if "--selftest" in args:
+        return run_selftest()
     app = OverlayApp()
     app.run()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

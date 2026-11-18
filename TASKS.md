@@ -13,6 +13,14 @@ updated: 2026-11-18
 
 ---
 
+## 📦 Portable Windows build
+
+- [x] **BUILD-EXE** Local onefile Windows exes <!-- id: BUILD-EXE -->
+  - `build.ps1` (PowerShell 5.1 and 7) creates `.venv-build`, installs pinned packages from `requirements-build.txt`, and runs the checked-in spec `cli-avatars.spec`.
+  - Outputs, overwritten in place: `build/cli-avatars.exe` (windowed) and `build/cli-avatars-emit.exe` (console). PyInstaller work dirs (`build/_work`, `dist`) are deleted afterward.
+  - Sprites, talk icons, and the Caine icon are spec `datas`. `bundle_paths.asset_path()` uses `sys._MEIPASS` when frozen.
+  - `overlay.py --selftest` loads those assets, builds the HUD off-screen, and exits 0 or 1. The build script runs that check. No GitHub Actions job.
+
 ## 🤖 Orchestrator Queue
 
 > Tagged `<!-- ORCHESTRATOR: ready -->` — picked up by nightly orchestrator, one per run.

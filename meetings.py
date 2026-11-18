@@ -632,9 +632,10 @@ def _load_child_frame():
     The bubble glyph sits in the middle of the cell, so it reads smaller
     than Caine even though the cell is the same size the app draws.
     """
-    from pathlib import Path
     from PIL import Image
-    path = Path(__file__).resolve().parent / "Sprites" / "bubble.png"
+    from bundle_paths import asset_path
+
+    path = asset_path("Sprites", "bubble.png")
     if path.is_file():
         sheet = Image.open(path).convert("RGBA")
         # Row 1 is busy. Overlay subagents are created with status busy.
@@ -679,9 +680,10 @@ def spring_points(x0, y0, x1, y1, segs: int = 8):
 
 def _load_walk_frames():
     """Caine walk cells (row 1), or a small fallback figure."""
-    from pathlib import Path
     from PIL import Image
-    path = Path(__file__).resolve().parent / "Sprites" / "caine.png"
+    from bundle_paths import asset_path
+
+    path = asset_path("Sprites", "caine.png")
     frames = []
     if path.is_file():
         sheet = Image.open(path).convert("RGBA")

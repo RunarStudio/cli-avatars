@@ -535,7 +535,9 @@ def talk_icon(icon: str, size: int = 18):
             index = ICON_CELLS.index(icon)
         except ValueError:
             return None
-    path = Path(__file__).resolve().parent / "Sprites" / "talk" / "icons.png"
+    from bundle_paths import asset_path
+
+    path = asset_path("Sprites", "talk", "icons.png")
     if not path.is_file():
         return None
     try:
