@@ -27,9 +27,11 @@ from typing import Iterable, Mapping, Optional, Sequence
 
 from events import ICONS, ChatEvent
 
+from bundle_paths import asset_path
+
 log = logging.getLogger("cli_avatars.bubbles")
 
-TALK_DIR = Path(__file__).resolve().parent / "Sprites" / "talk"
+TALK_DIR = asset_path("Sprites", "talk")
 FRAME_FILE = "frame.png"
 TAIL_FILE = "tail.png"
 ICONS_FILE = "icons.png"
@@ -686,7 +688,7 @@ def render_bubble(icon: str, scale: int, typing_frame: int = 0, alpha: float = 1
 def _load_avatar_frame():
     """One caine idle cell, or a small fallback figure if the sheet is missing."""
     from PIL import Image
-    path = Path(__file__).resolve().parent / "Sprites" / "caine.png"
+    path = asset_path("Sprites", "caine.png")
     if path.is_file():
         sheet = Image.open(path).convert("RGBA")
         return sheet.crop((48, 0, 96, 48))

@@ -1,0 +1,90 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""Local PyInstaller spec. Run through build.ps1, not from CI.
+
+Produces two onefile executables:
+  cli-avatars.exe       windowed overlay
+  cli-avatars-emit.exe  console helper for hooks
+"""
+
+from pathlib import Path
+
+ROOT = Path(SPECPATH)
+
+datas = [
+    (str(ROOT / "Sprites"), "Sprites"),
+    (str(ROOT / "Caine_Icon.ico"), "."),
+    (str(ROOT / "Caine_Icon.png"), "."),
+]
+
+hiddenimports = [
+    "bundle_paths",
+    "bubbles",
+    "chatlog",
+    "decisions",
+    "events",
+    "hud",
+    "inbox",
+    "meetings",
+    "perchas",
+    "portal",
+    "rooms",
+    "sessions",
+    "sprite_loader",
+    "topics",
+    "win32",
+    "PIL",
+    "PIL.Image",
+    "PIL.ImageTk",
+    "PIL.ImageDraw",
+    "numpy",
+    "pystray",
+    "pywinctl",
+]
+
+
+def _analysis(script):
+    return Analysis(
+        [str(ROOT / script)],
+        pathex=[str(ROOT)],
+        binaries=[],
+        datas=datas,
+        hiddenimports=hiddenimports,
+        hookspath=[],
+        hooksconfig={},
+        runtime_hooks=[],
+        excludes=["tests"],
+        noarchive=False,
+        optimize=0,
+    )
+
+
+def _exe(analysis, name, console, icon=None):
+    return EXE(
+        PYZ(analysis.pure),
+        analysis.scripts,
+        analysis.binaries,
+        analysis.zipfiles,
+        analysis.datas,
+        [],
+        name=name,
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=False,
+        upx_exclude=[],
+        runtime_tmpdir=None,
+        console=console,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon=icon,
+    )
+
+
+overlay = _analysis("overlay.py")
+emit = _analysis("cli_avatars_emit.py")
+
+exe = _exe(overlay, "cli-avatars", console=False, icon=str(ROOT / "Caine_Icon.ico"))
+exe_emit = _exe(emit, "cli-avatars-emit", console=True)

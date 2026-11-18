@@ -50,6 +50,37 @@ python overlay.py
 Right-click on screen → **Quit**, or press **ESC**.
 
 ---
+
+## Build a portable exe
+
+The Windows exes are built on a developer PC. There is no GitHub Actions workflow for this.
+
+Requirements: Windows, Python 3.10+, and PowerShell 5.1 or PowerShell 7.
+
+```powershell
+.\build.ps1
+```
+
+The script creates `.venv-build` (gitignored), installs the pinned packages in `requirements-build.txt`, and runs PyInstaller with `cli-avatars.spec`. It writes two onefile executables and deletes the PyInstaller work directories:
+
+| Output | Window |
+|--------|--------|
+| `build/cli-avatars.exe` | windowed overlay |
+| `build/cli-avatars-emit.exe` | console helper for hooks |
+
+Both names are fixed. A later build overwrites the same files. Sprite sheets, talk icons, and the Caine icon are packed via the spec `datas` list. At runtime `bundle_paths.asset_path()` reads `sys._MEIPASS` when the process is frozen.
+
+After the copy, the script runs:
+
+```powershell
+.\build\cli-avatars.exe --selftest
+```
+
+`--selftest` loads those assets, builds the HUD widgets off-screen, and exits 0 or 1 without leaving a window up. A non-zero exit fails the script.
+
+`build/*.exe` is not gitignored. Commit the two executables on `dev` from that Windows machine when you want them in the repo. Do not commit `.venv-build`, `build/_work`, or `dist/`.
+
+---
 ![Main Window for the app]({DE4B6408-288C-46FC-901B-B4045B740688}.png)
 
 ## Controls
@@ -162,6 +193,10 @@ pip install -r requirements.txt
 ```
 cli-avatars/
 ├── overlay.py              ← Entry point — run this
+├── bundle_paths.py         ← Asset root (sys._MEIPASS when frozen)
+├── build.ps1               ← Local Windows PyInstaller build
+├── cli-avatars.spec        ← Onefile spec for both exes
+├── requirements-build.txt  ← Pinned packages for that build
 ├── events.py               ← Event bus and localhost UDP listener
 ├── bubbles.py              ← Icon bubble layout, queue, and talk count
 ├── meetings.py             ← Walk-to-meet planner (perch or floor)
