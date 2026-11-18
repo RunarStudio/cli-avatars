@@ -11,6 +11,8 @@ Examples:
     cli-avatars-emit decisions list --open --json
     cli-avatars-emit topic show hooks --json
     cli-avatars-emit topic summary hooks --note "Meet on the same window."
+    cli-avatars-emit hooks install
+    cli-avatars-emit hooks install --apply
 
 State and say also send one UDP packet to 127.0.0.1. Say appends the channel
 queue under the per-user data directory (cli-avatars/channel/<room>.jsonl).
@@ -41,6 +43,7 @@ from typing import Optional, Sequence
 from events import (
     DEFAULT_PORT,
     ICONS,
+    LOCK_TIMEOUT,
     LOOPBACK,
     MAX_PACKET_BYTES,
     EventRejected,
@@ -125,7 +128,8 @@ def cmd_say(args: argparse.Namespace) -> int:
     if note:
         packet["note"] = note
     parse_packet(packet, token)
-    ensure_topic(directory, channel)
+    lock_timeout = getattr(args, "lock_timeout", LOCK_TIMEOUT)
+    ensure_topic(directory, channel, timeout=lock_timeout)
     entry = {
         "ts": time.time(),
         "from": args.from_id,
@@ -135,7 +139,7 @@ def cmd_say(args: argparse.Namespace) -> int:
     }
     if note:
         entry["note"] = note
-    append_channel(directory, entry)
+    append_channel(directory, entry, timeout=lock_timeout)
     _log_note(directory, note)
     send_packet(packet, args.port)
     return 0
@@ -250,6 +254,38 @@ def cmd_topic_join(args: argparse.Namespace) -> int:
 def cmd_topic_leave(args: argparse.Namespace) -> int:
     directory = _data_dir(args.data_dir)
     leave_topic(directory, args.topic_id, args.agent)
+    return 0
+
+
+def cmd_hooks(args: argparse.Namespace) -> int:
+    """Merge or remove the chat hook in Claude Code settings.json.
+
+    ``--dry-run`` is the default. It prints a diff and does not write.
+    ``--apply`` writes a timestamped backup of an existing file first.
+    """
+    import claude_chat_hooks
+
+    settings = Path(args.settings) if args.settings else claude_chat_hooks.default_settings_path()
+    script = claude_chat_hooks.hook_script_path()
+    if not script.is_file():
+        print("rejected: hook", file=sys.stderr)
+        return 1
+    try:
+        command = claude_chat_hooks.format_hook_command(script)
+        diff = claude_chat_hooks.apply_settings(
+            settings,
+            command,
+            action=args.hooks_cmd,
+            apply=bool(args.apply),
+        )
+    except claude_chat_hooks.SettingsRejected as exc:
+        print(f"rejected: {exc.reason}", file=sys.stderr)
+        return 1
+    except OSError:
+        print("rejected: settings", file=sys.stderr)
+        return 1
+    if diff:
+        sys.stdout.write(diff)
     return 0
 
 
@@ -385,6 +421,47 @@ def build_parser() -> argparse.ArgumentParser:
     leave.add_argument("topic_id")
     leave.add_argument("--agent", required=True)
     leave.set_defaults(func=cmd_topic_leave)
+
+    hooks = sub.add_parser(
+        "hooks",
+        parents=[common],
+        help="install or remove the Claude Code chat hook",
+    )
+    hooks_sub = hooks.add_subparsers(dest="hooks_cmd", required=True)
+    install = hooks_sub.add_parser(
+        "install",
+        help="merge SessionStart, UserPromptSubmit, and Stop (dry-run unless --apply)",
+    )
+    install_mode = install.add_mutually_exclusive_group()
+    install_mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the diff and do not write (the default)",
+    )
+    install_mode.add_argument(
+        "--apply",
+        action="store_true",
+        help="write settings.json after a timestamped backup",
+    )
+    install.add_argument("--settings", default=None, help="settings.json path")
+    install.set_defaults(func=cmd_hooks, apply=False)
+    uninstall = hooks_sub.add_parser(
+        "uninstall",
+        help="remove only this hook (dry-run unless --apply)",
+    )
+    uninstall_mode = uninstall.add_mutually_exclusive_group()
+    uninstall_mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the diff and do not write (the default)",
+    )
+    uninstall_mode.add_argument(
+        "--apply",
+        action="store_true",
+        help="write settings.json after a timestamped backup",
+    )
+    uninstall.add_argument("--settings", default=None, help="settings.json path")
+    uninstall.set_defaults(func=cmd_hooks, apply=False)
     return parser
 
 

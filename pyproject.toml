@@ -23,4 +23,5 @@ py-modules = [
     "perchas",
     "win32",
     "claude_hooks_example",
+    "claude_chat_hooks",
 ]

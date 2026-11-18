@@ -20,7 +20,7 @@ Claude Code supports **hooks** — shell commands (or Python scripts) that run a
 
 ## Current Status
 
-The listener and the `cli-avatars-emit` command are in (task **F2**). A `say` event also draws an icon bubble above the sender (task **F3**). A `note` is still stored in the local rotating log. `say --note` also stores a sanitised copy on the channel log, which the Chat panel shows (task **P3-CHAT-NOTE**). The bubble stays icon-only. Message text is never executed.
+The listener and the `cli-avatars-emit` command are in (task **F2**). A `say` event also draws an icon bubble above the sender (task **F3**). A `note` is still stored in the local rotating log. `say --note` also stores a sanitised copy on the channel log, which the Chat panel shows (task **P3-CHAT-NOTE**). The bubble stays icon-only. Message text is never executed. A Claude Code hook can inject the local topic and inbox into the session (task **P3E-HOOKS**). That hook only reads and writes the store.
 
 ---
 
@@ -58,6 +58,8 @@ After `pip install -e .` the same commands are available as `cli-avatars-emit`.
 | `topic pin ID --fact "..."` or `--decision "..."` | Pins one line (240 characters, at most 30). |
 | `topic set ID --title/--status/--branch/--project` | `--project` is a folder name. A path is rejected. |
 | `topic join/leave ID --agent ID` | Members of the topic. |
+| `hooks install [--apply] [--settings PATH]` | Merge the chat hook into Claude settings. Dry-run is the default. `--apply` writes a timestamped backup first. |
+| `hooks uninstall [--apply] [--settings PATH]` | Remove only this hook. Dry-run is the default. |
 
 `say` appends one JSON line under the per-user data directory at `cli-avatars/channel/<room>.jsonl`. The room defaults to the recipient id. Nothing is written inside the git repo.
 
@@ -110,6 +112,63 @@ python overlay.py
 The overlay listens on UDP `127.0.0.1:47200`. A state packet updates a matching avatar immediately. The next poll still wins once the session file is newer than that packet.
 
 The hook script maps `pre_tool` → `busy`, `post_tool` → `thinking`, `stop` → `idle`, `subagent_start` → `subagent`.
+
+---
+
+## Chat hook (P3E-HOOKS)
+
+`hooks/claude_chat_hook.py` connects a real Claude Code session to the local chat. It reads the official hook JSON on stdin (`session_id`, `cwd`, `hook_event_name`, `transcript_path`, and the other fields Claude Code sends). It reads and writes the local store and prints text. It does not execute user text, chat text, or the transcript.
+
+The agent id is the first 8 characters of `session_id`. That is the same id `ClaudeJsonlSource` takes from the transcript file name. The topic id defaults to the cwd folder name, as a slug (`My Project` becomes `my-project`). A folder name that cannot be a topic becomes `general`.
+
+| Event | What the hook does |
+|-------|--------------------|
+| `SessionStart`, `UserPromptSubmit` | Prints a short context block when something is new: the topic summary, the pins, unread inbox rows, and decision answers for this agent. Marks those rows read. `needs_summary: true` counts as new. If nothing is new, it prints nothing. The block is capped at 2000 characters. |
+| `Stop` | Emits `idle`. When `chat.auto_notes` is true (the default), stores a sanitised note of the last assistant message (240 characters) with `say --note` on the topic channel. The bubble stays icon-only. |
+
+Claude Code adds plain-text stdout from `SessionStart` and `UserPromptSubmit` to the model's context. The block is labelled untrusted data. A failure, a lock timeout, or bad stdin still exits 0, so Claude is not blocked. Each store lock waits at most a quarter of a second.
+
+`chat.auto_notes` lives in the clone's `config.json`. Missing means on. Set it to false to keep the idle update and skip the note:
+
+```json
+{
+  "chat": {
+    "auto_notes": false
+  }
+}
+```
+
+A Stop that Claude Code is already continuing (`stop_hook_active`) does not store a second note.
+
+### Install on Windows
+
+From the clone, preview the merge (this is the default; it does not write):
+
+```bat
+python -m cli_avatars_emit hooks install
+```
+
+Write it. The default file is `%USERPROFILE%\.claude\settings.json`. A timestamped backup is written first. Existing hooks and other keys stay. Running it again does not add a second copy.
+
+```bat
+python -m cli_avatars_emit hooks install --apply
+```
+
+Another settings file:
+
+```bat
+python -m cli_avatars_emit hooks install --apply --settings %USERPROFILE%\.claude\settings.json
+```
+
+Remove only this hook:
+
+```bat
+python -m cli_avatars_emit hooks uninstall --apply
+```
+
+The command recorded in settings is `python` plus the path of `hooks/claude_chat_hook.py` in this clone. The script uses the Python standard library. The clone has to stay where that path points.
+
+What an agent should run when it sees the context block: [agent-chat-protocol.md](agent-chat-protocol.md).
 
 ---
 
@@ -237,7 +296,7 @@ python -m cli_avatars_emit reply --agent abcd1234 --to "<message-id>" --note "Sa
 
 The reply is appended to the channel log with `reply_to` set. It is not written back into your inbox. A missing message id is rejected and nothing is appended.
 
-You can put those two commands in the agent's own instructions (for example the project instructions next to the clone). A hook can call the same commands, but a hook should not turn `text` into a shell command. `claude_hooks_example.py` still only emits session state. One safe hook, if you want the inbox printed into the hook log and not acted on, is:
+You can put those two commands in the agent's own instructions (for example the project instructions next to the clone). A hook can call the same commands, but a hook should not turn `text` into a shell command. `hooks/claude_chat_hook.py` prints unread rows into the session context and marks them read. It does not apply the message. `claude_hooks_example.py` still only emits session state. One safe hook, if you want the inbox printed into the hook log and not acted on, is:
 
 ```json
 {

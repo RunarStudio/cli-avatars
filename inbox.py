@@ -28,6 +28,7 @@ from chatlog import ALL_ROOMS
 from events import (
     CHANNEL_DIR_NAME,
     INBOX_TEXT_LIMIT,
+    LOCK_TIMEOUT,
     UUID_RE,
     EventRejected,
     _ACTOR,
@@ -442,6 +443,7 @@ def read_unread(
     directory: Path | str,
     agent_id: str,
     since: str | None = None,
+    timeout: float = LOCK_TIMEOUT,
 ) -> list[dict[str, object]]:
     """Messages after the cursor, or after ``since`` when that id is passed.
 
@@ -465,7 +467,7 @@ def read_unread(
             raise EventRejected("missing")
         return []
     root = root_path.resolve()
-    with directory_lock(root):
+    with directory_lock(root, timeout=timeout):
         path = _inbox_file(root, agent_id, ".jsonl")
         messages = _load_messages(path, agent_id)
         cursor_path = _inbox_file(root, agent_id, ".cursor")

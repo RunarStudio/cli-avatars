@@ -136,9 +136,18 @@ python -m cli_avatars_emit state --source claude --id abcd1234 --state busy
 python -m cli_avatars_emit say --from claude:abcd1234 --to grok:abcd1234 --icon question --note "shown in Chat"
 python -m cli_avatars_emit inbox read --agent abcd1234 --json
 python -m cli_avatars_emit reply --agent abcd1234 --to <message-id> --note "reply"
+python -m cli_avatars_emit hooks install --apply
 ```
 
 `say` draws that icon in a bubble over the sending avatar. Two different avatars also walk to meet (same window top, or both drop to the floor). A `--note` is sanitised onto the local channel log and shown in the Chat panel; the bubble stays an icon. Trigger, HUD, and the Windows check: [docs/claude-hooks.md](docs/claude-hooks.md#meeting-walk-f4). The inbox and reply commands are in [docs/claude-hooks.md](docs/claude-hooks.md#local-chat-p3-chat-note-p3b-send). Schema: [docs/chat-schema.md](docs/chat-schema.md).
+
+On Windows, real Claude Code sessions can load that chat themselves. From the clone:
+
+```bat
+python -m cli_avatars_emit hooks install --apply
+```
+
+That merges `SessionStart`, `UserPromptSubmit`, and `Stop` into `%USERPROFILE%\.claude\settings.json`. The hook prints new local context into the session and, unless `chat.auto_notes` is false, stores a short note when the turn ends. It does not run message text. Details: [docs/claude-hooks.md](docs/claude-hooks.md#chat-hook-p3e-hooks). Instructions to drop into `CLAUDE.md`: [docs/agent-chat-protocol.md](docs/agent-chat-protocol.md).
 
 ---
 
@@ -166,10 +175,13 @@ cli-avatars/
 ├── bubbles.py              ← Icon bubble layout, queue, and talk count
 ├── meetings.py             ← Walk-to-meet planner (perch or floor)
 ├── portal.py               ← Portal on the meeting point (anchor, frames, sprite)
-├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox / reply)
+├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox / reply / hooks)
+├── claude_chat_hooks.py    ← Chat hook logic and Claude settings merge
 ├── inbox.py                ← Per-agent inbox, send fan-out, read cursor, reply
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
 ├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
+├── hooks/
+│   └── claude_chat_hook.py ← Claude Code chat hook (stdlib only)
 ├── gen_ponmi.py            ← Generator for the ponmi sprite sheet
 ├── requirements.txt
 ├── Sprites/                ← PNG sprite sheets
@@ -184,7 +196,8 @@ cli-avatars/
 └── docs/
     ├── adding-sprites.md   ← How to add custom skins
     ├── chat-schema.md      ← Channel and inbox message schema
-    └── claude-hooks.md     ← How to use the hooks integration
+    ├── claude-hooks.md     ← How to use the hooks integration
+    └── agent-chat-protocol.md ← Short instructions for an agent using the local chat
 ```
 
 ---
