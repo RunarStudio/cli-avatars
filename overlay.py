@@ -51,11 +51,11 @@ from hud import hud_status_lines
 from rooms import (
     build_rooms,
     config_with_rooms,
+    dot_color,
     fade_hex,
     fade_image,
     idle_thumbnail,
     load_config,
-    meta_line,
     project_folder,
     rooms_from_config,
     save_rooms_pref,
@@ -93,8 +93,23 @@ from decisions import (
     list_decisions,
     open_agent_ids,
     open_count,
+    open_counts_by_room,
+    pin_answered,
     place_open_decisions,
     split_decisions,
+)
+from topics import (
+    STATUS_COLOR,
+    SUMMARY_STALE,
+    VISIBLE_MESSAGES,
+    get_topic,
+    group_by_project,
+    latest_per_topic,
+    source_stamp,
+    status_label,
+    sync_topics,
+    topic_messages,
+    unpin_item,
 )
 from bubbles import BubbleBoard, integer_scale, render_bubble
 from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
@@ -1247,6 +1262,7 @@ class OverlayApp:
         self._decision_count = 0
         self._chat_timeline_btn = None
         self._chat_decisions_btn = None
+        self._topics_stamp = None
         self.root = tk.Tk()
         self.root.title(self.TITLE)
         _ico = Path(__file__).parent / "Caine_Icon.ico"
@@ -2144,7 +2160,7 @@ class OverlayApp:
     def _build_rooms_win(self) -> None:
         bg = "#0d0d1a"
         win = tk.Toplevel(self.root)
-        win.title("Rooms")
+        win.title("Topics")
         win.overrideredirect(True)
         win.attributes("-topmost", False)
         win.configure(bg=bg)
@@ -2163,7 +2179,7 @@ class OverlayApp:
                   font=("Courier", 10), relief="flat", bd=0,
                   padx=6, pady=0, cursor="hand2"
                   ).pack(side="right", padx=(0, 4))
-        tk.Label(title_bar, text="  Rooms", bg="#111133",
+        tk.Label(title_bar, text="  Topics", bg="#111133",
                  fg="#88aaff", font=("Courier", 11, "bold"), anchor="w").pack(side="left")
 
         body = tk.Frame(win, bg=bg)
@@ -2212,85 +2228,174 @@ class OverlayApp:
         if win is None or not win.winfo_exists():
             return
         cards = build_rooms(self._rooms_records(), time.time())
-        sig = tuple(cards)
+        self._sync_topics(force)
+        directory = self._chat_directory()
+        try:
+            topics = group_by_project(self._topic_rows())
+        except EventRejected:
+            topics = []
+        try:
+            counts = open_counts_by_room(directory, timeout=0.2)
+        except EventRejected:
+            counts = {}
+        sig = (tuple(cards), tuple((name, tuple(row.get("id") for row in rows)) for name, rows in topics), tuple(sorted(counts.items())))
         if not force and sig == self._rooms_sig:
             return
         self._rooms_sig = sig
-        self._render_room_cards(cards)
+        self._render_topic_groups(topics, cards, counts)
 
-    def _render_room_cards(self, cards) -> None:
+    def _topic_rows(self) -> list:
+        from topics import list_topics
+        return list_topics(self._chat_directory(), timeout=0.2)
+
+    def _sync_topics(self, force: bool) -> None:
+        directory = self._chat_directory()
+        try:
+            stamp = source_stamp(directory)
+        except OSError:
+            return
+        if not force and stamp == self._topics_stamp:
+            return
+        try:
+            sync_topics(directory, timeout=0.2)
+        except EventRejected:
+            return
+        self._topics_stamp = stamp
+
+    def _render_topic_groups(self, groups, cards, counts) -> None:
         parent = self._rooms_list
         for child in parent.winfo_children():
             child.destroy()
+        bg = "#0d0d1a"
+        if not groups:
+            tk.Label(parent, text="No topics", bg=bg, fg="#9a98b8",
+                     font=("Courier", 10), anchor="w").pack(anchor="w", padx=12, pady=8)
+        for project, topics in groups:
+            label = project or "No project"
+            tk.Label(parent, text=label, bg=bg, fg="#88aaff",
+                     font=("Courier", 10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
+            for topic in topics:
+                self._render_topic_card(parent, topic, int(counts.get(str(topic.get("id")), 0)))
+        tk.Label(parent, text="Orchestrators", bg=bg, fg="#9a98b8",
+                 font=("Courier", 9), anchor="w").pack(anchor="w", padx=12, pady=(10, 2))
         if not cards:
-            empty = tk.Label(parent, text="No orchestrators", bg="#0d0d1a",
-                             fg="#9a98b8", font=("Courier", 10), anchor="w")
-            empty.pack(anchor="w", padx=12, pady=12)
-            self._bind_rooms_scroll(parent)
-            return
+            tk.Label(parent, text="No orchestrators", bg=bg, fg="#9a98b8",
+                     font=("Courier", 10), anchor="w").pack(anchor="w", padx=12, pady=4)
         for card in cards:
-            self._render_room_card(parent, card)
+            self._render_orchestrator_dot(parent, card)
         self._bind_rooms_scroll(parent)
 
-    def _render_room_card(self, parent, card) -> None:
-        bg = "#101018" if card.dimmed else "#16162a"
-        ink = "#6a6a80" if card.dimmed else "#e8e6f4"
-        meta = "#55556a" if card.dimmed else "#9a98b8"
-        edge = "#1c1c30" if card.dimmed else "#223366"
-        frame = tk.Frame(parent, bg=bg, highlightbackground=edge,
-                         highlightthickness=1, padx=8, pady=6)
-        frame.pack(fill="x", padx=10, pady=4)
-
-        thumb = self._room_thumb(card.skin, card.dimmed)
-        if thumb is not None:
-            shot = tk.Label(frame, image=thumb, bg=bg)
-            shot.image = thumb
-            shot.pack(side="left", anchor="n", padx=(0, 8))
-        else:
-            swatch = tk.Frame(frame, bg=fade_hex(card.dot) if card.dimmed else card.dot,
-                              width=32, height=32)
-            swatch.pack_propagate(False)
-            swatch.pack(side="left", anchor="n", padx=(0, 8))
-
+    def _render_topic_card(self, parent, topic, decisions: int) -> None:
+        bg = "#16162a"
+        topic_id = str(topic.get("id") or "")
+        frame = tk.Frame(parent, bg=bg, highlightbackground="#223366",
+                         highlightthickness=1, padx=8, pady=6, cursor="hand2")
+        frame.pack(fill="x", padx=10, pady=3)
+        members = topic.get("members") if isinstance(topic.get("members"), list) else []
+        shown = [str(item) for item in members[:4]]
+        thumbs = tk.Frame(frame, bg=bg)
+        thumbs.pack(side="left", anchor="n")
+        if not shown:
+            shown = [""]
+        for agent_id in shown:
+            if not agent_id:
+                break
+            _name, skin, _status = self._member_face(agent_id)
+            thumb = self._room_thumb(skin, False)
+            if thumb is not None:
+                shot = tk.Label(thumbs, image=thumb, bg=bg, cursor="hand2")
+                shot.image = thumb
+                shot.pack(side="left", padx=(0, 2))
         body = tk.Frame(frame, bg=bg)
-        body.pack(side="left", fill="x", expand=True)
+        body.pack(side="left", fill="x", expand=True, padx=(6, 0))
         head = tk.Frame(body, bg=bg)
         head.pack(fill="x")
-        tk.Label(head, text=card.name, bg=bg, fg=ink,
-                 font=("Courier", 10, "bold")).pack(side="left")
-        if card.mark:
-            tk.Label(head, text=card.mark, bg=bg, fg="#c6c6dc",
-                     font=("Courier", 10, "bold")).pack(side="left", padx=(8, 0))
-        tk.Label(head, text=card.activity, bg=bg, fg=ink,
-                 font=("Courier", 10)).pack(side="right")
+        tk.Label(head, text=str(topic.get("title") or topic_id), bg=bg, fg="#e8e6f4",
+                 font=("Courier", 10, "bold"), cursor="hand2").pack(side="left")
+        status = str(topic.get("status") or "open")
+        chip = tk.Label(head, text=status_label(status), bg=STATUS_COLOR.get(status, "#9a98b8"),
+                        fg="#141018" if status == "waiting_on_user" else "white",
+                        font=("Courier", 8), padx=4, cursor="hand2")
+        chip.pack(side="left", padx=(8, 0))
+        if decisions:
+            tk.Label(head, text=f"decisions {decisions}", bg=bg, fg="#9a98b8",
+                     font=("Courier", 8), cursor="hand2").pack(side="right")
+        dots = tk.Frame(body, bg=bg)
+        dots.pack(fill="x", pady=(4, 0))
+        for agent_id in members[:8]:
+            _name, _skin, agent_status = self._member_face(str(agent_id))
+            tk.Label(dots, text="●", bg=bg, fg=dot_color(agent_status),
+                     font=("Courier", 8), cursor="hand2").pack(side="left", padx=(0, 2))
+        self._bind_topic_click(frame, topic_id)
+
+    def _bind_topic_click(self, widget, topic_id: str) -> None:
+        widget.bind("<Button-1>", lambda _event, topic_id=topic_id: self._select_topic(topic_id))
+        for child in widget.winfo_children():
+            self._bind_topic_click(child, topic_id)
+
+    def _select_topic(self, topic_id: str) -> None:
+        """Filter the Chat panel to this topic. The id is a room name, not a command."""
+        if not topic_id:
+            return
+        if not self._chat_shown:
+            self._chat_shown = True
+            self._open_chat_win()
+            self._paint_chat_button()
+        self._chat_view = "timeline"
+        self._paint_chat_tabs()
+        if self._chat_room_var is not None:
+            self._chat_room_var.set(topic_id)
+        self._update_chat_win(force=True)
+
+    def _member_face(self, agent_id: str) -> tuple:
+        info = self._live_agent(agent_id)
+        if info is None or getattr(info, "is_demo", False):
+            return agent_id or "member", "caine", "idle"
+        name = getattr(info, "name", "") or agent_id
+        skin = skin_base(getattr(info, "skin", "") or "") or "caine"
+        status = str(getattr(info, "status", "") or "idle")
+        return str(name), skin, status
+
+    def _live_agent(self, agent_id: str):
+        agents = self.scanner.get_agents()
+        if not isinstance(agents, dict):
+            return None
+        info = agents.get(agent_id)
+        if info is not None:
+            return info
+        source, sep, session_id = str(agent_id).partition(":")
+        if sep and source == "claude":
+            info = agents.get(session_id)
+            if info is not None:
+                return info
+        for candidate in agents.values():
+            if getattr(candidate, "agent_id", None) == agent_id:
+                return candidate
+        return None
+
+    def _render_orchestrator_dot(self, parent, card) -> None:
+        bg = "#101018" if card.dimmed else "#0d0d1a"
+        ink = "#6a6a80" if card.dimmed else "#e8e6f4"
+        row = tk.Frame(parent, bg=bg)
+        row.pack(fill="x", padx=12, pady=1)
         dot = fade_hex(card.dot) if card.dimmed else card.dot
-        tk.Label(head, text="●", bg=bg, fg=dot,
-                 font=("Courier", 10)).pack(side="right", padx=(0, 4))
+        tk.Label(row, text="●", bg=bg, fg=dot, font=("Courier", 10)).pack(side="left")
+        tk.Label(row, text=card.name, bg=bg, fg=ink,
+                 font=("Courier", 9)).pack(side="left", padx=(4, 0))
+        if card.mark:
+            tk.Label(row, text=card.mark, bg=bg, fg="#c6c6dc",
+                     font=("Courier", 9)).pack(side="left", padx=(6, 0))
+        for sub in card.subs:
+            sub_dot = fade_hex(sub.dot) if card.dimmed else sub.dot
+            tk.Label(row, text="●", bg=bg, fg=sub_dot, font=("Courier", 8)).pack(side="left", padx=(6, 0))
         if card.warn:
             icon = self._room_warn(card.dimmed)
             if icon is not None:
-                warn = tk.Label(head, image=icon, bg=bg)
+                warn = tk.Label(row, image=icon, bg=bg)
                 warn.image = icon
-                warn.pack(side="right", padx=(0, 4))
-
-        tk.Label(body, text=meta_line(card), bg=bg, fg=meta,
-                 font=("Courier", 9), anchor="w").pack(fill="x")
-        for sub in card.subs:
-            row = tk.Frame(body, bg=bg)
-            row.pack(fill="x", pady=(1, 0))
-            sub_dot = fade_hex(sub.dot) if card.dimmed else sub.dot
-            tk.Label(row, text="●", bg=bg, fg=sub_dot,
-                     font=("Courier", 8)).pack(side="left")
-            tk.Label(row, text=sub.name, bg=bg, fg=ink,
-                     font=("Courier", 9)).pack(side="left", padx=(4, 0))
-            if sub.warn:
-                icon = self._room_warn(False)
-                if icon is not None:
-                    mark = tk.Label(row, image=icon, bg=bg)
-                    mark.image = icon
-                    mark.pack(side="left", padx=(4, 0))
-            tk.Label(row, text=sub.activity, bg=bg, fg=meta,
-                     font=("Courier", 9)).pack(side="right")
+                warn.pack(side="left", padx=(4, 0))
+        tk.Label(row, text=card.activity, bg=bg, fg="#9a98b8",
+                 font=("Courier", 9)).pack(side="right")
 
     # ── Read-only chat (alongside the desktop) ────────────────────────
 
@@ -2575,14 +2680,21 @@ class OverlayApp:
         if getattr(self, "_chat_view", "timeline") == "decisions":
             self._update_decision_tab(force)
             return
-        lines = self._chat_tail_reader().poll()
-        self._sync_chat_menu(self._chat_room_menu, room_menu(lines), self._chat_room_var)
+        tail = self._chat_tail_reader()
+        lines = tail.poll()
+        if force or tail.last_bytes:
+            self._sync_topics(force)
+        choices = room_menu(lines)
+        current_room = self._chat_room_var.get()
+        if current_room and current_room not in choices:
+            choices = [*choices, current_room]
+        self._sync_chat_menu(self._chat_room_menu, choices, self._chat_room_var)
         self._sync_chat_menu(self._chat_source_menu, source_menu(lines), self._chat_source_var)
-        filtered = filter_lines(
+        filtered = latest_per_topic(filter_lines(
             lines,
             selected_room(self._chat_room_var.get()),
             selected_source(self._chat_source_var.get()),
-        )
+        ), VISIBLE_MESSAGES)
         agents = self.scanner.get_agents()
         rows = []
         for line in filtered:
@@ -2590,7 +2702,18 @@ class OverlayApp:
             live_name = live[0] if live else None
             live_skin = live[1] if live else None
             rows.append((line, shown_name(line, live_name), shown_skin(line, live_skin)))
-        sig = (self._chat_room_var.get(), self._chat_source_var.get(), tuple(rows))
+        topic_id = selected_room(self._chat_room_var.get())
+        topic = self._load_topic_header(topic_id)
+        sig = (
+            self._chat_room_var.get(),
+            self._chat_source_var.get(),
+            tuple(rows),
+            None if topic is None else (
+                topic.get("summary"),
+                topic.get("status"),
+                tuple((item.get("id"), item.get("text")) for item in topic.get("pinned") or []),
+            ),
+        )
         if not force and sig == self._chat_sig:
             return
         self._chat_sig = sig
@@ -2601,7 +2724,7 @@ class OverlayApp:
                 saved = float(canvas.yview()[0])
             except Exception:
                 saved = 0.0
-        self._render_chat_lines(rows)
+        self._render_chat_lines(rows, topic)
         if canvas is not None:
             canvas.after_idle(lambda saved=saved: self._restore_chat_scroll(saved))
 
@@ -2723,6 +2846,13 @@ class OverlayApp:
             tk.Label(body, text="Answered " + label, bg=bg, fg="#9a98b8",
                      font=("Courier", 9), anchor="w", justify="left",
                      wraplength=420).pack(anchor="w")
+            tk.Button(
+                body, text="Pin",
+                command=lambda decision_id=str(row["id"]): self._pin_decision(decision_id),
+                bg="#334477", fg="white", activebackground="#4466aa",
+                activeforeground="white", font=("Courier", 9),
+                relief="flat", padx=8, pady=2, cursor="hand2",
+            ).pack(anchor="w", pady=(4, 0))
             return
         buttons = tk.Frame(body, bg=bg)
         buttons.pack(anchor="w", fill="x")
@@ -2758,10 +2888,50 @@ class OverlayApp:
         self._set_chat_status("Answered")
         self._update_chat_win(force=True)
 
-    def _render_chat_lines(self, rows) -> None:
+    def _pin_decision(self, decision_id: str) -> None:
+        """Store the answered card as a decision pin. The text is not run."""
+        try:
+            pin_answered(self._chat_directory(), decision_id)
+        except EventRejected as exc:
+            if exc.reason == "missing":
+                self._set_chat_status("Unknown decision")
+            elif exc.reason == "limit":
+                self._set_chat_status("Pin list is full")
+            else:
+                self._set_chat_status("Not pinned")
+            return
+        except Exception:
+            self._set_chat_status("Not pinned")
+            return
+        self._set_chat_status("Pinned")
+        self._update_chat_win(force=True)
+
+    def _unpin_topic(self, topic_id: str, pin_id: str) -> None:
+        try:
+            unpin_item(self._chat_directory(), topic_id, pin_id, timeout=0.2)
+        except EventRejected:
+            self._set_chat_status("Not unpinned")
+            return
+        except Exception:
+            self._set_chat_status("Not unpinned")
+            return
+        self._set_chat_status("Unpinned")
+        self._update_chat_win(force=True)
+
+    def _load_topic_header(self, topic_id: str | None):
+        if not topic_id:
+            return None
+        try:
+            return get_topic(self._chat_directory(), topic_id, timeout=0.2)
+        except EventRejected:
+            return None
+
+    def _render_chat_lines(self, rows, topic=None) -> None:
         parent = self._chat_list
         for child in parent.winfo_children():
             child.destroy()
+        if topic is not None:
+            self._render_topic_header(parent, topic)
         if not rows:
             empty = tk.Label(parent, text="No messages", bg="#0d0d1a",
                              fg="#9a98b8", font=("Courier", 10), anchor="w")
@@ -2771,6 +2941,57 @@ class OverlayApp:
         for index, (line, name, skin) in enumerate(rows):
             self._render_chat_line(parent, line, name, skin, index)
         self._bind_chat_scroll(parent)
+
+    def _render_topic_header(self, parent, topic) -> None:
+        bg = "#12121f"
+        topic_id = str(topic.get("id") or "")
+        frame = tk.Frame(parent, bg=bg, padx=8, pady=6)
+        frame.pack(fill="x", padx=8, pady=(6, 4))
+        head = tk.Frame(frame, bg=bg)
+        head.pack(fill="x")
+        tk.Label(head, text=str(topic.get("title") or topic_id), bg=bg, fg="#e8e6f4",
+                 font=("Courier", 10, "bold"), anchor="w").pack(side="left")
+        status = str(topic.get("status") or "open")
+        tk.Label(head, text=status_label(status), bg=STATUS_COLOR.get(status, "#9a98b8"),
+                 fg="#141018" if status == "waiting_on_user" else "white",
+                 font=("Courier", 8), padx=4).pack(side="left", padx=(8, 0))
+        summary = str(topic.get("summary") or "") or "No summary yet."
+        tk.Label(frame, text=summary, bg=bg, fg="#e8e6f4",
+                 font=("Courier", 9), anchor="w", justify="left",
+                 wraplength=560).pack(anchor="w", pady=(4, 2))
+        try:
+            arrived = len(topic_messages(self._chat_directory(), topic_id))
+            baseline = int(topic.get("summary_count") or 0)
+            show_needs = (arrived - baseline) > SUMMARY_STALE
+        except (EventRejected, TypeError, ValueError):
+            show_needs = False
+        if show_needs:
+            tk.Label(frame, text="Summary is stale. An agent can refresh it.",
+                     bg=bg, fg="#ffcf4a", font=("Courier", 8), anchor="w").pack(anchor="w")
+        tk.Label(frame, text="Pinned", bg=bg, fg="#9a98b8",
+                 font=("Courier", 8), anchor="w").pack(anchor="w", pady=(4, 0))
+        pins = topic.get("pinned") if isinstance(topic.get("pinned"), list) else []
+        if not pins:
+            tk.Label(frame, text="No pins", bg=bg, fg="#9a98b8",
+                     font=("Courier", 8), anchor="w").pack(anchor="w")
+        for item in pins:
+            if not isinstance(item, dict):
+                continue
+            row = tk.Frame(frame, bg=bg)
+            row.pack(fill="x", pady=1)
+            kind = str(item.get("kind") or "")
+            text = str(item.get("text") or "")
+            tk.Label(row, text=f"{kind}  {text}", bg=bg, fg="#e8e6f4",
+                     font=("Courier", 9), anchor="w", justify="left",
+                     wraplength=460).pack(side="left", fill="x", expand=True)
+            pin_id = str(item.get("id") or "")
+            tk.Button(
+                row, text="Unpin",
+                command=lambda topic_id=topic_id, pin_id=pin_id: self._unpin_topic(topic_id, pin_id),
+                bg="#334477", fg="white", activebackground="#4466aa",
+                activeforeground="white", font=("Courier", 8),
+                relief="flat", padx=6, pady=0, cursor="hand2",
+            ).pack(side="right")
 
     def _render_chat_line(self, parent, line, name: str, skin: str, index: int) -> None:
         bg = "#12121f" if index % 2 else "#16162a"

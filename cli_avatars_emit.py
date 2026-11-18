@@ -9,6 +9,8 @@ Examples:
     cli-avatars-emit reply --agent X --to <message-id> --note "reply"
     cli-avatars-emit decide --agent X --room hooks --question "..." --option a="..." --option b="..."
     cli-avatars-emit decisions list --open --json
+    cli-avatars-emit topic show hooks --json
+    cli-avatars-emit topic summary hooks --note "Meet on the same window."
 
 State and say also send one UDP packet to 127.0.0.1. Say appends the channel
 queue under the per-user data directory (cli-avatars/channel/<room>.jsonl).
@@ -19,7 +21,9 @@ log. The desktop bubble stays icon-only.
 A ``decision_answer`` is one of those rows (``decision_id``, ``choice``,
 ``text``). ``reply`` appends a channel line so the Chat panel shows it.
 ``decide`` stores a question. ``decisions list`` prints the index.
-None of these commands run the message text.
+``topic`` stores a summary and pins. ``topic show`` prints that summary,
+the pins, and the last few messages. None of these commands run the
+message text, and none of them call a model.
 
 The shared token is read from the data directory. It is never a command argument.
 """
@@ -51,6 +55,20 @@ from events import (
 )
 from decisions import ask_decision, format_decisions, list_decisions
 from inbox import format_messages, post_reply, read_unread
+from topics import (
+    ensure_topic,
+    format_show,
+    format_topics,
+    join_topic,
+    leave_topic,
+    list_topics,
+    pin_item,
+    set_summary,
+    set_topic,
+    show_topic,
+    sync_topics,
+    unpin_item,
+)
 
 _STATE_CHOICES = ("idle", "busy", "thinking", "subagent")
 
@@ -107,6 +125,7 @@ def cmd_say(args: argparse.Namespace) -> int:
     if note:
         packet["note"] = note
     parse_packet(packet, token)
+    ensure_topic(directory, channel)
     entry = {
         "ts": time.time(),
         "from": args.from_id,
@@ -161,6 +180,76 @@ def cmd_decisions_list(args: argparse.Namespace) -> int:
     directory = _data_dir(args.data_dir)
     rows = list_decisions(directory, open_only=bool(args.only_open))
     sys.stdout.write(format_decisions(rows, as_json=bool(args.as_json)))
+    return 0
+
+
+def cmd_topic_list(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    rows = sync_topics(directory)
+    if args.status:
+        rows = list_topics(directory, statuses=args.status)
+    sys.stdout.write(format_topics(rows, as_json=bool(args.as_json)))
+    return 0
+
+
+def cmd_topic_show(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    payload = show_topic(directory, args.topic_id, last=args.last)
+    sys.stdout.write(format_show(payload, as_json=bool(args.as_json)))
+    return 0
+
+
+def cmd_topic_set(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    set_topic(
+        directory,
+        args.topic_id,
+        title=args.title,
+        status=args.status,
+        branch=args.branch,
+        project=args.project,
+    )
+    return 0
+
+
+def cmd_topic_summary(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    set_summary(directory, args.topic_id, args.note or "")
+    return 0
+
+
+def cmd_topic_pin(args: argparse.Namespace) -> int:
+    if bool(args.fact) == bool(args.decision):
+        raise EventRejected("schema")
+    directory = _data_dir(args.data_dir)
+    if args.fact:
+        pin_item(directory, args.topic_id, kind="fact", text=args.fact, author=args.agent or "user")
+    else:
+        pin_item(
+            directory,
+            args.topic_id,
+            kind="decision",
+            text=args.decision,
+            author=args.agent or "user",
+        )
+    return 0
+
+
+def cmd_topic_unpin(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    unpin_item(directory, args.topic_id, args.pin_id)
+    return 0
+
+
+def cmd_topic_join(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    join_topic(directory, args.topic_id, args.agent)
+    return 0
+
+
+def cmd_topic_leave(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    leave_topic(directory, args.topic_id, args.agent)
     return 0
 
 
@@ -255,6 +344,47 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--open", dest="only_open", action="store_true", help="only status open")
     listing.add_argument("--json", dest="as_json", action="store_true", help="print a JSON array")
     listing.set_defaults(func=cmd_decisions_list)
+
+    topic = sub.add_parser("topic", parents=[common], help="store and read a topic summary")
+    topic_sub = topic.add_subparsers(dest="topic_cmd", required=True)
+    listing = topic_sub.add_parser("list", help="list topics, creating one per existing room")
+    listing.add_argument("--status", action="append", default=None, help="open, waiting_on_user, or done")
+    listing.add_argument("--json", dest="as_json", action="store_true", help="print a JSON array")
+    listing.set_defaults(func=cmd_topic_list)
+    show = topic_sub.add_parser("show", help="print the summary, pins, and the last messages")
+    show.add_argument("topic_id", help="topic id, the same string as the room")
+    show.add_argument("--last", type=int, default=10, help="how many recent messages to include (default 10)")
+    show.add_argument("--json", dest="as_json", action="store_true", help="print one JSON object")
+    show.set_defaults(func=cmd_topic_show)
+    setter = topic_sub.add_parser("set", help="set title, status, branch, or project")
+    setter.add_argument("topic_id")
+    setter.add_argument("--title", default=None)
+    setter.add_argument("--status", default=None, choices=("open", "waiting_on_user", "done"))
+    setter.add_argument("--branch", default=None)
+    setter.add_argument("--project", default=None, help="folder name only; a path is rejected")
+    setter.set_defaults(func=cmd_topic_set)
+    summary = topic_sub.add_parser("summary", help="replace the topic summary")
+    summary.add_argument("topic_id")
+    summary.add_argument("--note", required=True, help="summary text, stored as data, capped at 1500 characters")
+    summary.set_defaults(func=cmd_topic_summary)
+    pin = topic_sub.add_parser("pin", help="pin a fact or a decision")
+    pin.add_argument("topic_id")
+    pin.add_argument("--fact", default=None, help="fact text, capped at 240 characters")
+    pin.add_argument("--decision", default=None, help="decision text, capped at 240 characters")
+    pin.add_argument("--agent", default=None, help="author agent id; omitted means user")
+    pin.set_defaults(func=cmd_topic_pin)
+    unpin = topic_sub.add_parser("unpin", help="remove one pin")
+    unpin.add_argument("topic_id")
+    unpin.add_argument("pin_id")
+    unpin.set_defaults(func=cmd_topic_unpin)
+    join = topic_sub.add_parser("join", help="add an agent to the topic")
+    join.add_argument("topic_id")
+    join.add_argument("--agent", required=True)
+    join.set_defaults(func=cmd_topic_join)
+    leave = topic_sub.add_parser("leave", help="remove an agent from the topic")
+    leave.add_argument("topic_id")
+    leave.add_argument("--agent", required=True)
+    leave.set_defaults(func=cmd_topic_leave)
     return parser
 
 

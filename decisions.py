@@ -107,6 +107,8 @@ def ask_decision(
         ts=time.time() if ts is None else ts,
         decision_id=decision_id or str(uuid.uuid4()),
     )
+    from topics import ensure_topic
+    ensure_topic(directory, str(record["room"]), ts=float(record["ts"]), timeout=timeout)
     root = _prepare_root(directory)
     path = _index_path(root)
     with directory_lock(root, timeout=timeout):
@@ -203,6 +205,59 @@ def list_decisions(
 
 def open_count(directory: Path | str, timeout: float = LOCK_TIMEOUT) -> int:
     return len(list_decisions(directory, open_only=True, timeout=timeout))
+
+
+def open_counts_by_room(directory: Path | str, timeout: float = LOCK_TIMEOUT) -> dict[str, int]:
+    """Open decisions per room. The room is the topic id."""
+    counts: dict[str, int] = {}
+    for row in list_decisions(directory, open_only=True, timeout=timeout):
+        room = row.get("room")
+        if isinstance(room, str) and room:
+            counts[room] = counts.get(room, 0) + 1
+    return counts
+
+
+def pin_answered(
+    directory: Path | str,
+    decision_id: str,
+    *,
+    timeout: float = LOCK_TIMEOUT,
+) -> dict[str, object]:
+    """Pin an answered card when the person clicks Pin.
+
+    The question and the chosen label are stored as a decision pin. They
+    are not executed. An open card is rejected. The same text is kept once.
+    """
+    if not isinstance(decision_id, str) or UUID_RE.fullmatch(decision_id) is None:
+        raise EventRejected("schema")
+    wanted = decision_id.lower()
+    row = None
+    for item in list_decisions(directory, timeout=timeout):
+        if item.get("id") == wanted:
+            row = item
+            break
+    if row is None:
+        raise EventRejected("missing")
+    if row.get("status") != "answered":
+        raise EventRejected("schema")
+    choice = str(row.get("choice") or "")
+    label = choice
+    options = row.get("options")
+    if isinstance(options, list):
+        for item in options:
+            if isinstance(item, dict) and item.get("letter") == choice:
+                label = str(item.get("text") or choice)
+                break
+    question = str(row.get("question") or "")
+    from topics import pin_item
+    return pin_item(
+        directory,
+        str(row.get("room") or ""),
+        kind="decision",
+        text=f"{question} {choice}: {label}",
+        author="user",
+        timeout=timeout,
+    )
 
 
 def open_agent_ids(directory: Path | str, timeout: float = LOCK_TIMEOUT) -> list[str]:

@@ -127,3 +127,46 @@ python -m cli_avatars_emit reply --agent <agent-id> --to <message-id> --note "..
 The message id has to exist in an inbox file or on the channel. The reply is one new `msg` on the channel, with `reply_to` set to that id and `room` copied from the parent. It is not copied into an inbox. The Chat panel is the user's view of it. A bad note or an unknown id writes nothing.
 
 How a Claude Code hook or the agent's instructions call `inbox read`, `reply`, and `decide`: [claude-hooks.md](claude-hooks.md#local-chat-p3-chat-note-p3b-send).
+
+## Topics `topics/<id>.json`
+
+A topic is the room id. `room` on a channel line, an inbox line, and a decision is that id. A room that has no topic yet becomes an open topic the next time the logs are read or a message is stored. Old files keep their bytes.
+
+One JSON object per topic. The directory is owner-only. Writes take `topics/.lock` (a timeout, and the handle is closed before the lock returns). Unknown fields are dropped. `token` is never stored.
+
+| Field | Rule |
+|-------|------|
+| `id` | Room slug. The same strings the channel accepts. |
+| `title` | Sanitised, capped at 80 characters. |
+| `project` | Folder name only. Empty is allowed. `/…`, `\…`, a drive letter, `~`, or a slash is rejected and is not stored. |
+| `branch` | Optional. `feat/name` is kept. A filesystem path is rejected. |
+| `status` | `open`, `waiting_on_user`, or `done`. |
+| `members` | Agent ids. At most 64. |
+| `summary` | Sanitised, capped at 1500 characters. Replaced by `topic summary`, not appended. |
+| `pinned` | At most 30 items. Each `text` is sanitised and capped at 240. |
+| `created`, `updated` | Finite numbers. |
+
+Each pin has `id` (uuid), `ts`, `author` (`user` or an agent id), `kind` (`fact` or `decision`), and `text`.
+
+```bash
+python -m cli_avatars_emit topic list --status open --json
+python -m cli_avatars_emit topic show hooks --json
+python -m cli_avatars_emit topic set hooks --title "Hooks" --status waiting_on_user --project cli-avatars --branch feat/chat-topics
+python -m cli_avatars_emit topic summary hooks --note "Meet on the same window."
+python -m cli_avatars_emit topic pin hooks --fact "Perch is clear." --agent abcd1234
+python -m cli_avatars_emit topic unpin hooks <pin-id>
+python -m cli_avatars_emit topic join hooks --agent abcd1234
+python -m cli_avatars_emit topic leave hooks --agent abcd1234
+```
+
+`topic show` prints `untrusted data from the sender`, then only the summary, the pins, and the last 10 messages (`--last`, at most 200). `--json` is one object:
+
+```json
+{"id":"hooks","summary":"Meet on the same window.","pinned":[],"messages":[],"needs_summary":false}
+```
+
+`needs_summary` is true when more than 50 channel messages for that room arrived after the summary was last replaced. The Chat panel draws the newest 200 messages per topic. Messages older than that stay in `channel/<room>.jsonl`. Nothing deletes a log.
+
+The summary and the pins are data. The overlay does not execute them and does not call a model. An agent writes the summary with `topic summary`. The person pins an answered decision from the Decisions tab. That pin is kind `decision`. It is not written when they only choose a letter.
+
+![Topics](media/chat-topics.png)
