@@ -457,6 +457,23 @@ class TestListenerLimits(_TempDir):
         source._states[("claude", "abcd1234")] = old
         self.assertEqual(source.scan(), [])
 
+    def test_emit_source_is_kept_on_the_session(self):
+        source = self.listen()
+        packet = json.dumps(_state_packet(
+            source="emit", id="eeee0001", state="thinking",
+        )).encode("utf-8")
+        self.assertTrue(source.handle_datagram(packet, (LOOPBACK, 1)))
+        found = source.scan()
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].source, "emit")
+        self.assertEqual(found[0].status, "thinking")
+        self.assertIsNone(found[0].parent_id)
+        from hud import hud_status_lines
+        self.assertEqual(hud_status_lines(found), [
+            "  Total 1 | busy 0 thinking 1 idle 0 | sub 0",
+            "  Emit 1 | busy 0 thinking 1 idle 0 | sub 0",
+        ])
+
 
 class TestPollingAndMerge(unittest.TestCase):
     def test_polling_publishes_without_changing_the_scan(self):

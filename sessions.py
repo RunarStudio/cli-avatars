@@ -5,6 +5,7 @@ No GUI imports — unit tests can load this module on Linux.
 """
 
 import json
+import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
@@ -111,6 +112,60 @@ class ClaudeJsonlSource(SessionSource):
         return IDLE, ""
 
 
+def grok_sessions_dir() -> Path:
+    """Grok build transcripts live in ``%USERPROFILE%/.grok/sessions``.
+
+    When ``USERPROFILE`` is unset (non-Windows), the home directory is used
+    in its place. This is only a path. Nothing under it is opened here.
+    """
+    profile = os.environ.get("USERPROFILE")
+    base = Path(profile) if profile else Path.home()
+    return base / ".grok" / "sessions"
+
+
+class GrokBuildSource(SessionSource):
+    """Stub for Grok build sessions. Registered, but it does not parse yet.
+
+    ``scan()`` returns no sessions when the sessions directory is missing.
+    The stub never lists or opens files in that directory, and it never
+    reads auth or credential files. When parsing is added, sessions returned
+    from here already carry ``source`` ``grok``, so the HUD gains a row
+    without a second registration step.
+    """
+
+    name = "grok"
+
+    def __init__(self, directory: Optional[Path] = None):
+        self.directory = grok_sessions_dir() if directory is None else Path(directory)
+
+    def scan(self) -> list[SessionInfo]:
+        if not self.directory.is_dir():
+            return []
+        # Parsing comes later. Do not list or open transcripts, tokens, or
+        # credential files.
+        return []
+
+
+def subagent_for(parent: SessionInfo, index: int) -> SessionInfo:
+    """One child avatar. It inherits the parent's source."""
+    if index < 0:
+        raise ValueError("subagent index must be >= 0")
+    return SessionInfo(
+        agent_id=f"{parent.agent_id}_sub_{index}",
+        name=f"sub-{index + 1}",
+        status=BUSY,
+        tool="",
+        subagents=0,
+        last_seen=parent.last_seen,
+        skin="bubble",
+        is_demo=parent.is_demo,
+        workspace_hash=parent.workspace_hash,
+        pid=0,
+        source=parent.source,
+        parent_id=parent.agent_id,
+    )
+
+
 def merge_id(info: SessionInfo) -> str:
     """Id used when combining sources.
 
@@ -142,3 +197,12 @@ class CompositeSource(SessionSource):
                     info = replace(info, agent_id=aid)
                 merged[aid] = info
         return list(merged.values())
+
+
+def default_sources() -> list[SessionSource]:
+    """Sources the overlay polls.
+
+    Grok is included while the parser is still a stub. An empty scan draws
+    no HUD row; the first real sessions from this source will.
+    """
+    return [ClaudeJsonlSource(), GrokBuildSource()]

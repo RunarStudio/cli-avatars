@@ -15,8 +15,11 @@ import sessions  # noqa: E402
 from sessions import (  # noqa: E402
     ClaudeJsonlSource,
     CompositeSource,
+    GrokBuildSource,
     SessionInfo,
     SessionSource,
+    default_sources,
+    grok_sessions_dir,
 )
 
 
@@ -236,6 +239,73 @@ class TestCompositeSource(unittest.TestCase):
     def test_is_a_session_source(self):
         self.assertIsInstance(ClaudeJsonlSource(Path("/nowhere")), SessionSource)
         self.assertIsInstance(CompositeSource([]), SessionSource)
+        self.assertIsInstance(GrokBuildSource(Path("missing-grok-sessions")), SessionSource)
+
+
+class TestGrokBuildSource(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_directory_is_userprofile_grok_sessions(self):
+        with patch.dict(os.environ, {"USERPROFILE": "profile-root"}):
+            self.assertEqual(
+                grok_sessions_dir(),
+                Path("profile-root") / ".grok" / "sessions",
+            )
+            self.assertEqual(
+                GrokBuildSource().directory,
+                Path("profile-root") / ".grok" / "sessions",
+            )
+
+    def test_home_when_userprofile_is_unset(self):
+        env = os.environ.copy()
+        env.pop("USERPROFILE", None)
+        with patch.dict(os.environ, env, clear=True):
+            self.assertEqual(grok_sessions_dir(), Path.home() / ".grok" / "sessions")
+
+    def test_missing_directory_returns_no_sessions(self):
+        src = GrokBuildSource(self.root / "does-not-exist")
+        self.assertFalse(src.directory.exists())
+        self.assertEqual(src.scan(), [])
+        self.assertEqual(src.name, "grok")
+
+    def test_a_file_at_that_path_is_not_a_session_dir(self):
+        marker = self.root / "sessions"
+        marker.write_text("not a directory", encoding="utf-8")
+        self.assertEqual(GrokBuildSource(marker).scan(), [])
+
+    def test_existing_directory_is_not_read(self):
+        root = self.root / "sessions"
+        root.mkdir()
+        (root / "auth.json").write_text('{"access_token":"do-not-read"}', encoding="utf-8")
+        (root / "credentials").write_text("do-not-read", encoding="utf-8")
+        (root / "session.jsonl").write_text("{}\n", encoding="utf-8")
+        src = GrokBuildSource(root)
+
+        def forbidden(*_args, **_kwargs):
+            raise AssertionError("GrokBuildSource must not open files")
+
+        with patch("builtins.open", forbidden), \
+             patch.object(Path, "read_text", forbidden), \
+             patch.object(Path, "read_bytes", forbidden), \
+             patch.object(Path, "glob", forbidden), \
+             patch.object(Path, "iterdir", forbidden):
+            self.assertEqual(src.scan(), [])
+
+    def test_registered_with_the_other_sources(self):
+        sources = default_sources()
+        self.assertEqual([type(src) for src in sources], [ClaudeJsonlSource, GrokBuildSource])
+        self.assertEqual([src.name for src in sources], ["claude", "grok"])
+        overlay = Path(__file__).resolve().parent.parent / "overlay.py"
+        text = overlay.read_text(encoding="utf-8")
+        self.assertIn("default_sources()", text)
+        self.assertIn("source=info.source", text)
+        self.assertIn("subagent_for(", text)
+        self.assertIn("source=child.source", text)
 
 
 if __name__ == "__main__":
