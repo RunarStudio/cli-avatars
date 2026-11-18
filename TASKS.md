@@ -291,3 +291,5 @@ updated: 2026-11-18
 | Claude Code project guide | `CLAUDE.md` |
 | Sprite sheet format & Stream Avatars convention | `AI_OVERLAY.md` → Sprite Sheet Format |
 | Python concepts glossary | `AI_OVERLAY.md` → Python Concepts Glossary |
+
+- [x] FIX-HUD-PADY: the overlay crashed at startup (Tk Label pady given as a tuple, TclError 'expected screen distance'), so no avatars appeared; padding moved to pack().

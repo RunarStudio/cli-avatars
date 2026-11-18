@@ -1835,19 +1835,19 @@ class OverlayApp:
         # Status label — updated every tick
         self._hud_status_lbl = tk.Label(win, text="", bg=BG, fg=FG,
                                         font=FONT, anchor="w", justify="left",
-                                        padx=10, pady=(8, 0))
-        self._hud_status_lbl.pack(fill="x")
+                                        padx=10)
+        self._hud_status_lbl.pack(fill="x", pady=(8, 0))
         talk0 = self.scanner.bubbles.talks_at(time.time())
         self._hud_talks_lbl = tk.Label(
             win, text="  " + talk0.text, bg=BG, fg=talk0.color,
-            font=FONT, anchor="w", justify="left", padx=10, pady=(2, 0),
+            font=FONT, anchor="w", justify="left", padx=10,
         )
-        self._hud_talks_lbl.pack(fill="x")
+        self._hud_talks_lbl.pack(fill="x", pady=(2, 0))
         self._hud_decisions_lbl = tk.Label(
             win, text="  " + decisions_caption(0), bg=BG, fg="#aaaaaa",
-            font=FONT, anchor="w", justify="left", padx=10, pady=(0, 8),
+            font=FONT, anchor="w", justify="left", padx=10,
         )
-        self._hud_decisions_lbl.pack(fill="x")
+        self._hud_decisions_lbl.pack(fill="x", pady=(0, 8))
 
         tk.Frame(win, height=1, bg="#223366").pack(fill="x", padx=8, pady=(4, 0))
         tk.Label(win, text="HOW TO USE", font=("Consolas", 10, "bold"),
