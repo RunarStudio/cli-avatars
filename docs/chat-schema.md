@@ -56,13 +56,12 @@ A trailing partial line is ignored. A line that is not valid JSON, or that fails
 
 `send` and `reply` still reject `decision` and `decision_answer`. `decide` writes `decision` to the channel and to `decisions.jsonl` (not into an inbox). Choosing an option writes `decision_answer` into the asking agent's inbox and the channel. Any other kind is rejected on read and on write. A `decision_answer` with a bad `decision_id` or a bad `choice` is skipped.
 
-The Chat panel Send button resolves **To** before it writes:
+The chat window composer resolves **To** before it writes. Daniel talks to orchestrators. A subagent id is never in `to`.
 
-- **All** — every top-level session in the rooms registry, plus that session's sub rows. Demo avatars are not included.
-- **One** — the single checked agent.
-- **Several** — each checked agent.
+- **One orchestrator** — the topic's orchestrator by default (the parent of a Claude session, or the Grok session). The To chip can pick another orchestrator. `chat.routes` in `config.json` can send a source to `parent`, to `grok`, or to one orchestrator id. `grok` is the live Grok session id, or the stable id `grok` when no Grok session exists yet.
+- **All orchestrators** — every top-level session. Sub rows and demo avatars are not included.
 
-The text entry is the `text` field. The room is the room filter when one room is selected, otherwise `general`. `from` is `user`.
+The orchestrator forwards work to a subagent in its own session and posts the result back with `say --note` or `reply`. See [agent-chat-protocol.md](agent-chat-protocol.md). The text entry is the `text` field. The room is the open topic, otherwise `general`. `from` is `user`. A `decision_answer` still goes to the agent that asked, which is the orchestrator when that orchestrator called `decide`.
 
 ## Cursor `inbox/<agent>.cursor`
 
@@ -116,7 +115,7 @@ python -m cli_avatars_emit decisions list --open --json
 
 The channel copy uses icon `decision` (on the bubble allowlist). `note` is the question, or `a: <label>` for the answer. The desktop bubble for an open decision is that same icon. Until the 16×16 cell arrives it is drawn in code (`TODO(Caine art)`), not loaded from a sprite file.
 
-Choosing a letter in the Chat panel's Decisions tab writes the `decision_answer` and appends an `answered` line here. A second choice, or an unknown id, is rejected and writes nothing. The HUD row `Decisions N` is the open count. Answered history on the tab keeps the eight newest.
+Choosing a letter on a decision card in the topic thread writes the `decision_answer` and appends an `answered` line here. A second choice, or an unknown id, is rejected and writes nothing. The HUD row `Decisions N` is the open count. An answered card has a Pin button. The pin is not written when the person only chooses a letter.
 
 ## Reply
 
@@ -165,8 +164,12 @@ python -m cli_avatars_emit topic leave hooks --agent abcd1234
 {"id":"hooks","summary":"Meet on the same window.","pinned":[],"messages":[],"needs_summary":false}
 ```
 
-`needs_summary` is true when more than 50 channel messages for that room arrived after the summary was last replaced. The Chat panel draws the newest 200 messages per topic. Messages older than that stay in `channel/<room>.jsonl`. Nothing deletes a log.
+`needs_summary` is true when more than 50 channel messages for that room arrived after the summary was last replaced. The chat window draws the newest 200 messages per topic. Messages older than that stay in `channel/<room>.jsonl`. Nothing deletes a log.
 
-The summary and the pins are data. The overlay does not execute them and does not call a model. An agent writes the summary with `topic summary`. The person pins an answered decision from the Decisions tab. That pin is kind `decision`. It is not written when they only choose a letter.
+The summary and the pins are data. The overlay does not execute them and does not call a model. An agent writes the summary with `topic summary`. The person pins an answered decision from its card. That pin is kind `decision`. It is not written when they only choose a letter.
+
+The chat window shows the newest 200 messages for the selected topic, the summary, and the pins. Topics in the left column carry an unread count (channel lines newer than the last time that topic was on screen, not counting the person's own lines) and the open-decision count.
+
+![Chat window](media/chat-window.png)
 
 ![Topics](media/chat-topics.png)

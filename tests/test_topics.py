@@ -527,12 +527,13 @@ class TestPreviewAndBoundary(unittest.TestCase):
         ):
             self.assertNotIn(name, text)
         overlay = Path(__file__).resolve().parent.parent.joinpath("overlay.py").read_text(encoding="utf-8")
-        self.assertIn("latest_per_topic(", overlay)
-        self.assertIn('text="Pin"', overlay)
-        self.assertIn('text="Unpin"', overlay)
+        window = Path(__file__).resolve().parent.parent.joinpath("chat_window.py").read_text(encoding="utf-8")
+        self.assertIn("latest_per_topic(", window)
+        self.assertIn('text="Pin"', window)
+        self.assertIn('text="Unpin"', window)
+        self.assertIn("pin_answered(", window)
         self.assertIn("build_rooms(", overlay)
         self.assertIn('text="Rooms"', overlay)
-        self.assertIn("pin_answered(", overlay)
 
 
 def topics_path() -> Path:

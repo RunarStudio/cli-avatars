@@ -502,23 +502,23 @@ class TestModuleBoundary(unittest.TestCase):
             self.assertNotIn(name, text)
 
     def test_hud_button_sits_next_to_rooms_and_has_a_send_box(self):
-        text = Path(__file__).resolve().parent.parent.joinpath("overlay.py").read_text(encoding="utf-8")
-        rooms_btn = text.index('text="Rooms"')
-        chat_btn = text.index('text="Chat"')
+        overlay = Path(__file__).resolve().parent.parent.joinpath("overlay.py").read_text(encoding="utf-8")
+        rooms_btn = overlay.index('text="Rooms"')
+        chat_btn = overlay.index('text="Chat"')
         self.assertLess(rooms_btn, chat_btn)
+        self.assertIn("ChatWindow(", overlay)
+        text = Path(__file__).resolve().parent.parent.joinpath("chat_window.py").read_text(encoding="utf-8")
         self.assertIn("ChannelTail(", text)
         self.assertIn("filter_lines(", text)
         self.assertIn("ScrollFollow(", text)
-        chat = text.split("def _build_chat_win", 1)[1].split("def _on_left_press", 1)[0]
-        self.assertIn("tk.Entry", chat)
-        self.assertIn("tk.Checkbutton", chat)
-        self.assertIn('text="All"', chat)
-        self.assertIn('text="Send"', chat)
-        self.assertIn("send_message(", chat)
-        self.assertNotIn("subprocess", chat)
-        self.assertNotIn("os.system", chat)
-        self.assertNotIn("socket.", chat)
-        bubbles = text.split("def _draw_talk_bubbles", 1)[1].split("def _update_hud_win", 1)[0]
+        self.assertIn("tk.Entry", text)
+        self.assertIn('label="All orchestrators"', text)
+        self.assertIn('text="Send"', text)
+        self.assertIn("send_message(", text)
+        self.assertNotIn("subprocess", text)
+        self.assertNotIn("os.system", text)
+        self.assertNotIn("socket.", text)
+        bubbles = overlay.split("def _draw_talk_bubbles", 1)[1].split("def _update_hud_win", 1)[0]
         self.assertNotIn("note", bubbles)
         self.assertNotIn("line.note", bubbles)
 

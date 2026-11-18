@@ -87,6 +87,8 @@ After the copy, the script runs:
 
 | Action | Result |
 |--------|--------|
+| Left-click avatar | Open that avatar's topic in the chat window |
+| Drag avatar | Move it. A short click does not |
 | Right-click avatar | Focus that agent's terminal window |
 | Right-click empty area | Open context menu (Skins / Config / Status / Quit) |
 | Drag HUD panel | Reposition the status box |
@@ -170,7 +172,7 @@ python -m cli_avatars_emit reply --agent abcd1234 --to <message-id> --note "repl
 python -m cli_avatars_emit hooks install --apply
 ```
 
-`say` draws that icon in a bubble over the sending avatar. Two different avatars also walk to meet (same window top, or both drop to the floor). A `--note` is sanitised onto the local channel log and shown in the Chat panel; the bubble stays an icon. Trigger, HUD, and the Windows check: [docs/claude-hooks.md](docs/claude-hooks.md#meeting-walk-f4). The inbox and reply commands are in [docs/claude-hooks.md](docs/claude-hooks.md#local-chat-p3-chat-note-p3b-send). Schema: [docs/chat-schema.md](docs/chat-schema.md).
+`say` draws that icon in a bubble over the sending avatar. Two different avatars also walk to meet (same window top, or both drop to the floor). A `--note` is sanitised onto the local channel log and shown in the chat window; the bubble stays an icon. The HUD Chat button opens that window. A left-click on an avatar opens its topic, addressed to the orchestrator. Trigger, HUD, and the Windows check: [docs/claude-hooks.md](docs/claude-hooks.md#meeting-walk-f4). The inbox and reply commands are in [docs/claude-hooks.md](docs/claude-hooks.md#local-chat-p3-chat-note-p3b-send). Schema: [docs/chat-schema.md](docs/chat-schema.md).
 
 On Windows, real Claude Code sessions can load that chat themselves. From the clone:
 
@@ -213,6 +215,8 @@ cli-avatars/
 ├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox / reply / hooks)
 ├── claude_chat_hooks.py    ← Chat hook logic and Claude settings merge
 ├── inbox.py                ← Per-agent inbox, send fan-out, read cursor, reply
+├── routing.py              ← Composer routes: orchestrators only
+├── chat_window.py          ← Discord-style chat window
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
 ├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
 ├── hooks/
@@ -232,7 +236,8 @@ cli-avatars/
     ├── adding-sprites.md   ← How to add custom skins
     ├── chat-schema.md      ← Channel and inbox message schema
     ├── claude-hooks.md     ← How to use the hooks integration
-    └── agent-chat-protocol.md ← Short instructions for an agent using the local chat
+    ├── agent-chat-protocol.md ← Short instructions for an agent using the local chat
+    └── media/chat-window.png ← Chat window preview
 ```
 
 ---
