@@ -649,21 +649,42 @@ class TestEmitCLI(_TempDir):
             room_file_name("../secret")
         with self.assertRaises(EventRejected):
             room_file_name("..")
+
+    def test_symlink_channel_file_is_not_written(self):
         link_target = self.data / "escaped.txt"
         channel = self.data / "channel"
         channel.mkdir()
+        link = channel / "grok_abcd1234.jsonl"
+        entry = {
+            "ts": 1,
+            "from": "claude:abcd1234",
+            "to": "grok:abcd1234",
+            "channel": "grok:abcd1234",
+            "icon": "speech",
+        }
         try:
-            (channel / "grok_abcd1234.jsonl").symlink_to(link_target)
+            link.symlink_to(link_target)
+            linked = True
         except OSError:
-            self.skipTest("symlinks are not available")
+            linked = False
+        if not linked:
+            # Windows without Developer Mode cannot create the link. The writer
+            # still has to stop when that path says it is a symlink.
+            real = Path.is_symlink
+            wanted = os.path.normcase(str(link))
+
+            def is_symlink(self):
+                if os.path.normcase(str(self)) == wanted:
+                    return True
+                return real(self)
+
+            with patch.object(Path, "is_symlink", is_symlink):
+                with self.assertRaises(EventRejected):
+                    append_channel(self.data, entry)
+            self.assertFalse(link_target.exists())
+            return
         with self.assertRaises(EventRejected):
-            append_channel(self.data, {
-                "ts": 1,
-                "from": "claude:abcd1234",
-                "to": "grok:abcd1234",
-                "channel": "grok:abcd1234",
-                "icon": "speech",
-            })
+            append_channel(self.data, entry)
         self.assertFalse(link_target.exists())
 
     def test_cli_rejects_bad_icon_and_has_no_token_flag(self):
