@@ -519,6 +519,13 @@ def talk_icon(icon: str, size: int = 18):
     if cached is not None:
         return cached.copy()
     from PIL import Image
+    if icon == "decision":
+        # TODO(Caine art): same code placeholder the desktop bubble uses.
+        from bubbles import decision_placeholder
+        nearest = getattr(getattr(Image, "Resampling", Image), "NEAREST")
+        image = decision_placeholder(size)
+        _ICON_CACHE[key] = image
+        return image.copy()
     from bubbles import ICON_CELLS, ICON_PX
 
     if icon == "typing":

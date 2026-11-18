@@ -388,7 +388,7 @@ class TestSchema(unittest.TestCase):
             self.assertEqual(caught.exception.reason, "schema", packet)
 
     def test_icons_and_states_are_the_allowlist(self):
-        for icon in ("speech", "question", "ok", "warn", "error", "thought", "typing"):
+        for icon in ("speech", "question", "ok", "warn", "error", "thought", "typing", "decision"):
             chat, _note = parse_packet(_chat_packet(icon=icon), TOKEN)
             self.assertEqual(chat.icon, icon)
         for state in ("idle", "busy", "thinking", "subagent"):

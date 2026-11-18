@@ -7,6 +7,8 @@ Examples:
     cli-avatars-emit inbox --for grok:Y
     cli-avatars-emit inbox read --agent X --json
     cli-avatars-emit reply --agent X --to <message-id> --note "reply"
+    cli-avatars-emit decide --agent X --room hooks --question "..." --option a="..." --option b="..."
+    cli-avatars-emit decisions list --open --json
 
 State and say also send one UDP packet to 127.0.0.1. Say appends the channel
 queue under the per-user data directory (cli-avatars/channel/<room>.jsonl).
@@ -14,8 +16,10 @@ queue under the per-user data directory (cli-avatars/channel/<room>.jsonl).
 log. The desktop bubble stays icon-only.
 
 ``inbox read`` prints unread rows for one agent and marks them read.
-``reply`` appends a channel line so the Chat panel shows it. Neither command
-runs the message text.
+A ``decision_answer`` is one of those rows (``decision_id``, ``choice``,
+``text``). ``reply`` appends a channel line so the Chat panel shows it.
+``decide`` stores a question. ``decisions list`` prints the index.
+None of these commands run the message text.
 
 The shared token is read from the data directory. It is never a command argument.
 """
@@ -45,6 +49,7 @@ from events import (
     parse_packet,
     read_inbox,
 )
+from decisions import ask_decision, format_decisions, list_decisions
 from inbox import format_messages, post_reply, read_unread
 
 _STATE_CHOICES = ("idle", "busy", "thinking", "subagent")
@@ -140,6 +145,25 @@ def cmd_reply(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_decide(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    ask_decision(
+        directory,
+        agent=args.agent,
+        room=args.room,
+        question=args.question,
+        options=args.option or [],
+    )
+    return 0
+
+
+def cmd_decisions_list(args: argparse.Namespace) -> int:
+    directory = _data_dir(args.data_dir)
+    rows = list_decisions(directory, open_only=bool(args.only_open))
+    sys.stdout.write(format_decisions(rows, as_json=bool(args.as_json)))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
@@ -186,7 +210,10 @@ def build_parser() -> argparse.ArgumentParser:
     inbox.add_argument("--for", dest="recipient", default=None, help="source:id of the icon-queue recipient")
     inbox.set_defaults(func=cmd_inbox)
     inbox_sub = inbox.add_subparsers(dest="inbox_cmd")
-    read = inbox_sub.add_parser("read", help="print unread inbox messages and mark them read")
+    read = inbox_sub.add_parser(
+        "read",
+        help="print unread inbox messages, including decision answers, and mark them read",
+    )
     read.add_argument("--agent", required=True, help="agent id (Claude: 8-character session id)")
     read.add_argument("--since", default=None, help="print messages after this message id")
     read.add_argument("--json", dest="as_json", action="store_true", help="print a JSON array")
@@ -201,6 +228,33 @@ def build_parser() -> argparse.ArgumentParser:
     reply.add_argument("--to", required=True, help="message id being answered")
     reply.add_argument("--note", required=True, help="reply text; stored as data, not run")
     reply.set_defaults(func=cmd_reply)
+
+    decide = sub.add_parser(
+        "decide",
+        parents=[common],
+        help="store an open decision for one agent",
+    )
+    decide.add_argument("--agent", required=True, help="asking agent id")
+    decide.add_argument("--room", required=True, help="channel room")
+    decide.add_argument(
+        "--question",
+        required=True,
+        help="question text, stored as data, capped at 240 characters",
+    )
+    decide.add_argument(
+        "--option",
+        action="append",
+        default=None,
+        help='choice as letter=text, for example a="Same window". Two to six, letters a-f, no gaps',
+    )
+    decide.set_defaults(func=cmd_decide)
+
+    decisions = sub.add_parser("decisions", parents=[common], help="list stored decisions")
+    decisions_sub = decisions.add_subparsers(dest="decisions_cmd", required=True)
+    listing = decisions_sub.add_parser("list", help="list decisions")
+    listing.add_argument("--open", dest="only_open", action="store_true", help="only status open")
+    listing.add_argument("--json", dest="as_json", action="store_true", help="print a JSON array")
+    listing.set_defaults(func=cmd_decisions_list)
     return parser
 
 

@@ -9,7 +9,8 @@ A ``:`` cannot appear in a Windows file name, so ``source:id`` is stored as
 ``inbox/<agent>.cursor`` and holds the last read message id.
 
 ``decision`` and ``decision_answer`` are reserved kinds. Readers accept
-them. Writers only store ``msg``.
+them. This module's send path only stores ``msg``. A ``decision_answer``
+is written by ``decisions.py`` into the same inbox files.
 """
 
 from __future__ import annotations
@@ -54,7 +55,10 @@ _DEVICE = frozenset({
     *(f"LPT{i}" for i in range(1, 10)),
 })
 
-_MESSAGE_KEYS = ("id", "ts", "from", "to", "room", "topic", "kind", "text", "reply_to")
+_MESSAGE_KEYS = (
+    "id", "ts", "from", "to", "room", "topic", "kind", "text", "reply_to",
+    "decision_id", "choice",
+)
 
 
 @dataclass(frozen=True)
@@ -218,7 +222,8 @@ def validate_message(obj: object, *, write: bool = False) -> dict[str, object]:
 
     Unknown fields, including ``token``, are dropped. On write only ``msg``
     is accepted. On read the reserved kinds are accepted too. Text is
-    sanitised either way.
+    sanitised either way. A ``decision_answer`` may also carry
+    ``decision_id`` (a UUID) and ``choice`` (one letter, a through f).
     """
     if not isinstance(obj, dict):
         raise EventRejected("schema")
@@ -282,6 +287,17 @@ def validate_message(obj: object, *, write: bool = False) -> dict[str, object]:
         if not isinstance(reply, str) or UUID_RE.fullmatch(reply) is None:
             raise EventRejected("schema")
         record["reply_to"] = reply.lower()
+    if kind == "decision_answer":
+        if "decision_id" in obj and obj.get("decision_id") is not None:
+            decision_id = obj.get("decision_id")
+            if not isinstance(decision_id, str) or UUID_RE.fullmatch(decision_id) is None:
+                raise EventRejected("schema")
+            record["decision_id"] = decision_id.lower()
+        if "choice" in obj and obj.get("choice") is not None:
+            choice = obj.get("choice")
+            if not isinstance(choice, str) or len(choice) != 1 or choice not in "abcdef":
+                raise EventRejected("schema")
+            record["choice"] = choice
     return record
 
 
@@ -323,6 +339,24 @@ def send_message(
     _write_inboxes(directory, record)
     _append_channel_message(directory, record)
     return record
+
+
+def store_inbox(directory: Path | str, record: dict[str, object]) -> dict[str, object]:
+    """Append one readable message to each recipient inbox.
+
+    Reserved kinds are allowed here. ``send_message`` still writes ``msg``
+    only. The text is stored. It is not executed.
+    """
+    checked = validate_message(record, write=False)
+    targets = checked["to"]
+    if not isinstance(targets, list):
+        raise EventRejected("schema")
+    for agent_id in targets:
+        if not isinstance(agent_id, str):
+            raise EventRejected("schema")
+        inbox_stem(agent_id)
+    _write_inboxes(directory, checked)
+    return checked
 
 
 def post_reply(
@@ -452,14 +486,20 @@ def format_messages(entries: Sequence[dict[str, object]], *, as_json: bool = Fal
         to = entry.get("to")
         targets = ",".join(to) if isinstance(to, list) else ""
         reply = entry.get("reply_to") or ""
+        extra = ""
+        if entry.get("decision_id"):
+            extra += f" decision_id={entry['decision_id']}"
+        if entry.get("choice"):
+            extra += f" choice={entry['choice']}"
         lines.append(
-            "id={id} from={sender} to={to} room={room} kind={kind} reply_to={reply} text={text}".format(
+            "id={id} from={sender} to={to} room={room} kind={kind} reply_to={reply}{extra} text={text}".format(
                 id=entry.get("id", ""),
                 sender=entry.get("from", ""),
                 to=targets,
                 room=entry.get("room", ""),
                 kind=entry.get("kind", ""),
                 reply=reply,
+                extra=extra,
                 text=entry.get("text", ""),
             )
         )
