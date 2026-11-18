@@ -1,6 +1,9 @@
 """Local inbox, channel notes, and replies. Run: python -m unittest discover -s tests"""
 
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -10,11 +13,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import sys
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import cli_avatars_emit  # noqa: E402
+import events  # noqa: E402
 import inbox as inbox_mod  # noqa: E402
 from chatlog import ChannelTail  # noqa: E402
 from events import (  # noqa: E402
@@ -22,6 +24,8 @@ from events import (  # noqa: E402
     INBOX_TEXT_LIMIT,
     EventRejected,
     append_channel,
+    close_logging,
+    directory_lock,
 )
 from inbox import (  # noqa: E402
     KINDS,
@@ -44,12 +48,59 @@ def _id(number: int) -> str:
     return str(uuid.UUID(int=number))
 
 
+REPO = str(Path(__file__).resolve().parent.parent)
+
+
+def _windows_sharing_violation(path: Path) -> bool:
+    """True when Windows refuses an exclusive open because a handle is still open."""
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.argtypes = [
+        ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
+        ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p,
+    ]
+    kernel32.CreateFileW.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = ctypes.c_int
+    invalid = ctypes.c_void_p(-1).value
+    handle = kernel32.CreateFileW(str(path), 0x80000000, 0, None, 3, 0, None)
+    if handle is None or handle == invalid:
+        return ctypes.get_last_error() in (32, 33)
+    kernel32.CloseHandle(handle)
+    return False
+
+
+def assert_not_open(test: unittest.TestCase, path: Path) -> None:
+    """``path`` is not held open by this process.
+
+    Linux checks ``/proc/self/fd``. Windows uses an exclusive open, which
+    fails with a sharing violation (WinError 32) while a handle remains.
+    """
+    if not path.exists():
+        return
+    if os.name == "nt":
+        test.assertFalse(
+            _windows_sharing_violation(path),
+            f"handle still open: {path}",
+        )
+        return
+    target = os.path.normcase(str(path.resolve()))
+    for item in Path("/proc/self/fd").iterdir():
+        try:
+            link = os.readlink(item)
+        except OSError:
+            continue
+        if os.path.normcase(link) == target:
+            test.fail(f"fd {item.name} still open on {path}")
+
+
 class _Dir(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.data = Path(self._tmp.name)
 
     def tearDown(self):
+        close_logging(self.data)
         self._tmp.cleanup()
 
     def _send(self, text="hello", recipients=(AGENT,), **kwargs):
@@ -68,6 +119,7 @@ class TestSayNote(unittest.TestCase):
         self.data = Path(self._tmp.name)
 
     def tearDown(self):
+        close_logging(self.data)
         self._tmp.cleanup()
 
     def test_note_is_sanitised_onto_the_channel_and_kept_in_the_log(self):
@@ -88,11 +140,15 @@ class TestSayNote(unittest.TestCase):
         self.assertNotIn("\x00", record["note"])
         self.assertNotIn("\n", record["note"])
         self.assertNotIn("token", record)
-        log = (self.data / "events.log").read_text(encoding="utf-8")
+        log_path = self.data / "events.log"
+        log = log_path.read_text(encoding="utf-8")
         self.assertIn("local-only text", log)
         lines = ChannelTail(self.data, localtime=time.gmtime).poll()
         self.assertEqual(lines[0].note, record["note"])
         self.assertEqual(lines[0].icon, "speech")
+        close_logging(self.data)
+        assert_not_open(self, log_path)
+        assert_not_open(self, self.data / "channel" / ".lock")
 
     def test_bad_icon_is_rejected_before_a_channel_file_exists(self):
         with self.assertRaises(EventRejected) as caught:
@@ -385,19 +441,112 @@ class TestReply(_Dir):
         self.assertEqual((self.data / "channel" / "general.jsonl").read_bytes(), channel)
 
 
+_CHILD_SEND = """
+import sys
+import uuid
+sys.path.insert(0, sys.argv[1])
+from inbox import send_message
+_root, data, agent, other, worker, count = sys.argv[1:7]
+worker = int(worker)
+count = int(count)
+for index in range(count):
+    number = 8000 + worker * 20 + index
+    send_message(
+        data,
+        sender="user",
+        recipients=[agent, other],
+        text="p%d-%d" % (worker, index),
+        message_id=str(uuid.UUID(int=number)),
+        ts=float(number),
+    )
+"""
+
+_CHILD_HOLD = """
+import sys
+import time
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from events import directory_lock
+root = Path(sys.argv[2])
+marker = Path(sys.argv[3])
+with directory_lock(root, timeout=5):
+    marker.write_text("held", encoding="utf-8")
+    time.sleep(float(sys.argv[4]))
+"""
+
+
+class TestLocks(_Dir):
+    def test_busy_file_lock_retries_then_the_handle_is_closed(self):
+        calls = {"n": 0}
+        real = events._try_file_lock
+
+        def flaky(fd: int) -> None:
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise OSError("busy")
+            real(fd)
+
+        root = self.data / "inbox"
+        with patch.object(events, "_try_file_lock", flaky):
+            with directory_lock(root, timeout=2):
+                pass
+        self.assertGreaterEqual(calls["n"], 3)
+        assert_not_open(self, root / ".lock")
+
+    def test_another_process_holding_the_lock_times_out_and_closes(self):
+        root = self.data / "inbox"
+        root.mkdir()
+        marker = self.data / "held"
+        proc = subprocess.Popen(
+            [sys.executable, "-c", _CHILD_HOLD, REPO, str(root), str(marker), "1.2"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        err = ""
+        try:
+            deadline = time.time() + 5
+            while time.time() < deadline and not marker.exists():
+                if proc.poll() is not None:
+                    err = proc.stderr.read().decode("utf-8", "replace")
+                    self.fail(f"lock holder exited early: {err}")
+                time.sleep(0.02)
+            self.assertTrue(marker.exists())
+            with self.assertRaises(EventRejected) as caught:
+                with directory_lock(root, timeout=0.3):
+                    pass
+            self.assertEqual(caught.exception.reason, "lock")
+        finally:
+            if proc.poll() is None:
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5)
+            if proc.stderr and not proc.stderr.closed:
+                err = proc.stderr.read().decode("utf-8", "replace")
+                proc.stderr.close()
+        self.assertEqual(proc.returncode, 0, err)
+        with directory_lock(root, timeout=2):
+            pass
+        assert_not_open(self, root / ".lock")
+
+
 class TestConcurrent(_Dir):
     def test_concurrent_appends_keep_whole_lines(self):
         sent = []
         seen = []
         errors = []
         lock = threading.Lock()
+        per_thread = 8
+        per_process = 4
+        processes = 2
         gate = threading.Barrier(6)
 
         def writer(worker: int):
             local = []
             try:
-                gate.wait(timeout=5)
-                for index in range(15):
+                gate.wait(timeout=30)
+                for index in range(per_thread):
                     number = worker * 100 + index + 1
                     record = send_message(
                         self.data,
@@ -416,7 +565,7 @@ class TestConcurrent(_Dir):
         def reader():
             local = []
             try:
-                gate.wait(timeout=5)
+                gate.wait(timeout=30)
                 for _ in range(30):
                     local.extend(row["id"] for row in read_unread(self.data, AGENT))
                     time.sleep(0.002)
@@ -425,26 +574,54 @@ class TestConcurrent(_Dir):
             with lock:
                 seen.extend(local)
 
+        procs = []
+        for worker in range(processes):
+            procs.append(subprocess.Popen(
+                [
+                    sys.executable, "-c", _CHILD_SEND, REPO, str(self.data),
+                    AGENT, OTHER, str(worker), str(per_process),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            ))
         threads = [threading.Thread(target=writer, args=(n,)) for n in range(4)]
         threads.append(threading.Thread(target=reader))
         threads.append(threading.Thread(target=reader))
         for thread in threads:
             thread.start()
         for thread in threads:
-            thread.join(timeout=20)
+            thread.join(timeout=60)
             self.assertFalse(thread.is_alive())
+        for proc in procs:
+            try:
+                proc.wait(timeout=60)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+                self.fail("writer process timed out")
+            err = ""
+            if proc.stderr is not None:
+                err = proc.stderr.read().decode("utf-8", "replace")
+                proc.stderr.close()
+            self.assertEqual(proc.returncode, 0, err)
         self.assertEqual(errors, [])
+        for worker in range(processes):
+            for index in range(per_process):
+                sent.append(_id(8000 + worker * 20 + index))
         seen.extend(row["id"] for row in read_unread(self.data, AGENT))
+        expected = per_thread * 4 + per_process * processes
         self.assertEqual(sorted(seen), sorted(sent))
         self.assertEqual(len(seen), len(set(seen)))
-        self.assertEqual(len(sent), 60)
+        self.assertEqual(len(sent), expected)
         other = read_unread(self.data, OTHER)
         self.assertEqual(sorted(row["id"] for row in other), sorted(sent))
         channel = (self.data / "channel" / "general.jsonl").read_bytes().split(b"\n")
         bodies = [line for line in channel if line.strip()]
-        self.assertEqual(len(bodies), 60)
+        self.assertEqual(len(bodies), expected)
         for line in bodies:
             json.loads(line.decode("utf-8"))
+        assert_not_open(self, self.data / "inbox" / ".lock")
+        assert_not_open(self, self.data / "channel" / ".lock")
 
 
 class TestCLI(_Dir):

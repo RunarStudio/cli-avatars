@@ -373,11 +373,37 @@ def configure_logging(directory: Path) -> logging.Logger:
     return logger
 
 
-def close_logging() -> None:
+def close_logging(directory: Optional[Path] = None) -> None:
+    """Close and drop rotating file handlers so the log can be deleted.
+
+    Windows will not remove ``events.log`` while a handler still has it open.
+    ``directory`` limits the close to that data directory. With no directory,
+    every file handler on this logger is closed. The null handler stays.
+    """
     logger = logging.getLogger(_LOGGER_NAME)
+    wanted: set[str] = set()
+    if directory is not None:
+        log = Path(directory) / "events.log"
+        wanted.add(os.path.normcase(os.path.abspath(log)))
+        try:
+            wanted.add(os.path.normcase(str(log.resolve())))
+        except OSError:
+            pass
     for handler in list(logger.handlers):
         if isinstance(handler, logging.NullHandler):
             continue
+        if wanted:
+            base = getattr(handler, "baseFilename", None)
+            if not base:
+                continue
+            names = {os.path.normcase(os.path.abspath(str(base)))}
+            try:
+                names.add(os.path.normcase(str(Path(base).resolve())))
+            except OSError:
+                pass
+            if names.isdisjoint(wanted):
+                continue
+        handler.flush()
         handler.close()
         logger.removeHandler(handler)
 
@@ -639,49 +665,103 @@ def _thread_lock(root: Path) -> threading.Lock:
         return lock
 
 
+# Serialises the CRT lock call itself. ``LK_LOCK`` sleeps inside the C
+# runtime and can deadlock another thread's unlock. Threads take the
+# per-directory lock below; this one only covers the syscall.
+_FILE_LOCK_CALLS = threading.Lock()
+
+# How long a process waits for another process to drop ``.lock``.
+LOCK_TIMEOUT = 10.0
+
+
 @contextmanager
-def directory_lock(root: Path) -> Iterator[None]:
+def directory_lock(root: Path, timeout: float = LOCK_TIMEOUT) -> Iterator[None]:
     """Exclusive lock for atomic appends in ``root`` (``root/.lock``).
 
-    Threads in this process take a threading lock first. Other processes
-    still serialise on the lock file.
+    Threads in this process take a ``threading.Lock`` first, so they never
+    call the file lock on a region this process already holds. Other
+    processes still serialise on the lock file. The file lock is
+    non-blocking with a bounded backoff. The descriptor is closed before
+    this function returns. It is not cached.
     """
     with _thread_lock(root):
         ensure_private_dir(root)
         lock_path = root / ".lock"
         if lock_path.is_symlink():
             raise EventRejected("schema")
-        lock_path.touch(exist_ok=True)
-        with open(lock_path, "a+b") as lock:
-            _lock_handle(lock)
+        flags = os.O_RDWR | os.O_CREAT
+        if hasattr(os, "O_BINARY"):
+            flags |= os.O_BINARY
+        fd = os.open(str(lock_path), flags, 0o600)
+        acquired = False
+        try:
+            _prepare_lock_byte(fd)
+            _acquire_file_lock(fd, timeout)
+            acquired = True
+            yield
+        finally:
             try:
-                yield
+                if acquired:
+                    _release_file_lock(fd)
             finally:
-                _unlock_handle(lock)
+                os.close(fd)
 
 
-def _lock_handle(handle) -> None:
+def _prepare_lock_byte(fd: int) -> None:
+    """``msvcrt.locking`` needs a byte to exist. One zero byte is enough."""
+    try:
+        size = os.lseek(fd, 0, os.SEEK_END)
+    except OSError:
+        size = 0
+    if size < 1:
+        os.lseek(fd, 0, os.SEEK_SET)
+        os.write(fd, b"\0")
+    os.lseek(fd, 0, os.SEEK_SET)
+
+
+def _try_file_lock(fd: int) -> None:
+    """One non-blocking attempt. ``OSError`` means another process holds it."""
     if os.name == "nt":
         import msvcrt
-        handle.seek(0)
-        if handle.read(1) == b"":
-            handle.write(b"\0")
-            handle.flush()
-        handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-    else:
-        import fcntl
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        os.lseek(fd, 0, os.SEEK_SET)
+        # LK_NBLCK returns at once. LK_LOCK sleeps inside the CRT and can
+        # deadlock a thread in this process that is trying to unlock.
+        with _FILE_LOCK_CALLS:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        return
+    import fcntl
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
-def _unlock_handle(handle) -> None:
+def _acquire_file_lock(fd: int, timeout: float) -> None:
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    delay = 0.01
+    while True:
+        try:
+            _try_file_lock(fd)
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise EventRejected("lock")
+            time.sleep(delay)
+            delay = min(delay * 2, 0.05)
+
+
+def _release_file_lock(fd: int) -> None:
     if os.name == "nt":
         import msvcrt
-        handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        os.lseek(fd, 0, os.SEEK_SET)
+        with _FILE_LOCK_CALLS:
+            try:
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                return
+        return
+    import fcntl
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    except OSError:
+        return
 
 
 def append_channel(
