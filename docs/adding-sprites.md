@@ -140,4 +140,14 @@ Recommended tools:
 - **GIMP** — free alternative. Use Filters → Animation for frames.
 - **Libresprite** — free fork of an older Aseprite version.
 
-The minimum viable sheet is just Row 0 (idle) with 1–2 frames. All other rows are optional — the overlay falls back to row 0 if a row is missing.
+The minimum viable sheet is just Row 0 (idle) with 1–2 frames. All other rows are optional — the overlay falls back to the first row that has frames if a row is missing.
+
+---
+
+## Subagent skins
+
+Subagent sheets live in `Sprites/subagents/` and are listed in `manifest.json` beside them. Each entry has its own `frame_w` and `frame_h` (the placeholders are 32×32), a `mode` of `fly` or `ground`, and the png file name. The overlay loads that size per skin.
+
+`fly` hovers above the orchestrator's head. `ground` hangs below it on the same spring. Dropping a finished sheet in place of a placeholder means setting `placeholder` to false and keeping the id, so existing `config.json` assignments still resolve.
+
+Regenerate the stand-ins with `python tools/gen_subskin_placeholders.py`. Those files are code, not the final art.
