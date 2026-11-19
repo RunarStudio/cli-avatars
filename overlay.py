@@ -161,6 +161,13 @@ CHROMA_KEY        = "#010101"
 SPRING_REST   = 80    # px rest length of elastic line
 SPRING_K      = 0.04  # spring stiffness
 SPRING_DAMP   = 0.94  # velocity damping for spring avatars
+# px/frame. The hang from the constants above stays under this, so a
+# fast move or a drag reels the child in instead of flinging it.
+SPRING_MAX_SPEED = 12.0
+# px. A child stays inside this circle around the parent's center.
+# config.json subagent.leash_px overrides it when that value is a positive number.
+SUBAGENT_LEASH_MAX = SPRING_REST * 3
+_SPRING_SPAN = 1.0e6  # px; a larger separation must not overflow the impulse
 THROW_SCALE   = 0.4   # fraction of mouse delta → throw velocity on drag release
 
 FLOOR_LINE_ALPHA = 0.0    # 0.0=off, 1.0=solid — floor platform line visibility
@@ -1222,6 +1229,55 @@ def _hud_status_text(agents) -> tuple[list[tuple[str,str]], bool]:
     return [status_row_style(line, waiting=waiting) for line in lines], waiting
 
 
+def _spring_frame(dt: float) -> float:
+    """Frame scale for one spring step. A tick passes 1.
+
+    ``SPRING_K`` and ``SPRING_DAMP`` are per frame, matching ``OVERLAY_FPS``.
+    A longer dt does not multiply the impulse. A non-finite dt applies nothing.
+    """
+    if isinstance(dt, bool) or not isinstance(dt, (int, float)):
+        return 0.0
+    if not math.isfinite(dt) or dt <= 0.0:
+        return 0.0
+    if dt >= 1.0:
+        return 1.0
+    return float(dt)
+
+
+def _clamp_span(delta: float) -> float:
+    if delta > _SPRING_SPAN:
+        return _SPRING_SPAN
+    if delta < -_SPRING_SPAN:
+        return -_SPRING_SPAN
+    return delta
+
+
+def leash_px_from_config(config) -> float:
+    """Leash radius in px. ``subagent.leash_px`` wins when it is a positive number."""
+    default = float(SUBAGENT_LEASH_MAX)
+    if not isinstance(config, dict):
+        return default
+    block = config.get("subagent")
+    if not isinstance(block, dict):
+        return default
+    raw = block.get("leash_px")
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return default
+    if not math.isfinite(raw) or raw <= 0:
+        return default
+    return float(raw)
+
+
+def _clamp_speed(vx: float, vy: float, cap: float) -> tuple[float, float]:
+    if not math.isfinite(vx) or not math.isfinite(vy) or not math.isfinite(cap) or cap <= 0.0:
+        return 0.0, 0.0
+    speed = math.hypot(vx, vy)
+    if not math.isfinite(speed) or speed <= cap or speed == 0.0:
+        return vx, vy
+    scale = cap / speed
+    return vx * scale, vy * scale
+
+
 # ═══════════════════════════════════════════════════════════════
 #  OVERLAY APP
 # ═══════════════════════════════════════════════════════════════
@@ -1433,6 +1489,7 @@ class OverlayApp:
             if (agent.is_demo and TEST_SUBAGENTS == 0) or agent.subagents <= 0:
                 for sv in self.sub_avatars.pop(aid, []):
                     sv._task_done_at = time.time()
+                    self._end_spring(sv)
                     self._lingering_subs.append(sv)
                 continue
 
@@ -1443,6 +1500,7 @@ class OverlayApp:
             while len(sub_list) > agent.subagents:
                 sv = sub_list.pop()
                 sv._task_done_at = time.time()
+                self._end_spring(sv)
                 self._lingering_subs.append(sv)
 
             # Consume dismissed-count credit as scanner naturally reports fewer subagents
@@ -1485,7 +1543,7 @@ class OverlayApp:
                 )
                 sv = Avatar(sub_info, self.sw, self.sh,
                             self._cidx + 100 + len(sub_list), REGISTRY,
-                            spring_mode=False)
+                            spring_mode=True)
                 sv.x, sv.y = float(px), float(py)
                 sv.anim_speed_mult = random.uniform(0.5, 2.2)
                 sv._spring_k_mult  = random.uniform(0.4, 1.8)
@@ -1524,9 +1582,10 @@ class OverlayApp:
                             origins[aid], (parent_av.x, parent_av.y), (sv.x, sv.y))
                         sv.vx = 0.0
                         sv.vy = 0.0
+                        self._constrain_leash(sv, parent_av)
                         sv.draw(self.canvas)
                     else:
-                        sv.update(floors, walls)
+                        self._drive_subagent(sv, parent_av, floors, walls)
                         sv.draw(self.canvas)
 
             for sv in to_remove:
@@ -1561,6 +1620,9 @@ class OverlayApp:
                     linger_done.append(sv)
             else:
                 sv.update(floors, walls)
+                parent = self.avatars.get(getattr(sv.agent, "parent_id", None))
+                if parent is not None:
+                    self._constrain_leash(sv, parent)
                 sv.draw(self.canvas)
 
         for sv in linger_done:
@@ -1645,20 +1707,126 @@ class OverlayApp:
     def color_for(self, av: "Avatar") -> str:
         return STATUS_COLOR.get(av.agent.status, av.color)
 
-    def _apply_spring(self, sv: Avatar, parent_av: Avatar):
-        """Pull subagent toward parent with elastic spring force."""
+    def _drive_subagent(self, sv: Avatar, parent_av: Optional[Avatar],
+                        floors, walls, dt: float = 1.0) -> None:
+        """One frame for a child that is not floating and not meeting-locked.
+
+        ``dt`` is in frames. A tick passes 1, the same step ``Avatar.update`` uses.
+        While the spring is attached the child ignores window tops, so it can
+        hang under the parent instead of standing on the same perch.
+        """
+        if sv.spring_mode and parent_av is not None:
+            self._apply_spring(sv, parent_av, dt=dt)
+            # Window tops are the parent's floor. A hanging child falls past
+            # them; the screen bottom inside update() is still a floor.
+            sv.update([], [])
+        else:
+            if sv.spring_mode:
+                self._end_spring(sv)
+            sv.update(floors, walls)
+        if parent_av is not None and getattr(sv.agent, "parent_id", None):
+            self._constrain_leash(sv, parent_av)
+
+    def _end_spring(self, sv: Avatar) -> None:
+        """The parent ended or left: this child walks on its own again."""
+        if not sv.spring_mode:
+            return
+        sv.spring_mode = False
+        sv._spring_k_mult = 1.0
+        sv._spring_damp_v = SPRING_DAMP
+        if abs(sv.vx) < 0.1:
+            sv.dir = 1 if sv.dir >= 0 else -1
+            sv.vx = WALK_SPEED * sv.dir
+
+    def _apply_spring(self, sv: Avatar, parent_av: Avatar, dt: float = 1.0) -> None:
+        """Pull a subagent toward its parent. One call is one frame at dt=1.
+
+        The line is slack inside ``SPRING_REST`` and Hooke's law outside it,
+        then ``SPRING_DAMP``. Speed is capped so a parent that jumps across
+        the screen, or a huge dt, cannot produce NaN or a fling.
+        """
+        if not math.isfinite(sv.vx) or not math.isfinite(sv.vy):
+            sv.vx = 0.0
+            sv.vy = 0.0
+        scale = _spring_frame(dt)
+        if scale <= 0.0:
+            return
         px = parent_av.x + parent_av.aw / 2
         py = parent_av.y + parent_av.ah / 2
         sx = sv.x + sv.aw / 2
         sy = sv.y + sv.ah / 2
-        dx, dy = px - sx, py - sy
-        dist = math.sqrt(dx*dx + dy*dy) or 1.0
-        if dist > SPRING_REST:
-            force = (dist - SPRING_REST) * SPRING_K * sv._spring_k_mult
-            sv.vx += (dx / dist) * force
-            sv.vy += (dy / dist) * force
-        sv.vx *= sv._spring_damp_v
-        sv.vy *= sv._spring_damp_v
+        if not all(math.isfinite(v) for v in (px, py, sx, sy)):
+            return
+        dx = _clamp_span(px - sx)
+        dy = _clamp_span(py - sy)
+        dist = math.hypot(dx, dy)
+        k_mult = sv._spring_k_mult
+        if not math.isfinite(k_mult):
+            k_mult = 1.0
+        if dist > SPRING_REST and dist > 0.0:
+            force = (dist - SPRING_REST) * SPRING_K * k_mult * scale
+            if math.isfinite(force):
+                sv.vx += (dx / dist) * force
+                sv.vy += (dy / dist) * force
+        damp = sv._spring_damp_v
+        if not math.isfinite(damp) or damp < 0.0:
+            damp = SPRING_DAMP
+        sv.vx *= damp ** scale
+        sv.vy *= damp ** scale
+        sv.vx, sv.vy = _clamp_speed(sv.vx, sv.vy, SPRING_MAX_SPEED)
+
+    def _leash_px(self) -> float:
+        return leash_px_from_config(getattr(self, "config", None))
+
+    def _constrain_leash(self, sv: Avatar, parent_av: Avatar) -> None:
+        """Keep a child inside the leash circle around the parent's center.
+
+        The child is placed on the circle when it is outside, not on the
+        parent. Outward speed is removed so the next frame does not step
+        out and snap back. A walking child also turns around at the
+        left and right edges.
+        """
+        leash = self._leash_px()
+        if not math.isfinite(leash) or leash <= 0:
+            return
+        px = parent_av.x + parent_av.aw / 2.0
+        py = parent_av.y + parent_av.ah / 2.0
+        sx = sv.x + sv.aw / 2.0
+        sy = sv.y + sv.ah / 2.0
+        if not all(math.isfinite(v) for v in (px, py, sx, sy, sv.vx, sv.vy)):
+            if not math.isfinite(sv.vx):
+                sv.vx = 0.0
+            if not math.isfinite(sv.vy):
+                sv.vy = 0.0
+            return
+        dx = _clamp_span(sx - px)
+        dy = _clamp_span(sy - py)
+        dist = math.hypot(dx, dy)
+        if dist > leash and dist > 0.0:
+            scale = leash / dist
+            sv.x += (px + dx * scale) - sx
+            sv.y += (py + dy * scale) - sy
+            ux, uy = dx / dist, dy / dist
+            outward = sv.vx * ux + sv.vy * uy
+            if math.isfinite(outward) and outward > 0.0:
+                sv.vx -= ux * outward
+                sv.vy -= uy * outward
+        if sv.spring_mode:
+            return
+        # Pace inside the horizontal leash instead of grinding on the edge.
+        cx = sv.x + sv.aw / 2.0
+        if cx >= px + leash - 0.05:
+            over = cx - (px + leash)
+            if over > 0.0:
+                sv.x -= over
+            sv.vx = -WALK_SPEED if sv.vx == 0.0 else -abs(sv.vx)
+            sv.dir = -1
+        elif cx <= px - leash + 0.05:
+            over = (px - leash) - cx
+            if over > 0.0:
+                sv.x += over
+            sv.vx = WALK_SPEED if sv.vx == 0.0 else abs(sv.vx)
+            sv.dir = 1
 
     def _draw_elastic(self, parent_av: Avatar, sv: Avatar):
         """Draw a purple zigzag spring line between parent and subagent."""
