@@ -42,6 +42,10 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | docs | Docs only. Quick merge. |
 | decision | Waits on Daniel. |
 
+### Subtasks
+
+A parent task can have subtasks. Write them as indented lines (two spaces) under the parent, with ID `PARENT-ID.n` (for example `SUBSKIN.1`), the same `[EPIC][type]` tags, and their own checkbox. A parent is done only when all its subtasks are done. The Epics index counts parents and subtasks separately (for example `ART 7/3 (subtasks 0/13)`). Subtasks can carry an owner suffix `@caine` or `@pixel` so work can be split between agents.
+
 ## Epics index
 
 | Epic | Done | Open |
@@ -49,13 +53,13 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | CHAT | 7 | 0 |
 | SRC | 5 | 3 |
 | MCP | 1 | 3 |
-| OVL | 17 | 9 |
-| ART | 7 | 2 |
+| OVL | 17 | 9 (subtasks 0/1) |
+| ART | 7 | 3 (subtasks 0/13) |
 | BUILD | 1 | 2 |
 | WS | 0 | 2 |
 | DOCS | 1 | 14 |
 | TAURI | 0 | 4 |
-| **Total** | 39 | 39 |
+| **Total** | 39 | 40 |
 
 ## 📦 Portable Windows build
 
@@ -394,6 +398,21 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 ## Backlog
 
 - [ ] [BUILD][chore] REBUILD-EXE: Rebuild the `build/` executables. They are stale after Grok and MCP.
+- [ ] [ART][feat] SUBSKIN: subagent skins, 32×32 sprites, 6-colour palette; flying skins float above the parent, ground skins hang below (spec from Daniel, DD thread 19/11/2026)
+  - [ ] [ART][feat] SUBSKIN.1 @pixel: sprite loader supports 32×32 subagent sheets and a per-skin `mode: fly|ground` flag in the skin registry
+  - [ ] [OVL][feat] SUBSKIN.2 @pixel: spring line anchors above the parent for fly skins and below for ground skins; leash respects both
+  - [ ] [ART][feat] SUBSKIN.3 @pixel: placeholder 32×32 sheets (code-generated, clearly marked placeholder) until art lands
+  - [ ] [ART][feat] SUBSKIN.4 @pixel: subagent skin picker / config `subagent.skins` (random, round-robin or fixed per orchestrator)
+  - [ ] [ART][decision] SUBSKIN.5: Daniel picks the order of skins to draw
+  - [ ] [ART][art] SUBSKIN.6 @caine: imp (ground)
+  - [ ] [ART][art] SUBSKIN.7 @caine: mini 4-legged Claude (ground)
+  - [ ] [ART][art] SUBSKIN.8 @caine: little light with wings (fly)
+  - [ ] [ART][art] SUBSKIN.9 @caine: cat (ground)
+  - [ ] [ART][art] SUBSKIN.10 @caine: dog (ground)
+  - [ ] [ART][art] SUBSKIN.11 @caine: dragon (fly)
+  - [ ] [ART][art] SUBSKIN.12 @caine: mini drone (fly)
+  - [ ] [ART][art] SUBSKIN.13 @caine: mini Grok (ground)
+  - [ ] [ART][feat] SUBSKIN.14 @pixel: integrate each delivered sheet and remove its placeholder
 - [ ] [ART][feat] GROK-SKIN-BUSY: Sprite loader uses its own busy row per `docs/grok-skin-spec.md` once Caine's sheet lands. Sheet 40×40, 4 cols × 6 rows: idle 4, walk 4, thinking 2, done 2, subagent 2, busy 2.
 - [ ] [ART][art] CAINE-SKIN: Caine draws the skin sheet.
 - [ ] [OVL][decision] PORTAL-V2: Portal ring — 1px, 2px, or particles. Waits on Daniel.
