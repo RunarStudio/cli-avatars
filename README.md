@@ -25,7 +25,7 @@ Each avatar represents one running agent. It walks on top of your open windows, 
 - **Window terrain** — avatars walk on the top edges of your open windows (VS Code, browser, terminal, etc.)
 - **Wall climbing** — avatars randomly latch onto window edges and climb up
 - **Status-reactive** — animation row changes based on what the agent is doing (idle, busy, thinking, subagent)
-- **Subagent physics** — when a Task sub-agent spawns, a child avatar appears and hangs from the parent via an elastic spring line
+- **Subagent physics** — a child hangs below the parent on a spring, or hovers above it when that skin flies
 - **Skin picker** — pick any loaded sprite sheet and hue-shift it per agent, live
 - **No sessions = single idle avatar** — Caine appears when no Claude sessions are running
 
@@ -196,6 +196,29 @@ Until a Grok sprite exists, those avatars use the Caine sheet shifted by `grok.h
 
 ---
 
+## Subagent skins
+
+A subagent wears a sheet from `Sprites/subagents/`, not the parent's skin. The manifest next to those sheets sets the frame size and `mode`: `ground` hangs below the orchestrator, `fly` hovers above its head. Both stay inside the leash (`subagent.leash_px`, or three spring-lengths when that key is absent).
+
+The shipped sheets are code-drawn placeholders (a small PH mark, `placeholder: true`). Real art replaces the PNGs later. `config.json` chooses the skin when the child spawns, and the child keeps it:
+
+```json
+{
+  "subagent": {
+    "leash_px": 240,
+    "skins": {
+      "mode": "round_robin",
+      "list": ["imp", "winged_light"],
+      "fixed": { "abcd1234": "dragon" }
+    }
+  }
+}
+```
+
+`mode` is `round_robin` (the default), `random`, or `fixed`. `list` limits the pool. `fixed` maps an orchestrator id to one loaded skin. With no `subagent.skins` key, children cycle every sheet in the manifest: imp, claude4, winged_light, cat, dog, dragon, mini_drone, little_grok.
+
+---
+
 ## Dependencies
 
 ```
@@ -230,12 +253,15 @@ cli-avatars/
 ├── routing.py              ← Composer routes: orchestrators only
 ├── chat_window.py          ← Discord-style chat window
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
+├── subskins.py             ← Subagent manifest and skin assignment
+├── tools/gen_subskin_placeholders.py ← Code-drawn 32×32 stand-in sheets
 ├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
 ├── hooks/
 │   └── claude_chat_hook.py ← Claude Code chat hook (stdlib only)
 ├── gen_ponmi.py            ← Generator for the ponmi sprite sheet
 ├── requirements.txt
 ├── Sprites/                ← PNG sprite sheets
+│   ├── subagents/          ← 32×32 subagent sheets + manifest.json
 │   ├── caine.png
 │   ├── bubble.png
 │   ├── meowatar.png

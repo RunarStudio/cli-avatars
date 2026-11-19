@@ -8,9 +8,9 @@ active AI agents and lets them walk on window-top edges as terrain.
 v0.4 additions:
   - Caine stick-figure sprite sheet (auto-generated at startup)
   - No session → single idle Caine avatar instead of 4 demo agents
-  - Subagent avatars: spawn Caine stick figures for each active subagent
+  - Subagent avatars: one skin per child, kept for that child's lifetime
   - Elastic spring line connecting main agent to its subagents
-  - Subagent avatars dangle from spring physics, not walk AI
+  - Ground skins hang below the parent; fly skins hover above its head
 
 Dependencies:
     pip install pillow pywinctl numpy
@@ -98,6 +98,7 @@ from routing import (
     focus_for,
     save_window_box,
 )
+from subskins import assign_subagent_skin
 from chat_window import ChatWindow
 from bubbles import BubbleBoard, integer_scale, render_bubble
 from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
@@ -161,6 +162,8 @@ CHROMA_KEY        = "#010101"
 SPRING_REST   = 80    # px rest length of elastic line
 SPRING_K      = 0.04  # spring stiffness
 SPRING_DAMP   = 0.94  # velocity damping for spring avatars
+# px. A fly child bobs around a point this far above the parent's head.
+FLY_BOB       = 3.0
 # px/frame. The hang from the constants above stays under this, so a
 # fast move or a drag reels the child in instead of flinging it.
 SPRING_MAX_SPEED = 12.0
@@ -401,6 +404,25 @@ def _load_sprites(registry: "SpriteRegistry") -> None:
                 print(f"[sprites] could not load {fname}: {e}")
         else:
             print(f"[sprites] not found: {path}")
+
+    sub_dir = SPRITES_DIR / "subagents"
+    if sub_dir.is_dir() and hasattr(registry, "load_subagents"):
+        registry.load_subagents(sub_dir, scale=AVATAR_SCALE)
+
+
+def _is_subagent_sheet(name: str) -> bool:
+    if REGISTRY is None or not hasattr(REGISTRY, "is_subagent_skin"):
+        return False
+    return bool(REGISTRY.is_subagent_skin(name))
+
+
+def subagent_sprite_mode(skin: str) -> str:
+    """Fly or ground for a loaded subagent sheet. Anything else is ground."""
+    if REGISTRY is not None and hasattr(REGISTRY, "skin_mode"):
+        mode = REGISTRY.skin_mode(skin)
+        if mode in ("fly", "ground"):
+            return mode
+    return "ground"
 
 
 def _startup_report(registry) -> None:
@@ -818,7 +840,9 @@ class Avatar:
                 self.dir = 1 if steer.facing > 0 else -1
             self._meet_lock = True
 
-        self.vy += GRAVITY
+        # Fly children hover. Ground children, and every orchestrator, still fall.
+        if not (self.spring_mode and child_flight_mode(self) == "fly"):
+            self.vy += GRAVITY
         nx = self.x + self.vx
         ny = self.y + self.vy
 
@@ -1268,6 +1292,31 @@ def leash_px_from_config(config) -> float:
     return float(raw)
 
 
+def child_flight_mode(avatar) -> str:
+    """``fly`` when this child was spawned with a fly sheet. Otherwise ground.
+
+    An explicit ``_sub_mode`` wins, including in tests that have no registry.
+    Orchestrators are not given one, so they stay ground and keep gravity.
+    """
+    mode = getattr(avatar, "_sub_mode", None)
+    if mode in ("fly", "ground"):
+        return mode
+    skin = getattr(getattr(avatar, "agent", None), "skin", "")
+    return subagent_sprite_mode(str(skin or ""))
+
+
+def elastic_endpoints(parent, child, mode: str) -> tuple[float, float, float, float]:
+    """Spring line ends. Fly starts at the head and runs upward to the child."""
+    x1 = child.x + child.aw / 2.0
+    y1 = child.y + child.ah / 2.0
+    x0 = parent.x + parent.aw / 2.0
+    if mode == "fly":
+        y0 = float(parent.y)
+    else:
+        y0 = parent.y + parent.ah / 2.0
+    return x0, y0, x1, y1
+
+
 def _clamp_speed(vx: float, vy: float, cap: float) -> tuple[float, float]:
     if not math.isfinite(vx) or not math.isfinite(vy) or not math.isfinite(cap) or cap <= 0.0:
         return 0.0, 0.0
@@ -1288,6 +1337,7 @@ class OverlayApp:
     def __init__(self):
         self._config_path = Path(__file__).resolve().parent / "config.json"
         self.config = load_config(self._config_path)
+        self._subskin_rng = random.Random()
         self._rooms_shown = rooms_from_config(self.config)
         self._rooms_win = None
         self._rooms_btn = None
@@ -1520,6 +1570,14 @@ class OverlayApp:
             while len(sub_list) < effective_target:
                 px = (parent_av.x if parent_av else self.sw/2) + random.randint(-80,80)
                 py = (parent_av.y if parent_av else 100)
+                # Chosen once, at spawn. Later ticks leave the skin alone.
+                skin = assign_subagent_skin(
+                    getattr(self, "config", None),
+                    aid,
+                    len(sub_list),
+                    self._subagent_skin_pool(),
+                    rng=getattr(self, "_subskin_rng", None),
+                )
                 child = subagent_for(SessionInfo(
                     agent_id=aid,
                     name=agent.name,
@@ -1532,7 +1590,7 @@ class OverlayApp:
                     agent_id=child.agent_id,
                     name=child.name,
                     status=child.status,
-                    skin=child.skin,
+                    skin=skin,
                     is_demo=child.is_demo,
                     workspace_hash=child.workspace_hash,
                     source=child.source,
@@ -1544,6 +1602,7 @@ class OverlayApp:
                 sv = Avatar(sub_info, self.sw, self.sh,
                             self._cidx + 100 + len(sub_list), REGISTRY,
                             spring_mode=True)
+                sv._sub_mode = subagent_sprite_mode(skin)
                 sv.x, sv.y = float(px), float(py)
                 sv.anim_speed_mult = random.uniform(0.5, 2.2)
                 sv._spring_k_mult  = random.uniform(0.4, 1.8)
@@ -1741,10 +1800,15 @@ class OverlayApp:
     def _apply_spring(self, sv: Avatar, parent_av: Avatar, dt: float = 1.0) -> None:
         """Pull a subagent toward its parent. One call is one frame at dt=1.
 
-        The line is slack inside ``SPRING_REST`` and Hooke's law outside it,
-        then ``SPRING_DAMP``. Speed is capped so a parent that jumps across
+        Ground children hang under the parent: the line is slack inside
+        ``SPRING_REST`` and Hooke's law outside it, then ``SPRING_DAMP``.
+        Fly children are pulled to a point ``SPRING_REST`` above the head
+        and bob a few pixels. Speed is capped so a parent that jumps across
         the screen, or a huge dt, cannot produce NaN or a fling.
         """
+        if child_flight_mode(sv) == "fly":
+            self._apply_fly_spring(sv, parent_av, dt)
+            return
         if not math.isfinite(sv.vx) or not math.isfinite(sv.vy):
             sv.vx = 0.0
             sv.vy = 0.0
@@ -1774,6 +1838,57 @@ class OverlayApp:
         sv.vx *= damp ** scale
         sv.vy *= damp ** scale
         sv.vx, sv.vy = _clamp_speed(sv.vx, sv.vy, SPRING_MAX_SPEED)
+
+    def _apply_fly_spring(self, sv: Avatar, parent_av: Avatar, dt: float = 1.0) -> None:
+        """Hold a fly child on the point above the parent's head."""
+        if not math.isfinite(sv.vx) or not math.isfinite(sv.vy):
+            sv.vx = 0.0
+            sv.vy = 0.0
+        scale = _spring_frame(dt)
+        if scale <= 0.0:
+            return
+        phase = getattr(sv, "_fly_phase", 0.0)
+        if isinstance(phase, bool) or not isinstance(phase, (int, float)) or not math.isfinite(phase):
+            phase = 0.0
+        sv._fly_phase = phase + 1.0
+        # The bob is painted on after the spring, then taken off next frame,
+        # so it does not feed back into the hover and grow.
+        prev_bob = getattr(sv, "_fly_bob", 0.0)
+        if isinstance(prev_bob, bool) or not isinstance(prev_bob, (int, float)) or not math.isfinite(prev_bob):
+            prev_bob = 0.0
+        sv.y -= prev_bob
+        sv._fly_bob = 0.0
+        tx = parent_av.x + parent_av.aw / 2.0
+        ty = parent_av.y - SPRING_REST
+        sx = sv.x + sv.aw / 2.0
+        sy = sv.y + sv.ah / 2.0
+        if not all(math.isfinite(v) for v in (tx, ty, sx, sy)):
+            return
+        dx = _clamp_span(tx - sx)
+        dy = _clamp_span(ty - sy)
+        dist = math.hypot(dx, dy)
+        k_mult = sv._spring_k_mult
+        if not math.isfinite(k_mult):
+            k_mult = 1.0
+        if dist > 0.0 and math.isfinite(dist):
+            force = dist * SPRING_K * k_mult * scale
+            if math.isfinite(force):
+                sv.vx += (dx / dist) * force
+                sv.vy += (dy / dist) * force
+        damp = sv._spring_damp_v
+        if not math.isfinite(damp) or damp < 0.0:
+            damp = SPRING_DAMP
+        sv.vx *= damp ** scale
+        sv.vy *= damp ** scale
+        sv.vx, sv.vy = _clamp_speed(sv.vx, sv.vy, SPRING_MAX_SPEED)
+        bob = math.sin(sv._fly_phase * 0.16) * FLY_BOB
+        sv.y += bob
+        sv._fly_bob = bob
+
+    def _subagent_skin_pool(self) -> list[str]:
+        if REGISTRY is not None and hasattr(REGISTRY, "subagent_ids"):
+            return list(REGISTRY.subagent_ids())
+        return []
 
     def _leash_px(self) -> float:
         return leash_px_from_config(getattr(self, "config", None))
@@ -1829,11 +1944,12 @@ class OverlayApp:
             sv.dir = 1
 
     def _draw_elastic(self, parent_av: Avatar, sv: Avatar):
-        """Draw a purple zigzag spring line between parent and subagent."""
-        x0 = parent_av.x + parent_av.aw / 2
-        y0 = parent_av.y + parent_av.ah / 2
-        x1 = sv.x + sv.aw / 2
-        y1 = sv.y + sv.ah / 2
+        """Draw a purple zigzag spring line between parent and subagent.
+
+        Ground children keep the line from centre to centre. Fly children
+        start at the parent's head so the line is drawn upward.
+        """
+        x0, y0, x1, y1 = elastic_endpoints(parent_av, sv, child_flight_mode(sv))
         dx, dy = x1 - x0, y1 - y0
         dist = math.sqrt(dx*dx + dy*dy)
         if dist < 4:
@@ -2907,7 +3023,7 @@ class OverlayApp:
         lbl_to_id = dict(zip(labels, agent_ids))
 
         raw = REGISTRY.list_sheets() if REGISTRY else []
-        skins = [n for n in raw if not re.search(r"_h\d+$", n)]
+        skins = [n for n in raw if not re.search(r"_h\d+$", n) and not _is_subagent_sheet(n)]
         state = {"skin": (agents[agent_ids[0]].skin.split("_h")[0] if agent_ids else
                           (skins[0] if skins else "")), "row": 0}
         if state["skin"] not in skins and skins: state["skin"] = skins[0]

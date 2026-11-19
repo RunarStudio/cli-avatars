@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import overlay  # noqa: E402
 from overlay import (  # noqa: E402
+    FLY_BOB,
     GRAVITY,
     SPRING_DAMP,
     SPRING_K,
@@ -27,6 +28,8 @@ from overlay import (  # noqa: E402
     AgentInfo,
     Avatar,
     OverlayApp,
+    child_flight_mode,
+    elastic_endpoints,
     leash_px_from_config,
 )
 
@@ -235,6 +238,88 @@ class SpringChildTests(unittest.TestCase):
             self.assertLessEqual(_center_dist(parent, child), 70.0 + 0.05)
         self.assertGreater(orch.x + orch.aw / 2.0, px + 70.0)
         self.assertFalse(orch.spring_mode)
+
+    def test_fly_settles_above_the_head_and_ground_hangs_below(self):
+        app = _app()
+        parent = _avatar(_agent("parent", "Claude"), spring_mode=False, x=400.0, y=400.0)
+        fly = _avatar(
+            _agent("parent_sub_0", "sub-1", parent_id="parent"),
+            spring_mode=True, x=400.0, y=400.0,
+        )
+        ground = _avatar(
+            _agent("parent_sub_1", "sub-2", parent_id="parent"),
+            spring_mode=True, x=460.0, y=400.0,
+        )
+        fly._sub_mode = "fly"
+        ground._sub_mode = "ground"
+        self.assertEqual(child_flight_mode(fly), "fly")
+        self.assertEqual(child_flight_mode(ground), "ground")
+        self.assertEqual(child_flight_mode(parent), "ground")
+        fly_ys = []
+        for _ in range(280):
+            app._drive_subagent(fly, parent, [], [])
+            app._drive_subagent(ground, parent, [], [])
+            fly_ys.append(fly.y)
+            self.assertTrue(math.isfinite(fly.x) and math.isfinite(fly.y))
+            self.assertTrue(math.isfinite(ground.x) and math.isfinite(ground.y))
+            self.assertLessEqual(_center_dist(parent, fly), SUBAGENT_LEASH_MAX + 0.05)
+            self.assertLessEqual(_center_dist(parent, ground), SUBAGENT_LEASH_MAX + 0.05)
+
+        # The whole fly sprite sits above the head, with a small bob.
+        self.assertLess(fly.y + fly.ah, parent.y - 20.0)
+        self.assertLess(abs((fly.x + fly.aw / 2.0) - (parent.x + parent.aw / 2.0)), 6.0)
+        bob = max(fly_ys[-80:]) - min(fly_ys[-80:])
+        self.assertGreater(bob, 0.5)
+        self.assertLess(bob, FLY_BOB * 4.0)
+        x0, y0, x1, y1 = elastic_endpoints(parent, fly, "fly")
+        self.assertLess(y1, y0)
+        self.assertEqual(y0, parent.y)
+
+        sag = GRAVITY / (SPRING_K * ground._spring_k_mult * ground._spring_damp_v)
+        self.assertLess(abs(_center_dist(parent, ground) - (SPRING_REST + sag)), 2.0)
+        self.assertGreater(ground.y, parent.y + parent.ah)
+        gx0, gy0, gx1, gy1 = elastic_endpoints(parent, ground, "ground")
+        self.assertGreater(gy1, gy0)
+        self.assertEqual(gy0, parent.y + parent.ah / 2.0)
+        # The orchestrator was not pulled toward either child.
+        self.assertEqual(parent.y, 400.0)
+        self.assertFalse(parent.spring_mode)
+
+    def test_leash_holds_for_fly_and_ground(self):
+        app = _app()
+        app.config = {"subagent": {"leash_px": 90}}
+        parent = _avatar(_agent("parent", "Claude"), spring_mode=False, x=500.0, y=300.0)
+        fly = _avatar(
+            _agent("parent_sub_0", "sub-1", parent_id="parent"),
+            spring_mode=True, x=500.0, y=300.0 - 4000.0,
+        )
+        ground = _avatar(
+            _agent("parent_sub_1", "sub-2", parent_id="parent"),
+            spring_mode=True, x=500.0 + 4000.0, y=300.0 + 4000.0,
+        )
+        fly._sub_mode = "fly"
+        ground._sub_mode = "ground"
+        for _ in range(30):
+            parent.x += 40.0
+            app._drive_subagent(fly, parent, [], [], dt=1e9 if _ == 0 else 1.0)
+            app._drive_subagent(ground, parent, [], [])
+            self.assertLessEqual(_center_dist(parent, fly), 90.0 + 0.05)
+            self.assertLessEqual(_center_dist(parent, ground), 90.0 + 0.05)
+            self.assertGreater(_center_dist(parent, fly), 1.0)
+            self.assertGreater(_center_dist(parent, ground), 1.0)
+            self.assertTrue(math.isfinite(fly.vx) and math.isfinite(fly.vy))
+            self.assertTrue(math.isfinite(ground.vx) and math.isfinite(ground.vy))
+        # Still on opposite sides of the parent: fly above, ground below.
+        self.assertLess(fly.y + fly.ah / 2.0, parent.y + parent.ah / 2.0)
+        self.assertGreater(ground.y, parent.y)
+
+    def test_spawn_picks_a_skin_once(self):
+        tick = inspect.getsource(OverlayApp._tick)
+        self.assertEqual(tick.count("assign_subagent_skin("), 1)
+        self.assertIn("_sub_mode", tick)
+        spawn, _, later = tick.partition("assign_subagent_skin(")
+        self.assertIn("while len(sub_list)", spawn)
+        self.assertNotIn("assign_subagent_skin(", later)
 
 
 if __name__ == "__main__":

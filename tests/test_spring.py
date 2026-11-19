@@ -53,6 +53,15 @@ class SpringChildTests(unittest.TestCase):
     def test_walking_child_stays_beside_parent_orchestrator_does_not(self):
         _run("test_walking_child_stays_beside_parent_orchestrator_does_not")
 
+    def test_fly_settles_above_the_head_and_ground_hangs_below(self):
+        _run("test_fly_settles_above_the_head_and_ground_hangs_below")
+
+    def test_leash_holds_for_fly_and_ground(self):
+        _run("test_leash_holds_for_fly_and_ground")
+
+    def test_spawn_picks_a_skin_once(self):
+        _run("test_spawn_picks_a_skin_once")
+
 
 if __name__ == "__main__":
     unittest.main()
