@@ -47,6 +47,12 @@ class SpringChildTests(unittest.TestCase):
     def test_large_dt_and_a_dragged_parent_stay_finite(self):
         _run("test_large_dt_and_a_dragged_parent_stay_finite")
 
+    def test_leash_holds_after_many_ticks_drag_and_large_dt(self):
+        _run("test_leash_holds_after_many_ticks_drag_and_large_dt")
+
+    def test_walking_child_stays_beside_parent_orchestrator_does_not(self):
+        _run("test_walking_child_stays_beside_parent_orchestrator_does_not")
+
 
 if __name__ == "__main__":
     unittest.main()

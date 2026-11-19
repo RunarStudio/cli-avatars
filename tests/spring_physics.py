@@ -22,10 +22,12 @@ from overlay import (  # noqa: E402
     SPRING_K,
     SPRING_MAX_SPEED,
     SPRING_REST,
+    SUBAGENT_LEASH_MAX,
     WALK_SPEED,
     AgentInfo,
     Avatar,
     OverlayApp,
+    leash_px_from_config,
 )
 
 
@@ -159,12 +161,14 @@ class SpringChildTests(unittest.TestCase):
         )
         parent.x = 2000.0
         app._drive_subagent(child, parent, [], [], dt=1e9)
-        speed = math.hypot(child.vx, child.vy)
         self.assertTrue(math.isfinite(child.x) and math.isfinite(child.y))
         self.assertTrue(math.isfinite(child.vx) and math.isfinite(child.vy))
-        self.assertLessEqual(speed, SPRING_MAX_SPEED + GRAVITY + 1e-6)
-        self.assertGreater(child.x, 400.0)
-        self.assertLess(child.x, 400.0 + SPRING_MAX_SPEED + 1.0)
+        self.assertLessEqual(_center_dist(parent, child), SUBAGENT_LEASH_MAX + 0.05)
+        self.assertGreater(_center_dist(parent, child), SPRING_REST)
+        held = (child.x, child.y)
+        app._drive_subagent(child, parent, [], [])
+        self.assertLessEqual(_center_dist(parent, child), SUBAGENT_LEASH_MAX + 0.05)
+        self.assertLess(math.hypot(child.x - held[0], child.y - held[1]), SPRING_MAX_SPEED + GRAVITY + 1.0)
 
         child.x = 1e200
         child.y = -1e200
@@ -182,6 +186,55 @@ class SpringChildTests(unittest.TestCase):
         app._apply_spring(child, parent, dt=float("inf"))
         self.assertTrue(math.isfinite(child.vx) and math.isfinite(child.vy))
         self.assertLessEqual(math.hypot(child.vx, child.vy), SPRING_MAX_SPEED + 1e-9)
+
+    def test_leash_holds_after_many_ticks_drag_and_large_dt(self):
+        self.assertEqual(SUBAGENT_LEASH_MAX, SPRING_REST * 3)
+        self.assertEqual(leash_px_from_config({}), float(SUBAGENT_LEASH_MAX))
+        self.assertEqual(leash_px_from_config({"subagent": {"leash_px": 90}}), 90.0)
+        self.assertEqual(leash_px_from_config({"subagent": {"leash_px": -4}}), float(SUBAGENT_LEASH_MAX))
+        self.assertEqual(leash_px_from_config({"subagent": {"leash_px": True}}), float(SUBAGENT_LEASH_MAX))
+
+        app = _app()
+        app.config = {"subagent": {"leash_px": 90}}
+        parent = _avatar(_agent("parent", "Claude"), spring_mode=False, x=400.0, y=200.0)
+        child = _avatar(
+            _agent("parent_sub_0", "sub-1", parent_id="parent"),
+            spring_mode=True, x=400.0 + 800.0, y=200.0,
+        )
+        for _ in range(40):
+            app._drive_subagent(child, parent, [], [], dt=1.0)
+            self.assertLessEqual(_center_dist(parent, child), 90.0 + 0.05)
+            self.assertTrue(math.isfinite(child.x) and math.isfinite(child.y))
+        # Fast drag, including a huge dt. The child stays on the leash circle.
+        for step in range(8):
+            parent.x += 300.0
+            app._drive_subagent(child, parent, [], [], dt=1e9 if step == 0 else 1.0)
+            self.assertTrue(math.isfinite(child.vx) and math.isfinite(child.vy))
+            self.assertLessEqual(_center_dist(parent, child), 90.0 + 0.05)
+            self.assertGreater(_center_dist(parent, child), 1.0)
+
+    def test_walking_child_stays_beside_parent_orchestrator_does_not(self):
+        app = _app()
+        app.config = {"subagent": {"leash_px": 70}}
+        parent = _avatar(_agent("parent", "Claude"), spring_mode=False, x=500.0, y=200.0)
+        child = _avatar(
+            _agent("parent_sub_0", "sub-1", parent_id="parent"),
+            spring_mode=False, x=500.0, y=200.0,
+        )
+        child.vx = WALK_SPEED
+        child.dir = 1
+        orch = _avatar(_agent("orch", "Claude-west"), spring_mode=False, x=500.0, y=200.0)
+        orch.vx = WALK_SPEED
+        orch.dir = 1
+        px = parent.x + parent.aw / 2.0
+        for _ in range(80):
+            app._drive_subagent(child, parent, [], [])
+            orch.update([], [])
+            cx = child.x + child.aw / 2.0
+            self.assertLessEqual(abs(cx - px), 70.0 + 0.05)
+            self.assertLessEqual(_center_dist(parent, child), 70.0 + 0.05)
+        self.assertGreater(orch.x + orch.aw / 2.0, px + 70.0)
+        self.assertFalse(orch.spring_mode)
 
 
 if __name__ == "__main__":
