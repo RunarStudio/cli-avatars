@@ -8,10 +8,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from hud import (  # noqa: E402
+    GROK_MARK,
+    GROK_ROW_COLOR,
     format_source_row,
     format_total_row,
     hud_status_lines,
     mixed_sessions,
+    status_row_style,
     tally_sources,
     write_hud_preview,
 )
@@ -90,6 +93,19 @@ class TestPerSourceCounts(unittest.TestCase):
         self.assertEqual(rows[0].idle, 0)
         self.assertEqual(format_source_row(rows[0]),
                          "Claude 1 | busy 0 thinking 0 idle 0 | sub 0")
+
+    def test_grok_row_has_its_own_mark_and_color(self):
+        lines = hud_status_lines(mixed_sessions())
+        grok = next(line for line in lines if "Grok " in line)
+        shown, color = status_row_style(grok)
+        self.assertTrue(shown.lstrip().startswith(GROK_MARK + " Grok "))
+        self.assertIn("busy 1", shown)
+        self.assertEqual(color, GROK_ROW_COLOR)
+        claude = next(line for line in lines if "Claude " in line)
+        plain, plain_color = status_row_style(claude)
+        self.assertEqual(plain, claude)
+        self.assertNotEqual(plain_color, GROK_ROW_COLOR)
+        self.assertIn("TODO(Caine art)", Path(__file__).resolve().parent.parent.joinpath("hud.py").read_text(encoding="utf-8"))
 
 
 class TestSubagentSource(unittest.TestCase):

@@ -22,6 +22,12 @@ _PREFERRED = ("claude", "grok", "emit")
 
 _WAITING = "Waiting for session..."
 
+# TODO(Caine art): Grok row ink and mark until a Grok skin exists.
+GROK_MARK = "◆"
+GROK_ROW_COLOR = "#3DDC97"
+DEFAULT_ROW_COLOR = "#aaccff"
+WAITING_COLOR = "#aaaaaa"
+
 
 @dataclass(frozen=True)
 class SourceCounts:
@@ -45,6 +51,21 @@ def source_label(source: str) -> str:
     if not source:
         return "Unknown"
     return source[0].upper() + source[1:]
+
+
+def status_row_style(line: str, *, waiting: bool = False) -> tuple[str, str]:
+    """Text and color for one HUD status line.
+
+    A Grok row keeps the same counts and adds a mark plus its own color,
+    so it is not drawn in the Claude ink. Other rows stay as they are.
+    """
+    if waiting or line.strip().startswith("Waiting"):
+        return line, WAITING_COLOR
+    stripped = line.lstrip(" ")
+    indent = line[:len(line) - len(stripped)]
+    if stripped.startswith("Grok "):
+        return f"{indent}{GROK_MARK} {stripped}", GROK_ROW_COLOR
+    return line, DEFAULT_ROW_COLOR
 
 
 def format_source_row(row: SourceCounts) -> str:
@@ -336,7 +357,8 @@ def write_hud_preview(
 
     y = 104
     for line in rows:
-        paint(16, y, line, fg, body)
+        shown, color = status_row_style(line, waiting=line.strip().startswith("Waiting"))
+        paint(16, y, shown, _hex(color), body)
         y += line_h
     paint(16, y, talk_line, _hex(talk_color), body)
     y += line_h + 8
