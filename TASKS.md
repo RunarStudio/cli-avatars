@@ -304,6 +304,24 @@ updated: 2026-11-19
   - The orchestrator forwards work onward and posts the result with `cli-avatars-emit say --note` or `reply`. The app stores and shows that text. It does not execute it and it does not start a CLI.
   - `--selftest` builds the window off-screen from simulated rows. Preview: `docs/media/chat-window.png`. Protocol: `docs/agent-chat-protocol.md`.
 
+## 🔌 Phase 4 — Local MCP
+
+- [x] **MCP-M1** Phase 1 local MCP server <!-- id: MCP-M1 -->
+  - `python -m cli_avatars_mcp` is a stdio FastMCP server. It does not open a port.
+  - Project records are `projects/<slug>.json` in the per-user data directory (`%LOCALAPPDATA%\cli-avatars`, or the platform directory `events.app_data_dir()` already uses). Writes take `directory_lock`.
+  - Fields: slug, name, path (folder, stored and not opened), repo url, branch, status (`idea`, `active`, `paused`, `done`), requirements, key files, key-values, linked topic slugs.
+  - Read tools: `projects_list`, `project_get`, `topics_list`, `topic_show`, `decisions_list`, `kv_get`.
+  - Caller writes: `status_set` emits the same loopback state event the avatars consume. `say` posts one topic-channel message as `emit:mcp`.
+  - Resources: `project://<slug>` and `project://<slug>/requirements`.
+  - `python -m cli_avatars_mcp install` is a dry-run. `--apply` backs up, then merges the Claude user config and `~/.grok/config.toml`. `uninstall` removes only that registration. Nothing in a tool argument is executed.
+  - Docs: `docs/mcp.md`.
+
+- [ ] **MCP-M2** Project, requirements, and key-value writes <!-- id: MCP-M2 -->
+  - Not in M1. See `docs/mcp.md`.
+
+- [ ] **MCP-M3** Local memories add and search <!-- id: MCP-M3 -->
+  - Not in M1. See `docs/mcp.md`.
+
 ## 🔵 v0.5 — Tauri Port
 
 - Step 1 done: SessionSource adapter layer (ClaudeJsonlSource)
@@ -322,6 +340,7 @@ updated: 2026-11-19
 | Full project reference (v0.1) | `AI_OVERLAY.md` |
 | Claude Code project guide | `CLAUDE.md` |
 | Sprite sheet format & Stream Avatars convention | `AI_OVERLAY.md` → Sprite Sheet Format |
+| Local MCP server (M1) | `docs/mcp.md` |
 | Python concepts glossary | `AI_OVERLAY.md` → Python Concepts Glossary |
 
 - [x] FIX-HUD-PADY: the overlay crashed at startup (Tk Label pady given as a tuple, TclError 'expected screen distance'), so no avatars appeared; padding moved to pack().
