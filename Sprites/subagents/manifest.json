@@ -1,0 +1,78 @@
+{
+  "frame": 32,
+  "note": "Code-generated placeholders. placeholder stays true until real sheets replace them.",
+  "skins": [
+    {
+      "id": "imp",
+      "label": "imp",
+      "file": "imp.png",
+      "frame_w": 32,
+      "frame_h": 32,
+      "mode": "ground",
+      "placeholder": true
+    },
+    {
+      "id": "claude4",
+      "label": "4-legged Claude",
+      "file": "claude4.png",
+      "frame_w": 32,
+      "frame_h": 32,
+      "mode": "ground",
+      "placeholder": true
+    },
+    {
+      "id": "winged_light",
+      "label": "winged light",
+      "file": "winged_light.png",
+      "frame_w": 32,
+      "frame_h": 32,
+      "mode": "fly",
+      "placeholder": true
+    },
+    {
+      "id": "cat",
+      "label": "cat",
+      "file": "cat.png",
+      "frame_w": 32,
+      "frame_h": 32,
+      "mode": "ground",
+      "placeholder": true
+    },
+    {
+      "id": "dog",
+      "label": "dog",
+      "file": "dog.png",
+      "frame_w": 32,
+      "frame_h": 32,
+      "mode": "ground",
+      "placeholder": true
+    },
+    {
+      "id": "dragon",
+      "label": "dragon",
+      "file": "dragon.png",
+      "frame_w": 32,
+      "frame_h": 32,
+      "mode": "fly",
+      "placeholder": true
+    },
+    {
+      "id": "mini_drone",
+      "label": "mini drone",
+      "file": "mini_drone.png",
+      "frame_w": 32,
+      "frame_h": 32,
+      "mode": "fly",
+      "placeholder": true
+    },
+    {
+      "id": "little_grok",
+      "label": "little Grok",
+      "file": "little_grok.png",
+      "frame_w": 32,
+      "frame_h": 32,
+      "mode": "ground",
+      "placeholder": true
+    }
+  ]
+}
