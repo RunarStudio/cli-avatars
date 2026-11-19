@@ -185,6 +185,94 @@ def _assistant_text(obj: object) -> str:
     return " ".join(part for part in parts if part).strip()
 
 
+_FORBIDDEN_TRANSCRIPT = frozenset({
+    "auth.json",
+    "chat_history.jsonl",
+    "credentials",
+    "credentials.json",
+    "prompt_context.json",
+    "signals.json",
+    "system_prompt.txt",
+    "token.json",
+})
+
+_EVENT_ALIAS = {
+    "stop": "Stop",
+    "session_start": "SessionStart",
+    "user_prompt_submit": "UserPromptSubmit",
+    "session_end": "SessionEnd",
+    "subagent_start": "SubagentStart",
+    "subagent_stop": "SubagentStop",
+}
+
+
+def hook_payload_source(payload: object) -> str:
+    """``grok`` or ``claude``, from ``hooks/claude_chat_hook.py``."""
+    detector = _hook_detector()
+    if detector is None:
+        return "claude"
+    try:
+        source = detector(payload)
+    except Exception:
+        return "claude"
+    return "grok" if source == "grok" else "claude"
+
+
+def _hook_detector():
+    cached = getattr(_hook_detector, "fn", None)
+    if cached is not None:
+        return cached
+    import importlib.util
+
+    path = hook_script_path()
+    try:
+        spec = importlib.util.spec_from_file_location("cli_avatars_claude_chat_hook", path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except Exception:
+        return None
+    fn = getattr(module, "payload_source", None)
+    if not callable(fn):
+        return None
+    _hook_detector.fn = fn
+    return fn
+
+
+def _snake_payload(payload: dict) -> dict:
+    """Copy with Claude's snake_case keys filled in from Grok's camelCase.
+
+    A key Claude already sent is left as it is.
+    """
+    data = dict(payload)
+    if not isinstance(data.get("hook_event_name"), str):
+        camel = data.get("hookEventName")
+        if isinstance(camel, str) and camel.strip():
+            data["hook_event_name"] = _EVENT_ALIAS.get(camel.strip(), camel.strip())
+    if not isinstance(data.get("session_id"), str) and isinstance(data.get("sessionId"), str):
+        data["session_id"] = data["sessionId"]
+    if not isinstance(data.get("transcript_path"), str) and isinstance(data.get("transcriptPath"), str):
+        data["transcript_path"] = data["transcriptPath"]
+    if "stop_hook_active" not in data and "stopHookActive" in data:
+        data["stop_hook_active"] = data["stopHookActive"]
+    if (
+        not isinstance(data.get("last_assistant_message"), str)
+        and isinstance(data.get("lastAssistantMessage"), str)
+    ):
+        data["last_assistant_message"] = data["lastAssistantMessage"]
+    if not isinstance(data.get("cwd"), str) and isinstance(data.get("workspaceRoot"), str):
+        data["cwd"] = data["workspaceRoot"]
+    return data
+
+
+def _store_id(source: str, agent_id: str) -> str:
+    """Inbox id. Claude keeps the bare id. Grok uses ``grok:<id>``."""
+    if source == "claude":
+        return agent_id
+    return f"{source}:{agent_id}"
+
+
 def last_assistant_text(payload: dict, transcript_path: object) -> str:
     """The turn's reply, from ``last_assistant_message`` or the transcript tail.
 
@@ -196,6 +284,8 @@ def last_assistant_text(payload: dict, transcript_path: object) -> str:
     if not isinstance(transcript_path, str) or not transcript_path.strip():
         return ""
     path = Path(transcript_path)
+    if path.name.lower() in _FORBIDDEN_TRANSCRIPT:
+        return ""
     try:
         if path.is_symlink() or not path.is_file():
             return ""
@@ -303,22 +393,29 @@ def context_block(directory: Path, agent_id: str, topic_id: str) -> str:
     return cap_context(_format_context(topic_id, shown, unread))
 
 
-def _emit_idle(directory: Path, agent_id: str, port: int) -> None:
+def _emit_idle(directory: Path, agent_id: str, port: int, source: str = "claude") -> None:
     import cli_avatars_emit
 
     cli_avatars_emit.cmd_state(SimpleNamespace(
         data_dir=str(directory),
-        source="claude",
+        source=source,
         id=agent_id,
         state="idle",
         port=port,
     ))
 
 
-def _post_note(directory: Path, agent_id: str, topic_id: str, note: str, port: int) -> None:
+def _post_note(
+    directory: Path,
+    agent_id: str,
+    topic_id: str,
+    note: str,
+    port: int,
+    source: str = "claude",
+) -> None:
     import cli_avatars_emit
 
-    actor = f"claude:{agent_id}"
+    actor = f"{source}:{agent_id}"
     cli_avatars_emit.cmd_say(SimpleNamespace(
         data_dir=str(directory),
         from_id=actor,
@@ -339,6 +436,7 @@ def handle_stop(
     *,
     config_path: Path | None,
     port: int,
+    source: str = "claude",
 ) -> None:
     """Emit idle. Optionally store a sanitised note through ``say --note``.
 
@@ -348,7 +446,7 @@ def handle_stop(
     from events import DISPLAY_NOTE_LIMIT, EventRejected, sanitize_text
 
     try:
-        _emit_idle(directory, agent_id, port)
+        _emit_idle(directory, agent_id, port, source)
     except (EventRejected, OSError):
         pass
     if payload.get("stop_hook_active") is True:
@@ -359,7 +457,7 @@ def handle_stop(
     if not note:
         return
     try:
-        _post_note(directory, agent_id, topic_id, note, port)
+        _post_note(directory, agent_id, topic_id, note, port, source)
     except (EventRejected, OSError):
         return
 
@@ -374,6 +472,8 @@ def handle_payload(
     """One hook event. The return value is stdout. Failures return an empty string."""
     if not isinstance(payload, dict):
         return ""
+    source = hook_payload_source(payload)
+    payload = _snake_payload(payload)
     event = payload.get("hook_event_name")
     if not isinstance(event, str):
         return ""
@@ -381,8 +481,9 @@ def handle_payload(
     if not agent_id:
         return ""
     topic_id = topic_slug(payload.get("cwd"))
+    store_id = _store_id(source, agent_id)
     if event in _CONTEXT_EVENTS:
-        return context_block(directory, agent_id, topic_id)
+        return context_block(directory, store_id, topic_id)
     if event == "Stop":
         handle_stop(
             directory,
@@ -391,6 +492,7 @@ def handle_payload(
             topic_id,
             config_path=config_path,
             port=port,
+            source=source,
         )
     return ""
 

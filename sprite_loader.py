@@ -370,6 +370,23 @@ class SpriteRegistry:
             except Exception as e:
                 print(f"[sprites] reload failed for {name}: {e}")
 
+    def ensure_hue_variant(self, name: str) -> None:
+        """Register ``base_hDEG`` from an already loaded base sheet.
+
+        TODO(Caine art): Grok sessions use this until a Grok sheet exists.
+        A missing base sheet is left alone so a later sprite load can retry.
+        """
+        base, sep, tail = str(name or "").rpartition("_h")
+        if not sep or not tail.isdigit() or not base:
+            return
+        with self._lock:
+            if name in self._sheets or base not in self._sheets:
+                return
+        try:
+            self.load_hue_variant(name, base, float(tail))
+        except Exception:
+            return
+
     def load_hue_variant(
         self, variant_name: str, base_name: str, hue_degrees: float
     ) -> Optional["SpriteSheet"]:

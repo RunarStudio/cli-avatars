@@ -45,12 +45,15 @@ from pathlib import Path
 from sessions import (
     ClaudeJsonlSource,
     CompositeSource,
+    GROK_SKIN_SENTINEL,
     SessionInfo,
     default_sources,
+    grok_appearance,
+    grok_skin_id,
     merge_id,
     subagent_for,
 )
-from hud import hud_status_lines
+from hud import hud_status_lines, status_row_style
 from rooms import (
     build_rooms,
     config_with_rooms,
@@ -874,6 +877,9 @@ class Avatar:
         mirror = self.dir < 0
         photo = None
         if self.registry:
+            # TODO(Caine art): load the configured Grok hue the first time it draws.
+            if hasattr(self.registry, "ensure_hue_variant"):
+                self.registry.ensure_hue_variant(self.agent.skin)
             photo = self.registry.get_photo(
                 self.agent.skin, self._anim_status, self.frame, mirror=mirror)
         if photo is None:
@@ -944,7 +950,7 @@ class SessionScanner:
         self._tick    = 0
         self._skin_idx = 0   # cycles through REAL_SESSION_SKINS for new sessions
         # Built-in sources. Claude is retargeted each scan so CLAUDE_DIR stays live.
-        # Grok is registered here (see default_sources) even while it returns nothing.
+        # Grok runs beside it (see default_sources) when its sessions folder exists.
         self._claude_source: Optional[ClaudeJsonlSource] = None
         if sources is None:
             sources = default_sources()
@@ -1036,10 +1042,14 @@ class SessionScanner:
 
         self._match_pids(found)
 
-        # Drop real sessions with no live process — avoids ghost avatars from closed sessions
-        live = {aid: ai for aid, ai in found.items() if ai.is_demo or ai.pid}
-        if live:
-            found = live
+        # Drop Claude sessions with no live process — avoids ghost avatars.
+        # Grok has no pid match here; staleness already drops closed sessions.
+        # When nothing has a pid (no Claude process), every session stays.
+        if any(ai.pid for ai in found.values()):
+            found = {
+                aid: ai for aid, ai in found.items()
+                if ai.is_demo or ai.pid or ai.source == "grok"
+            }
 
         with self._lock:
             self._apply_event_rows(found)
@@ -1054,6 +1064,10 @@ class SessionScanner:
                 elif not new_a.is_demo and new_a.skin == "__new__":
                     new_a.skin = REAL_SESSION_SKINS[self._skin_idx % len(REAL_SESSION_SKINS)]
                     self._skin_idx += 1
+                elif not new_a.is_demo and new_a.skin == GROK_SKIN_SENTINEL:
+                    # TODO(Caine art): hue stand-in until the Grok sheet exists.
+                    base, hue = grok_appearance(getattr(self, "_grok_config", None))
+                    new_a.skin = grok_skin_id(base, hue)
             self._agents = found
 
     def _match_pids(self, found: dict):
@@ -1205,8 +1219,7 @@ def _hud_status_text(agents) -> tuple[list[tuple[str,str]], bool]:
     """
     lines = hud_status_lines(agents)
     waiting = bool(lines) and lines[0].strip().startswith("Waiting")
-    color = "#aaaaaa" if waiting else "#aaccff"
-    return [(line, color) for line in lines], waiting
+    return [status_row_style(line, waiting=waiting) for line in lines], waiting
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1258,6 +1271,7 @@ class OverlayApp:
         self.canvas.pack(fill="both", expand=True)
 
         self.scanner = SessionScanner()
+        self.scanner._grok_config = self.config
         self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
         self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict[str, Avatar] = {}
@@ -1809,11 +1823,13 @@ class OverlayApp:
 
         tk.Frame(win, bg=SEL, height=1).pack(fill="x", padx=8, pady=(4, 0))
 
-        # Status label — updated every tick
-        self._hud_status_lbl = tk.Label(win, text="", bg=BG, fg=FG,
-                                        font=FONT, anchor="w", justify="left",
-                                        padx=10)
-        self._hud_status_lbl.pack(fill="x", pady=(8, 0))
+        # Status lines — one label each so a Grok row can use its own color.
+        self._hud_status_box = tk.Frame(win, bg=BG)
+        self._hud_status_box.pack(fill="x", pady=(8, 0))
+        self._hud_status_lbl = self._hud_status_box
+        self._hud_status_labels: list = []
+        self._hud_status_font = FONT
+        self._hud_status_bg = BG
         talk0 = self.scanner.bubbles.talks_at(time.time())
         self._hud_talks_lbl = tk.Label(
             win, text="  " + talk0.text, bg=BG, fg=talk0.color,
@@ -1970,11 +1986,39 @@ class OverlayApp:
         for _agent_id, x, y, _w, _h in placed:
             self.canvas.create_image(x, y, image=photo, anchor="nw", tags="decision_bubble")
 
+    def _paint_hud_rows(self, rows):
+        """One label per status line. Grok uses its own color and mark."""
+        box = getattr(self, "_hud_status_box", None)
+        if box is None:
+            return
+        try:
+            if not box.winfo_exists():
+                return
+        except Exception:
+            return
+        labels = getattr(self, "_hud_status_labels", None)
+        if labels is None:
+            labels = []
+            self._hud_status_labels = labels
+        font = getattr(self, "_hud_status_font", ("Courier", 10))
+        bg = getattr(self, "_hud_status_bg", "#0d0d1a")
+        while len(labels) < len(rows):
+            lbl = tk.Label(box, text="", bg=bg, fg="#aaccff",
+                           font=font, anchor="w", justify="left", padx=10)
+            lbl.pack(fill="x")
+            labels.append(lbl)
+        for lbl, (text, color) in zip(labels, rows):
+            lbl.config(text=text, fg=color)
+            if not lbl.winfo_ismapped():
+                lbl.pack(fill="x")
+        for lbl in labels[len(rows):]:
+            lbl.pack_forget()
+
     def _update_hud_win(self, agents):
         if not (self._hud_win and self._hud_win.winfo_exists()):
             return
         rows, _ = _hud_status_text(agents)
-        self._hud_status_lbl.config(text="\n".join(text for text, _ in rows))
+        self._paint_hud_rows(rows)
         talks = getattr(self, "_hud_talks_lbl", None)
         if talks is not None and talks.winfo_exists():
             talk = self.scanner.bubbles.talks_at(time.time())

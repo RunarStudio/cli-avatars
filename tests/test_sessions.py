@@ -317,7 +317,10 @@ class TestGrokBuildSource(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_directory_is_userprofile_grok_sessions(self):
-        with patch.dict(os.environ, {"USERPROFILE": "profile-root"}):
+        env = os.environ.copy()
+        env.pop("GROK_HOME", None)
+        env["USERPROFILE"] = "profile-root"
+        with patch.dict(os.environ, env, clear=True):
             self.assertEqual(
                 grok_sessions_dir(),
                 Path("profile-root") / ".grok" / "sessions",
@@ -327,9 +330,14 @@ class TestGrokBuildSource(unittest.TestCase):
                 Path("profile-root") / ".grok" / "sessions",
             )
 
+    def test_grok_home_overrides_the_profile(self):
+        with patch.dict(os.environ, {"GROK_HOME": "grok-root", "USERPROFILE": "profile-root"}):
+            self.assertEqual(grok_sessions_dir(), Path("grok-root") / "sessions")
+
     def test_home_when_userprofile_is_unset(self):
         env = os.environ.copy()
         env.pop("USERPROFILE", None)
+        env.pop("GROK_HOME", None)
         with patch.dict(os.environ, env, clear=True):
             self.assertEqual(grok_sessions_dir(), Path.home() / ".grok" / "sessions")
 
@@ -344,23 +352,22 @@ class TestGrokBuildSource(unittest.TestCase):
         marker.write_text("not a directory", encoding="utf-8")
         self.assertEqual(GrokBuildSource(marker).scan(), [])
 
-    def test_existing_directory_is_not_read(self):
+    def test_secret_files_at_the_root_are_not_opened(self):
         root = self.root / "sessions"
         root.mkdir()
         (root / "auth.json").write_text('{"access_token":"do-not-read"}', encoding="utf-8")
         (root / "credentials").write_text("do-not-read", encoding="utf-8")
         (root / "session.jsonl").write_text("{}\n", encoding="utf-8")
-        src = GrokBuildSource(root)
+        opened: list[str] = []
+        real_open = open
 
-        def forbidden(*_args, **_kwargs):
-            raise AssertionError("GrokBuildSource must not open files")
+        def spy(file, *args, **kwargs):
+            opened.append(Path(file).name)
+            return real_open(file, *args, **kwargs)
 
-        with patch("builtins.open", forbidden), \
-             patch.object(Path, "read_text", forbidden), \
-             patch.object(Path, "read_bytes", forbidden), \
-             patch.object(Path, "glob", forbidden), \
-             patch.object(Path, "iterdir", forbidden):
-            self.assertEqual(src.scan(), [])
+        with patch("builtins.open", spy):
+            self.assertEqual(GrokBuildSource(root).scan(), [])
+        self.assertFalse(set(opened) & {"auth.json", "credentials", "session.jsonl"})
 
     def test_registered_with_the_other_sources(self):
         sources = default_sources()

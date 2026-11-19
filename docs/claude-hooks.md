@@ -22,6 +22,8 @@ Claude Code supports **hooks** — shell commands (or Python scripts) that run a
 
 The listener and the `cli-avatars-emit` command are in (task **F2**). A `say` event also draws an icon bubble above the sender (task **F3**). A `note` is still stored in the local rotating log. `say --note` also stores a sanitised copy on the channel log, which the Chat panel shows (task **P3-CHAT-NOTE**). The bubble stays icon-only. Message text is never executed. A Claude Code hook can inject the local topic and inbox into the session (task **P3E-HOOKS**). That hook only reads and writes the store.
 
+Grok Build runs those same hooks. When the payload is from Grok (its own fields, or a transcript path under `.grok`), the hook tags `source=grok`. Claude payloads stay `source=claude`. How the session folders are found: [grok-sessions.md](grok-sessions.md).
+
 ---
 
 ## Emit events from a hook

@@ -1,6 +1,6 @@
 # CLI Avatars
 
-Animated pixel-art characters that live on your desktop and react to your active **Claude Code** sessions in real time.
+Animated pixel-art characters that live on your desktop and react to your active **Claude Code** and **Grok Build** sessions in real time.
 
 Each avatar represents one running agent. It walks on top of your open windows, speeds up when the agent is using a tool, and dangles as a sub-agent when a sub-task spawns. No browser, no VS Code extension — just a Python script you run once.
 
@@ -184,6 +184,18 @@ That merges `SessionStart`, `UserPromptSubmit`, and `Stop` into `%USERPROFILE%\.
 
 ---
 
+## Grok Build sessions
+
+Grok Build sessions show up next to Claude when the sessions folder exists. The folder is `$GROK_HOME/sessions`, or `~/.grok/sessions` when `GROK_HOME` is unset (`%USERPROFILE%\.grok\sessions` on Windows).
+
+A session is live when `updates.jsonl` or `summary.json` changed in the last 15 minutes. The avatar id is the first 8 characters of the session id, prefixed `grok:` in the overlay. The name is the summary title, or the project folder name. Pose comes from the end of `updates.jsonl`: a tool call still running is busy, a thought is thinking, and a finished turn is idle. Subagents listed in `subagents/*/meta.json` hang off that parent the same way Claude subagents do.
+
+The chat hook is the same script. A payload that carries Grok's own fields, or a transcript path under `.grok`, is tagged `source=grok`. Claude payloads stay `source=claude`. The Grok composer writes to that live session id.
+
+Until a Grok sprite exists, those avatars use the Caine sheet shifted by `grok.hue` degrees (`200` unless `config.json` says otherwise). `grok.skin` picks the base sheet. The HUD row for Grok uses its own mark and color. Details: [docs/grok-sessions.md](docs/grok-sessions.md).
+
+---
+
 ## Dependencies
 
 ```
@@ -236,6 +248,7 @@ cli-avatars/
     ├── adding-sprites.md   ← How to add custom skins
     ├── chat-schema.md      ← Channel and inbox message schema
     ├── claude-hooks.md     ← How to use the hooks integration
+    ├── grok-sessions.md    ← How Grok Build sessions are detected
     ├── agent-chat-protocol.md ← Short instructions for an agent using the local chat
     └── media/chat-window.png ← Chat window preview
 ```

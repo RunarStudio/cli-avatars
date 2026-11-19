@@ -3,7 +3,7 @@ type: tasks
 project: "[[Project - CLI Avatars]]"
 status: active
 tags: [cli-avatars, tasks, development]
-updated: 2026-11-18
+updated: 2026-11-19
 ---
 
 # CLI Avatars — Task Board
@@ -229,8 +229,17 @@ updated: 2026-11-18
 - [x] **P1-HUD** HUD counters per AI source <!-- id: P1-HUD -->
   - Every agent carries `source` (`claude`, `grok`, `emit`, …) from its SessionSource or from the emit event. A subagent inherits its parent's source.
   - The HUD shows one row per source that has sessions: `Claude 3 | busy 1 thinking 1 idle 1 | sub 2`. A total line counts subagents from every source, and each source row shows its own `sub` count. The `💬 Talks N` row stays.
-  - `GrokBuildSource` is registered and returns no sessions until transcripts are parsed. It does not read auth or credential files. The sessions directory is `%USERPROFILE%/.grok/sessions`.
+  - `GrokBuildSource` is registered beside Claude. Live parsing is **GROK-SESSIONS**. It does not read auth or credential files. The sessions directory is `$GROK_HOME/sessions` or `~/.grok/sessions`.
   - Preview: `docs/media/hud-per-source.png`.
+
+- [x] **GROK-SESSIONS** Avatars for live Grok Build sessions <!-- id: GROK-SESSIONS -->
+  - `GrokBuildSource` reads `<GROK_HOME or ~/.grok>/sessions/<encoded-cwd>/<session-id>/`. A session is live when `updates.jsonl` or `summary.json` changed within `STALE_AFTER` (the Claude constant). The agent id is the first 8 characters of the session id. The label is the summary title (`title`, `generated_title`, then `session_summary`), or the cwd folder name.
+  - State comes from the tail of `updates.jsonl`: a tool call still in progress is busy, a thought chunk is thinking, a turn-ended update is idle. Unknown lines are skipped. Only that tail is read.
+  - `subagents/*/meta.json` counts as children of the parent, the same model as Claude subagents. A child session in the tree is not a second orchestrator.
+  - When the encoded cwd is a slug plus a hash, the folder name comes from the group's `.cwd` file. The stored project is that folder name only.
+  - The HUD Grok row has its own mark and color. Until Caine's Grok sheet exists, new Grok avatars use a configurable hue (`grok.hue`, `grok.skin` in `config.json`). `TODO(Caine art)`.
+  - `hooks/claude_chat_hook.py` tags `source=grok` when the payload has Grok fields or a transcript path under `.grok`. Claude payloads stay `source=claude`.
+  - Never opened: auth, credential, and token files, `system_prompt.txt`, `prompt_context.json`, `chat_history.jsonl`, `signals.json`.
 
 ## 🟣 Phase 2 — Orchestrator rooms
 
