@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Code-generated 32×32 placeholder sheets for subagent skins.
 
-These are not commissioned art. Each sheet is a Stream Avatars grid
-(4 columns × 5 rows) drawn with at most six colours, a tiny PH mark,
-and ``placeholder: true`` in ``Sprites/subagents/manifest.json``.
-TODO(Caine art): replace the PNGs; keep the ids and the mode flag.
+These are not commissioned art. Each sheet is 4 columns × 3 rows:
+idle, working, dying. At most six colours, a tiny PH mark, and
+``placeholder: true`` in ``Sprites/subagents/manifest.json``.
+TODO(Caine art): replace the PNGs; keep the ids, the mode flag,
+and the idle / working / dying rows.
 
     python tools/gen_subskin_placeholders.py
     python tools/gen_subskin_placeholders.py --out Sprites/subagents
@@ -21,8 +22,13 @@ from PIL import Image
 
 CELL = 32
 COLS = 4
-ROWS = 5
-# idle, run, sit, stand, jump — same rows as the orchestrator sheets.
+ROWS = 3
+# idle, working, dying. Not the orchestrator Stream Avatars rows.
+ROW_SPEC = (
+    {"name": "idle", "index": 0, "frames": COLS},
+    {"name": "working", "index": 1, "frames": COLS},
+    {"name": "dying", "index": 2, "frames": COLS},
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = ROOT / "Sprites" / "subagents"
@@ -55,15 +61,24 @@ def stamp_ph(img: Image.Image, ink) -> None:
 
 
 def pose_for(row: int, col: int) -> dict:
+    """Idle bobs. Working cycles legs and wings. Dying is collapsed after draw."""
     if row == 0:
         return {"dy": col % 2, "phase": 0, "tuck": False, "jump": False}
     if row == 1:
-        return {"dy": 0, "phase": col % 2, "tuck": False, "jump": False}
-    if row == 2:
-        return {"dy": 3, "phase": 0, "tuck": True, "jump": False}
-    if row == 3:
-        return {"dy": 1 if col == 2 else 0, "phase": 0, "tuck": False, "jump": False}
-    return {"dy": -4 if col % 2 == 0 else -2, "phase": 1, "tuck": False, "jump": True}
+        return {"dy": 0, "phase": col % 2, "tuck": False, "jump": col % 2 == 0}
+    return {"dy": col * 2, "phase": 1, "tuck": True, "jump": False}
+
+
+def collapse(cell: Image.Image, col: int) -> None:
+    """Pop on frame 0, then keep a shorter band so the figure sinks away."""
+    src = cell.copy()
+    cell.paste(Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0)))
+    if col == 0:
+        cell.paste(src, (0, -4), src)
+        return
+    keep = CELL - col * 7
+    band = src.crop((0, CELL - keep, CELL, CELL))
+    cell.paste(band, (0, CELL - keep), band)
 
 
 def _legs(img, x0, y, colour, phase: int, tuck: bool) -> None:
@@ -362,7 +377,10 @@ def build_sheet(spec: dict) -> Image.Image:
     for row in range(ROWS):
         for col in range(COLS):
             cell = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
-            spec["draw"](cell, spec["palette"], pose_for(row, col))
+            pose = pose_for(0, 0) if row == 2 else pose_for(row, col)
+            spec["draw"](cell, spec["palette"], pose)
+            if row == 2:
+                collapse(cell, col)
             stamp_ph(cell, ink)
             sheet.paste(cell, (col * CELL, row * CELL), cell)
     allowed = {colour[:3] for colour in spec["palette"]}
@@ -392,6 +410,7 @@ def write_pack(out_dir: Path) -> None:
     manifest = {
         "frame": CELL,
         "note": "Code-generated placeholders. placeholder stays true until real sheets replace them.",
+        "rows": [dict(row) for row in ROW_SPEC],
         "skins": skins,
     }
     text = json.dumps(manifest, indent=2) + "\n"

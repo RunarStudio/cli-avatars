@@ -1,6 +1,23 @@
 {
   "frame": 32,
   "note": "Code-generated placeholders. placeholder stays true until real sheets replace them.",
+  "rows": [
+    {
+      "name": "idle",
+      "index": 0,
+      "frames": 4
+    },
+    {
+      "name": "working",
+      "index": 1,
+      "frames": 4
+    },
+    {
+      "name": "dying",
+      "index": 2,
+      "frames": 4
+    }
+  ],
   "skins": [
     {
       "id": "imp",

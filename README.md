@@ -198,7 +198,7 @@ Until a Grok sprite exists, those avatars use the Caine sheet shifted by `grok.h
 
 ## Subagent skins
 
-A subagent wears a sheet from `Sprites/subagents/`, not the parent's skin. The manifest next to those sheets sets the frame size and `mode`: `ground` hangs below the orchestrator, `fly` hovers above its head. Both stay inside the leash (`subagent.leash_px`, or three spring-lengths when that key is absent).
+A subagent wears a sheet from `Sprites/subagents/`, not the parent's skin. The manifest next to those sheets sets the frame size and `mode`: `ground` hangs below the orchestrator, `fly` hovers above its head. Both stay inside the leash (`subagent.leash_px`, or three spring-lengths when that key is absent) until the subchat closes. Closing plays the dying row once, shrinks the spring line, and then removes the child. Busy and thinking use the working row.
 
 The shipped sheets are code-drawn placeholders (a small PH mark, `placeholder: true`). Real art replaces the PNGs later. `config.json` chooses the skin when the child spawns, and the child keeps it:
 

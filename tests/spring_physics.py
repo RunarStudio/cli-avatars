@@ -76,8 +76,9 @@ class SpringChildTests(unittest.TestCase):
         self.assertIn("spring_mode=True", tick)
         self.assertIn("_drive_subagent", tick)
         self.assertIn("_apply_spring", drive)
-        self.assertIn("_end_spring", drive)
-        self.assertIn("_end_spring", tick)
+        self.assertIn("_begin_dying", drive)
+        self.assertIn("_begin_dying", tick)
+        self.assertIn("_dying_subs", tick)
 
     def test_child_hangs_under_parent_and_velocity_decays(self):
         app = _app()
@@ -136,24 +137,59 @@ class SpringChildTests(unittest.TestCase):
         self.assertGreater(driven.y, 240.0 + 100.0)
         self.assertFalse(driven.spring_mode)
 
-    def test_parent_gone_returns_the_child_to_walking(self):
+    def test_parent_gone_plays_dying_and_ignores_the_leash(self):
         app = _app()
         parent = _avatar(_agent("parent", "Claude"), spring_mode=False, x=400.0, y=80.0)
         child = _avatar(
             _agent("parent_sub_0", "sub-1", parent_id="parent"),
             spring_mode=True, x=400.0, y=300.0,
         )
-        child.vy = 0.0
+        held = (child.x, child.y)
         app._drive_subagent(child, None, [], [])
+        self.assertTrue(child._dying)
         self.assertFalse(child.spring_mode)
-        # Busy walk AI is back: status doubles WALK_SPEED. The spring no longer holds vy at 0.
-        self.assertEqual(child.vx, WALK_SPEED * 2 * child.dir)
-        self.assertNotEqual(child.vy, 0.0)
-        y_after_release = child.y
+        self.assertEqual(child.vx, 0.0)
+        self.assertEqual(child.vy, 0.0)
+        self.assertEqual((child.x, child.y), held)
+        # The parent coming back, or being dragged, does not pull a dying child.
+        parent.x = 5000.0
         for _ in range(8):
             app._drive_subagent(child, parent, [], [])
-        self.assertGreater(child.y, y_after_release)
-        self.assertFalse(child.spring_mode)
+            app._constrain_leash(child, parent)
+        self.assertEqual((child.x, child.y), held)
+        self.assertEqual(child.vx, 0.0)
+
+    def test_dying_plays_once_then_the_avatar_is_removed(self):
+        app = _app()
+        app.canvas = None
+        app.avatars = {}
+        app._dying_subs = []
+        parent = _avatar(_agent("parent", "Claude"), spring_mode=False, x=400.0, y=80.0)
+        child = _avatar(
+            _agent("parent_sub_0", "sub-1", parent_id="parent"),
+            spring_mode=True, x=100.0, y=200.0,
+        )
+        child.vx = 4.0
+        child.vy = 3.0
+        app.avatars["parent"] = parent
+        app._begin_dying(child, now=0.0)
+        app._dying_subs.append(child)
+        held = (child.x, child.y)
+        frames = []
+        for step in range(4):
+            app._release_finished_dying(now=step * 0.120)
+            frames.append(child.frame)
+            self.assertIn(child, app._dying_subs)
+            parent.x += 400.0
+            app._drive_subagent(child, parent, [], [])
+            app._constrain_leash(child, parent)
+            self.assertEqual((child.x, child.y), held)
+            self.assertEqual(child.vx, 0.0)
+            self.assertEqual(child.vy, 0.0)
+        self.assertEqual(frames, [0, 1, 2, 3])
+        app._release_finished_dying(now=0.480)
+        self.assertEqual(app._dying_subs, [])
+        self.assertTrue(child._dying_pose["done"])
 
     def test_large_dt_and_a_dragged_parent_stay_finite(self):
         app = _app()

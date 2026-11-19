@@ -50,12 +50,12 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | SRC | 5 | 3 |
 | MCP | 1 | 3 |
 | OVL | 21 | 8 |
-| ART | 9 | 2 |
+| ART | 10 | 2 |
 | BUILD | 1 | 2 |
 | WS | 0 | 2 |
 | DOCS | 1 | 14 |
 | TAURI | 0 | 4 |
-| **Total** | 45 | 38 |
+| **Total** | 46 | 38 |
 
 ## 📦 Portable Windows build
 
@@ -223,6 +223,10 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 - [x] [OVL][feat] SUBSKIN.4: Assign a subagent skin from config and keep it (feat/subagent-skins)
   - `config.json` key `subagent.skins` has `mode` of `random`, `round_robin`, or `fixed`, an optional `list`, and a per-orchestrator `fixed` map.
   - Default is round-robin over the available subagent skins, by child index. A child keeps the skin it was spawned with.
+
+- [x] [ART][feat] SUBSKIN.15 @pixel: idle / working / dying states for subagent skins (dying = subchat closing)
+  - Subagent sheets use three rows: idle (4), working (4), dying (4). Busy and thinking play working. A missing row falls back to the first row that has frames.
+  - When the subchat closes, or the parent avatar goes away, the child plays dying once (4 frames at 120 ms). The spring line shrinks. The child ignores the leash and is not pulled if the parent is dragged. Then the avatar is removed.
 
 - [ ] [OVL][feat] AVATAR-INTERACT: Avatar-to-avatar interaction
   - When two idle avatars are within 60px: both stop and face each other for 2–4s
@@ -419,6 +423,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 - [ ] [BUILD][chore] REBUILD-EXE: Rebuild the `build/` executables. They are stale after Grok and MCP.
 - [ ] [ART][feat] GROK-SKIN-BUSY: Sprite loader uses its own busy row per `docs/grok-skin-spec.md` once Caine's sheet lands. Sheet 40×40, 4 cols × 6 rows: idle 4, walk 4, thinking 2, done 2, subagent 2, busy 2.
 - [ ] [ART][art] CAINE-SKIN: Caine draws the skin sheet.
+  - Each subagent sheet needs idle, working, and dying rows (4 frames each). Dying plays when the subchat closes.
 - [ ] [OVL][decision] PORTAL-V2: Portal ring — 1px, 2px, or particles. Waits on Daniel.
 - [ ] [BUILD][fix] FLAKY-TEST: Fix the flaky test.
 - [ ] [DOCS][docs] AGENTS-MD: Add `AGENTS.md`.
