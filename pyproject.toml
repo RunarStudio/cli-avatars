@@ -23,7 +23,6 @@ py-modules = [
     "sprite_loader",
     "perchas",
     "win32",
-    "claude_hooks_example",
     "claude_chat_hooks",
 ]
 packages = ["cli_avatars_mcp"]

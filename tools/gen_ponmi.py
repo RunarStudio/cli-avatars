@@ -14,24 +14,22 @@ Outputs
   ponmi_preview/          → animated GIFs per animation
 
 Usage
-  python gen_ponmi.py           # generate + save
-  python gen_ponmi.py --view    # also open each GIF in default viewer
+  python tools/gen_ponmi.py           # generate + save
+  python tools/gen_ponmi.py --view    # also open each GIF in default viewer (Windows)
 """
 import os, sys
 from pathlib import Path
 from PIL import Image
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 CELL   = 48
 COLS   = 7
 ROWS   = 3
 
-OUTPUT_PIXELCIRCUS = (
-    Path(__file__).parent.parent /
-    "zz_PixelCircus/webview-ui/public/assets/characters/char_ponmi.png"
-)
-OUTPUT_OVERLAY = Path(__file__).parent / "Sprites/ponmi.png"
-OUTPUT_GIF_DIR = Path(__file__).parent / "ponmi_preview"
+OUTPUT_OVERLAY = _REPO_ROOT / "Sprites/ponmi.png"
+OUTPUT_GIF_DIR = _REPO_ROOT / "ponmi_preview"
 
 # ── Palette ───────────────────────────────────────────────────────────────────
 T    = (  0,  0,  0,   0)   # transparent
@@ -607,11 +605,6 @@ if __name__ == "__main__":
     print("Building Ponmi sprite sheet …")
     sheet = build_sheet()
 
-    # Save to PixelCircus characters folder
-    OUTPUT_PIXELCIRCUS.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(OUTPUT_PIXELCIRCUS)
-    print(f"  saved -> {OUTPUT_PIXELCIRCUS}")
-
     # Save overlay-compatible sheet
     OUTPUT_OVERLAY.parent.mkdir(parents=True, exist_ok=True)
     overlay_sheet = build_overlay_sheet()
@@ -623,8 +616,7 @@ if __name__ == "__main__":
     gifs = make_gifs(sheet, OUTPUT_GIF_DIR, scale=6)
 
     print(f"\nDone. {len(gifs)} GIFs in {OUTPUT_GIF_DIR}")
-    print("Sheets saved to:")
-    print(f"  {OUTPUT_PIXELCIRCUS}")
+    print("Sheet saved to:")
     print(f"  {OUTPUT_OVERLAY}")
 
     if view_mode:

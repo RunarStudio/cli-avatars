@@ -230,10 +230,11 @@ cli-avatars/
 ├── routing.py              ← Composer routes: orchestrators only
 ├── chat_window.py          ← Discord-style chat window
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
-├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
 ├── hooks/
 │   └── claude_chat_hook.py ← Claude Code chat hook (stdlib only)
-├── gen_ponmi.py            ← Generator for the ponmi sprite sheet
+├── tools/
+│   ├── gen_ponmi.py        ← Generator for the ponmi sprite sheet
+│   └── gen_meowatar_gifs.py ← GIF previews from meowatar.png
 ├── requirements.txt
 ├── Sprites/                ← PNG sprite sheets
 │   ├── caine.png
