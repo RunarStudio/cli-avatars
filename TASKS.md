@@ -49,13 +49,13 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | CHAT | 7 | 0 |
 | SRC | 5 | 3 |
 | MCP | 1 | 3 |
-| OVL | 17 | 9 |
+| OVL | 18 | 8 |
 | ART | 7 | 2 |
 | BUILD | 1 | 2 |
 | WS | 0 | 2 |
 | DOCS | 1 | 14 |
 | TAURI | 0 | 4 |
-| **Total** | 39 | 39 |
+| **Total** | 40 | 38 |
 
 ## 📦 Portable Windows build
 
@@ -196,10 +196,10 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
   | `Notification` | message | wave arms, speech bubble |
   | `UserPromptSubmit` | — | snap to attention |
 
-- [ ] [OVL][feat] SUBAGENT-SPAWN: Subagent spawn animation
-  - On `subagent_start` event: spawn child Avatar at parent's x/y position
-  - Child starts with `vy = JUMP_VEL` (falls from parent)
-  - Link child to parent with a small line drawn in `draw_hud`
+- [x] [OVL][feat] SUBAGENT-SPAWN: Subagent spawn animation (fix/subagent-spring)
+  - A child spawned for a live subagent uses `spring_mode` and `_apply_spring` every tick.
+  - It hangs under the parent at `SPRING_REST`, damped. A fast or dragged parent cannot fling it, and a large `dt` stays finite.
+  - When the task ends or the parent is gone, the child leaves spring mode and walks again.
 
 - [ ] [OVL][feat] AVATAR-INTERACT: Avatar-to-avatar interaction
   - When two idle avatars are within 60px: both stop and face each other for 2–4s
