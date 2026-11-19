@@ -49,13 +49,13 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | CHAT | 7 | 0 |
 | SRC | 5 | 3 |
 | MCP | 1 | 3 |
-| OVL | 19 | 8 |
-| ART | 7 | 2 |
+| OVL | 21 | 8 |
+| ART | 9 | 2 |
 | BUILD | 1 | 2 |
 | WS | 0 | 2 |
 | DOCS | 1 | 14 |
 | TAURI | 0 | 4 |
-| **Total** | 41 | 38 |
+| **Total** | 45 | 38 |
 
 ## 📦 Portable Windows build
 
@@ -205,6 +205,24 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
   - `SUBAGENT_LEASH_MAX` is `3 * SPRING_REST`, measured from the parent's center. `config.json` `subagent.leash_px` overrides it when that value is a positive number.
   - Past the leash, the child is placed on the circle. Outward speed is removed so the correction does not jitter. This holds in spring mode, while the parent is dragged, and when the child walks or lands.
   - A walking child whose parent is still on screen turns around at ± leash on x. An orchestrator is not leashed.
+
+### Subagent skins
+
+- [x] [ART][feat] SUBSKIN.1: 32×32 subagent sheets with a fly or ground mode (feat/subagent-skins)
+  - The sprite registry reads `Sprites/subagents/manifest.json`. Each skin has its own frame size (these sheets are 32×32, not a hard-coded 40) and `mode` of `fly` or `ground`.
+  - Rows follow the Stream Avatars layout. A missing row falls back to the first row that has frames.
+
+- [x] [OVL][feat] SUBSKIN.2: Fly children hover above the parent, ground children hang below (feat/subagent-skins)
+  - A fly child's rest point is `SPRING_REST` above the parent's head, with a small bob. The spring line is drawn upward from the head.
+  - Ground children hang under the parent as before. `SUBAGENT_LEASH_MAX` and `subagent.leash_px` apply to both. Orchestrators are not spring-driven.
+
+- [x] [ART][feat] SUBSKIN.3: Placeholder sheets for the eight planned subagent skins (feat/subagent-skins)
+  - `tools/gen_subskin_placeholders.py` draws the sheets. They are code, not commissioned art. `TODO(Caine art)`.
+  - imp, 4-legged Claude (`claude4`), cat, dog, and little Grok are ground. Winged light, dragon, and mini drone fly. Six colours max, a PH mark, and `placeholder: true` in the manifest.
+
+- [x] [OVL][feat] SUBSKIN.4: Assign a subagent skin from config and keep it (feat/subagent-skins)
+  - `config.json` key `subagent.skins` has `mode` of `random`, `round_robin`, or `fixed`, an optional `list`, and a per-orchestrator `fixed` map.
+  - Default is round-robin over the available subagent skins, by child index. A child keeps the skin it was spawned with.
 
 - [ ] [OVL][feat] AVATAR-INTERACT: Avatar-to-avatar interaction
   - When two idle avatars are within 60px: both stop and face each other for 2–4s
