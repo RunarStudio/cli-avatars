@@ -9,6 +9,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `overlay.py` | Entry point — tkinter overlay, physics, avatars, main loop |
 | `bundle_paths.py` | Asset paths (`sys._MEIPASS` when frozen) |
 | `sprite_loader.py` | Stream Avatars sheet loader (`SpriteSheet`, `SpriteRegistry`) |
+| `subskins.py` | `Sprites/subagents/manifest.json` loader; `fly` / `ground` mode; `subagent.skins` assignment at spawn |
 | `sessions.py` | `SessionSource` adapters (Claude JSONL, Grok, polling) |
 | `events.py` | Event bus, UDP listener, channel paths, app data dir |
 | `bubbles.py` | Icon speech bubbles on `say` events |
@@ -28,7 +29,9 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `claude_chat_hooks.py` | Merge chat hooks into Claude `settings.json` |
 | `hooks/claude_chat_hook.py` | Stdlib Claude Code hook (chat context + idle) |
 | `cli_avatars_mcp/` | Local stdio MCP server (`server`, `tools`, `install`, `projects`) |
-| `tools/gen_ponmi.py`, `tools/gen_meowatar_gifs.py` | Offline sprite / GIF generators (not imported at runtime) |
+| `tools/gen_ponmi.py`, `tools/gen_meowatar_gifs.py`, `tools/gen_subskin_placeholders.py` | Offline sprite / GIF generators (not imported at runtime) |
+
+**Subagent assets:** `Sprites/subagents/manifest.json` lists eight 32×32 placeholder sheets (`imp`, `claude4`, `winged_light`, `cat`, `dog`, `dragon`, `mini_drone`, `little_grok`) with per-skin `mode` (`fly` or `ground`). Regenerate placeholders with `python tools/gen_subskin_placeholders.py`.
 
 ## How to run
 
@@ -40,7 +43,7 @@ python -m cli_avatars_emit --help
 python -m cli_avatars_mcp        # stdio MCP (used by IDE integration)
 ```
 
-Art scripts (optional): `python tools/gen_ponmi.py`, `python tools/gen_meowatar_gifs.py`.
+Art scripts (optional): `python tools/gen_ponmi.py`, `python tools/gen_meowatar_gifs.py`, `python tools/gen_subskin_placeholders.py`.
 
 ## Tests
 
