@@ -336,8 +336,9 @@ class ChatWindow:
         left.grid(row=0, column=0, sticky="ns")
         center.grid(row=0, column=1, sticky="nsew")
         right.grid(row=0, column=2, sticky="ns")
-        left.grid_propagate(False)
-        right.grid_propagate(False)
+        # children use pack(), so pack_propagate is what keeps the side columns fixed
+        left.pack_propagate(False)
+        right.pack_propagate(False)
 
         tk.Label(left, text="Topics", bg=TITLE_BG, fg=ACCENT, font=FONT_TITLE,
                  anchor="w", padx=10, pady=6).pack(fill="x")

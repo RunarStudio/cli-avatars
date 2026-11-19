@@ -316,3 +316,5 @@ updated: 2026-11-18
 | Python concepts glossary | `AI_OVERLAY.md` → Python Concepts Glossary |
 
 - [x] FIX-HUD-PADY: the overlay crashed at startup (Tk Label pady given as a tuple, TclError 'expected screen distance'), so no avatars appeared; padding moved to pack().
+
+- [x] FIX-CHATWIN-COLS: the chat window's centre column collapsed because the side frames grew to fit their packed children; use pack_propagate(False).
