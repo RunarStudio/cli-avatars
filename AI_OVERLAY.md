@@ -15,7 +15,7 @@
 6. [Sprite Sheet Format](#sprite-sheet-format)
 7. [Source Code — overlay.py](#source-code--overlaypy)
 8. [Source Code — sprite_loader.py](#source-code--sprite_loaderpy)
-9. [Source Code — claude_hooks_example.py](#source-code--claude_hooks_examplepy)
+9. [Hooks integration](#hooks-integration)
 10. [requirements.txt](#requirementstxt)
 11. [Current State & Known Issues](#current-state--known-issues)
 12. [Roadmap](#roadmap)
@@ -73,7 +73,7 @@ zz_cli_avatars/
 ├── sprite_loader.py          ← Sprite sheet utilities
 │   Contains: SpriteSheet, SpriteRegistry, convert_jpg_to_png()
 │
-├── claude_hooks_example.py   ← Claude Code hooks → UDP integration
+├── hooks/claude_chat_hook.py ← Claude Code chat hook (install via cli_avatars_emit)
 │   Drop into .claude/hooks/ in any project
 │
 ├── requirements.txt          ← pip dependencies
@@ -262,9 +262,9 @@ See `sprite_loader.py` in this folder.
 
 ---
 
-## Source Code — claude_hooks_example.py
+## Hooks integration
 
-See `claude_hooks_example.py` in this folder.
+See `docs/claude-hooks.md` and `python -m cli_avatars_emit` (`cli_avatars_emit.py`).
 
 ---
 
@@ -346,7 +346,7 @@ if sys.platform == "win32":
 # First time — on your machine
 cd zz_cli_avatars
 git init
-git add overlay.py sprite_loader.py claude_hooks_example.py requirements.txt CLAUDE.md TASKS.md AI_OVERLAY.md
+git add overlay.py sprite_loader.py cli_avatars_emit.py requirements.txt CLAUDE.md TASKS.md AI_OVERLAY.md
 git commit -m "feat: v0.1 baseline — transparent overlay, physics, sprite loader, session scanner"
 git remote add origin https://github.com/<you>/ai-overlay.git
 git push -u origin main
@@ -378,7 +378,7 @@ assets/*.jpg        # keep only PNG in git
   multi-avatar management, HUD panel, session scanner, window terrain scanner
 - `sprite_loader.py` — `SpriteSheet` and `SpriteRegistry` classes;
   Stream Avatars-compatible row/column slicing with empty frame auto-detection
-- `claude_hooks_example.py` — UDP notification helper for Claude Code hooks
+- `cli_avatars_emit.py` / `hooks/claude_chat_hook.py` — Claude Code hooks and UDP emit
 - `requirements.txt`
 - Demo mode: 4 animated agents cycling through all states when no Claude sessions found
 

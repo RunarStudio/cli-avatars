@@ -198,7 +198,7 @@ Until a Grok sprite exists, those avatars use the Caine sheet shifted by `grok.h
 
 ## Subagent skins
 
-A subagent wears a sheet from `Sprites/subagents/`, not the parent's skin. The manifest next to those sheets sets the frame size and `mode`: `ground` hangs below the orchestrator, `fly` hovers above its head. Both stay inside the leash (`subagent.leash_px`, or three spring-lengths when that key is absent) until the subchat closes. Closing plays the dying row once, shrinks the spring line, and then removes the child. Busy and thinking use the working row.
+A subagent wears a sheet from `Sprites/subagents/`, not the parent's skin. The manifest next to those sheets sets the frame size and `mode`: `ground` hangs below the orchestrator, `fly` hovers above its head. Both stay inside the leash (`subagent.leash_px`, or three spring-lengths when that key is absent) until the subchat closes. Each sheet is 4 columns by 3 rows: idle, working, and dying, four frames each. Busy and thinking use working. Closing plays dying once, shrinks the spring line, and then removes the child. A missing row falls back to the first row that has frames.
 
 The shipped sheets are code-drawn placeholders (a small PH mark, `placeholder: true`). Real art replaces the PNGs later. `config.json` chooses the skin when the child spawns, and the child keeps it:
 
@@ -254,11 +254,12 @@ cli-avatars/
 ├── chat_window.py          ← Discord-style chat window
 ├── sprite_loader.py        ← Sprite sheet loader (SpriteSheet, SpriteRegistry)
 ├── subskins.py             ← Subagent manifest and skin assignment
-├── tools/gen_subskin_placeholders.py ← Code-drawn 32×32 stand-in sheets
-├── claude_hooks_example.py ← Hook helper that calls cli-avatars-emit
 ├── hooks/
 │   └── claude_chat_hook.py ← Claude Code chat hook (stdlib only)
-├── gen_ponmi.py            ← Generator for the ponmi sprite sheet
+├── tools/
+│   ├── gen_ponmi.py        ← Generator for the ponmi sprite sheet
+│   ├── gen_meowatar_gifs.py ← GIF previews from meowatar.png
+│   └── gen_subskin_placeholders.py ← Code-drawn 32×32 stand-in sheets
 ├── requirements.txt
 ├── Sprites/                ← PNG sprite sheets
 │   ├── subagents/          ← 32×32 subagent sheets + manifest.json

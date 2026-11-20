@@ -42,6 +42,10 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | docs | Docs only. Quick merge. |
 | decision | Waits on Daniel. |
 
+### Subtasks
+
+A parent task can have subtasks. Write them as indented lines (two spaces) under the parent, with ID `PARENT-ID.n` (for example `SUBSKIN.1`), the same `[EPIC][type]` tags, and their own checkbox. A parent is done only when all its subtasks are done. The Epics index counts parents and subtasks separately (for example `ART 7/3 (subtasks 0/13)`). Subtasks can carry an owner suffix `@caine` or `@pixel` so work can be split between agents.
+
 ## Epics index
 
 | Epic | Done | Open |
@@ -49,13 +53,13 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | CHAT | 7 | 0 |
 | SRC | 5 | 3 |
 | MCP | 1 | 3 |
-| OVL | 21 | 8 |
-| ART | 10 | 2 |
+| OVL | 19 | 8 (subtasks 2/0) |
+| ART | 7 | 3 (subtasks 3/10) |
 | BUILD | 1 | 2 |
 | WS | 0 | 2 |
-| DOCS | 1 | 14 |
+| DOCS | 4 | 11 |
 | TAURI | 0 | 4 |
-| **Total** | 46 | 38 |
+| **Total** | 44 | 36 |
 
 ## 📦 Portable Windows build
 
@@ -96,7 +100,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 - [ ] [DOCS][docs] DOCS-CHANGELOG: Add Changelog section to README (after Roadmap): summarize v0.1→v0.4 milestones in 4 bullet points <!-- BUBBLE: fix -->
 - [ ] [DOCS][docs] DOCS-DOWNLOAD-MD: Create `docs/download.md`: install from source + "Prebuilt Windows executable: see GitHub Releases" + link placeholder <!-- BUBBLE: fix -->
 - [ ] [DOCS][docs] DOCS-BADGES: Add version + Windows badges to README header: `![version](https://img.shields.io/badge/version-v0.4-blue)` `![platform](https://img.shields.io/badge/platform-Windows-lightgrey)` <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-CLAUDE-FILES: Tighten `CLAUDE.md` Key Files table: remove `assets/` row (assets live in `Sprites/`), add `gen_ponmi.py` row, update architecture notes to mention skin picker and hue rotation <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-CLAUDE-FILES: Tighten `CLAUDE.md` Key Files table: remove `assets/` row (assets live in `Sprites/`), add `tools/gen_ponmi.py` row, update architecture notes to mention skin picker and hue rotation <!-- BUBBLE: fix -->
 
 ---
 
@@ -205,28 +209,6 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
   - `SUBAGENT_LEASH_MAX` is `3 * SPRING_REST`, measured from the parent's center. `config.json` `subagent.leash_px` overrides it when that value is a positive number.
   - Past the leash, the child is placed on the circle. Outward speed is removed so the correction does not jitter. This holds in spring mode, while the parent is dragged, and when the child walks or lands.
   - A walking child whose parent is still on screen turns around at ± leash on x. An orchestrator is not leashed.
-
-### Subagent skins
-
-- [x] [ART][feat] SUBSKIN.1: 32×32 subagent sheets with a fly or ground mode (feat/subagent-skins)
-  - The sprite registry reads `Sprites/subagents/manifest.json`. Each skin has its own frame size (these sheets are 32×32, not a hard-coded 40) and `mode` of `fly` or `ground`.
-  - Rows follow the Stream Avatars layout. A missing row falls back to the first row that has frames.
-
-- [x] [OVL][feat] SUBSKIN.2: Fly children hover above the parent, ground children hang below (feat/subagent-skins)
-  - A fly child's rest point is `SPRING_REST` above the parent's head, with a small bob. The spring line is drawn upward from the head.
-  - Ground children hang under the parent as before. `SUBAGENT_LEASH_MAX` and `subagent.leash_px` apply to both. Orchestrators are not spring-driven.
-
-- [x] [ART][feat] SUBSKIN.3: Placeholder sheets for the eight planned subagent skins (feat/subagent-skins)
-  - `tools/gen_subskin_placeholders.py` draws the sheets. They are code, not commissioned art. `TODO(Caine art)`.
-  - imp, 4-legged Claude (`claude4`), cat, dog, and little Grok are ground. Winged light, dragon, and mini drone fly. Six colours max, a PH mark, and `placeholder: true` in the manifest.
-
-- [x] [OVL][feat] SUBSKIN.4: Assign a subagent skin from config and keep it (feat/subagent-skins)
-  - `config.json` key `subagent.skins` has `mode` of `random`, `round_robin`, or `fixed`, an optional `list`, and a per-orchestrator `fixed` map.
-  - Default is round-robin over the available subagent skins, by child index. A child keeps the skin it was spawned with.
-
-- [x] [ART][feat] SUBSKIN.15 @pixel: idle / working / dying states for subagent skins (dying = subchat closing)
-  - Subagent sheets use three rows: idle (4), working (4), dying (4). Busy and thinking play working. A missing row falls back to the first row that has frames.
-  - When the subchat closes, or the parent avatar goes away, the child plays dying once (4 frames at 120 ms). The spring line shrinks. The child ignores the leash and is not pulled if the parent is dragged. Then the avatar is removed.
 
 - [ ] [OVL][feat] AVATAR-INTERACT: Avatar-to-avatar interaction
   - When two idle avatars are within 60px: both stop and face each other for 2–4s
@@ -421,18 +403,44 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 ## Backlog
 
 - [ ] [BUILD][chore] REBUILD-EXE: Rebuild the `build/` executables. They are stale after Grok and MCP.
+- [ ] [ART][feat] SUBSKIN: subagent skins, 32×32 sprites, 6-colour palette; flying skins float above the parent, ground skins hang below (spec from Daniel, DD thread 19/11/2026)
+  - [x] [ART][feat] SUBSKIN.1 @pixel: 32×32 subagent sheets with a fly or ground mode (feat/subagent-skins)
+    - The sprite registry reads `Sprites/subagents/manifest.json`. Each skin has its own frame size (these sheets are 32×32, not a hard-coded 40) and `mode` of `fly` or `ground`.
+    - Rows follow the Stream Avatars layout. A missing row falls back to the first row that has frames.
+  - [x] [OVL][feat] SUBSKIN.2 @pixel: fly children hover above the parent, ground children hang below (feat/subagent-skins)
+    - A fly child's rest point is `SPRING_REST` above the parent's head, with a small bob. The spring line is drawn upward from the head.
+    - Ground children hang under the parent as before. `SUBAGENT_LEASH_MAX` and `subagent.leash_px` apply to both. Orchestrators are not spring-driven.
+  - [x] [ART][feat] SUBSKIN.3 @pixel: placeholder sheets for the eight planned subagent skins (feat/subagent-skins)
+    - `tools/gen_subskin_placeholders.py` draws the sheets. They are code, not commissioned art. `TODO(Caine art)`.
+    - imp, 4-legged Claude (`claude4`), cat, dog, and little Grok are ground. Winged light, dragon, and mini drone fly. Six colours max, a PH mark, and `placeholder: true` in the manifest.
+  - [x] [OVL][feat] SUBSKIN.4 @pixel: assign a subagent skin from config and keep it (feat/subagent-skins)
+    - `config.json` key `subagent.skins` has `mode` of `random`, `round_robin`, or `fixed`, an optional `list`, and a per-orchestrator `fixed` map.
+    - Default is round-robin over the available subagent skins, by child index. A child keeps the skin it was spawned with.
+  - [ ] [ART][decision] SUBSKIN.5: Daniel picks the order of skins to draw
+  - [ ] [ART][art] SUBSKIN.6 @caine: imp (ground)
+  - [ ] [ART][art] SUBSKIN.7 @caine: mini 4-legged Claude (ground)
+  - [ ] [ART][art] SUBSKIN.8 @caine: little light with wings (fly)
+  - [ ] [ART][art] SUBSKIN.9 @caine: cat (ground)
+  - [ ] [ART][art] SUBSKIN.10 @caine: dog (ground)
+  - [ ] [ART][art] SUBSKIN.11 @caine: dragon (fly)
+  - [ ] [ART][art] SUBSKIN.12 @caine: mini drone (fly)
+  - [ ] [ART][art] SUBSKIN.13 @caine: mini Grok (ground)
+  - [ ] [ART][feat] SUBSKIN.14 @pixel: integrate each delivered sheet and remove its placeholder
+  - [x] [ART][feat] SUBSKIN.15 @pixel: idle / working / dying states for subagent skins (dying = subchat closing) (feat/subagent-dying)
+    - Subagent sheets use three rows: idle (4), working (4), dying (4). Busy and thinking play working. A missing row falls back to the first row that has frames.
+    - When the subchat closes, or the parent avatar goes away, the child plays dying once (4 frames at 120 ms). The spring line shrinks. The child ignores the leash and is not pulled if the parent is dragged. Then the avatar is removed.
 - [ ] [ART][feat] GROK-SKIN-BUSY: Sprite loader uses its own busy row per `docs/grok-skin-spec.md` once Caine's sheet lands. Sheet 40×40, 4 cols × 6 rows: idle 4, walk 4, thinking 2, done 2, subagent 2, busy 2.
 - [ ] [ART][art] CAINE-SKIN: Caine draws the skin sheet.
   - Each subagent sheet needs idle, working, and dying rows (4 frames each). Dying plays when the subchat closes.
 - [ ] [OVL][decision] PORTAL-V2: Portal ring — 1px, 2px, or particles. Waits on Daniel.
 - [ ] [BUILD][fix] FLAKY-TEST: Fix the flaky test.
-- [ ] [DOCS][docs] AGENTS-MD: Add `AGENTS.md`.
+- [x] [DOCS][docs] AGENTS-MD: Add `AGENTS.md`. (chore/cleanup-agents-md)
 - [ ] [WS][feat] TERMINAL-P4: Built-in terminal, workspace phase 4.
 - [ ] [WS][feat] PROJECTS-P5: Projects by status, workspace phase 5.
 - [ ] [SRC][decision] CLAUDE-HOOK-INSTALL: Apply the chat hook to the real `~/.claude/settings.json`. Needs Daniel's OK.
 - [ ] [MCP][decision] MCP-LIVE: Install the mcp package, live-test the server, and apply the installer. Needs Daniel's OK.
-- [ ] [DOCS][chore] CLEAN-HOOKS-EXAMPLE: Drop `claude_hooks_example.py`.
-- [ ] [DOCS][chore] CLEAN-ART-SCRIPTS: Move `gen_ponmi.py` and `gen_meowatar_gifs.py` to `tools/`.
+- [x] [DOCS][chore] CLEAN-HOOKS-EXAMPLE: Drop `claude_hooks_example.py`. (chore/cleanup-agents-md)
+- [x] [DOCS][chore] CLEAN-ART-SCRIPTS: Move `gen_ponmi.py` and `gen_meowatar_gifs.py` to `tools/`. (chore/cleanup-agents-md)
 - [ ] [DOCS][decision] SPLIT-OVERLAY: Decide whether to split `overlay.py`. Waits on Daniel.
 - [ ] [SRC][decision] GROK-LOGIN: Daniel runs `grok login`.
 
