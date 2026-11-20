@@ -9,7 +9,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `overlay.py` | Entry point — tkinter overlay, physics, avatars, main loop |
 | `bundle_paths.py` | Asset paths (`sys._MEIPASS` when frozen) |
 | `sprite_loader.py` | Stream Avatars sheet loader (`SpriteSheet`, `SpriteRegistry`) |
-| `subskins.py` | `Sprites/subagents/manifest.json` loader; `fly` / `ground` mode; `subagent.skins` assignment at spawn |
+| `subskins.py` | `Sprites/subagents/manifest.json` loader; `fly` / `ground` mode; idle / working / dying rows (dying plays once when the subchat closes, then the child is removed); `subagent.skins` assignment at spawn |
 | `sessions.py` | `SessionSource` adapters (Claude JSONL, Grok, polling) |
 | `events.py` | Event bus, UDP listener, channel paths, app data dir |
 | `bubbles.py` | Icon speech bubbles on `say` events |
@@ -31,7 +31,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `cli_avatars_mcp/` | Local stdio MCP server (`server`, `tools`, `install`, `projects`) |
 | `tools/gen_ponmi.py`, `tools/gen_meowatar_gifs.py`, `tools/gen_subskin_placeholders.py` | Offline sprite / GIF generators (not imported at runtime) |
 
-**Subagent assets:** `Sprites/subagents/manifest.json` lists eight 32×32 placeholder sheets (`imp`, `claude4`, `winged_light`, `cat`, `dog`, `dragon`, `mini_drone`, `little_grok`) with per-skin `mode` (`fly` or `ground`). Regenerate placeholders with `python tools/gen_subskin_placeholders.py`.
+**Subagent assets:** `Sprites/subagents/manifest.json` lists eight 32×32 placeholder sheets (`imp`, `claude4`, `winged_light`, `cat`, `dog`, `dragon`, `mini_drone`, `little_grok`) with per-skin `mode` (`fly` or `ground`). Each sheet is three rows — idle, working, dying — with four frames. Busy and thinking use working. A missing row falls back to the first row that has frames. Regenerate placeholders with `python tools/gen_subskin_placeholders.py`.
 
 ## How to run
 

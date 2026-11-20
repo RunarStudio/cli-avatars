@@ -21,6 +21,22 @@ DEFAULT_FRAME = 32
 FALLBACK_SKIN = "bubble"
 MANIFEST_NAME = "manifest.json"
 
+# Subagent sheets are not the orchestrator Stream Avatars grid.
+# Row 0 idle, row 1 working (busy and thinking), row 2 dying.
+ROW_NAMES = ("idle", "working", "dying")
+DEFAULT_ROW_INDEX = {"idle": 0, "working": 1, "dying": 2}
+STATUS_TO_ROW = {
+    "idle": "idle",
+    "done": "idle",
+    "error": "idle",
+    "busy": "working",
+    "thinking": "working",
+    "subagent": "working",
+    "dying": "dying",
+}
+DYING_FRAME_MS = 120
+DYING_FRAMES = 4
+
 
 @dataclass(frozen=True)
 class SubSkin:
@@ -210,3 +226,80 @@ def assign_subagent_skin(
         picker = rng if isinstance(rng, random.Random) else random
         return picker.choice(pool)
     return pool[slot % len(pool)]
+
+
+def row_name_for_status(status: object) -> str:
+    """Animation name for a subagent status. Busy and thinking are working."""
+    if not isinstance(status, str):
+        return "idle"
+    return STATUS_TO_ROW.get(status.strip().lower(), "idle")
+
+
+def parse_anim_rows(data: object) -> dict[str, int]:
+    """Name to sheet row. A missing ``rows`` block uses idle, working, dying.
+
+    Names the manifest leaves out keep the default index. A sheet that
+    has no pixels on that row still falls back when it is sliced.
+    """
+    found = dict(DEFAULT_ROW_INDEX)
+    if not isinstance(data, dict):
+        return found
+    raw = data.get("rows")
+    if not isinstance(raw, list) or not raw:
+        return found
+    parsed: dict[str, int] = {}
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not isinstance(name, str):
+            continue
+        key = name.strip().lower()
+        if key not in ROW_NAMES:
+            continue
+        row = item.get("index", index)
+        if isinstance(row, bool) or not isinstance(row, int) or row < 0:
+            row = index
+        parsed[key] = row
+    if not parsed:
+        return found
+    found.update(parsed)
+    return found
+
+
+def load_anim_rows(path: Path | str) -> dict[str, int]:
+    """Row table from a manifest. Unreadable files use the defaults."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return dict(DEFAULT_ROW_INDEX)
+    return parse_anim_rows(data)
+
+
+def row_index_for_status(status: object, rows: object = None) -> int:
+    """Sheet row for a subagent status. Unknown tables use the defaults."""
+    table = rows if isinstance(rows, dict) else DEFAULT_ROW_INDEX
+    name = row_name_for_status(status)
+    index = table.get(name, table.get("idle", 0))
+    if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+        return 0
+    return index
+
+
+def dying_pose(elapsed_ms: object) -> dict:
+    """One pass of the dying row: 4 frames at 120 ms, then done.
+
+    ``fade`` shrinks the spring line from 1 to 0. ``pop`` is the first
+    frame only. After 480 ms ``done`` is true and the caller removes
+    the avatar. The frame index does not loop.
+    """
+    elapsed = 0.0
+    if isinstance(elapsed_ms, (int, float)) and not isinstance(elapsed_ms, bool):
+        elapsed = float(elapsed_ms)
+    if elapsed != elapsed or elapsed < 0.0:  # NaN or negative
+        elapsed = 0.0
+    index = int(elapsed // DYING_FRAME_MS)
+    done = index >= DYING_FRAMES
+    frame = DYING_FRAMES - 1 if done else index
+    fade = 0.0 if done else (DYING_FRAMES - frame) / float(DYING_FRAMES)
+    return {"frame": frame, "fade": fade, "done": done, "pop": frame == 0 and not done}

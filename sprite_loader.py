@@ -30,6 +30,8 @@ import threading
 from pathlib import Path
 from typing import Optional
 
+from subskins import row_index_for_status
+
 try:
     from PIL import Image
     HAS_PIL = True
@@ -142,6 +144,8 @@ class SpriteSheet:
         self.mode = "ground"
         self.placeholder = False
         self.role = ""
+        # Subagent sheets: status name → row index. None uses the defaults.
+        self.status_rows = None
 
         if image is not None:
             self.path = Path("<memory>")
@@ -279,8 +283,11 @@ class SpriteSheet:
 
     def debug_info(self) -> str:
         """Human-readable summary of this sheet's layout."""
-        anim_names = ["idle", "run", "sit", "stand", "jump"] + \
-                     [f"custom{i}" for i in range(1, 20)]
+        if self.role == "subagent":
+            anim_names = ["idle", "working", "dying"]
+        else:
+            anim_names = ["idle", "run", "sit", "stand", "jump"]
+        anim_names = anim_names + [f"custom{i}" for i in range(1, 20)]
         lines = [
             f"SpriteSheet '{self.path.name}'",
             f"  Image   : {self.image.width}x{self.image.height} px",
@@ -369,9 +376,27 @@ class SpriteRegistry:
         if not sheet:
             return None
 
-        row = ANIM_ROW.get(status, 0)
+        row = self._status_row(sheet, status)
         # SpriteSheet.resolve_row falls back when that animation is missing.
         return sheet.get_photo(row, frame, mirror=mirror)
+
+    def _status_row(self, sheet: "SpriteSheet", status: str) -> int:
+        """Row index before the missing-row fallback.
+
+        Subagent sheets map busy and thinking to working, and dying to
+        the dying row. Orchestrator sheets keep ANIM_ROW.
+        """
+        if getattr(sheet, "role", "") == "subagent":
+            return row_index_for_status(status, getattr(sheet, "status_rows", None))
+        return ANIM_ROW.get(status, 0)
+
+    def animation_row(self, name: str, status: str) -> int:
+        """Row that will be drawn, after the missing-row fallback. 0 if unknown."""
+        with self._lock:
+            sheet = self._sheets.get(name)
+        if not sheet:
+            return 0
+        return sheet.resolve_row(self._status_row(sheet, status))
 
     def get_render_size(self, name: str) -> tuple[int, int]:
         """Returns rendered cell (width, height) for the named sheet."""
@@ -385,7 +410,7 @@ class SpriteRegistry:
             sheet = self._sheets.get(name)
         if not sheet or not hasattr(sheet, "row_foot_pad"):
             return 0
-        return sheet.get_foot_pad(ANIM_ROW.get(status, 0))
+        return sheet.get_foot_pad(self._status_row(sheet, status))
 
     def reload_all(self, scale: float) -> None:
         """Reload every file-backed sheet at a new scale. Skips in-memory hue variants."""
@@ -396,16 +421,18 @@ class SpriteRegistry:
                     getattr(s, "mode", "ground"),
                     bool(getattr(s, "placeholder", False)),
                     getattr(s, "role", "") or "",
+                    getattr(s, "status_rows", None),
                 )
                 for n, s in self._sheets.items()
                 if str(s.path) != "<memory>"
             ]
-        for name, path, fw, fh, mode, placeholder, role in snapshot:
+        for name, path, fw, fh, mode, placeholder, role, status_rows in snapshot:
             try:
                 sheet = SpriteSheet(path, fw, fh, scale)
                 sheet.mode = mode if mode in ("fly", "ground") else "ground"
                 sheet.placeholder = placeholder
                 sheet.role = role
+                sheet.status_rows = dict(status_rows) if isinstance(status_rows, dict) else None
                 with self._lock:
                     self._sheets[name] = sheet
                 print(f"[sprites] reloaded {name} at {scale:.1f}×")
@@ -488,10 +515,11 @@ class SpriteRegistry:
         A missing manifest or a bad sheet is skipped. The overlay keeps
         running on the sheets that did load.
         """
-        from subskins import MANIFEST_NAME, load_manifest
+        from subskins import MANIFEST_NAME, load_anim_rows, load_manifest
 
         root = Path(directory)
         specs = load_manifest(root / MANIFEST_NAME)
+        status_rows = load_anim_rows(root / MANIFEST_NAME)
         loaded: list[str] = []
         for spec in specs:
             path = root / spec.file
@@ -510,6 +538,9 @@ class SpriteRegistry:
                     role="subagent",
                     quiet=True,
                 )
+                sheet = self._sheets.get(spec.id)
+                if sheet is not None:
+                    sheet.status_rows = dict(status_rows)
             except Exception as exc:
                 print(f"[sprites] could not load subagent {spec.id}: {exc}")
                 continue

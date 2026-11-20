@@ -41,8 +41,11 @@ class SpringChildTests(unittest.TestCase):
     def test_spring_is_not_applied_to_orchestrators(self):
         _run("test_spring_is_not_applied_to_orchestrators")
 
-    def test_parent_gone_returns_the_child_to_walking(self):
-        _run("test_parent_gone_returns_the_child_to_walking")
+    def test_parent_gone_plays_dying_and_ignores_the_leash(self):
+        _run("test_parent_gone_plays_dying_and_ignores_the_leash")
+
+    def test_dying_plays_once_then_the_avatar_is_removed(self):
+        _run("test_dying_plays_once_then_the_avatar_is_removed")
 
     def test_large_dt_and_a_dragged_parent_stay_finite(self):
         _run("test_large_dt_and_a_dragged_parent_stay_finite")

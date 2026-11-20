@@ -54,12 +54,12 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
 | SRC | 5 | 3 |
 | MCP | 1 | 3 |
 | OVL | 19 | 8 (subtasks 2/0) |
-| ART | 7 | 3 (subtasks 2/10) |
+| ART | 7 | 3 (subtasks 3/10) |
 | BUILD | 1 | 2 |
 | WS | 0 | 2 |
 | DOCS | 4 | 11 |
 | TAURI | 0 | 4 |
-| **Total** | 41 | 39 |
+| **Total** | 44 | 36 |
 
 ## 📦 Portable Windows build
 
@@ -426,8 +426,12 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
   - [ ] [ART][art] SUBSKIN.12 @caine: mini drone (fly)
   - [ ] [ART][art] SUBSKIN.13 @caine: mini Grok (ground)
   - [ ] [ART][feat] SUBSKIN.14 @pixel: integrate each delivered sheet and remove its placeholder
+  - [x] [ART][feat] SUBSKIN.15 @pixel: idle / working / dying states for subagent skins (dying = subchat closing) (feat/subagent-dying)
+    - Subagent sheets use three rows: idle (4), working (4), dying (4). Busy and thinking play working. A missing row falls back to the first row that has frames.
+    - When the subchat closes, or the parent avatar goes away, the child plays dying once (4 frames at 120 ms). The spring line shrinks. The child ignores the leash and is not pulled if the parent is dragged. Then the avatar is removed.
 - [ ] [ART][feat] GROK-SKIN-BUSY: Sprite loader uses its own busy row per `docs/grok-skin-spec.md` once Caine's sheet lands. Sheet 40×40, 4 cols × 6 rows: idle 4, walk 4, thinking 2, done 2, subagent 2, busy 2.
 - [ ] [ART][art] CAINE-SKIN: Caine draws the skin sheet.
+  - Each subagent sheet needs idle, working, and dying rows (4 frames each). Dying plays when the subchat closes.
 - [ ] [OVL][decision] PORTAL-V2: Portal ring — 1px, 2px, or particles. Waits on Daniel.
 - [ ] [BUILD][fix] FLAKY-TEST: Fix the flaky test.
 - [x] [DOCS][docs] AGENTS-MD: Add `AGENTS.md`. (chore/cleanup-agents-md)

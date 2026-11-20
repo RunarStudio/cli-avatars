@@ -22,7 +22,9 @@ import subskins  # noqa: E402
 from sprite_loader import SpriteRegistry, SpriteSheet  # noqa: E402
 from subskins import (  # noqa: E402
     assign_subagent_skin,
+    dying_pose,
     load_manifest,
+    row_index_for_status,
     skin_settings,
 )
 
@@ -80,12 +82,12 @@ class TestSheets(unittest.TestCase):
             self.assertTrue(sheet.placeholder)
             self.assertNotEqual(sheet.frame_w, 40)
             image = Image.open(SHEETS / f"{skin_id}.png").convert("RGBA")
-            self.assertEqual(image.size, (128, 160))
+            self.assertEqual(image.size, (128, 96))
             self.assertLessEqual(len(_colours(image)), 6)
             corner = image.crop((0, 0, 32, 8))
             self.assertTrue(any(pixel[3] for pixel in _pixels(corner)))
-            for row in range(5):
-                self.assertGreaterEqual(sheet.get_frame_count(row), 1)
+            for row in range(3):
+                self.assertEqual(sheet.get_frame_count(row), 4)
 
     def test_frame_size_comes_from_each_manifest_entry(self):
         with tempfile.TemporaryDirectory() as name:
@@ -131,6 +133,48 @@ class TestSheets(unittest.TestCase):
         self.assertEqual(sheet.get_frame_count(1), 0)
         self.assertEqual(sheet.resolve_row(1), 0)
         self.assertEqual(sheet.resolve_row(2), 2)
+
+    def test_busy_and_thinking_use_the_working_row(self):
+        manifest = json.loads((SHEETS / "manifest.json").read_text(encoding="utf-8"))
+        by_name = {item["name"]: item for item in manifest["rows"]}
+        self.assertEqual(by_name["idle"]["frames"], 4)
+        self.assertEqual(by_name["working"]["frames"], 4)
+        self.assertEqual(by_name["dying"]["frames"], 4)
+        self.assertEqual(row_index_for_status("idle"), 0)
+        self.assertEqual(row_index_for_status("busy"), 1)
+        self.assertEqual(row_index_for_status("thinking"), 1)
+        self.assertEqual(row_index_for_status("dying"), 2)
+        registry = SpriteRegistry()
+        registry.load_subagents(SHEETS, scale=1.0)
+        self.assertEqual(registry.animation_row("imp", "busy"), 1)
+        self.assertEqual(registry.animation_row("imp", "thinking"), 1)
+        self.assertEqual(registry.animation_row("dragon", "dying"), 2)
+        self.assertEqual(registry.animation_row("cat", "idle"), 0)
+        sheet = registry._sheets["imp"]
+        self.assertEqual(sheet.get_frame_count(registry.animation_row("imp", "busy")), 4)
+
+    def test_a_missing_subagent_row_falls_back(self):
+        only_idle = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        only_idle.putpixel((4, 4), (12, 12, 12, 255))
+        sheet = SpriteSheet(frame_w=32, frame_h=32, image=only_idle)
+        sheet.role = "subagent"
+        sheet.status_rows = {"idle": 0, "working": 1, "dying": 2}
+        self.assertEqual(sheet.resolve_row(row_index_for_status("busy", sheet.status_rows)), 0)
+        self.assertEqual(sheet.resolve_row(row_index_for_status("dying", sheet.status_rows)), 0)
+        self.assertEqual(sheet.resolve_row(row_index_for_status("idle", sheet.status_rows)), 0)
+
+    def test_dying_row_plays_once(self):
+        poses = [dying_pose(ms) for ms in (0, 120, 240, 360, 480)]
+        self.assertEqual([pose["frame"] for pose in poses], [0, 1, 2, 3, 3])
+        self.assertEqual([pose["done"] for pose in poses], [False, False, False, False, True])
+        self.assertEqual(poses[0]["pop"], True)
+        self.assertGreater(poses[0]["fade"], poses[3]["fade"])
+        self.assertEqual(poses[4]["fade"], 0.0)
+        self.assertEqual(dying_pose(479)["done"], False)
+        self.assertEqual(dying_pose(479)["frame"], 3)
+        # A later clock does not start the row again.
+        self.assertEqual(dying_pose(1000)["done"], True)
+        self.assertEqual(dying_pose(1000)["frame"], 3)
 
     def test_generator_matches_the_committed_sheets(self):
         with tempfile.TemporaryDirectory() as name:

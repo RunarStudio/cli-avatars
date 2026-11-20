@@ -11,6 +11,7 @@ v0.4 additions:
   - Subagent avatars: one skin per child, kept for that child's lifetime
   - Elastic spring line connecting main agent to its subagents
   - Ground skins hang below the parent; fly skins hover above its head
+  - A closing subchat plays the dying row once, then the child is removed
 
 Dependencies:
     pip install pillow pywinctl numpy
@@ -98,7 +99,7 @@ from routing import (
     focus_for,
     save_window_box,
 )
-from subskins import assign_subagent_skin
+from subskins import assign_subagent_skin, dying_pose
 from chat_window import ChatWindow
 from bubbles import BubbleBoard, integer_scale, render_bubble
 from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
@@ -751,6 +752,10 @@ class Avatar:
         # Set when task finishes and subagent moves to lingering list
         self._task_done_at: Optional[float] = None
         self._meet_lock = False
+        # Closing subchat: play the dying row, then this avatar is removed.
+        self._dying = False
+        self._dying_at: Optional[float] = None
+        self._dying_pose: Optional[dict] = None
 
     def _sprite_size(self):
         if self.registry:
@@ -767,6 +772,8 @@ class Avatar:
 
     @property
     def _anim_status(self) -> str:
+        if getattr(self, "_dying", False):
+            return "dying"
         if self.agent.status == S.IDLE and (abs(self.vx) > 0.1 or self._wall_climb is not None):
             return S.BUSY
         return self.agent.status
@@ -781,6 +788,9 @@ class Avatar:
         return 0
 
     def update(self, floors, walls=(), floor_hwnds=(), steer=None):
+        # Dying plays in place. No gravity, no leash, no walk.
+        if getattr(self, "_dying", False):
+            return
         self.aw, self.ah = self._sprite_size()
         fh = self.ah - self._foot_pad()   # feet height: physics uses this, drawing uses ah
         last_fh = getattr(self, "_last_fh", fh)
@@ -903,6 +913,13 @@ class Avatar:
 
     def draw(self, canvas):
         px, py = int(self.x), int(self.y)
+        if getattr(self, "_dying", False):
+            pose = getattr(self, "_dying_pose", None) or {}
+            frame = pose.get("frame", 0)
+            if pose.get("pop"):
+                py -= 6
+            elif isinstance(frame, int) and frame > 0:
+                py += frame * 2
         sc     = STATUS_COLOR.get(self.agent.status, "#aaaaaa")
 
         mirror = self.dir < 0
@@ -1383,6 +1400,7 @@ class OverlayApp:
         self.avatars: dict[str, Avatar] = {}
         self.sub_avatars: dict[str, list[Avatar]] = {}   # parent_id → [sub Avatar, …]
         self._lingering_subs: list["Avatar"] = []         # task-done subs waiting to float away
+        self._dying_subs: list["Avatar"] = []             # closing subchat, dying row then gone
         self._dismissed_subs: dict[str, int] = {}         # parent_id → manually dismissed count
         self._cidx   = 0
         self._picker = None
@@ -1517,7 +1535,8 @@ class OverlayApp:
             av = self.avatars.pop(aid)
             av.cleanup(self.canvas)
             for sv in self.sub_avatars.pop(aid, []):
-                sv.cleanup(self.canvas)
+                self._begin_dying(sv)
+                self._dying_subs.append(sv)
 
         # ── Subagent avatars ─────────────────────────────────────────
         self.canvas.delete("elastic")   # clear all elastic lines
@@ -1538,20 +1557,26 @@ class OverlayApp:
         for aid, agent in agents.items():
             if (agent.is_demo and TEST_SUBAGENTS == 0) or agent.subagents <= 0:
                 for sv in self.sub_avatars.pop(aid, []):
-                    sv._task_done_at = time.time()
-                    self._end_spring(sv)
-                    self._lingering_subs.append(sv)
+                    self._begin_dying(sv)
+                    self._dying_subs.append(sv)
                 continue
 
             sub_list = self.sub_avatars.setdefault(aid, [])
             parent_av = self.avatars.get(aid)
+            if parent_av is None:
+                # The parent avatar already left. Finish the children that
+                # are still here, and do not spawn replacements.
+                for sv in sub_list:
+                    self._begin_dying(sv)
+                    self._dying_subs.append(sv)
+                sub_list.clear()
+                continue
 
-            # Trim excess subagent avatars — send to lingering so they float away
+            # Trim excess subagent avatars — the extra child plays dying, then goes.
             while len(sub_list) > agent.subagents:
                 sv = sub_list.pop()
-                sv._task_done_at = time.time()
-                self._end_spring(sv)
-                self._lingering_subs.append(sv)
+                self._begin_dying(sv)
+                self._dying_subs.append(sv)
 
             # Consume dismissed-count credit as scanner naturally reports fewer subagents
             dismissed = self._dismissed_subs.get(aid, 0)
@@ -1616,7 +1641,11 @@ class OverlayApp:
 
             # Update + draw subagents; trigger float-away after 10 min idle
             to_remove = []
+            retiring = []
             for sv in sub_list:
+                if getattr(sv, "_dying", False):
+                    retiring.append(sv)
+                    continue
                 if not sv._floating_away and time.time() - sv.last_active > 600:
                     sv._floating_away = True
                     sv._float_frames  = 0
@@ -1650,6 +1679,10 @@ class OverlayApp:
             for sv in to_remove:
                 sv.cleanup(self.canvas)
                 sub_list.remove(sv)
+            for sv in retiring:
+                if sv in sub_list:
+                    sub_list.remove(sv)
+                self._dying_subs.append(sv)
 
             # Draw elastic lines only for non-floating subagents, then push behind sprites
             if parent_av:
@@ -1687,6 +1720,9 @@ class OverlayApp:
         for sv in linger_done:
             sv.cleanup(self.canvas)
             self._lingering_subs.remove(sv)
+
+        # Closing subchats: dying row once, spring shrinks, then the child is gone.
+        self._release_finished_dying()
 
         # ── Burst effects ─────────────────────────────────────────────
         for av in list(self.avatars.values()):
@@ -1773,18 +1809,71 @@ class OverlayApp:
         ``dt`` is in frames. A tick passes 1, the same step ``Avatar.update`` uses.
         While the spring is attached the child ignores window tops, so it can
         hang under the parent instead of standing on the same perch.
+        A dying child, or a child whose parent avatar is gone, stays put.
         """
+        if getattr(sv, "_dying", False):
+            return
+        if parent_av is None:
+            self._begin_dying(sv)
+            return
         if sv.spring_mode and parent_av is not None:
             self._apply_spring(sv, parent_av, dt=dt)
             # Window tops are the parent's floor. A hanging child falls past
             # them; the screen bottom inside update() is still a floor.
             sv.update([], [])
         else:
-            if sv.spring_mode:
-                self._end_spring(sv)
             sv.update(floors, walls)
         if parent_av is not None and getattr(sv.agent, "parent_id", None):
             self._constrain_leash(sv, parent_av)
+
+    def _begin_dying(self, sv: Avatar, now: Optional[float] = None) -> None:
+        """Start the dying row. Further calls do not rewind the clock.
+
+        The child leaves the spring, drops its velocity, and is not
+        leashed or dragged for the rest of the animation.
+        """
+        if getattr(sv, "_dying", False):
+            return
+        sv._dying = True
+        sv._dying_at = time.time() if now is None else float(now)
+        sv._dying_pose = dying_pose(0)
+        sv.frame = 0
+        sv.spring_mode = False
+        sv.vx = 0.0
+        sv.vy = 0.0
+
+    def _release_finished_dying(self, now: Optional[float] = None) -> None:
+        """Advance dying children. Remove each one after the row has played once."""
+        now_s = time.time() if now is None else float(now)
+        bucket = getattr(self, "_dying_subs", None)
+        if not bucket:
+            return
+        canvas = getattr(self, "canvas", None)
+        avatars = getattr(self, "avatars", None) or {}
+        still: list[Avatar] = []
+        for sv in list(bucket):
+            started = getattr(sv, "_dying_at", now_s)
+            try:
+                elapsed_ms = (float(now_s) - float(started)) * 1000.0
+            except (TypeError, ValueError):
+                elapsed_ms = 0.0
+            pose = dying_pose(elapsed_ms)
+            sv._dying_pose = pose
+            sv.frame = pose["frame"]
+            if pose["done"]:
+                if canvas is not None:
+                    sv.cleanup(canvas)
+                continue
+            still.append(sv)
+            if canvas is None:
+                continue
+            sv.draw(canvas)
+            parent = avatars.get(getattr(sv.agent, "parent_id", None))
+            if parent is not None:
+                self._draw_elastic(parent, sv, shrink=pose["fade"])
+        self._dying_subs = still
+        if canvas is not None:
+            canvas.tag_lower("elastic")
 
     def _end_spring(self, sv: Avatar) -> None:
         """The parent ended or left: this child walks on its own again."""
@@ -1899,8 +1988,10 @@ class OverlayApp:
         The child is placed on the circle when it is outside, not on the
         parent. Outward speed is removed so the next frame does not step
         out and snap back. A walking child also turns around at the
-        left and right edges.
+        left and right edges. A dying child is left where it is.
         """
+        if getattr(sv, "_dying", False):
+            return
         leash = self._leash_px()
         if not math.isfinite(leash) or leash <= 0:
             return
@@ -1943,13 +2034,22 @@ class OverlayApp:
             sv.vx = WALK_SPEED if sv.vx == 0.0 else abs(sv.vx)
             sv.dir = 1
 
-    def _draw_elastic(self, parent_av: Avatar, sv: Avatar):
+    def _draw_elastic(self, parent_av: Avatar, sv: Avatar, shrink: float = 1.0):
         """Draw a purple zigzag spring line between parent and subagent.
 
         Ground children keep the line from centre to centre. Fly children
         start at the parent's head so the line is drawn upward.
+        ``shrink`` pulls the parent end toward the child while a child
+        is dying (1 is the full line, 0 draws nothing).
         """
+        if not math.isfinite(shrink):
+            shrink = 1.0
+        shrink = max(0.0, min(1.0, float(shrink)))
+        if shrink <= 0.05:
+            return
         x0, y0, x1, y1 = elastic_endpoints(parent_av, sv, child_flight_mode(sv))
+        x0 = x1 + (x0 - x1) * shrink
+        y0 = y1 + (y0 - y1) * shrink
         dx, dy = x1 - x0, y1 - y0
         dist = math.sqrt(dx*dx + dy*dy)
         if dist < 4:
