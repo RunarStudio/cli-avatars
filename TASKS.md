@@ -53,7 +53,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | ART | 9 | 2 |
 | BUILD | 1 | 2 |
 | WS | 0 | 2 |
-| DOCS | 1 | 14 |
+| DOCS | 4 | 11 |
 | TAURI | 0 | 4 |
 | **Total** | 45 | 38 |
 
@@ -96,7 +96,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 - [ ] [DOCS][docs] DOCS-CHANGELOG: Add Changelog section to README (after Roadmap): summarize v0.1→v0.4 milestones in 4 bullet points <!-- BUBBLE: fix -->
 - [ ] [DOCS][docs] DOCS-DOWNLOAD-MD: Create `docs/download.md`: install from source + "Prebuilt Windows executable: see GitHub Releases" + link placeholder <!-- BUBBLE: fix -->
 - [ ] [DOCS][docs] DOCS-BADGES: Add version + Windows badges to README header: `![version](https://img.shields.io/badge/version-v0.4-blue)` `![platform](https://img.shields.io/badge/platform-Windows-lightgrey)` <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-CLAUDE-FILES: Tighten `CLAUDE.md` Key Files table: remove `assets/` row (assets live in `Sprites/`), add `gen_ponmi.py` row, update architecture notes to mention skin picker and hue rotation <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-CLAUDE-FILES: Tighten `CLAUDE.md` Key Files table: remove `assets/` row (assets live in `Sprites/`), add `tools/gen_ponmi.py` row, update architecture notes to mention skin picker and hue rotation <!-- BUBBLE: fix -->
 
 ---
 
@@ -421,13 +421,13 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 - [ ] [ART][art] CAINE-SKIN: Caine draws the skin sheet.
 - [ ] [OVL][decision] PORTAL-V2: Portal ring — 1px, 2px, or particles. Waits on Daniel.
 - [ ] [BUILD][fix] FLAKY-TEST: Fix the flaky test.
-- [ ] [DOCS][docs] AGENTS-MD: Add `AGENTS.md`.
+- [x] [DOCS][docs] AGENTS-MD: Add `AGENTS.md`. (chore/cleanup-agents-md)
 - [ ] [WS][feat] TERMINAL-P4: Built-in terminal, workspace phase 4.
 - [ ] [WS][feat] PROJECTS-P5: Projects by status, workspace phase 5.
 - [ ] [SRC][decision] CLAUDE-HOOK-INSTALL: Apply the chat hook to the real `~/.claude/settings.json`. Needs Daniel's OK.
 - [ ] [MCP][decision] MCP-LIVE: Install the mcp package, live-test the server, and apply the installer. Needs Daniel's OK.
-- [ ] [DOCS][chore] CLEAN-HOOKS-EXAMPLE: Drop `claude_hooks_example.py`.
-- [ ] [DOCS][chore] CLEAN-ART-SCRIPTS: Move `gen_ponmi.py` and `gen_meowatar_gifs.py` to `tools/`.
+- [x] [DOCS][chore] CLEAN-HOOKS-EXAMPLE: Drop `claude_hooks_example.py`. (chore/cleanup-agents-md)
+- [x] [DOCS][chore] CLEAN-ART-SCRIPTS: Move `gen_ponmi.py` and `gen_meowatar_gifs.py` to `tools/`. (chore/cleanup-agents-md)
 - [ ] [DOCS][decision] SPLIT-OVERLAY: Decide whether to split `overlay.py`. Waits on Daniel.
 - [ ] [SRC][decision] GROK-LOGIN: Daniel runs `grok login`.
 

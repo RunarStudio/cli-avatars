@@ -14,7 +14,7 @@ Claude Code supports **hooks** — shell commands (or Python scripts) that run a
 - `PostToolUse` — fires after each tool call completes
 - `Stop` — fires when the agent finishes a turn
 
-`claude_hooks_example.py` (included in this repo) calls `cli-avatars-emit`, which sends a small UDP packet to the overlay. The overlay listens on `127.0.0.1` only and applies the state on top of the 2-second poll. If no packet arrives, behavior stays the poll.
+Hooks call `python -m cli_avatars_emit`, which sends a small UDP packet to the overlay. The overlay listens on `127.0.0.1` only and applies the state on top of the 2-second poll. If no packet arrives, behavior stays the poll.
 
 ---
 
@@ -81,29 +81,38 @@ Packets are data. The listener checks the token, a 2 KB size cap, a per-sender r
 
 ## Setup
 
-### Step 1 — Point the hook at the script in this clone
+### Step 1 — Install the chat hook (recommended)
 
-Leave `claude_hooks_example.py` next to `cli_avatars_emit.py`. A copy in another folder cannot see the emit command. Replace `<clone>` below with the folder you cloned.
+From the clone, merge the stdlib chat hook into Claude settings (dry-run by default):
 
-### Step 2 — Register it in your Claude Code hooks config
+```bash
+python -m cli_avatars_emit hooks install
+python -m cli_avatars_emit hooks install --apply
+```
 
-In your project's `.claude/settings.json` (or `~/.claude/settings.json` for global):
+That registers `hooks/claude_chat_hook.py` for `SessionStart`, `UserPromptSubmit`, and `Stop`. Details: [Chat hook (P3E-HOOKS)](#chat-hook-p3e-hooks).
+
+### Step 2 — Optional UDP state hooks
+
+For tool-level poses before the next poll, add hook commands that call `cli_avatars_emit state`. The session id is the first 8 characters of `session_id` from the hook JSON on stdin. Example (replace `abcd1234` with that id, or parse stdin in your own small script):
 
 ```json
 {
   "hooks": {
     "PreToolUse": [
-      { "command": "python <clone>/claude_hooks_example.py pre_tool" }
+      { "command": "python -m cli_avatars_emit state --source claude --id abcd1234 --state busy" }
     ],
     "PostToolUse": [
-      { "command": "python <clone>/claude_hooks_example.py post_tool" }
+      { "command": "python -m cli_avatars_emit state --source claude --id abcd1234 --state thinking" }
     ],
     "Stop": [
-      { "command": "python <clone>/claude_hooks_example.py stop" }
+      { "command": "python -m cli_avatars_emit state --source claude --id abcd1234 --state idle" }
     ]
   }
 }
 ```
+
+Run `pip install -e .` in the clone so `python -m cli_avatars_emit` resolves, or use `python <clone>/cli_avatars_emit.py state ...`.
 
 ### Step 3 — Run CLI Avatars
 
@@ -113,7 +122,7 @@ python overlay.py
 
 The overlay listens on UDP `127.0.0.1:47200`. A state packet updates a matching avatar immediately. The next poll still wins once the session file is newer than that packet.
 
-The hook script maps `pre_tool` → `busy`, `post_tool` → `thinking`, `stop` → `idle`, `subagent_start` → `subagent`.
+Typical UDP state map: tool start → `busy`, tool end → `thinking`, turn end → `idle`, subagent → `subagent`.
 
 ---
 
@@ -298,7 +307,7 @@ python -m cli_avatars_emit reply --agent abcd1234 --to "<message-id>" --note "Sa
 
 The reply is appended to the channel log with `reply_to` set. It is not written back into your inbox. A missing message id is rejected and nothing is appended.
 
-You can put those two commands in the agent's own instructions (for example the project instructions next to the clone). A hook can call the same commands, but a hook should not turn `text` into a shell command. `hooks/claude_chat_hook.py` prints unread rows into the session context and marks them read. It does not apply the message. `claude_hooks_example.py` still only emits session state. One safe hook, if you want the inbox printed into the hook log and not acted on, is:
+You can put those two commands in the agent's own instructions (for example the project instructions next to the clone). A hook can call the same commands, but a hook should not turn `text` into a shell command. `hooks/claude_chat_hook.py` prints unread rows into the session context and marks them read. It does not apply the message. One safe hook, if you want the inbox printed into the hook log and not acted on, is:
 
 ```json
 {
@@ -381,7 +390,7 @@ The person pins an answered decision with the Pin button in the Decisions tab. C
 | Method | Latency | Setup |
 |--------|---------|-------|
 | Polling (default) | ~2 seconds | None — works out of the box |
-| Hooks (UDP) | ~50ms | Point a hook command at `claude_hooks_example.py` |
+| Hooks (UDP) | ~50ms | `python -m cli_avatars_emit hooks install --apply` plus optional `state` hooks |
 
 Polling is good enough for casual use. Hooks make the animation snap to the agent's actual state instantly — useful if you're watching the overlay closely or streaming.
 
