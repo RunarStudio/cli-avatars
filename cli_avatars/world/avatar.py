@@ -406,22 +406,11 @@ class Avatar:
                 py += frame * 2
         sc = STATUS_COLOR.get(self.agent.status, "#aaaaaa")
         key = self.photo_key()
-        if self.spring_mode:
-            label = self.agent.name
-        else:
-            pfx = "[D] " if self.agent.is_demo else ""
-            parts = [f"{pfx}{self.agent.name}", self.agent.status]
-            if self.agent.tool:
-                parts.append(f"→{self.agent.tool[:10]}")
-            if self.agent.subagents > 0:
-                parts.append(f"⚡{self.agent.subagents}")
-            line = getattr(self.agent, "status_line", "")
-            if isinstance(line, str) and line:
-                parts.append(line[:32])
-            label = "\n".join(parts)
+        label = self.plate_text()
         fill = "#7799cc" if (self.agent.is_demo or self.spring_mode) else "white"
         dash = (4, 2) if (self.agent.is_demo or self.spring_mode) else ()
-        sig = (px, py, self.aw, self.ah, key, label, fill, sc, dash)
+        box = getattr(self, "_label_box", None)
+        sig = (px, py, self.aw, self.ah, key, label, fill, sc, dash, box)
         if sig == ink["sig"] and ink["spr"] and ink["lbl"]:
             return
         if photos is not None:
@@ -453,8 +442,14 @@ class Avatar:
                     px, py, px + self.aw, py + self.ah,
                     fill=self.color, outline=sc, width=2, dash=dash)
 
-        lx = px + self.aw // 2
-        ly = py - 14
+        box = getattr(self, "_label_box", None)
+        if box and len(box) == 4:
+            left, top, bw, bh = box
+            lx = int(left + bw / 2 - ox)
+            ly = int(top + bh / 2 - oy)
+        else:
+            lx = px + self.aw // 2
+            ly = py - 14
         if ink["lbl"]:
             canvas.coords(ink["lbl"], lx, ly)
             canvas.itemconfig(ink["lbl"], text=label, fill=fill)
@@ -465,6 +460,21 @@ class Avatar:
                 fill=fill,
                 justify="center")
         ink["sig"] = sig
+
+    def plate_text(self) -> str:
+        """The nameplate. A spring child is just the name. The rest is status, tool, and count."""
+        if self.spring_mode:
+            return self.agent.name or ""
+        pfx = "[D] " if self.agent.is_demo else ""
+        parts = [f"{pfx}{self.agent.name}", self.agent.status]
+        if self.agent.tool:
+            parts.append(f"→{self.agent.tool[:10]}")
+        if getattr(self.agent, "subagents", 0) > 0:
+            parts.append(f"⚡{self.agent.subagents}")
+        line = getattr(self.agent, "status_line", "")
+        if isinstance(line, str) and line:
+            parts.append(line[:32])
+        return "\n".join(parts)
 
     def cleanup(self, canvas: object) -> None:
         if getattr(self, "_inks", None):

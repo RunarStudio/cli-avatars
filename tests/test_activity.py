@@ -10,17 +10,27 @@ from activity import (
     ActivityBoard,
     BubbleSettings,
     BubbleSpot,
+    Plate,
+    _hits,
     activity_fields,
     bubble_settings,
+    clip_line,
     config_with_bubbles,
     file_basename,
+    layout_bubbles,
     line_from_agent,
+    nudge_plates,
     place_spots,
+    plate_box,
     replay,
     rollup_id,
     save_bubble_settings,
 )
 from events import parse_packet
+
+
+def _px(text: str) -> tuple[int, int]:
+    return (len(text) * 8 + 16, 28)
 
 
 TOKEN = "t" * 32
@@ -193,6 +203,93 @@ class LayoutTests(unittest.TestCase):
         place_spots([first, second], [], max_rise=0)
         self.assertTrue(first.show)
         self.assertFalse(second.show)
+
+    def _spot(self, aid, text, x, y, priority):
+        spot = BubbleSpot()
+        spot.agent_id = aid
+        spot.text = text
+        spot.priority = priority
+        spot.ax = x
+        spot.ay = y
+        spot.aw = 40
+        return spot
+
+    def test_full_lines_stack_inside_the_floor_and_clear_nameplates(self):
+        spots = [
+            self._spot("read", "Reading TASKS.md", 80, 140, 50),
+            self._spot("think", "Thinking...", 88, 148, 40),
+            self._spot("orch", "Briefing 3 subagents", 96, 156, 30),
+        ]
+        plates = []
+        for x, y in ((70, 140), (78, 148), (86, 156)):
+            left, top, width, height = plate_box(x, y, 40, 90, 36)
+            plates.append((left, top, width, height))
+        bounds = (0, 16, 240, 220)
+        layout_bubbles(spots, plates, _px, bounds=bounds, max_rise=220)
+        self.assertEqual(
+            [spot.text for spot in spots],
+            ["Reading TASKS.md", "Thinking...", "Briefing 3 subagents"],
+        )
+        for spot in spots:
+            self.assertTrue(spot.show)
+            self.assertGreaterEqual(spot.y, bounds[1])
+            self.assertLessEqual(spot.x + spot.bw, bounds[0] + bounds[2])
+            self.assertLessEqual(spot.y + spot.bh, bounds[1] + bounds[3])
+            self.assertGreaterEqual(spot.x, bounds[0])
+            rect = (spot.x, spot.y, spot.bw, spot.bh)
+            for plate in plates:
+                self.assertFalse(_hits(rect, plate, 4))
+        for index, spot in enumerate(spots):
+            rect = (spot.x, spot.y, spot.bw, spot.bh)
+            for other in spots[index + 1:]:
+                self.assertFalse(_hits(rect, (other.x, other.y, other.bw, other.bh), 4))
+
+    def test_a_line_moves_below_the_toolbar_before_it_is_cut(self):
+        spot = self._spot("think", "Thinking...", 40, 8, 10)
+        bounds = (0, 12, 200, 160)
+        layout_bubbles([spot], [], _px, bounds=bounds, max_rise=160)
+        self.assertTrue(spot.show)
+        self.assertEqual(spot.text, "Thinking...")
+        self.assertGreaterEqual(spot.y, 12)
+
+    def test_ellipsis_waits_until_no_full_line_fits(self):
+        spot = self._spot("wide", "Briefing 3 subagents", 0, 40, 10)
+        bounds = (0, 0, 80, 80)
+        layout_bubbles([spot], [], _px, bounds=bounds, max_rise=80)
+        self.assertTrue(spot.show)
+        self.assertNotEqual(spot.text, "Briefing 3 subagents")
+        self.assertTrue(spot.text.endswith("…"))
+        self.assertLessEqual(spot.x + spot.bw, 80)
+        self.assertEqual(clip_line("Briefing 3 subagents", len(spot.text)), spot.text)
+
+    def test_overlapping_nameplates_slide_apart(self):
+        mira = Plate()
+        mira.agent_id = "mira"
+        orch = Plate()
+        orch.agent_id = "orch"
+        mira.x, mira.y, mira.w, mira.h = plate_box(100, 90, 40, 80, 40)
+        orch.x, orch.y, orch.w, orch.h = plate_box(112, 96, 40, 80, 40)
+        nudge_plates([mira, orch], bounds=(0, 0, 320, 240))
+        self.assertFalse(_hits(mira.box(), orch.box(), 4))
+        for plate in (mira, orch):
+            x, y, width, height = plate.box()
+            self.assertGreaterEqual(x, 0)
+            self.assertGreaterEqual(y, 0)
+            self.assertLessEqual(x + width, 320)
+            self.assertLessEqual(y + height, 240)
+
+    def test_a_nameplate_slides_off_a_neighbour_sprite(self):
+        mira = Plate()
+        mira.agent_id = "mira"
+        mira.x, mira.y, mira.w, mira.h = 40, 40, 80, 36
+        sprite = (100, 50, 40, 40)
+        nudge_plates([mira], bounds=(0, 0, 240, 200), occupied=[sprite])
+        self.assertFalse(_hits(mira.box(), sprite, 4))
+        x, y, width, height = mira.box()
+        self.assertGreaterEqual(x, 0)
+        self.assertLessEqual(x + width, 240)
+        self.assertGreaterEqual(y, 0)
+        self.assertLessEqual(y + height, 200)
 
 
 class SettingsTests(unittest.TestCase):

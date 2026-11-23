@@ -281,6 +281,9 @@ class PlaceBook:
         )
         spots = self._spot_map(settled)
         photos = canvas_photos(self.app)
+        from cli_avatars.app.nameplates import seat_inside
+
+        seat_inside(scene, settled, spots, self.app._inside, dragging)
         for aid in settled:
             self._paint_inside(scene, aid, spots.get(aid, (0.0, 0.0)), photos, dragging, now, posed=False)
         for aid in list(self._cross):

@@ -173,6 +173,7 @@ def step_avatars(self, frame: object) -> None:
             av.vx  *= 0.97
             av.y   += av.vy
             av.x   += av.vx
+            av._label_box = None
             av.draw(self.canvas, canvas_photos(self))
             if av._vanish_frames >= 65 or av.y < -av.ah:
                 sprite_cols = _sample_sprite_colors(REGISTRY, av.agent.skin)
@@ -198,6 +199,7 @@ def step_avatars(self, frame: object) -> None:
                 av.y = float(self.sh - av.ah - 10)
                 av.vx = random.choice([-TUNING.walk_speed, TUNING.walk_speed])
                 av.vy = 0.0
+        av._label_box = None
         av.draw(self.canvas, canvas_photos(self))
 
     for aid in vanished_aids:
