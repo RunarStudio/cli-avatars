@@ -62,7 +62,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 | Epic | Done | Open |
 |------|------|------|
-| CHAT | 7 | 8 (subtasks 3/13) |
+| CHAT | 7 | 8 (subtasks 4/13) |
 | SRC | 6 | 4 (subtasks 0/3) |
 | MCP | 1 | 3 |
 | OVL | 19 | 8 (subtasks 2/3) |
@@ -570,7 +570,8 @@ See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md)
   - [x] [CHAT][feat] MEMMAP.2 @pixel: Hook capture of PostToolUse Read on *.md/*.mdc, UserPromptSubmit turn markers, SessionStart inferred auto-loads into memmap/<project>/reads.jsonl (lock, caps, rotation, retention, `memmap.enabled`); update docs/claude-hooks.md. Done when fake payload tests show one record per .md Read, no content stored, and the hook stays in budget. (after MEMMAP.1; live check after CLAUDE-HOOK-INSTALL) (S)
   - [x] [CHAT][feat] MEMMAP.3 @agents: Aggregator (pure): nodes, co-read and link edges, recency fade, window and topic filters, metrics (reads per task, duplicates, never read, hot large files, token estimate). Done when fixture tests pass and 10,000 records aggregate in < 20 ms. (after MEMMAP.1) (M)
     - Windows check 2026-11-23 (7be67f3): Budget ok x3, best 14.4–14.9 ms per 10,000 records (budget 20); 669 pass, selftest ok, live ok. Linux best about 8.8 ms.
-  - [ ] [CHAT][feat] MEMMAP.4 @agents: Collapsible memory map section under Topics in the left dock: force layout on a worker thread, kind colours, read-count size, hover, click highlight, metrics strip. Done when selftest builds it with fixture data, collapse state survives a relaunch, and draw is ≤ 2 ms. (after MEMMAP.3) (M)
+  - [x] [CHAT][feat] MEMMAP.4 @agents: Collapsible memory map section under Topics in the left dock: force layout on a worker thread, kind colours, read-count size, hover, click highlight, metrics strip. Done when selftest builds it with fixture data, collapse state survives a relaunch, and draw is ≤ 2 ms. (after MEMMAP.3) (M)
+    - Windows check 2026-11-23 (18a2ec1): 709 pass, 0 fail, 7 skipped; panel probe ok (first build 6.1–6.8 ms, warm redraw 0 ms, update 1.7–2.0 ms, 11 Tcl calls); aggregate budget 14.2–16.3 ms; bootcheck 14/14. Draw budgets in docs/task-backend-and-memory-map.md 4.9.
   - [ ] [CHAT][feat] MEMMAP.5 @agents: Per-task memory metrics on the task card and Tasks tab, joined through the registry's task-topic-session links. Done when two cards in two topics get separate counts. (after MEMMAP.3 and TASKBACK.2) (S)
   - [ ] [CHAT][feat] MEMMAP.6 @agents: MemReadSource adapter protocol, Grok adapter, MCP-M3 memories as a virtual node (counts only). Done when a fake Grok payload yields the same record and memory_search stores no query. (after MEMMAP.2, GROK-LOGIN, MCP-M3 port) (S)
 
