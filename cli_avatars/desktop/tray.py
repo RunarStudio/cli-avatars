@@ -30,15 +30,13 @@ def _setup_tray(self):
         else:
             icon_img = Image.new("RGBA", (32, 32), (68, 136, 255, 255))
         menu = pystray.Menu(
-            pystray.MenuItem("Skins",       lambda icon, item: self.root.after(0, self._open_skin_picker)),
-            pystray.MenuItem("Config",      lambda icon, item: self.root.after(0, self._open_config_screen)),
-            pystray.MenuItem("Show Status", lambda icon, item: self.root.after(0, self._show_hud_win)),
+            pystray.MenuItem("Show Dungeon", lambda icon, item: self.root.after(0, self._show_hud_win)),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Close",       lambda icon, item: self.root.after(0, self._quit)),
+            pystray.MenuItem("Quit",         lambda icon, item: self.root.after(0, self._quit)),
         )
         self._tray = pystray.Icon(
-            "AI Overlay", icon_img, "AI Overlay", menu,
-            on_activate=lambda icon: self.root.after(0, self._bring_all_to_front),
+            "Dungeon", icon_img, "Dungeon", menu,
+            on_activate=lambda icon: self.root.after(0, self._show_hud_win),
         )
         threading.Thread(target=self._tray.run, daemon=True).start()
     except Exception as e:

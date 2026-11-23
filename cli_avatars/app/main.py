@@ -58,13 +58,26 @@ def run_selftest() -> int:
         host._rooms_btn = None
         host._chat_btn = None
         host._hud_drag_origin = None
-        host._create_hud_win()
+        host.config = {}
+        host._decision_count = 0
+        host._config_path = None
+        from cli_avatars.app.dungeon_window import DungeonWindow
+
+        host.dungeon = DungeonWindow(host)
+        host.dungeon.build(offscreen=True)
         root.update_idletasks()
-        hud = getattr(host, "_hud_win", None)
-        if hud is None or not hud.winfo_exists():
-            problems.append("HUD window was not created")
+        scene = getattr(host.dungeon, "scene", None)
+        if scene is None or not scene.winfo_exists():
+            problems.append("Dungeon was not created")
         else:
-            hud.withdraw()
+            try:
+                if int(root.overrideredirect() or 0):
+                    problems.append("Dungeon is borderless")
+                minimum = root.minsize()
+                if int(minimum[0]) < 720 or int(minimum[1]) < 480:
+                    problems.append("Dungeon minsize is below 720x480")
+            except tk.TclError as exc:
+                problems.append("dungeon: " + str(exc))
         import tempfile
 
         from chat_window import seed_simulated, simulated_agents

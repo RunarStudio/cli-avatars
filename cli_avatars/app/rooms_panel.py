@@ -67,31 +67,22 @@ def _toggle_rooms(self) -> None:
 
 
 def _close_rooms(self) -> None:
-    win = getattr(self, "_rooms_win", None)
-    if win is not None:
-        try:
-            if win.winfo_exists():
-                win.withdraw()
-        except Exception:
-            pass
     self._rooms_shown = False
     self._rooms_sig = None
+    dungeon = getattr(self, "dungeon", None)
+    if dungeon is not None:
+        dungeon.set_left(False)
     self._paint_rooms_button()
     self._remember_rooms()
 
 
 def _open_rooms_win(self) -> None:
-    win = getattr(self, "_rooms_win", None)
-    if win is not None:
-        try:
-            if win.winfo_exists():
-                win.deiconify()
-                win.lift()
-                self._update_rooms_win(force=True)
-                return
-        except Exception:
-            pass
-    self._build_rooms_win()
+    if getattr(self, "_rooms_list", None) is None:
+        self._build_rooms_win()
+    self._rooms_shown = True
+    dungeon = getattr(self, "dungeon", None)
+    if dungeon is not None:
+        dungeon.set_left(True)
     self._update_rooms_win(force=True)
 
 
@@ -181,33 +172,13 @@ def _room_warn(self, dimmed: bool):
 
 
 def _build_rooms_win(self) -> None:
+    """Topics list inside the Dungeon dock. No separate window."""
     bg = "#0d0d1a"
-    win = tk.Toplevel(self.root)
-    win.title("Topics")
-    win.overrideredirect(True)
-    win.attributes("-topmost", False)
-    win.configure(bg=bg)
-    win.geometry("440x520+580+10")
-    try:
-        win.attributes("-alpha", 0.94)
-    except Exception:
-        pass
-    self._rooms_win = win
-
-    title_bar = tk.Frame(win, bg="#111133", pady=6, cursor="fleur")
-    title_bar.pack(fill="x")
-    tk.Button(title_bar, text="x", command=self._close_rooms,
-              bg="#111133", fg="#445566",
-              activebackground="#330011", activeforeground="#ff6666",
-              font=("Courier", 10), relief="flat", bd=0,
-              padx=6, pady=0, cursor="hand2"
-              ).pack(side="right", padx=(0, 4))
-    tk.Label(title_bar, text="  Topics", bg="#111133",
-             fg="#88aaff", font=("Courier", 11, "bold"), anchor="w").pack(side="left")
-
-    body = tk.Frame(win, bg=bg)
-    body.pack(fill="both", expand=True)
-    canvas = tk.Canvas(body, bg=bg, highlightthickness=0, bd=0)
+    parent = getattr(self, "_rooms_parent", None)
+    if parent is None:
+        return
+    self._rooms_win = parent
+    canvas = tk.Canvas(parent, bg=bg, highlightthickness=0, bd=0)
     self._rooms_canvas = canvas
     inner = tk.Frame(canvas, bg=bg)
     self._rooms_list = inner
@@ -223,26 +194,6 @@ def _build_rooms_win(self) -> None:
     canvas.bind("<Configure>", _on_canvas)
     canvas.pack(fill="both", expand=True)
     self._bind_rooms_scroll(canvas)
-
-    def _drag_start(event):
-        self._rooms_drag = (event.x_root - win.winfo_x(), event.y_root - win.winfo_y())
-
-    def _drag_move(event):
-        if self._rooms_drag:
-            ox, oy = self._rooms_drag
-            win.geometry(f"+{event.x_root - ox}+{event.y_root - oy}")
-
-    def _drag_end(_event):
-        self._rooms_drag = None
-
-    title_bar.bind("<ButtonPress-1>", _drag_start)
-    title_bar.bind("<B1-Motion>", _drag_move)
-    title_bar.bind("<ButtonRelease-1>", _drag_end)
-    for child in title_bar.winfo_children():
-        if isinstance(child, tk.Label):
-            child.bind("<ButtonPress-1>", _drag_start)
-            child.bind("<B1-Motion>", _drag_move)
-            child.bind("<ButtonRelease-1>", _drag_end)
 
 
 def _update_rooms_win(self, force: bool = False) -> None:

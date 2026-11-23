@@ -23,6 +23,7 @@ from cli_avatars.app.bubbles_view import (
 )
 from cli_avatars.app.chat import ChatController
 from cli_avatars.app.config_screen import ConfigScreen
+from cli_avatars.app.dungeon_window import DungeonWindow
 from cli_avatars.app.hud_window import HudWindow
 from cli_avatars.app.input import InputController
 from cli_avatars.app.overlays import OverlayBoard, read_monitors
@@ -39,7 +40,7 @@ from cli_avatars.desktop.settings import desktop_settings
 from cli_avatars.desktop.tray import setup_tray
 from cli_avatars.paths import CONFIG_PATH, images_dir
 from cli_avatars.sprites.registry import REGISTRY, load_sprites
-from cli_avatars.tuning import CHROMA_KEY, TUNING
+from cli_avatars.tuning import TUNING
 from cli_avatars.world.scanner import SessionScanner
 from cli_avatars.world.terrain import WindowTerrain
 from portal import PortalPlayer
@@ -48,7 +49,7 @@ from routing import PointerGesture
 
 
 class OverlayApp:
-    TITLE = "AI Agent Overlay"
+    TITLE = "Dungeon"
     PICK = PICK
     PICK_ANIMS = PICK_ANIMS
     PICK_FRAME_MS = PICK_FRAME_MS
@@ -94,31 +95,12 @@ class OverlayApp:
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
         self.sw, self.sh = sw, sh
-
-        self.root.geometry(f"{sw}x{sh}+0+0")
-        self.root.overrideredirect(True)
-        self.root.wm_attributes("-topmost", True)
-        self.root.wm_attributes("-alpha", TUNING.overlay_alpha)
-        self.root.config(bg=CHROMA_KEY)
-        self.root.wm_attributes("-transparentcolor", CHROMA_KEY)
-
-        self.canvas = tk.Canvas(
-            self.root, width=sw, height=sh,
-            bg=CHROMA_KEY, highlightthickness=0, bd=0)
-        self.canvas.pack(fill="both", expand=True)
+        # The root is the Dungeon. Overlay canvases are created per monitor.
+        self.canvas = None
 
         self.scanner = SessionScanner()
         self.scanner._grok_config = self.config
         self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
-        self.overlays = OverlayBoard(self)
-        found = read_monitors()
-        try:
-            self.overlays.sync(found, self.desktop)
-            screen, monitors = self.overlays.screen((0, 0, self.sw, self.sh))
-            self.terrain.set_world(screen, monitors)
-            self.terrain.note_monitors(found, self.desktop.monitor_poll_s)
-        except Exception as exc:
-            print(f"[WARN] Monitor layout: {exc}")
         self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict = {}
         self.sub_avatars: dict = {}   # parent_id → [sub Avatar, …]
@@ -159,13 +141,23 @@ class OverlayApp:
         self.config_screen = ConfigScreen(self)
         self.tick_loop = TickLoop(self)
 
-        # Bindings
-        self.canvas.bind("<Button-3>", self._on_right_click)
-        self.root.bind("<Escape>", lambda e: self._quit())
-        self.canvas.bind("<ButtonPress-1>", self._on_left_press)
-        self.canvas.bind("<B1-Motion>", self._on_left_drag)
-        self.canvas.bind("<ButtonRelease-1>", self._on_left_release)
-        self.canvas.bind("<Double-Button-1>", self._on_double_click)
+        self.dungeon = DungeonWindow(self)
+        self.dungeon.build()
+        self.overlays = OverlayBoard(self)
+        found = read_monitors()
+        try:
+            self.overlays.sync(found, self.desktop)
+            screen, monitors = self.overlays.screen((0, 0, self.sw, self.sh))
+            self.terrain.set_world(screen, monitors)
+            self.terrain.note_monitors(found, self.desktop.monitor_poll_s)
+            self.dungeon.place(found)
+        except Exception as exc:
+            print(f"[WARN] Monitor layout: {exc}")
+            try:
+                self.overlays._enter_legacy()
+            except Exception:
+                pass
+            self.dungeon.place([])
 
         threading.Thread(target=self.scanner.loop, daemon=True).start()
         threading.Thread(target=self.terrain.loop, daemon=True).start()
@@ -185,6 +177,12 @@ class OverlayApp:
         self.tick_loop.step()
 
     def _quit(self):
+        dungeon = getattr(self, "dungeon", None)
+        if dungeon is not None:
+            try:
+                dungeon.save_now()
+            except Exception:
+                pass
         events = getattr(getattr(self, "scanner", None), "_events", None)
         if events is not None:
             events.close()
@@ -196,8 +194,8 @@ class OverlayApp:
         self.root.quit()
 
     def run(self) -> None:
-        print(f"[AI Overlay v0.4] {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
-        print("[AI Overlay] Drag HUD | R-Click avatar=terminal | R-Click empty=quit | ESC=quit")
+        print(f"[Dungeon v0.4] overlay {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
+        print("[Dungeon] Close the window to quit. ESC closes a dock or cancels a drag.")
         self.root.mainloop()
 
     # Pool / spring. Names stay so a bare ``OverlayApp.__new__`` still runs them.

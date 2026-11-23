@@ -109,4 +109,4 @@ class InputController:
                     app.canvas, int(av.x), int(av.y), av.aw, av.ah, pink=False))
                 app._focus_linked_console(av.agent.pid)
                 return
-        app._quit()
+        # Empty space does not quit. Quit is the window button, the tray, or the menu.

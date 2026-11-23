@@ -225,6 +225,7 @@ def _overlay_windows() -> None:
             root.update_idletasks()
             assert not board.legacy
             assert len(board.slots()) == 2
+            assert all(slot.window is not root for slot in board.slots())
             both = board.targets(380, 40, 40, 40)
             assert {item[0] for item in both} == {"m1", "m2"}
             board.show([])

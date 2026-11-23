@@ -535,7 +535,7 @@ class TestPreviewAndBoundary(unittest.TestCase):
         ):
             self.assertNotIn(name, text)
         root = Path(__file__).resolve().parent.parent
-        hud = (root / "cli_avatars" / "app" / "hud_window.py").read_text(encoding="utf-8")
+        dungeon = (root / "cli_avatars" / "app" / "dungeon_panes.py").read_text(encoding="utf-8")
         rooms = (root / "cli_avatars" / "app" / "rooms_panel.py").read_text(encoding="utf-8")
         window = (root / "chat_window.py").read_text(encoding="utf-8")
         self.assertIn("latest_per_topic(", window)
@@ -543,7 +543,7 @@ class TestPreviewAndBoundary(unittest.TestCase):
         self.assertIn('text="Unpin"', window)
         self.assertIn("pin_answered(", window)
         self.assertIn("build_rooms(", rooms)
-        self.assertIn('text="Rooms"', hud)
+        self.assertIn('text="Topics"', dungeon)
 
 
 def topics_path() -> Path:

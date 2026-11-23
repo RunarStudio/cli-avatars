@@ -8,17 +8,10 @@ from cli_avatars.tuning import TUNING
 
 
 def _open_config_screen(self):
-    if self._config_win and self._config_win.winfo_exists():
-        self._config_win.lift()
-        return
-    win = tk.Toplevel(self.root)
-    win.title("Overlay Config")
-    win.geometry("340x460+300+80")
-    win.resizable(False, False)
-    win.attributes("-topmost", True)
-    win.configure(bg="#0d0d1a")
-    self._config_win = win
-    self._build_config_ui(win)
+    """Select the Settings tab. The screen is not its own window and is not topmost."""
+    dungeon = getattr(self, "dungeon", None)
+    if dungeon is not None:
+        dungeon.show_settings()
 
 
 def _build_config_ui(self, win):

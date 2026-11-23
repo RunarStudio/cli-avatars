@@ -36,17 +36,18 @@ PICK_FRAME_MS = 150
 
 
 def _open_skin_picker(self):
-    if self._picker and self._picker.winfo_exists():
-        self._picker.lift()
+    """Select the Skins tab. The picker is not its own window."""
+    dungeon = getattr(self, "dungeon", None)
+    if dungeon is not None:
+        dungeon.show_skins()
         return
-    win = tk.Toplevel(self.root)
-    win.title("Avatar Skins")
-    win.geometry("1000x700+80+60")
-    win.minsize(900, 640)
-    win.attributes("-topmost", True)
-    win.configure(bg=self.PICK["night"])
-    self._picker = win
-    self._build_picker_ui(win)
+    host = getattr(self, "_picker", None)
+    if host is not None:
+        try:
+            if host.winfo_exists():
+                return
+        except tk.TclError:
+            pass
 
 
 def _picker_sheet(name):
@@ -311,8 +312,14 @@ def _build_picker_ui(self, win):
 
     t0 = time.perf_counter()
     def tick():
-        if not win.winfo_exists():
+        # Hidden tabs do not keep animating. ``_picker_live`` is cleared on leave.
+        if not getattr(self, "_picker_live", True):
+            self._picker_ticking = False
             return
+        if not win.winfo_exists():
+            self._picker_ticking = False
+            return
+        self._picker_ticking = True
         t = int((time.perf_counter() - t0) * 1000)
         for cv, item, fn, box, floor_y, cx in draws:
             try:
@@ -335,7 +342,15 @@ def _build_picker_ui(self, win):
     if labels:
         on_agent()
     refresh()
-    tick()
+    self._picker_tick = tick
+
+    def _kick():
+        if not getattr(self, "_picker_ticking", False):
+            tick()
+
+    self._picker_kick = _kick
+    if getattr(self, "_picker_live", True):
+        tick()
 
 
 def _apply_skin(self, agent_id, skin):

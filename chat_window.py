@@ -148,6 +148,8 @@ class ChatWindow:
         config_path: Path | str | None = None,
         on_box=None,
         offscreen: bool = False,
+        container=None,
+        on_show=None,
     ) -> None:
         self.master = master
         self._directory = directory
@@ -156,6 +158,9 @@ class ChatWindow:
         self._config_path = None if config_path is None else Path(config_path)
         self._on_box = on_box
         self._offscreen = offscreen
+        self._container = container
+        self._on_show = on_show
+        self._embedded = container is not None
         self.win = None
         self._shown = False
         self._topic_id = ""
@@ -180,6 +185,8 @@ class ChatWindow:
         self._to_btn = None
         self._entry = None
         self._status = None
+        if container is not None:
+            self._ensure()
 
     @property
     def shown(self) -> bool:
@@ -192,7 +199,7 @@ class ChatWindow:
         return app_data_dir()
 
     def open(self, topic_id: str | None = None, address_id: str | None = None) -> None:
-        """Raise the window. A topic and an address focus the composer."""
+        """Show the chat. Docked chat selects its tab; a window is raised."""
         self._ensure()
         if topic_id:
             self._topic_id = topic_id
@@ -202,6 +209,14 @@ class ChatWindow:
             found = recipients_for(address_id, parties, self._router.routes, self._router.grok_id)
             self._manual_target = found[0] if found else None
         self._shown = True
+        if self._embedded:
+            if self._on_show is not None:
+                try:
+                    self._on_show()
+                except Exception:
+                    return
+            self.refresh(force=True)
+            return
         try:
             self.win.deiconify()
             self.win.lift()
@@ -209,10 +224,49 @@ class ChatWindow:
             return
         self.refresh(force=True)
 
+    def rehome(self, container) -> None:
+        """Mount the chat in another frame.
+
+        A widget's parent cannot be a Toplevel that is not its ancestor, so
+        Pop out builds the same pane again instead of packing the dock frame
+        into the new window. Unsent text is kept. Nothing is executed.
+        """
+        text = ""
+        if self._entry is not None:
+            try:
+                text = self._entry.get()
+            except Exception:
+                text = ""
+        self._clear_mount()
+        self._container = container
+        self._embedded = True
+        self._ensure()
+        if text and self._entry is not None:
+            try:
+                self._entry.insert(0, text)
+            except Exception:
+                pass
+        if self._shown:
+            self.refresh(force=True)
+
+    def _clear_mount(self) -> None:
+        host = self.win
+        if host is not None:
+            try:
+                if self._embedded:
+                    for child in list(host.winfo_children()):
+                        child.destroy()
+                elif host.winfo_exists():
+                    host.destroy()
+            except Exception:
+                pass
+        self.win = None
+
     def hide(self) -> None:
-        self._capture()
+        if not self._embedded:
+            self._capture()
         self._shown = False
-        if self.win is None:
+        if self._embedded or self.win is None:
             return
         try:
             if self.win.winfo_exists():
@@ -317,6 +371,11 @@ class ChatWindow:
                     return
             except Exception:
                 pass
+        if self._container is not None:
+            self.win = self._container
+            self._embedded = True
+            self._mount(self._container)
+            return
         win = tk.Toplevel(self.master)
         win.title("Chat")
         win.configure(bg=BG)
@@ -327,9 +386,13 @@ class ChatWindow:
         win.bind("<Escape>", lambda _event: self.hide())
         win.bind("<Configure>", self._on_configure)
         self.win = win
+        self._embedded = False
+        self._mount(win)
 
-        win.grid_columnconfigure(1, weight=1)
-        win.grid_rowconfigure(0, weight=1)
+    def _mount(self, host) -> None:
+        host.grid_columnconfigure(1, weight=1)
+        host.grid_rowconfigure(0, weight=1)
+        win = host
         left = tk.Frame(win, bg=BG, width=240)
         center = tk.Frame(win, bg=BG)
         right = tk.Frame(win, bg=BG, width=220)
@@ -988,7 +1051,7 @@ class ChatWindow:
         self._capture()
 
     def _capture(self) -> None:
-        if self._offscreen or self.win is None:
+        if self._embedded or self._offscreen or self.win is None:
             return
         try:
             if not self.win.winfo_exists():
