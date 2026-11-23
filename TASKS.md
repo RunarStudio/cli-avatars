@@ -11,6 +11,12 @@ updated: 2026-11-19
 > Live task list for the `zz_cli_avatars/` overlay project.
 > Full context: [[Project - CLI Avatars]] · Architecture: `CLAUDE.md` · Reference: `AI_OVERLAY.md`
 
+## Scope
+
+CLI Avatars helps Daniel manage tasks, follow the chats tied to each task and juggle many topics without overwhelm. It is not Watchtower and does not use Bitbucket or git PR data. The only PR-related features allowed: (a) reading a PR that Daniel explicitly tags on a task, and (b) an "Update version" button that pulls the latest app version, which comes only after a functional version exists. The Spidey_PR_Dashboard branch assets/dungeon-kit is only a shared workspace for Oscar's agents.
+
+Process items (SYNC-COPY, PORT-AG, MIGRATE-REPO) are team workflow, not product features, and stay in scope.
+
 ---
 
 ## How tasks are tagged
@@ -394,6 +400,15 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 ---
 
+## Out of scope (Daniel 2026-11-23)
+
+Product features only (see Scope). Team process items remain on the board elsewhere.
+
+- [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
+- [ ] [SRC][feat] NOTIFY.2 @agents: Machine id in the data dir; agents addressed as agent@machine; the git store relays notes for other machines on their next Sync. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
+
+---
+
 ## Reference
 
 | Doc | Path |
@@ -503,13 +518,11 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 ### 📋 Board (no Slack)
 
 - [ ] [BOARD][feat] BOARD: Local task board of cards linked to topics. No Slack.
-  - [ ] [BOARD][feat] BOARD.1 @agents: board/ package, Card model and LocalStore in the per-user data dir (owner-only ACL, directory lock, atomic writes), tests. (M)
-  - [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit. (M)
+  - [ ] [BOARD][feat] BOARD.1 @agents: board/ package, Card model and LocalStore in the per-user data dir (owner-only ACL, directory lock, atomic writes), tests. Optional `pr` field: GitHub URL Daniel tags on the card only; read that tagged PR when implemented — no automatic forge/CI fetch. (M)
   - [ ] [BOARD][feat] BOARD.3 @agents: cli-avatars-emit board add|list|show|move|assign, and MCP tools board_list, card_get, card_add, card_move. (M)
   - [ ] [BOARD][feat] BOARD.4 @agents: Board tab in ChatWindow: columns, filter by topic and project, move a card (after SPLIT.4). (M)
 - [ ] [SRC][feat] NOTIFY: Grok and Claude on this machine get board, inbox and decision news.
   - [ ] [SRC][feat] NOTIFY.1 @agents: The chat hook adds the agent's open cards to the SessionStart / UserPromptSubmit context block (capped at 2,000 chars). (S)
-  - [ ] [SRC][feat] NOTIFY.2 @agents: Machine id in the data dir; agents addressed as agent@machine; the git store relays notes for other machines on their next Sync. (M)
   - [ ] [SRC][feat] NOTIFY.3 @agents: cli-avatars-emit doctor: dry-run check of the hook, MCP registration, token and UDP port. Prints fixes, writes nothing. (S)
 
 ### 📱 Phone view
@@ -543,5 +556,6 @@ See [`docs/windowed-dungeon.md`](docs/windowed-dungeon.md).
 - [ ] [OVL][feat] WIN-DUNGEON.6 @agents: Door toggle lands here (toolbar and tray, default open). Escape and return animations (4.2). Door open: blocked/error may escape and return when it clears. Door closed: drag-out only. `idle_return_s`. Call home. (S)
 - [ ] [OVL][feat] WIN-DUNGEON.7 @pixel: Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. (S)
 - [ ] [OVL][feat] WIN-DUNGEON.8 @agents: Last, low priority. `dungeon.wander` (default off): while the door is open, agents may leave after 30–120 s and return after a random walk. A closed door blocks it. (S)
+- [ ] [BUILD][chore] UPDATE-VERSION: 'Update version' button that pulls the latest release. Blocked until a functional version exists.
 
 - [x] [DOCS][docs] TASKS-EPICS: tag TASKS.md with epics and workflow types
