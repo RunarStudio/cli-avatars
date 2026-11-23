@@ -10,7 +10,7 @@ import json
 import os
 import shutil
 import socket
-import subprocess
+import subprocess  # noqa: TID251  # MCP server runs as a child, like test_mcp
 import sys
 import tempfile
 import time

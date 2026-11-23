@@ -10,7 +10,7 @@ import json
 import os
 import shutil
 import socket
-import subprocess
+import subprocess  # noqa: TID251  # MCP server runs as a child, like test_mcp
 import sys
 import tempfile
 import time
@@ -27,7 +27,6 @@ from cli_avatars_mcp.memories import (  # noqa: E402
     QUERY_LIMIT,
     SEARCH_RESULTS,
     add_memory,
-    search_memories,
 )
 from cli_avatars_mcp.projects import save_project  # noqa: E402
 from cli_avatars_mcp.tools import memories_add, memories_search  # noqa: E402
