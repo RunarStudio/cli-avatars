@@ -27,9 +27,12 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | OVL | Overlay and behaviors: walk, perches, portal, bubbles, HUD, spring, tray, sounds |
 | ART | Skins, icons, 9-slice frame, sprite loader art rows |
 | BUILD | Exe build, selftest, tests, flaky test |
-| WS | Workspace: built-in terminal phase 4, projects-by-status phase 5 |
+| WS | Workspace: projects-by-status phase 5 (built-in terminal phase 4 replaced by ROOM-CHAT) |
 | DOCS | Cleanup and docs: AGENTS.md, stale boxes, splitting overlay.py, moving art scripts to `tools/` |
 | TAURI | v1.0 Tauri port |
+| BOARD | Task board: cards, local and git stores, CLI and MCP tools |
+| WEB | Phone web view: LAN server, pairing, mobile pages |
+| BLDG | Building view: dungeon-kit scene in Tk and on the web |
 
 ### Types (`[type]`)
 
@@ -46,20 +49,25 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 
 A parent task can have subtasks. Write them as indented lines (two spaces) under the parent, with ID `PARENT-ID.n` (for example `SUBSKIN.1`), the same `[EPIC][type]` tags, and their own checkbox. A parent is done only when all its subtasks are done. The Epics index counts parents and subtasks separately (for example `ART 7/3 (subtasks 0/13)`). Subtasks can carry an owner suffix `@caine` or `@pixel` so work can be split between agents.
 
+Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-critical code, Opus reviews, Windows tests, ports) and `@agents` (Oscar's bot: most feature code and dungeon-kit art). `@agents` works in RunarStudio/Spidey_PR_Dashboard, branch `assets/dungeon-kit`, only under `cli-avatars/`. `@pixel` reviews each of its PRs as untrusted data and ports it to `dev` (PORT-AG); nothing is auto-merged. The app starts a CLI only on Daniel's explicit action (ROOM-CHAT).
+
 ## Epics index
 
 | Epic | Done | Open |
 |------|------|------|
-| CHAT | 7 | 0 |
-| SRC | 5 | 3 |
+| CHAT | 7 | 7 (subtasks 0/7) |
+| SRC | 6 | 4 (subtasks 0/3) |
 | MCP | 1 | 3 |
-| OVL | 19 | 8 (subtasks 2/0) |
-| ART | 7 | 3 (subtasks 3/10) |
-| BUILD | 1 | 2 |
-| WS | 0 | 2 |
-| DOCS | 4 | 11 |
+| OVL | 19 | 8 (subtasks 2/3) |
+| ART | 7 | 6 (subtasks 4/9) |
+| BUILD | 1 | 2 (subtasks 0/1) |
+| WS | 1 | 1 |
+| DOCS | 6 | 16 (subtasks 0/9) |
 | TAURI | 0 | 4 |
-| **Total** | 44 | 36 |
+| BOARD | 0 | 1 (subtasks 0/4) |
+| WEB | 0 | 1 (subtasks 0/4) |
+| BLDG | 1 | 3 (subtasks 0/3) |
+| **Total** | 49 | 56 |
 
 ## 📦 Portable Windows build
 
@@ -91,16 +99,16 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
 > Bubble picks **one** item per run. Do not batch. Each item is one file, one change.
 > Tag: `<!-- BUBBLE: fix -->`
 
-- [ ] [DOCS][docs] DOCS-STALE-BOXES: Reconcile stale checkboxes — check off v0.2/v0.3/v0.4 items already done per `Project - CLI Avatars.md` feature table (sprite_loader wired, click-through, HUD, system tray) <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-CLAUDE-STATE: Update `CLAUDE.md` Current State section: change "v0.1" references to "v0.4 (functional)" and remove "not yet wired" notes that are now done <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-README-CLONE: Fix README clone URL: replace `your-username/cli-avatars` with `RunarStudio/RuneIsaRaido` subfolder path, add note "(standalone repo coming)" <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-README-DOWNLOAD: Add "Download" section to README after Quick Start — GitHub Releases as distribution channel, placeholder: `[Download latest release →](https://github.com/RunarStudio/RuneIsaRaido/releases)` <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-AI-OVERLAY-ARCHIVE: Add archive notice to top of `AI_OVERLAY.md`: "This file documents v0.1. The project is now at v0.4. See `CLAUDE.md` and `overlay.py` for current state." <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-AI-OVERLAY-SOURCE: Remove embedded source code blocks from `AI_OVERLAY.md` (sections 7–9: overlay.py, sprite_loader.py, claude_hooks_example.py) — replace each with one line: "See `<filename>` in the project root." <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-CHANGELOG: Add Changelog section to README (after Roadmap): summarize v0.1→v0.4 milestones in 4 bullet points <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-DOWNLOAD-MD: Create `docs/download.md`: install from source + "Prebuilt Windows executable: see GitHub Releases" + link placeholder <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-BADGES: Add version + Windows badges to README header: `![version](https://img.shields.io/badge/version-v0.4-blue)` `![platform](https://img.shields.io/badge/platform-Windows-lightgrey)` <!-- BUBBLE: fix -->
-- [ ] [DOCS][docs] DOCS-CLAUDE-FILES: Tighten `CLAUDE.md` Key Files table: remove `assets/` row (assets live in `Sprites/`), add `tools/gen_ponmi.py` row, update architecture notes to mention skin picker and hue rotation <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-STALE-BOXES @agents: Reconcile stale checkboxes — check off v0.2/v0.3/v0.4 items already done per `Project - CLI Avatars.md` feature table (sprite_loader wired, click-through, HUD, system tray) <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-CLAUDE-STATE @agents: Update `CLAUDE.md` Current State section: change "v0.1" references to "v0.4 (functional)" and remove "not yet wired" notes that are now done <!-- BUBBLE: fix -->
+- [x] [DOCS][docs] DOCS-README-CLONE: Verified 23/11: README already clones RunarStudio/cli-avatars. No change needed.
+- [ ] [DOCS][docs] DOCS-README-DOWNLOAD @agents: Add "Download" section to README after Quick Start — GitHub Releases as distribution channel, placeholder: `[Download latest release →](https://github.com/RunarStudio/cli-avatars/releases)` <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-AI-OVERLAY-ARCHIVE @agents: Add archive notice to top of `AI_OVERLAY.md`: "This file documents v0.1. The project is now at v0.4. See `CLAUDE.md` and `overlay.py` for current state." <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-AI-OVERLAY-SOURCE @agents: Remove embedded source code blocks from `AI_OVERLAY.md` (sections 7–9: overlay.py, sprite_loader.py, claude_hooks_example.py) — replace each with one line: "See `<filename>` in the project root." <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-CHANGELOG @agents: Add Changelog section to README (after Roadmap): summarize v0.1→v0.4 milestones in 4 bullet points <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-DOWNLOAD-MD @agents: Create `docs/download.md`: install from source + "Prebuilt Windows executable: see GitHub Releases" + link placeholder <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-BADGES @agents: Add version + Windows badges to README header: `![version](https://img.shields.io/badge/version-v0.4-blue)` `![platform](https://img.shields.io/badge/platform-Windows-lightgrey)` <!-- BUBBLE: fix -->
+- [ ] [DOCS][docs] DOCS-CLAUDE-FILES @agents: Tighten `CLAUDE.md` Key Files table: remove `assets/` row (assets live in `Sprites/`), add `tools/gen_ponmi.py` row, update architecture notes to mention skin picker and hue rotation <!-- BUBBLE: fix -->
 
 ---
 
@@ -148,7 +156,8 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
 
 ### Click-through (Windows)
 
-- [ ] [OVL][feat] CLICK-THROUGH: Apply `WS_EX_TRANSPARENT` after window creation
+- [ ] [OVL][feat] CLICK-THROUGH @agents: Apply `WS_EX_TRANSPARENT` per hit-test so empty overlay passes clicks through and avatars stay clickable (after SPLIT.4)
+  - Not done as of 23/11: no WS_EX_TRANSPARENT in the code. A global flag would break left-click on avatars.
   - File: `overlay.py`, in `OverlayApp.__init__()` after `overrideredirect(True)`
   - Guard: `if sys.platform == "win32":`
   - Code:
@@ -162,7 +171,7 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
 
 ### Config
 
-- [ ] [OVL][feat] CONFIG-LOADER: Create `config.json` loader
+- [ ] [OVL][feat] CONFIG-LOADER @agents: Create `config.json` loader. overlay.py already reads config.json; finish the `fps` and `scale` keys if VERIFY-TICK finds gaps (after SPLIT.4)
   - Schema: `{ "fps": 20, "scale": 1.0, "skins": { "demo_0": "amongo", "demo_1": "meowatar" } }`
   - Load at startup in `OverlayApp.__init__()`, silently skip if file missing
   - Apply `fps` to `OVERLAY_FPS`, `scale` to registry `load()` calls
@@ -171,7 +180,7 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
 
 ## 🟠 v0.3 — Richer Agent Interaction
 
-- [ ] [SRC][feat] UDP-LISTENER: UDP listener for instant hook events
+- [x] [SRC][feat] UDP-LISTENER: UDP listener for instant hook events. Verified 23/11: shipped as F2 in events.py. The pose map below moves to POSE-MAP.
   - Superseded by **F2** (`<!-- id: F2 -->`): localhost listener, shared token, and `cli-avatars-emit`. The pose map below is still open.
   - Add `UDPListener` thread in `overlay.py` listening on port 47200
   - Parse events from `claude_hooks_example.py` and update `AgentInfo` directly (bypass poll delay)
@@ -200,6 +209,8 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
   | `Notification` | message | wave arms, speech bubble |
   | `UserPromptSubmit` | — | snap to attention |
 
+- [ ] [SRC][feat] POSE-MAP @agents: Map hook events to avatar poses per the action map above (after SPLIT.4). (M)
+
 - [x] [OVL][feat] SUBAGENT-SPAWN: Subagent spawn animation (fix/subagent-spring)
   - A child spawned for a live subagent uses `spring_mode` and `_apply_spring` every tick.
   - It hangs under the parent at `SPRING_REST`, damped. A fast or dragged parent cannot fling it, and a large `dt` stays finite.
@@ -210,15 +221,15 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
   - Past the leash, the child is placed on the circle. Outward speed is removed so the correction does not jitter. This holds in spring mode, while the parent is dragged, and when the child walks or lands.
   - A walking child whose parent is still on screen turns around at ± leash on x. An orchestrator is not leashed.
 
-- [ ] [OVL][feat] AVATAR-INTERACT: Avatar-to-avatar interaction
+- [ ] [OVL][feat] AVATAR-INTERACT @agents: Avatar-to-avatar interaction (after SPLIT.4)
   - When two idle avatars are within 60px: both stop and face each other for 2–4s
   - Emit a small speech bubble `💬` above both
 
-- [ ] [OVL][feat] EMOTION-BUBBLES: Emotion bubbles
+- [ ] [OVL][feat] EMOTION-BUBBLES @agents: Emotion bubbles (after SPLIT.4)
   - Float above head for 1.5s then fade: 💭 thinking · 🔥 busy · ✅ done · ❌ error
   - Trigger on status transitions
 
-- [ ] [OVL][feat] PLATFORM-JUMP: Jump between window platforms
+- [ ] [OVL][feat] PLATFORM-JUMP @agents: Jump between window platforms (after SPLIT.4)
   - When avatar reaches a floor edge: check if adjacent platform is within jump range
   - Calculate jump velocity to land on target; execute jump animation (row 4)
 
@@ -230,11 +241,11 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
   - Use `pystray` library: `pip install pystray`
   - Menu: Toggle Overlay / Mute Sounds / Quit
 
-- [ ] [OVL][feat] NAME-FADE: Name tags fade after idle timeout
+- [ ] [OVL][feat] NAME-FADE @agents: Name tags fade after idle timeout (after SPLIT.4)
   - Track `last_active_t` on Avatar
   - After 30s idle: fade label alpha to 30% via canvas `stipple`
 
-- [ ] [OVL][feat] SOUNDS: Optional sound effects
+- [ ] [OVL][feat] SOUNDS @agents: Optional sound effects (after SPLIT.4)
   - Short blip on status change (busy → done)
   - Toggle via config or system tray menu
   - Use `playsound` or `winsound` (Windows only)
@@ -369,11 +380,8 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
   - `python -m cli_avatars_mcp install` is a dry-run. `--apply` backs up, then merges the Claude user config and `~/.grok/config.toml`. `uninstall` removes only that registration. Nothing in a tool argument is executed.
   - Docs: `docs/mcp.md`.
 
-- [ ] [MCP][feat] MCP-M2: Project, requirements, and key-value writes <!-- id: MCP-M2 -->
-  - Not in M1. See `docs/mcp.md`.
-
-- [ ] [MCP][feat] MCP-M3: Local memories add and search <!-- id: MCP-M3 -->
-  - Not in M1. See `docs/mcp.md`.
+- [ ] [MCP][feat] MCP-M2 @agents: Project, requirements, and key-value writes <!-- id: MCP-M2 -->
+- [ ] [MCP][feat] MCP-M3 @agents: Local memories add and search <!-- id: MCP-M3 -->
 
 ## 🔵 v0.5 — Tauri Port
 
@@ -402,7 +410,7 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
 
 ## Backlog
 
-- [ ] [BUILD][chore] REBUILD-EXE: Rebuild the `build/` executables. They are stale after Grok and MCP.
+- [ ] [BUILD][chore] REBUILD-EXE @pixel: Rebuild the `build/` executables. They are stale after Grok and MCP. Repeat after SPLIT.5, after batch 2 ports, and at the end.
 - [ ] [ART][feat] SUBSKIN: subagent skins, 32×32 sprites, 6-colour palette; flying skins float above the parent, ground skins hang below (spec from Daniel, DD thread 19/11/2026)
   - [x] [ART][feat] SUBSKIN.1 @pixel: 32×32 subagent sheets with a fly or ground mode (feat/subagent-skins)
     - The sprite registry reads `Sprites/subagents/manifest.json`. Each skin has its own frame size (these sheets are 32×32, not a hard-coded 40) and `mode` of `fly` or `ground`.
@@ -416,7 +424,7 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
   - [x] [OVL][feat] SUBSKIN.4 @pixel: assign a subagent skin from config and keep it (feat/subagent-skins)
     - `config.json` key `subagent.skins` has `mode` of `random`, `round_robin`, or `fixed`, an optional `list`, and a per-orchestrator `fixed` map.
     - Default is round-robin over the available subagent skins, by child index. A child keeps the skin it was spawned with.
-  - [ ] [ART][decision] SUBSKIN.5: Daniel picks the order of skins to draw
+  - [x] [ART][decision] SUBSKIN.5: Decided 21/11: Caine already drew the skins; integration parked until he pushes.
   - [ ] [ART][art] SUBSKIN.6 @caine: imp (ground)
   - [ ] [ART][art] SUBSKIN.7 @caine: mini 4-legged Claude (ground)
   - [ ] [ART][art] SUBSKIN.8 @caine: little light with wings (fly)
@@ -433,16 +441,94 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
 - [ ] [ART][feat] GROK-SKIN-BUSY: Sprite loader uses its own busy row per `docs/grok-skin-spec.md` once Caine's sheet lands. Sheet 40×40, 4 cols × 6 rows: idle 4, walk 4, thinking 2, done 2, subagent 2, busy 2.
 - [ ] [ART][art] CAINE-SKIN: Caine draws the skin sheet.
   - Each subagent sheet needs idle, working, and dying rows (4 frames each). Dying plays when the subchat closes.
-- [ ] [OVL][decision] PORTAL-V2: Portal ring — 1px, 2px, or particles. Waits on Daniel.
-- [ ] [BUILD][fix] FLAKY-TEST: Fix the flaky test.
+- [ ] [OVL][feat] PORTAL-V2 @agents: Portal ring 2px plus a particle burst (Daniel 21/11) (after SPLIT.4). (M)
+- [ ] [BUILD][fix] FLAKY-TEST @pixel: Fix the flaky test.
 - [x] [DOCS][docs] AGENTS-MD: Add `AGENTS.md`. (chore/cleanup-agents-md)
-- [ ] [WS][feat] TERMINAL-P4: Built-in terminal, workspace phase 4.
-- [ ] [WS][feat] PROJECTS-P5: Projects by status, workspace phase 5.
-- [ ] [SRC][decision] CLAUDE-HOOK-INSTALL: Apply the chat hook to the real `~/.claude/settings.json`. Needs Daniel's OK.
-- [ ] [MCP][decision] MCP-LIVE: Install the mcp package, live-test the server, and apply the installer. Needs Daniel's OK.
+- [x] [WS][decision] TERMINAL-P4: Replaced by ROOM-CHAT (Daniel 23/11).
+- [ ] [WS][feat] PROJECTS-P5 @agents: Projects by status, workspace phase 5 (after MCP-M2 and CHAT-TREE). (L)
+- [ ] [SRC][chore] CLAUDE-HOOK-INSTALL @pixel: Approved 21/11. On SpiderHost: back up ~/.claude/settings.json, apply the chat hook, live check.
+- [ ] [MCP][chore] MCP-LIVE @pixel: Approved 21/11. On SpiderHost: pip install mcp, stdio smoke test, `python -m cli_avatars_mcp install --apply` (backs up first). The Grok half waits on GROK-LOGIN.
 - [x] [DOCS][chore] CLEAN-HOOKS-EXAMPLE: Drop `claude_hooks_example.py`. (chore/cleanup-agents-md)
 - [x] [DOCS][chore] CLEAN-ART-SCRIPTS: Move `gen_ponmi.py` and `gen_meowatar_gifs.py` to `tools/`. (chore/cleanup-agents-md)
-- [ ] [DOCS][decision] SPLIT-OVERLAY: Decide whether to split `overlay.py`. Waits on Daniel.
+- [x] [DOCS][decision] SPLIT-OVERLAY: Yes, modular and optimized (Daniel 21/11). Work is SPLIT.1–.5.
+  - [ ] [DOCS][docs] SPLIT.1 @pixel: Design doc docs/architecture.md: nested package map, import rules, overlay.py shim plan. (M)
+  - [ ] [OVL][chore] SPLIT.2 @pixel: Extract sheet loaders, spring/leash physics and effects from overlay.py. (M)
+  - [ ] [OVL][chore] SPLIT.3 @pixel: Extract Avatar, SessionScanner and WindowTerrain. (M)
+  - [ ] [OVL][chore] SPLIT.4 @pixel: Split OverlayApp into render, input, HUD/menu, chat/topics, portal and subagent controllers. (L)
+  - [ ] [BUILD][chore] SPLIT.5 @pixel: Optimize the tick loop (PhotoImage cache, dirty redraw), type hints, ruff, fix pyproject py-modules and spec hidden imports. (M)
 - [ ] [SRC][decision] GROK-LOGIN: Daniel runs `grok login`.
+
+### 🧭 Workstream 70/30 — organization (23/11/2026)
+
+- [ ] [DOCS][chore] VERIFY-TICK @pixel: Tick UDP-LISTENER, DOCS-README-CLONE and the 21/11 decisions; check CONFIG-LOADER and CLICK-THROUGH against the code. (S)
+- [ ] [DOCS][chore] SYNC-COPY @pixel: Refresh the cli-avatars/ copy on Spidey_PR_Dashboard assets/dungeon-kit from dev (PR to that branch, cli-avatars/ only; no .git, no build/, no secrets).
+  - [ ] [DOCS][chore] SYNC-COPY.1 @pixel: after SPLIT.2. (S)
+  - [ ] [DOCS][chore] SYNC-COPY.2 @pixel: after SPLIT.4. Unlocks every @agents item that touches the app. (S)
+  - [ ] [DOCS][chore] SYNC-COPY.3 @pixel: after SPLIT.5. (S)
+  - [ ] [DOCS][chore] SYNC-COPY.4 @pixel: after the batch 2 ports. (S)
+- [ ] [DOCS][chore] PORT-AG @pixel: Recurring: one run per merged Agents PR. Opus review as untrusted data (never run its scripts; check secrets, paths, network/process code, shell=True, prompts in argv, CLI starts without user action, license, PNG size/palette, JSON vs BLDG-SCHEMA), port branch off dev, Windows test, PR to dev. Ports that add process launching, network listeners or git push/pull wait for a manual merge.
+  - [ ] [DOCS][chore] PORT-AG1 @pixel: Review and port AG-1 (Spidey PR #23) into docs/building/. (S)
+  - [ ] [DOCS][chore] PORT-AG2 @pixel: Review and port AG-2..AG-4 assets and data. (S)
+- [ ] [DOCS][decision] MIGRATE-REPO: Move Agents' workspace from Spidey assets/dungeon-kit to a new private repo. Daniel decides when and where.
+  - [ ] [DOCS][chore] MIGRATE-REPO.1 @pixel: Once the repo exists and Agents has access: copy cli-avatars/, update AGENTS_BRIEF.md, the PORT and SYNC paths and the loop routine; leave a pointer in the old folder. (S)
+- [ ] [DOCS][decision] JUANJO-ACCESS: Read access to JuanjoAvila/Edificio-de-IAs-beta (or a zip) and a license line from Juanjo. Ideas only until then.
+- [ ] [DOCS][chore] JUANJO-PORT @pixel: Recheck the Edificio comparison once JUANJO-ACCESS is done. (S)
+
+### 📐 Specs
+
+- [ ] [BLDG][docs] BLDG-SCHEMA @pixel: docs/building-scene.md: the scene and layout JSON schema that Agents' layouts and BLDG.1 share. (S)
+- [ ] [DOCS][docs] BOARD-SPEC @pixel: docs/board.md: card schema, local and git stores, auto-detect, notify flow, web API and threat model. (S)
+
+### 💬 Chat tree and sending
+
+- [ ] [CHAT][feat] CHAT-HARNESS-READ @agents: Read agent specs from each harness (Claude Code user and project agents, hooks config; Grok harness) read-only, as data. New module harness.py, with tests. (M)
+- [ ] [CHAT][feat] CHAT-TREE @pixel: Recursive tree project → orchestrator → agents → subagents at any depth, built from live sessions, with a pluggable spec source that CHAT-HARNESS-READ fills; stable node ids; one API for rooms, Building and web. (M)
+- [ ] [CHAT][feat] CHAT-BLOCKED @pixel: New 'blocked' agent state (waiting on a decision, permission or reply), emitted on the bus and shown in the HUD and rooms. (S)
+- [ ] [CHAT][feat] CHAT-COUNTS @agents: Counts of orchestrators, agents, subagents, conversations and open topics per project and in total, from CHAT-TREE. (S)
+- [ ] [CHAT][feat] CHAT-SEND-CLAUDE @agents: MVP1: send to a live Claude Code session through its inbox, delivered by the hook or MCP; explicit click or Enter only (after CLAUDE-HOOK-INSTALL). (M)
+- [ ] [CHAT][feat] CHAT-SEND-GROK @agents: MVP2: the same for Grok sessions. Blocked by GROK-LOGIN. (M)
+
+### 🗨️ Room chat (replaces TERMINAL-P4)
+
+- [ ] [CHAT][feat] ROOM-CHAT: One orchestrator chat per room/topic. Clicking an avatar or room opens it; it starts Claude Code and/or Grok CLI only on Daniel's explicit action, and everything is logged to the topic and board.
+  - [ ] [DOCS][docs] ROOM-CHAT.0 @pixel: docs/room-chat.md spec and threat model; update the CLI rule in AGENTS.md, CLAUDE.md and README. (S)
+  - [ ] [CHAT][feat] ROOM-CHAT.1 @agents: Room model: topic, participants (claude, grok), working dir picked by Daniel and stored only in the per-user data dir. (S)
+  - [ ] [CHAT][feat] ROOM-CHAT.2 @pixel: cli_runner: allowlisted binaries, fixed argv, shell=False, prompt on stdin, cwd = room dir, one process per room, timeout, Stop, output cap; fake-CLI tests. Security-critical. (M)
+  - [ ] [CHAT][feat] ROOM-CHAT.3 @agents: Parse stream-json into sanitised topic messages and a board log entry per prompt; nothing executed. (M)
+  - [ ] [CHAT][feat] ROOM-CHAT.4 @agents: Chat pane opened by clicking an avatar or room; target picker Claude / Grok / Both; Enter sends the typed prompt (after SPLIT.4). (M)
+  - [ ] [CHAT][feat] ROOM-CHAT.5 @agents: 'Both' sends one prompt to both CLIs, shown in two separate tagged lanes. (S)
+  - [ ] [CHAT][feat] ROOM-CHAT.6 @agents: Grok runner (MVP2). Blocked by GROK-LOGIN. (M)
+  - [ ] [CHAT][feat] ROOM-CHAT.7 @agents: Resume the room's session and pin a room summary. (S)
+
+### 📋 Board (no Slack)
+
+- [ ] [BOARD][feat] BOARD: Local task board of cards linked to topics. No Slack.
+  - [ ] [BOARD][feat] BOARD.1 @agents: board/ package, Card model and LocalStore in the per-user data dir (owner-only ACL, directory lock, atomic writes), tests. (M)
+  - [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit. (M)
+  - [ ] [BOARD][feat] BOARD.3 @agents: cli-avatars-emit board add|list|show|move|assign, and MCP tools board_list, card_get, card_add, card_move. (M)
+  - [ ] [BOARD][feat] BOARD.4 @agents: Board tab in ChatWindow: columns, filter by topic and project, move a card (after SPLIT.4). (M)
+- [ ] [SRC][feat] NOTIFY: Grok and Claude on this machine get board, inbox and decision news.
+  - [ ] [SRC][feat] NOTIFY.1 @agents: The chat hook adds the agent's open cards to the SessionStart / UserPromptSubmit context block (capped at 2,000 chars). (S)
+  - [ ] [SRC][feat] NOTIFY.2 @agents: Machine id in the data dir; agents addressed as agent@machine; the git store relays notes for other machines on their next Sync. (M)
+  - [ ] [SRC][feat] NOTIFY.3 @agents: cli-avatars-emit doctor: dry-run check of the hook, MCP registration, token and UDP port. Prints fixes, writes nothing. (S)
+
+### 📱 Phone view
+
+- [ ] [WEB][feat] WEB: Phone view served by the app on the LAN. Off by default.
+  - [ ] [WEB][feat] WEB.1 @agents: webui/ on stdlib ThreadingHTTPServer: read-only JSON API plus SSE, binds 127.0.0.1, its own web token, pairing to an HttpOnly cookie, tests. Runs standalone with python -m webui. (M)
+  - [ ] [WEB][feat] WEB.2 @agents: Mobile pages in vanilla JS, no build step: topics, chat timeline, board, decisions, agents. Read-only. (M)
+  - [ ] [WEB][feat] WEB.3 @agents: LAN opt-in: one interface IP, QR pairing link in the HUD, rotate token, firewall doc (after SPLIT.4). (S)
+  - [ ] [WEB][feat] WEB.4 @agents: Writes behind web.allow_writes: send, answer a decision, move a card; CSRF header, rate limit, same sanitisers. (M)
+
+### 🏰 Building view
+
+- [ ] [BLDG][feat] BLDG: Isometric building view of orchestrators and subagents.
+  - [ ] [BLDG][feat] BLDG.1 @agents: building/scene.py from CHAT-TREE and the BLDG-SCHEMA layouts: one room per orchestrator, worst-state light, +n badge past depth 2, counts plaque; scene JSON shared by Tk and web; tests. (M)
+  - [ ] [BLDG][feat] BLDG.2 @agents: Tk Building window (a Toplevel): 2x integer scale, cached room bitmaps with lights prebaked by Pillow, avatars redrawn on top (after SPLIT.4). (L)
+  - [ ] [BLDG][feat] BLDG.3 @agents: Web Building view: canvas renderer of the same scene JSON, additive lights, live over SSE. (M)
+- [x] [BLDG][docs] AG-1 @agents: Room layout and state→kit map (Spidey PR #23). Port pending: PORT-AG1.
+- [ ] [ART][art] AG-2 @agents: Five sprites: counts wall plaque, 4 small state halos, +n badge, avatar rows for error and blocked.
+- [ ] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format.
+- [ ] [ART][docs] AG-4 @agents: Sprites/dungeon_kit/manifest.json: anchor, footprint, category and light flag for each piece.
 
 - [x] [DOCS][docs] TASKS-EPICS: tag TASKS.md with epics and workflow types
