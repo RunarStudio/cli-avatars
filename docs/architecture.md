@@ -427,7 +427,10 @@ exists (see also `app/input.py`), not from the tick.
 | Board | BOARD.1–.3 | `cli_avatars/board/{card,local_store,git_store}.py` | pure + store | No Tk. **Scope (Daniel 2026-11-23):** `git_store` / forge PR–CI ingestion is out of product scope (`TASKS.md` § Out of scope); local store + tagged-PR read only. If GitStore ships later, git argv goes through `cli_runner`; pull/push only on explicit Sync |
 | Board tab | BOARD.4 | `chat_window.py` tab, wired from `app/chat.py` | app | |
 | Web view | WEB.* | `cli_avatars/web/` | beside `app`, never imported by it | Reads the tree and scene JSON. Listener binds to loopback unless LAN opt-in |
-| Click-through, poses, interactions, sounds | CLICK-THROUGH, POSE-MAP, AVATAR-INTERACT, SOUNDS | `desktop/` (Win32 bits), `world/avatar.py` (pose), `app/` (wiring) | | |
+| Dungeon window | WIN-DUNGEON.3 | `cli_avatars/app/dungeon_window.py` | app | Framed root. Close quits. ESC cancels a drag or closes a dock |
+| Places and door | WIN-DUNGEON.5/.6 | `model/place.py`, `app/places.py`, `app/crossing.py` | model + app | Door and Call home. Desktop escape is Windows only |
+| Overlays | WIN-DUNGEON.2/.7 | `cli_avatars/app/overlays.py` | app | One topmost `Toplevel` per monitor on Windows, withdrawn when empty. Linux and macOS keep that window withdrawn and unmapped (`desktop_escape` is false) |
+| Click-through, DPI, poses, interactions, sounds | WIN-DUNGEON.7, POSE-MAP, AVATAR-INTERACT, SOUNDS | `desktop/clickthrough.py` (Win32 bits), `world/avatar.py` (pose), `app/shell.py` (wiring) | desktop + app | Click-through and per-monitor `tk scaling` are still open. Wire Win32 from the shell after the root exists, not from the tick |
 
 ### 6.1 cli_runner rules
 
@@ -481,8 +484,8 @@ python overlay.py
   pass on Windows (they skip only where Tk is missing).
 - `--selftest`: must print `selftest: ok` and exit 0.
 - Overlay run: let it run ~15 s with at least one Claude or Grok session (or
-  demo mode), drag an avatar, open Rooms and Chat from the HUD, open Skins
-  and Config, then quit with ESC. stderr must have no traceback.
+  demo mode), drag an avatar, open Topics and Chat, open Skins
+  and Config, then quit by closing the Dungeon. ESC does not quit. stderr must have no traceback.
 - After SPLIT.4 and SPLIT.5, also check: avatars stand on window tops,
   subagents hang/fly on the spring, a closing subchat plays dying once, the
   portal and bubbles draw behind/above the right sprites, and Config → Apply

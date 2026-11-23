@@ -106,7 +106,7 @@ class InputController:
             if av.x <= x <= av.x + av.aw and av.y <= y <= av.y + av.ah:
                 app._glitches.append(GlitchFlash(
                     app.canvas, int(av.x), int(av.y), av.aw, av.ah, pink=False))
-                if av in app.avatars.values():
+                if av in app.avatars.values() and getattr(app, "desktop_escape", True):
                     self._home_menu(event, av)
                     return
                 app._focus_linked_console(av.agent.pid)
