@@ -59,7 +59,7 @@ class LocalStore:
                     return card
         return None
 
-    def put(self, card: dict, actor: str = "daniel", timeout: float = LOCK_TIMEOUT) -> dict:
+    def put(self, card: dict, actor: str = "daniel", timeout: float = LOCK_TIMEOUT, via: str | None = None) -> dict:
         """Validate, set ``updated``, append created, edited, or moved and/or assigned.
 
         A card file that exists but cannot be read is ``schema``, never recreated.
@@ -72,17 +72,18 @@ class LocalStore:
             if old is not None and old["project"] != card["project"]:
                 raise EventRejected("schema")
             events = []
+            extra = {"via": via} if via else {}
             if old is None:
-                events.append(new_event("created", actor, card["id"]))
+                events.append(new_event("created", actor, card["id"], **extra))
             else:
                 if old["column"] != card["column"]:
                     events.append(new_event("moved", actor, card["id"],
-                                            **{"from": old["column"], "to": card["column"]}))
+                                            **{"from": old["column"], "to": card["column"]}, **extra))
                 if old["assignee"] != card["assignee"]:
                     events.append(new_event("assigned", actor, card["id"],
-                                            **{"from": old["assignee"], "to": card["assignee"]}))
+                                            **{"from": old["assignee"], "to": card["assignee"]}, **extra))
                 if not events:
-                    events.append(new_event("edited", actor, card["id"]))
+                    events.append(new_event("edited", actor, card["id"], **extra))
             history = (old["history"] if old else []) + events
             card["history"] = history[-MAX_HISTORY:]
             self._write_card(card)
