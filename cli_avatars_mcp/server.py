@@ -89,7 +89,7 @@ def build_server() -> FastMCP:
 
     @mcp.tool(structured_output=False, annotations=_WRITE)
     def status_set(agent_id: str, state: str, note: str | None = None) -> str:
-        """Emit this agent's avatar state: idle, busy, thinking, or subagent.
+        """Emit this agent's avatar state: idle, busy, thinking, subagent, or blocked.
 
         Pass your own agent id (source:id, or a bare session id). The event
         is the same loopback state packet the overlay already consumes.

@@ -46,6 +46,7 @@ from events import (
     LOCK_TIMEOUT,
     LOOPBACK,
     MAX_PACKET_BYTES,
+    STATE_NAMES,
     EventRejected,
     append_channel,
     app_data_dir,
@@ -73,7 +74,7 @@ from topics import (
     unpin_item,
 )
 
-_STATE_CHOICES = ("idle", "busy", "thinking", "subagent")
+_STATE_CHOICES = STATE_NAMES
 
 
 def send_packet(packet: dict, port: int) -> None:
@@ -430,7 +431,7 @@ def build_parser() -> argparse.ArgumentParser:
     hooks_sub = hooks.add_subparsers(dest="hooks_cmd", required=True)
     install = hooks_sub.add_parser(
         "install",
-        help="merge SessionStart, UserPromptSubmit, and Stop (dry-run unless --apply)",
+        help="merge the chat hook, including blocked-state events (dry-run unless --apply)",
     )
     install_mode = install.add_mutually_exclusive_group()
     install_mode.add_argument(

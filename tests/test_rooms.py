@@ -1,6 +1,7 @@
 """Orchestrator rooms list. Run: python -m unittest discover -s tests"""
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -59,8 +60,26 @@ def _blob(card) -> str:
 
 class TestImportSurface(unittest.TestCase):
     def test_no_gui_modules_loaded(self):
-        forbidden = {"tkinter", "pywinctl", "pystray"}
-        self.assertTrue(forbidden.isdisjoint(sys.modules))
+        root = Path(__file__).resolve().parent.parent
+        code = (
+            "import sys\n"
+            "sys.path.insert(0, %r)\n"
+            "import rooms\n"
+            "forbidden = {'tkinter', 'pywinctl', 'pystray'}\n"
+            "bad = sorted(forbidden.intersection(sys.modules))\n"
+            "if bad:\n"
+            "    sys.stderr.write('loaded ' + ','.join(bad) + '\\n')\n"
+            "    raise SystemExit(1)\n"
+        ) % str(root)
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            shell=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
 class TestProjectFolder(unittest.TestCase):
@@ -156,6 +175,7 @@ class TestRoomsModel(unittest.TestCase):
         self.assertEqual(dot_color("busy"), BLUE)
         self.assertEqual(dot_color("thinking"), VIOLET)
         self.assertEqual(dot_color("subagent"), ACCENT)
+        self.assertEqual(dot_color("blocked"), "#FFB000")
         card = build_rooms([
             _row(status="idle", last_seen=NOW - 1),
         ], NOW)[0]
@@ -288,15 +308,18 @@ class TestPreview(unittest.TestCase):
 
 class TestOverlayWiring(unittest.TestCase):
     def test_hud_button_sits_with_skins_and_config(self):
-        text = Path(__file__).resolve().parent.parent.joinpath("overlay.py").read_text(encoding="utf-8")
-        skins = text.index('text="Skins"')
-        config = text.index('text="Config"')
-        rooms_btn = text.index('text="Rooms"')
+        root = Path(__file__).resolve().parent.parent
+        hud = (root / "cli_avatars" / "app" / "hud_window.py").read_text(encoding="utf-8")
+        rooms = (root / "cli_avatars" / "app" / "rooms_panel.py").read_text(encoding="utf-8")
+        pool = (root / "cli_avatars" / "app" / "pool.py").read_text(encoding="utf-8")
+        skins = hud.index('text="Skins"')
+        config = hud.index('text="Config"')
+        rooms_btn = hud.index('text="Rooms"')
         self.assertLess(skins, config)
         self.assertLess(config, rooms_btn)
-        self.assertIn("build_rooms(", text)
-        self.assertIn("save_rooms_pref", text)
-        self.assertIn("av.draw(self.canvas)", text)
+        self.assertIn("build_rooms(", rooms)
+        self.assertIn("save_rooms_pref", rooms)
+        self.assertIn("av.draw(self.canvas, canvas_photos(self))", pool)
 
 
 if __name__ == "__main__":

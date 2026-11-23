@@ -206,6 +206,15 @@ def _art_rows() -> dict[str, list[str]]:
     }
 
 
+# Waiting mark. Drawn in code, same idea as decision_placeholder. No sprite file.
+# The badge sits above the cell, so a 40×40 orchestrator and a 32×32 subagent
+# keep those cell sizes.
+BLOCKED_AMBER = "#FFB000"
+_BLOCKED_AMBER = (255, 176, 0, 255)
+_BLOCKED_INK = (32, 24, 8, 255)
+_BLOCKED_PX = 9
+
+
 def integer_scale(avatar_scale: float) -> int:
     """Whole-pixel factor shared with the avatars. 2.5 becomes 2."""
     try:
@@ -612,6 +621,39 @@ def _cell_index(icon: str, typing_frame: int) -> Optional[int]:
         return STATIC_ICONS.index(icon)
     except ValueError:
         return None
+
+
+def blocked_indicator(scale: int = 1):
+    """Small amber '!' for a blocked avatar. No sprite file.
+
+    Follows ``decision_placeholder``: a code-drawn glyph, scaled with the
+    same integer factor as the talk bubbles. The image is the badge only.
+    It does not include the avatar.
+    """
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGBA", (_BLOCKED_PX, _BLOCKED_PX), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse([0, 0, 8, 8], fill=_BLOCKED_AMBER, outline=_BLOCKED_INK)
+    draw.rectangle([4, 1, 5, 5], fill=_BLOCKED_INK)
+    draw.rectangle([4, 6, 5, 7], fill=_BLOCKED_INK)
+    factor = integer_scale(scale)
+    if factor != 1:
+        image = image.resize((_BLOCKED_PX * factor, _BLOCKED_PX * factor), _nearest())
+    return image
+
+
+def place_blocked_mark(box: Sequence[float], scale: int = 1) -> tuple[int, int, int, int]:
+    """``(x, y, w, h)`` of the badge above the avatar's top-left.
+
+    ``box`` is ``(x, y, w, h)`` and is not modified. The badge does not
+    cover the cell, so the avatar stays 40×40 or 32×32.
+    """
+    factor = integer_scale(scale)
+    size = _BLOCKED_PX * factor
+    ax = float(box[0]) if len(box) > 0 else 0.0
+    ay = float(box[1]) if len(box) > 1 else 0.0
+    return int(round(ax)), int(round(ay)) - size, size, size
 
 
 def decision_placeholder(size: int = 16):

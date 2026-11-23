@@ -172,7 +172,7 @@ def status_set(
     """Emit one state event for this agent id. Avatars already consume it.
 
     The packet is the emit ``state`` packet: loopback UDP, shared token,
-    ``idle`` / ``busy`` / ``thinking`` / ``subagent``. ``note`` is logged
+    ``idle`` / ``busy`` / ``thinking`` / ``subagent`` / ``blocked``. ``note`` is logged
     with the packet and is not drawn. The token is not returned.
     """
     source, session_id = split_agent(agent_id)

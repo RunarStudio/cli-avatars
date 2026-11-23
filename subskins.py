@@ -32,6 +32,7 @@ STATUS_TO_ROW = {
     "busy": "working",
     "thinking": "working",
     "subagent": "working",
+    "blocked": "idle",
     "dying": "dying",
 }
 DYING_FRAME_MS = 120

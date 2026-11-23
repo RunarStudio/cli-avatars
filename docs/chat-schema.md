@@ -170,6 +170,28 @@ The summary and the pins are data. The overlay does not execute them and does no
 
 The chat window shows the newest 200 messages for the selected topic, the summary, and the pins. Topics in the left column carry an unread count (channel lines newer than the last time that topic was on screen, not counting the person's own lines) and the open-decision count.
 
+## Agent state
+
+The event-bus `state` field is one of `idle`, `busy`, `thinking`, `subagent`, or `blocked`. Any other value is rejected and the packet is dropped. `blocked` means the agent is waiting on a decision, a permission prompt, or a reply. The Claude Code `Notification` hook sets it. The next `PreToolUse`, `UserPromptSubmit`, or `PostToolUse` replaces it with that event's own state. The notification message is not a field on the packet and is not executed.
+
+`error` and `done` are overlay statuses. They are not accepted on the bus. When several statuses collapse to one, the order is worst first: `error`, `blocked`, `busy`, `thinking`, `done`, `idle`.
+
+The HUD counts `blocked` beside busy, thinking, and idle. A blocked avatar keeps its existing cell (40×40 for an orchestrator, 32×32 for a subagent) and draws a small amber `#FFB000` mark above it. No new sprite sheet.
+
+## Agent tree (CHAT-TREE)
+
+`cli_avatars.model.tree.build_tree` turns the live session snapshot into one tree: project, then orchestrator, then agents, then subagents at any depth. It does not read the disk, open a socket, or start a process. Callers pass rows they already have (`sessions.SessionInfo` or the same fields) and, optionally, topic records. Demo rows are skipped.
+
+A node id is `kind:` plus 16 hex characters from SHA-1 of the cli, the session id, and the agent path. The path is identity segments (folder name, session id, harness name). It is not a filesystem path, and the id does not contain one. Rebuilding from the same sessions returns the same ids. `to_json()` is a sanitised object: names are capped at 80 characters, counts at 9999, and no string in it is a path or a session id.
+
+Kinds are `project`, `orchestrator`, `agent`, and `subagent`. Depth follows that shape (a project is 0, an orchestrator is 1, an agent is 2, a subagent is 3 or more). `cli` is `claude` or `grok` on a session node. State is the overlay set, including `blocked`. When several states collapse, the order is `events.STATE_SEVERITY`: `error`, `blocked`, `busy`, `thinking`, `done`, `idle`. A session status of `subagent` is busy here. `failed` is error.
+
+`NullSpecSource` is the default. The main session is the orchestrator, its children are agents, and deeper children are subagents. A count with no child rows fills that many children (capped), the same way the rooms list does. A `SpecSource` can return a harness tree instead (`SpecNode` name, relative path segments, session id, children). Return `None` and the flat layout is used. An empty sequence means the harness declared no children. CHAT-HARNESS-READ will supply that source per CLI. The text of a spec is data.
+
+`Tree.counts(project=None)` returns `orchestrators`, `agents`, `subagents`, `conversations`, and `open_topics` for the whole tree, one project folder name, or any node id. A conversation is a topic whose `members` include a session in that scope. Open topics are status `open` or `waiting_on_user`. The same counts are what the Building plaque and the web view read. The scene JSON stores the node id and does not turn it into a path.
+
+The HUD status lines stay the per-source tally. `hud.counts_from_tree` (and `counts_for_hud`) is the hook for these counts. The overlay does not call it yet.
+
 ![Chat window](media/chat-window.png)
 
 ![Topics](media/chat-topics.png)

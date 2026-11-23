@@ -1,5 +1,6 @@
 """Per-source HUD counts. Run: python -m unittest discover -s tests"""
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -28,20 +29,20 @@ class TestPerSourceCounts(unittest.TestCase):
 
         claude = rows["claude"]
         self.assertEqual(
-            (claude.sessions, claude.busy, claude.thinking, claude.idle, claude.subagents),
-            (3, 1, 1, 1, 2),
+            (claude.sessions, claude.blocked, claude.busy, claude.thinking, claude.idle, claude.subagents),
+            (3, 0, 1, 1, 1, 2),
         )
         self.assertEqual(
             format_source_row(claude),
-            "Claude 3 | busy 1 thinking 1 idle 1 | sub 2",
+            "Claude 3 | blocked 0 busy 1 thinking 1 idle 1 | sub 2",
         )
         self.assertEqual(
             format_source_row(rows["grok"]),
-            "Grok 2 | busy 1 thinking 0 idle 1 | sub 1",
+            "Grok 2 | blocked 0 busy 1 thinking 0 idle 1 | sub 1",
         )
         self.assertEqual(
             format_source_row(rows["emit"]),
-            "Emit 1 | busy 0 thinking 1 idle 0 | sub 0",
+            "Emit 1 | blocked 0 busy 0 thinking 1 idle 0 | sub 0",
         )
 
         # Demo subagents are not a source, and they are not added to Claude.
@@ -50,20 +51,20 @@ class TestPerSourceCounts(unittest.TestCase):
 
     def test_lines_list_total_then_each_source(self):
         self.assertEqual(hud_status_lines(mixed_sessions()), [
-            "  Total 9 | busy 2 thinking 2 idle 2 | sub 3",
-            "  Claude 3 | busy 1 thinking 1 idle 1 | sub 2",
-            "  Grok 2 | busy 1 thinking 0 idle 1 | sub 1",
-            "  Emit 1 | busy 0 thinking 1 idle 0 | sub 0",
+            "  Total 9 | blocked 0 busy 2 thinking 2 idle 2 | sub 3",
+            "  Claude 3 | blocked 0 busy 1 thinking 1 idle 1 | sub 2",
+            "  Grok 2 | blocked 0 busy 1 thinking 0 idle 1 | sub 1",
+            "  Emit 1 | blocked 0 busy 0 thinking 1 idle 0 | sub 0",
         ])
         # The overlay passes a dict, not a list.
         as_dict = {agent.agent_id: agent for agent in mixed_sessions()}
         self.assertEqual(hud_status_lines(as_dict)[1],
-                         "  Claude 3 | busy 1 thinking 1 idle 1 | sub 2")
+                         "  Claude 3 | blocked 0 busy 1 thinking 1 idle 1 | sub 2")
 
     def test_subagents_from_every_source_count_in_the_total(self):
         rows = tally_sources(mixed_sessions())
         self.assertEqual(format_total_row(rows),
-                         "Total 9 | busy 2 thinking 2 idle 2 | sub 3")
+                         "Total 9 | blocked 0 busy 2 thinking 2 idle 2 | sub 3")
         # 6 sessions + 3 subagents. Dropping grok's subagent would make this 8.
         self.assertEqual(sum(row.total for row in rows), 9)
         self.assertEqual(sum(row.subagents for row in rows), 3)
@@ -84,6 +85,19 @@ class TestPerSourceCounts(unittest.TestCase):
         ]
         self.assertEqual(hud_status_lines(agents), ["  Waiting for session..."])
 
+    def test_blocked_is_counted(self):
+        rows = tally_sources([
+            SessionInfo(agent_id="wait01", name="wait", source="claude", status="blocked"),
+            SessionInfo(agent_id="work01", name="work", source="claude", status="busy"),
+        ])
+        self.assertEqual(rows[0].blocked, 1)
+        self.assertEqual(rows[0].busy, 1)
+        self.assertEqual(rows[0].sessions, 2)
+        self.assertEqual(
+            format_source_row(rows[0]),
+            "Claude 2 | blocked 1 busy 1 thinking 0 idle 0 | sub 0",
+        )
+
     def test_other_status_still_counts_as_a_session(self):
         rows = tally_sources([
             SessionInfo(agent_id="done01", name="done", source="claude", status="done"),
@@ -92,7 +106,7 @@ class TestPerSourceCounts(unittest.TestCase):
         self.assertEqual(rows[0].busy, 0)
         self.assertEqual(rows[0].idle, 0)
         self.assertEqual(format_source_row(rows[0]),
-                         "Claude 1 | busy 0 thinking 0 idle 0 | sub 0")
+                         "Claude 1 | blocked 0 busy 0 thinking 0 idle 0 | sub 0")
 
     def test_grok_row_has_its_own_mark_and_color(self):
         lines = hud_status_lines(mixed_sessions())
@@ -138,7 +152,7 @@ class TestSubagentSource(unittest.TestCase):
         self.assertEqual(rows[0].subagents, 2)
         self.assertEqual(rows[0].total, 3)
         self.assertEqual(format_total_row(rows),
-                         "Total 3 | busy 0 thinking 0 idle 1 | sub 2")
+                         "Total 3 | blocked 0 busy 0 thinking 0 idle 1 | sub 2")
 
     def test_orphan_subagent_counts_for_the_inherited_source(self):
         parent = SessionInfo(
@@ -152,8 +166,8 @@ class TestSubagentSource(unittest.TestCase):
         self.assertEqual(rows[0].subagents, 1)
         self.assertEqual(rows[0].total, 1)
         self.assertEqual(hud_status_lines([child]), [
-            "  Total 1 | busy 0 thinking 0 idle 0 | sub 1",
-            "  Emit 0 | busy 0 thinking 0 idle 0 | sub 1",
+            "  Total 1 | blocked 0 busy 0 thinking 0 idle 0 | sub 1",
+            "  Emit 0 | blocked 0 busy 0 thinking 0 idle 0 | sub 1",
         ])
 
     def test_negative_index_is_rejected(self):
@@ -171,6 +185,86 @@ class TestHudPreview(unittest.TestCase):
             data = path.read_bytes()
         self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
         self.assertGreater(len(data), 2000)
+
+
+# Two open decisions from one agent. The bubble read returns that one id.
+# The caption must still see the integer 2. Importing the HUD pulls tkinter,
+# so this runs in a child and the suite process stays free of it.
+_DECISION_COUNT = r"""
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+sys.path.insert(0, sys.argv[1])
+try:
+    import tkinter  # hud_window imports it at module level
+except ImportError:
+    raise SystemExit(77)
+
+from decisions import ask_decision, decisions_caption
+from cli_avatars.app.bubbles_view import _open_agents
+from cli_avatars.app.hud_window import _decision_count_now
+
+directory = Path(sys.argv[2])
+
+
+def app():
+    return SimpleNamespace(_chat_directory=lambda: directory, _decision_count=0)
+
+
+def caption_after_bubbles(shell):
+    agents = _open_agents(shell)
+    count = _decision_count_now(shell)
+    return agents, decisions_caption(count)
+
+
+empty_agents, empty_caption = caption_after_bubbles(app())
+ask_decision(
+    directory,
+    agent="abcd1234",
+    room="hooks",
+    question="Which perch?",
+    options=["a=Same window", "b=Other"],
+    decision_id="00000000-0000-0000-0000-000000000001",
+)
+ask_decision(
+    directory,
+    agent="abcd1234",
+    room="hooks",
+    question="Which floor?",
+    options=["a=Top", "b=Bottom"],
+    decision_id="00000000-0000-0000-0000-000000000002",
+)
+agents, caption = caption_after_bubbles(app())
+print(f"empty={empty_caption}")
+print(f"agents={len(agents)}")
+print(f"open={caption}")
+if empty_agents != [] or empty_caption != "Decisions 0":
+    raise SystemExit(1)
+if len(agents) != 1 or caption != "Decisions 2":
+    raise SystemExit(1)
+"""
+
+
+class TestDecisionCaption(unittest.TestCase):
+    def test_caption_is_an_int_after_the_bubble_read(self):
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as name:
+            proc = subprocess.run(
+                [sys.executable, "-c", _DECISION_COUNT, str(root), name],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                shell=False,
+            )
+        if proc.returncode == 77:
+            self.skipTest(proc.stderr.strip() or "tkinter is not available")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("empty=Decisions 0", proc.stdout)
+        self.assertIn("agents=1", proc.stdout)
+        self.assertIn("open=Decisions 2", proc.stdout)
+        self.assertNotIn("tkinter", sys.modules)
 
 
 if __name__ == "__main__":
