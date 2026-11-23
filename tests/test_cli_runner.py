@@ -8,6 +8,7 @@ Run: python -m unittest tests.test_cli_runner
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import signal
@@ -17,7 +18,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -103,6 +104,20 @@ elif mode == "child":
     (ROOT / "parent.pid").write_text(str(os.getpid()), encoding="utf-8")
     (ROOT / "ready").write_text("1", encoding="utf-8")
     time.sleep(60)
+elif mode == "orphan":
+    sys.stdout.write('{"type":"assistant"}\\n')
+    sys.stdout.flush()
+    code = (
+        "import os,time,pathlib; "
+        "pathlib.Path('child.pid').write_text(str(os.getpid()), encoding='utf-8'); "
+        "pathlib.Path('ready').write_text('1', encoding='utf-8'); "
+        "time.sleep(60)"
+    )
+    subprocess.Popen([sys.executable, "-c", code], cwd=str(ROOT))
+    deadline = time.time() + 5
+    while time.time() < deadline and not (ROOT / "ready").exists():
+        time.sleep(0.02)
+    (ROOT / "parent.pid").write_text(str(os.getpid()), encoding="utf-8")
 else:
     sys.stderr.write("bad mode\\n")
     sys.exit(2)
@@ -302,7 +317,14 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(stdin.split("[end context]\n", 1)[1], PROMPT)
         self.assertEqual(Path(record["cwd"]).resolve(), self.work.resolve())
         names = set(record["env_names"])
-        self.assertTrue(names <= set(ENV_ALLOWLIST))
+        allowed = set(ENV_ALLOWLIST)
+        if sys.platform == "win32":
+            allowed.add("NoDefaultCurrentDirectoryInExePath")
+        self.assertTrue(names <= allowed)
+        if sys.platform == "win32":
+            self.assertIn("NoDefaultCurrentDirectoryInExePath", names)
+        else:
+            self.assertNotIn("NoDefaultCurrentDirectoryInExePath", names)
         for blocked in (
             "ANTHROPIC_API_KEY",
             "CLI_AVATARS_SHOULD_NOT_PASS",
@@ -339,8 +361,10 @@ class RunnerTest(unittest.TestCase):
         self.assertNotIn("hello & world | cat", argv)
         if os.name == "nt":
             self.assertTrue(kwargs["creationflags"] & subprocess.CREATE_NEW_PROCESS_GROUP)
+            self.assertEqual(kwargs["env"].get("NoDefaultCurrentDirectoryInExePath"), "1")
         else:
             self.assertTrue(kwargs["start_new_session"])
+            self.assertNotIn("NoDefaultCurrentDirectoryInExePath", kwargs["env"])
 
     def test_accept_edits_and_resume_uuid(self) -> None:
         self._mode("record")
@@ -673,11 +697,17 @@ class RunnerTest(unittest.TestCase):
         proc = subprocess.Popen([sys.executable, "-c", "pass"])
         proc.wait(timeout=5)
         calls = []
+
+        def getpgid(pid):
+            calls.append(("getpgid", pid))
+            return 4242
+
         with (
             patch.object(cli_runner.os, "kill", lambda *a: calls.append(("kill", a))),
             patch.object(cli_runner.os, "killpg", lambda *a: calls.append(("killpg", a))),
-            patch.object(cli_runner.os, "getpgid", lambda _pid: 4242),
+            patch.object(cli_runner.os, "getpgid", getpgid),
             patch.object(cli_runner, "_taskkill_tree", lambda pid: calls.append(("tk", pid))),
+            patch.object(cli_runner, "_terminate_job", lambda proc: calls.append(("job", proc.pid))),
         ):
             cli_runner._signal_tree(proc)
         self.assertEqual(calls, [])
@@ -789,6 +819,303 @@ class RunnerTest(unittest.TestCase):
             self._start(room_id="")
         with self.assertRaises(CliRejected):
             self._start(on_stdout_line="print")
+        with self.assertRaises(CliRejected):
+            self._start(on_done="print")
+
+    def test_exit_kills_grandchild_and_stdout_stops_before_done(self) -> None:
+        # The fake CLI prints one line, spawns a grandchild, and exits.
+        # The grandchild must be gone, and no line callback may run after done.
+        from cli_avatars.runner import cli_runner
+
+        self._mode("orphan")
+        order: list[str] = []
+
+        def on_line(line: str) -> None:
+            order.append("line")
+            time.sleep(0.4)
+            order.append("line-done")
+            order.append(line)
+
+        def on_done(result) -> None:
+            order.append("done")
+            order.append(result.outcome)
+
+        with patch.object(cli_runner, "_READER_JOIN_TIMEOUT_S", 0.1):
+            run = self._start(
+                on_stdout_line=on_line,
+                on_done=on_done,
+                timeout_s=10,
+            )
+            result = run.wait(timeout=8)
+        self.assertEqual(result.outcome, "ok")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(order[:4], ["line", "line-done", '{"type":"assistant"}', "done"])
+        self.assertEqual(order[-1], "ok")
+        self.assertEqual(order.count("done"), 1)
+        self.assertLess(order.index("line-done"), order.index("done"))
+        run._on_stdout_line = order.append
+        run._emit(b"late")
+        self.assertNotIn("late", order)
+        _wait_for(self.work / "child.pid")
+        child = int((self.work / "child.pid").read_text(encoding="utf-8"))
+        parent = int((self.work / "parent.pid").read_text(encoding="utf-8"))
+        self.assertNotEqual(parent, child)
+        self.assertTrue(_gone(parent))
+        self.assertTrue(_gone(child))
+
+    def test_stdin_writer_times_out_when_the_pipe_stays_full(self) -> None:
+        if sys.platform == "win32":
+            self.skipTest("non-blocking pipes differ; SpiderHost covers the job path")
+        from cli_avatars.runner.cli_runner import RoomProcess
+
+        read_fd, write_fd = os.pipe()
+        self.addCleanup(lambda: os.close(read_fd) if read_fd >= 0 else None)
+        os.set_blocking(write_fd, False)
+        try:
+            while True:
+                os.write(write_fd, b"x" * 65536)
+        except BlockingIOError:
+            pass
+        proc = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+        def _stop(child: subprocess.Popen) -> None:
+            if child.poll() is None:
+                try:
+                    child.kill()
+                except OSError:
+                    pass
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+
+        self.addCleanup(_stop, proc)
+        proc.stdin = os.fdopen(write_fd, "wb", buffering=0)
+        room = RoomProcess(
+            proc,
+            key=("room-1", "claude"),
+            cli="claude",
+            room_id="room-1",
+            timeout_s=0.4,
+            stdout_cap=1024,
+            stderr_cap=1024,
+            on_stdout_line=None,
+        )
+        started = time.monotonic()
+        room._write_stdin(b"y" * 200000)
+        elapsed = time.monotonic() - started
+        self.assertGreaterEqual(elapsed, 0.3)
+        self.assertLess(elapsed, 3.0)
+        self.assertTrue(_gone(proc.pid))
+
+    def test_group_kill_requires_our_leader_and_skips_a_reaped_pid(self) -> None:
+        if sys.platform == "win32":
+            self.skipTest("POSIX process-group kill")
+        from cli_avatars.runner import cli_runner
+
+        proc = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+        def _stop(child: subprocess.Popen) -> None:
+            if child.poll() is None:
+                try:
+                    child.kill()
+                except OSError:
+                    pass
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+
+        self.addCleanup(_stop, proc)
+        calls: list[tuple] = []
+
+        def killpg(pgid, sig):
+            calls.append(("killpg", pgid, sig))
+
+        proc._cli_pgid = proc.pid
+        with patch.object(cli_runner.os, "killpg", killpg):
+            with patch.object(cli_runner.os, "getpgid", lambda _pid: proc.pid + 100):
+                cli_runner._kill_remaining_group(proc)
+            self.assertEqual(calls, [])
+            cli_runner._kill_remaining_group(proc)
+        self.assertEqual(calls, [("killpg", proc.pid, signal.SIGKILL)])
+
+        class OwnGroup:
+            pid = os.getpgrp()
+            returncode = None
+            _cli_pgid = os.getpgrp()
+
+        calls.clear()
+        with patch.object(cli_runner.os, "killpg", killpg):
+            cli_runner._kill_remaining_group(OwnGroup())
+        self.assertEqual(calls, [])
+
+    def test_windows_job_assignment_sets_kill_on_close(self) -> None:
+        import ctypes
+        from cli_avatars.runner import cli_runner
+
+        seen: dict[str, int] = {}
+        kernel = Mock()
+        kernel.CreateJobObjectW.return_value = 7
+
+        def capture(handle, info_class, pointer, size):
+            info_type = cli_runner._job_extended_limit_type()
+            info = ctypes.cast(pointer, ctypes.POINTER(info_type)).contents
+            seen["handle"] = handle
+            seen["class"] = info_class
+            seen["flags"] = int(info.BasicLimitInformation.LimitFlags)
+            seen["size"] = size
+            return 1
+
+        kernel.SetInformationJobObject.side_effect = capture
+        kernel.AssignProcessToJobObject.return_value = 1
+
+        class Proc:
+            pid = 55
+            returncode = None
+            _handle = 99
+
+        proc = Proc()
+        with (
+            patch.object(cli_runner.sys, "platform", "win32"),
+            patch.object(cli_runner, "_kernel32", return_value=kernel),
+        ):
+            cli_runner._assign_job_object(proc)
+        kernel.CreateJobObjectW.assert_called_once_with(None, None)
+        kernel.AssignProcessToJobObject.assert_called_once_with(7, 99)
+        self.assertEqual(seen["handle"], 7)
+        self.assertEqual(seen["class"], cli_runner.JobObjectExtendedLimitInformation)
+        self.assertEqual(seen["class"], 9)
+        self.assertEqual(
+            seen["flags"] & cli_runner.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            cli_runner.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        )
+        self.assertIn(seen["size"], (112, 144))
+        self.assertEqual(proc._cli_job, 7)
+        kernel.CloseHandle.assert_not_called()
+
+    def test_windows_failed_job_limit_closes_the_handle(self) -> None:
+        from cli_avatars.runner import cli_runner
+
+        kernel = Mock()
+        kernel.CreateJobObjectW.return_value = 7
+        kernel.SetInformationJobObject.return_value = 0
+
+        class Proc:
+            pid = 55
+            returncode = None
+            _handle = 99
+
+        proc = Proc()
+        with (
+            patch.object(cli_runner.sys, "platform", "win32"),
+            patch.object(cli_runner, "_kernel32", return_value=kernel),
+        ):
+            cli_runner._assign_job_object(proc)
+        kernel.AssignProcessToJobObject.assert_not_called()
+        kernel.CloseHandle.assert_called_once_with(7)
+        self.assertFalse(hasattr(proc, "_cli_job"))
+
+    def test_windows_stop_terminates_the_job_before_taskkill(self) -> None:
+        from cli_avatars.runner import cli_runner
+
+        kernel = Mock()
+        kernel.TerminateJobObject.return_value = 1
+
+        class Proc:
+            def __init__(self) -> None:
+                self.pid = 55
+                self.returncode = None
+                self._cli_job = 7
+                self.killed = False
+
+            def kill(self) -> None:
+                self.killed = True
+
+        proc = Proc()
+        with (
+            patch.object(cli_runner.sys, "platform", "win32"),
+            patch.object(cli_runner, "_kernel32", return_value=kernel),
+            patch.object(cli_runner, "_taskkill_tree") as taskkill,
+        ):
+            cli_runner._signal_tree(proc)
+        kernel.TerminateJobObject.assert_called_once_with(7, 1)
+        kernel.CloseHandle.assert_called_once_with(7)
+        taskkill.assert_not_called()
+        self.assertTrue(proc.killed)
+        self.assertTrue(proc._cli_job_closed)
+
+    def test_windows_taskkill_is_only_the_fallback(self) -> None:
+        from cli_avatars.runner import cli_runner
+
+        class Proc:
+            def __init__(self) -> None:
+                self.pid = 55
+                self.returncode = None
+                self.killed = False
+
+            def kill(self) -> None:
+                self.killed = True
+
+        proc = Proc()
+        with (
+            patch.object(cli_runner.sys, "platform", "win32"),
+            patch.object(cli_runner, "_taskkill_tree") as taskkill,
+        ):
+            cli_runner._signal_tree(proc)
+        taskkill.assert_called_once_with(55)
+        self.assertTrue(proc.killed)
+
+    def test_windows_reaped_parent_terminates_the_job_and_not_the_pid(self) -> None:
+        from cli_avatars.runner import cli_runner
+
+        kernel = Mock()
+        kernel.TerminateJobObject.return_value = 1
+
+        class Proc:
+            def __init__(self) -> None:
+                self.pid = 55
+                self.returncode = 0
+                self._cli_job = 7
+                self.killed = False
+
+            def kill(self) -> None:
+                self.killed = True
+
+        proc = Proc()
+        with (
+            patch.object(cli_runner.sys, "platform", "win32"),
+            patch.object(cli_runner, "_kernel32", return_value=kernel),
+            patch.object(cli_runner, "_taskkill_tree") as taskkill,
+            patch.object(cli_runner.os, "kill", lambda *a: (_ for _ in ()).throw(AssertionError(a))),
+        ):
+            cli_runner._signal_tree(proc)
+        kernel.TerminateJobObject.assert_called_once_with(7, 1)
+        taskkill.assert_not_called()
+        self.assertFalse(proc.killed)
+
+    @unittest.skipUnless(sys.platform == "win32", "SpiderHost runs the real job-object test")
+    def test_windows_job_kills_grandchild_after_parent_exits(self) -> None:
+        self._mode("orphan")
+        run = self._start(timeout_s=20)
+        _wait_for(self.work / "ready")
+        child = int((self.work / "child.pid").read_text(encoding="utf-8"))
+        result = run.wait(timeout=10)
+        self.assertEqual(result.outcome, "ok")
+        self.assertTrue(getattr(run._proc, "_cli_job_closed", False))
+        self.assertTrue(_gone(child, timeout=5))
 
 
 class BoundaryTest(unittest.TestCase):
@@ -847,6 +1174,27 @@ class BoundaryTest(unittest.TestCase):
         self.assertNotIn("shell=True", text)
         self.assertNotIn("shell = True", text)
         self.assertIn("TODO(SpiderHost)", text)
+        for needle in (
+            "CreateJobObjectW",
+            "SetInformationJobObject",
+            "JOBOBJECT_EXTENDED_LIMIT_INFORMATION",
+            "AssignProcessToJobObject",
+            "TerminateJobObject",
+            "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
+            "NoDefaultCurrentDirectoryInExePath",
+            "import ctypes",
+            "tiny race",
+            "after()",
+        ):
+            self.assertIn(needle, text, needle)
+        self.assertNotIn("ctypes.windll", text)
+        tree = ast.parse(text)
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    self.assertNotEqual(alias.name, "ctypes")
+            if isinstance(node, ast.ImportFrom):
+                self.assertNotEqual(node.module, "ctypes")
         init = (REPO / "cli_avatars" / "__init__.py").read_text(encoding="utf-8")
         runner_init = (REPO / "cli_avatars" / "runner" / "__init__.py").read_text(encoding="utf-8")
         for source in (init, runner_init):

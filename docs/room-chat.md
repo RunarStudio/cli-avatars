@@ -89,9 +89,13 @@ subprocess.Popen(
 
   The header is sanitised and capped at 2,000 characters. The prompt is written after it, unchanged, up to 100,000 characters.
 - `minimal_env`: an allowlist of names the OS and CLI need. ROOM-CHAT.2 copies only `PATH`, `PATHEXT`, `SYSTEMROOT`, `WINDIR`, `SYSTEMDRIVE`, `COMSPEC`, `TEMP`, `TMP`, `HOME`, `USERPROFILE`, `HOMEDRIVE`, `HOMEPATH`, `APPDATA`, `LOCALAPPDATA`, `LANG`, `LC_ALL`, `LC_CTYPE`, `USER`, `USERNAME`, and `LOGNAME`. Names containing token, secret, password, key, or credential are still dropped. The app adds no token and reads no credential file. The CLI uses its own login. `TODO(SpiderHost)`: confirm a real CLI starts with this set.
+- On Windows the child env also sets `NoDefaultCurrentDirectoryInExePath=1`, so Windows does not resolve an executable from the room folder. `TODO(SpiderHost)`: confirm Claude still starts with that set.
 - One process per room and CLI. A second Enter while one runs is refused with a message.
-- Timeout per prompt (default 600 seconds, ceiling 15 minutes). Output caps: stdout 2 MiB (ceiling 4 MiB), stderr 64 KiB. Past a cap the process is stopped and the outcome is `error`. A timeout stops it with outcome `timeout`.
-- Stop kills the whole process tree. On Windows the child is started in a new process group and stopped with `taskkill /F /T /PID <pid>` (fixed argv, the pid is the integer the runner created). On macOS and Linux the child is a new session and Stop sends `killpg` only when that child is the group leader. Closing the app calls the same tree kill for every room process (`stop_all`).
+- Timeout per prompt (default 600 seconds, ceiling 15 minutes). Output caps: stdout 2 MiB (ceiling 4 MiB), stderr 64 KiB. Past a cap the process is stopped and the outcome is `error`. A timeout stops it with outcome `timeout`. The stdin write has its own timeout, so a child that never reads the pipe cannot block the run for the whole prompt.
+- On Windows the child is started in a new process group and put in a Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` immediately after `Popen` (`CreateJobObjectW`, `SetInformationJobObject` of `JOBOBJECT_EXTENDED_LIMIT_INFORMATION`, `AssignProcessToJobObject`). `Popen` cannot create the process suspended, so there is a tiny race before the assign; a grandchild spawned in that gap is not in the job. Stop, a cap, and the end of the run call `TerminateJobObject`, which kills the tree even if the parent has already exited, then close the job handle. `taskkill /F /T /PID <pid>` is only the fallback, and only by the absolute `System32\taskkill.exe` path.
+- On macOS and Linux the child is a new session. After it exits, and on Stop, the runner sends `SIGKILL` to that process group only when the child was the group leader and the group id is still that child's. This happens before the pid is reaped. A reaped pid is never signalled, because the number can be reused.
+- Closing the app calls the same tree kill for every room process (`stop_all`).
+- After the process is waited on, the stdout and stderr threads are joined with a timeout. `on_stdout_line` does not run after the final `on_done` callback. Both run on runner threads: ROOM-CHAT.4 must marshal them onto the Tk thread with `after()` and must not touch Tk from the callback.
 
 ### Permission mode
 
@@ -126,7 +130,7 @@ Output is displayed as text. It is never executed, never used as argv, and never
 | Argv injection on Windows `.cmd` | Argv holds only constants and a regex-checked UUID. All text is on stdin. Native `.exe` preferred. |
 | Malicious working dir | Picked by Daniel only, must exist, system folders refused, re-checked before launch, never taken from data. |
 | Runaway or huge output | Timeout, stdout and stderr caps, chunk caps on stored messages. |
-| Zombie process | Process tree kill on Stop, timeout, cap, and app exit. One process per room and CLI. |
+| Zombie process | Windows Job Object (`TerminateJobObject`, kill-on-close) on Stop, caps, and exit. On macOS and Linux, process-group kill after exit and on Stop, before the pid is reaped. One process per room and CLI. |
 | Permission escalation | Mode from two constants; only Daniel switches to `acceptEdits`; skip-permission flags never built. |
 | Secrets in logs | No env tokens added; stderr redacted and capped; working dir path not logged; board commits scanned (board.md). |
 | Fake binary earlier on `PATH` | Resolved once, shown, confirmed by Daniel, and pinned by path, size, and mtime. No per-launch `PATH` lookup. |
@@ -154,7 +158,7 @@ Tests use a fake CLI: a small Python script set as the confirmed binary in a tem
 | Patch `subprocess.Popen` | Called with a list and `shell=False`. |
 | Recorded stdin | Header, then the exact prompt; stdin closed. |
 | Bad `session_ids.claude` | Launch rejected. `--resume` is not added. A missing id omits the flag. |
-| Fake CLI that sleeps | Stop kills it and its child; no process left. |
+| Fake CLI that sleeps, or spawns a grandchild and exits | Stop kills the parent and the child. A normal exit also kills the grandchild left in the group. No stdout callback runs after the done callback. |
 | Fake CLI that prints 10 MiB, or runs past the timeout | Stopped at the cap; outcome `error` or `timeout`; stored chunks within limits. |
 | Inbox, channel, topic, MCP, and hook inputs that say "run claude" | No process started. The runner is not called. |
 | Call the runner without the one-shot action object the UI handler creates | Rejected; nothing starts. |
