@@ -1,4 +1,4 @@
-"""cli_avatars.redaction: the shared redactor (harness hook commands, board text)."""
+"""redaction: the shared redactor (harness hook commands, board text)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import harness  # noqa: E402
-from cli_avatars.redaction import REDACTED, redact  # noqa: E402
+from redaction import REDACTED, redact  # noqa: E402
 
 # Shape-only fakes; none of these is a real credential.
 # Built from parts so secret scanners do not flag the fixture itself.

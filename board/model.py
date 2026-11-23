@@ -2,7 +2,7 @@
 
 Card and event text is data. It is never executed, opened as a path, or fetched.
 Validators drop unknown fields and raise ``EventRejected("schema")`` on a bad value.
-Text fields get the shared secret redaction (``cli_avatars.redaction.redact``) before sanitising.
+Text fields get the shared secret redaction (``redaction.redact``) before sanitising.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ import uuid
 from datetime import datetime
 from typing import Mapping
 
-from cli_avatars.redaction import redact
 from events import UUID_RE, EventRejected, sanitize_text
 from inbox import valid_agent_id
+from redaction import redact
 from topics import clean_project, valid_topic_id
 
 COLUMNS = ("todo", "doing", "review", "done", "blocked")

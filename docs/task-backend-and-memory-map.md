@@ -264,7 +264,7 @@ store, not a fire-and-forget packet.
 - Decision J (30 days) applies to memory-map read records and to rotated board event files
   (`events.<n>.jsonl` older than 30 days go at the next rotation; `events.jsonl` and card
   history are kept). Agent notes are also secret-redacted by the board model
-  (`cli_avatars.redaction`).
+  (`redaction`).
 
 ---
 

@@ -1,7 +1,8 @@
 """Secret redaction for text that is shown or stored: hook commands, card and event text.
 
-Stdlib only and import-light: hooks, the MCP server, the board model and the harness reader
-all import it, in source and frozen builds. Text is replaced, never executed or looked up.
+Stdlib only and import-light: the board model and the harness reader import it, in source
+and frozen builds. It is a top-level module because top-level modules must not import the
+cli_avatars package (tests/test_layers.py). Text is replaced, never executed or looked up.
 
 Hidden: key, token, secret, auth and password headers or variables (quoted or not),
 ``--token``/``--password``/``-p`` values, the password of ``curl -u``/``--user`` and of

@@ -2,7 +2,7 @@
 
 1. A failed or interrupted ``events.jsonl`` append cuts its own partial bytes back, and a
    refused truncate is ``EventRejected("io")``, never a raw ``PermissionError``.
-2. board.model redacts through ``cli_avatars.redaction`` and does not import ``harness``.
+2. board.model redacts through ``redaction`` and does not import ``harness``.
 3. A line of exactly 64 KiB + 1 is dropped; one of exactly 64 KiB is read.
 """
 

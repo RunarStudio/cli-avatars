@@ -13,7 +13,7 @@ a file, never runs a hook command and never starts a CLI. A missing folder
 gives an empty list. A file it cannot parse, a symlink (also a symlinked
 ``.claude`` or ``agents`` folder) or a file over 256 KiB is skipped with a
 warning record; nothing is raised to the caller. Token-like strings in hook
-commands are replaced with ``[redacted]`` by ``cli_avatars.redaction.redact``
+commands are replaced with ``[redacted]`` by ``redaction.redact``
 (shared with the board model; see that module for the shapes).
 """
 
@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from cli_avatars.redaction import REDACTED, redact  # noqa: F401  (re-exported)
+from redaction import REDACTED, redact  # noqa: F401  (re-exported)
 
 USER = "user"
 PROJECT = "project"
