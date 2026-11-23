@@ -222,7 +222,7 @@ def metric_lines(result, key: str) -> list[str]:
     if key == "hot":
         return [f"{path}  ~{short_tokens(t)}/read × {r}" for path, t, r in m.hot_files] or ["no hot large files"]
     if key == "never":
-        return list(result.never_read) or ["needs the project folder of a live session"]
+        return list(result.never_read) or ["none, or no live session in this project"]
     lines = [f"{m.reads} reads + {m.auto} auto · ~{short_tokens(m.tokens_total)} tokens (est.)"]
     if m.heavy_auto_loads:
         lines.append(f"{len(m.heavy_auto_loads)} session start(s) over 8k tokens")

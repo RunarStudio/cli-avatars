@@ -41,8 +41,9 @@ class MemmapPanel:
     """One per Dungeon. ``mount`` builds the widgets; ``refresh`` is called from the tick."""
 
     def __init__(self, app, *, directory: Path | str | None = None, state_path: Path | str | None = None,
-                 threaded: bool = True):
+                 threaded: bool = True, cwds=None):
         self.app = app
+        self._cwds = cwds
         self._directory = directory
         self._state_path = Path(state_path) if state_path is not None else None
         self.state = load_state(self._state_path) if self._state_path is not None else PanelState()
@@ -245,7 +246,7 @@ class MemmapPanel:
 
     def feed(self) -> MapFeed:
         if self._feed is None:
-            self._feed = MapFeed(self._data_dir(), self.state.positions)
+            self._feed = MapFeed(self._data_dir(), self.state.positions, cwds=self._cwds)
         return self._feed
 
     def compute_now(self, request: Request | None = None) -> Result | None:
@@ -488,8 +489,9 @@ def attach(app, topics) -> MemmapPanel | None:
         return panel
     try:
         from events import app_data_dir
+        from sessions import live_cwds
 
-        panel = MemmapPanel(app, state_path=app_data_dir() / "ui" / "memmap_layout.json")
+        panel = MemmapPanel(app, state_path=app_data_dir() / "ui" / "memmap_layout.json", cwds=live_cwds)
         panel.mount(topics.master, topics)
     except Exception:
         return None

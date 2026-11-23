@@ -3,6 +3,10 @@
 Picks the project (the selected topic's, else the one with the newest reads),
 tails its ``reads.jsonl``, aggregates one window, and lays the graph out when
 the node or edge set changes. Positions come back in the unit square.
+
+When a live session works in the project (``cwds``, from ``sessions.live_cwds``),
+its root gives link edges and the "never read" list. The root stays in memory;
+``links.json`` keeps relative names only.
 """
 
 from __future__ import annotations
@@ -10,16 +14,20 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable, Iterable
 
 from events import EventRejected
 from memmap import graph
+from memmap.capture import _is_marker
 from memmap.graph import Graph, Metrics
 from memmap.layout import layout
-from memmap.model import project_name
+from memmap.links import list_markdown, load_links, refresh_links, save_links
+from memmap.model import classify, find_project_root, project_name
 from memmap.store import READS_NAME, ROTATION_NAME, memmap_root
 from memmap.tail import ReadsTail
 
 MAX_DRAWN_EDGES = 120
+ROOT_EVERY_S = 30.0
 
 
 @dataclass
@@ -103,11 +111,43 @@ def strongest_edges(g: Graph, limit: int = MAX_DRAWN_EDGES) -> list:
     return (links + co)[:limit]
 
 
+class _Root:
+    """One project's folder on disk: link cache and ``.md`` list, refreshed at most every ``ROOT_EVERY_S``."""
+
+    def __init__(self, directory: Path, project: str, root: str):
+        self.directory, self.project, self.root = directory, project, root
+        self.cache = load_links(directory, project)
+        self.files: list[str] = []
+        self.never: list[str] = []
+        self.listed = float("-inf")
+
+    def links(self, paths: Iterable[str]) -> dict[str, list[str]]:
+        links, fresh, changed = refresh_links(self.root, paths, self.cache, self.files)
+        if changed:
+            self.cache = fresh
+            try:
+                save_links(self.directory, self.project, fresh)
+            except (EventRejected, OSError):
+                pass
+        return links
+
+    def never_read(self, records: list[dict], now: float) -> list[str]:
+        if now - self.listed >= ROOT_EVERY_S:
+            self.listed = now
+            self.files = list_markdown(self.root)
+            self.never = graph.never_read(self.files, records, now=now, kind_of=classify)
+        return self.never
+
+
 class MapFeed:
     """One per panel. Keeps a tail per project and the last layout per project."""
 
-    def __init__(self, directory: Path | str, positions: dict[str, dict[str, tuple[float, float]]] | None = None):
+    def __init__(self, directory: Path | str, positions: dict[str, dict[str, tuple[float, float]]] | None = None,
+                 cwds: Callable[[], Iterable[str]] | None = None):
         self.directory = Path(directory)
+        self._cwds = cwds
+        self._cwd_roots: dict[str, tuple[float, str]] = {}
+        self._roots: dict[str, _Root] = {}
         self._tails: dict[str, ReadsTail] = {}
         self._positions: dict[str, dict[str, tuple[float, float]]] = dict(positions or {})
         self._shapes: dict[str, tuple] = {}
@@ -119,6 +159,23 @@ class MapFeed:
             tail = self._tails[project] = ReadsTail(self.directory, project)
         tail.poll()
         return tail.records
+
+    def _root(self, project: str, now: float) -> _Root | None:
+        """The live session folder whose project root has this name, else None."""
+        if self._cwds is None:
+            return None
+        home = str(Path.home())
+        for cwd in self._cwds():
+            seen = self._cwd_roots.get(cwd)
+            if seen is None or now - seen[0] >= ROOT_EVERY_S:
+                seen = self._cwd_roots[cwd] = (now, find_project_root(cwd, _is_marker, home=home) or "")
+            root = seen[1]
+            if root and project_name(root) == project:
+                found = self._roots.get(project)
+                if found is None or found.root != root:
+                    found = self._roots[project] = _Root(self.directory, project, root)
+                return found
+        return None
 
     def positions(self, project: str) -> dict[str, tuple[float, float]]:
         return dict(self._positions.get(project, {}))
@@ -141,6 +198,14 @@ class MapFeed:
             sessions = frozenset({session}) if session else frozenset()
         since = graph.window_start(request.window, now, utc_offset=request.utc_offset)
         g, metrics = graph.aggregate(records, now=now, since=since, sessions=sessions, utc_offset=request.utc_offset)
+        root = self._root(project, now)
+        never: list[str] = []
+        if root is not None:
+            never = root.never_read(records, now)
+            links = root.links(n.path for n in g.nodes)
+            if any(links.values()):
+                g, metrics = graph.aggregate(records, now=now, since=since, sessions=sessions, links=links,
+                                             utc_offset=request.utc_offset)
         shape = _shape(g)
         points = self._positions.get(project, {})
         if shape != self._shapes.get(project) or any(n.path not in points for n in g.nodes):
@@ -157,5 +222,6 @@ class MapFeed:
             graph=g,
             metrics=metrics,
             positions=dict(points),
+            never_read=never,
             serial=self._serial,
         )
