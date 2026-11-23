@@ -57,7 +57,14 @@ MAX_INBOX_LINES = 2000
 ORIGIN_UDP = "udp"
 ORIGIN_POLL = "poll"
 
-STATE_VALUES = frozenset({"idle", "busy", "thinking", "subagent"})
+# Bus allowlist. ``error`` and ``done`` stay overlay-only; a packet with
+# either is still rejected. ``blocked`` is a wait: a decision, a permission
+# prompt, or a reply.
+STATE_NAMES = ("idle", "busy", "thinking", "subagent", "blocked")
+STATE_VALUES = frozenset(STATE_NAMES)
+# Worst first, when several statuses collapse to one. ``subagent`` is a
+# role, not a rank, so it is not in this list.
+STATE_SEVERITY = ("error", "blocked", "busy", "thinking", "done", "idle")
 # ``decision`` is the open-decision bubble. Its 16×16 cell is still a code
 # placeholder (TODO(Caine art) in bubbles.py); it is not a sheet file.
 ICONS = frozenset({
@@ -110,6 +117,25 @@ class ChatEvent:
 
 
 Event = StateEvent | ChatEvent
+
+
+def worst_state(states) -> str:
+    """The most severe known state. Unknown names are skipped. Empty is ``idle``.
+
+    Order, worst first: error, blocked, busy, thinking, done, idle.
+    """
+    rank = {name: index for index, name in enumerate(STATE_SEVERITY)}
+    best = len(STATE_SEVERITY)
+    chosen = "idle"
+    for state in states:
+        if not isinstance(state, str):
+            continue
+        index = rank.get(state)
+        if index is None or index >= best:
+            continue
+        best = index
+        chosen = state
+    return chosen
 
 
 def agent_key(source: str, session_id: str) -> str:

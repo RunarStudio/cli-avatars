@@ -39,6 +39,7 @@ from events import (  # noqa: E402
     parse_icacls_aces,
     parse_packet,
     perm_tokens,
+    worst_state,
     read_inbox,
     resolve_data_dir,
     room_file_name,
@@ -391,9 +392,28 @@ class TestSchema(unittest.TestCase):
         for icon in ("speech", "question", "ok", "warn", "error", "thought", "typing", "decision"):
             chat, _note = parse_packet(_chat_packet(icon=icon), TOKEN)
             self.assertEqual(chat.icon, icon)
-        for state in ("idle", "busy", "thinking", "subagent"):
+        for state in ("idle", "busy", "thinking", "subagent", "blocked"):
             event, _note = parse_packet(_state_packet(state=state), TOKEN)
             self.assertEqual(event.state, state)
+        for state in ("waiting", "Blocked", "error", "done"):
+            with self.assertRaises(EventRejected) as caught:
+                parse_packet(_state_packet(state=state), TOKEN)
+            self.assertEqual(caught.exception.reason, "schema", state)
+
+    def test_severity_is_worst_first(self):
+        self.assertEqual(
+            worst_state(["idle", "done", "thinking", "busy", "blocked", "error"]),
+            "error",
+        )
+        self.assertEqual(worst_state(["idle", "blocked", "busy"]), "blocked")
+        self.assertEqual(worst_state(["thinking", "done", "idle"]), "thinking")
+        self.assertEqual(worst_state(["done", "idle"]), "done")
+        self.assertEqual(worst_state(["idle"]), "idle")
+        self.assertEqual(worst_state([]), "idle")
+        self.assertEqual(worst_state(["nope", "subagent", None, 3]), "idle")
+        order = ("error", "blocked", "busy", "thinking", "done", "idle")
+        for index, state in enumerate(order):
+            self.assertEqual(worst_state(order[index:]), state)
 
 
 class TestListenerLimits(_TempDir):
@@ -470,8 +490,8 @@ class TestListenerLimits(_TempDir):
         self.assertIsNone(found[0].parent_id)
         from hud import hud_status_lines
         self.assertEqual(hud_status_lines(found), [
-            "  Total 1 | busy 0 thinking 1 idle 0 | sub 0",
-            "  Emit 1 | busy 0 thinking 1 idle 0 | sub 0",
+            "  Total 1 | blocked 0 busy 0 thinking 1 idle 0 | sub 0",
+            "  Emit 1 | blocked 0 busy 0 thinking 1 idle 0 | sub 0",
         ])
 
 

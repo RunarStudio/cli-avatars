@@ -99,9 +99,15 @@ sys.path.insert(0, sys.argv[1])
 from events import directory_lock
 root = Path(sys.argv[2]) / "topics"
 marker = Path(sys.argv[3])
+release = Path(sys.argv[4])
 with directory_lock(root, timeout=5):
     marker.write_text("held", encoding="utf-8")
-    time.sleep(float(sys.argv[4]))
+    # Hold until the test says so: a fixed sleep can end before the caller reaches the lock.
+    deadline = time.monotonic() + 30
+    while not release.exists():
+        if time.monotonic() > deadline:
+            sys.exit("lock holder was never released")
+        time.sleep(0.02)
 """
 
 
@@ -474,8 +480,9 @@ class TestConcurrent(_Dir):
     def test_busy_lock_times_out_and_closes(self):
         ensure_topic(self.data, "hooks", ts=1)
         marker = self.data / "held"
+        release = self.data / "release"
         proc = subprocess.Popen(
-            [sys.executable, "-c", _CHILD_HOLD, REPO, str(self.data), str(marker), "1.2"],
+            [sys.executable, "-c", _CHILD_HOLD, REPO, str(self.data), str(marker), str(release)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
@@ -492,6 +499,7 @@ class TestConcurrent(_Dir):
                 pin_item(self.data, "hooks", kind="fact", text="blocked", timeout=0.3)
             self.assertEqual(caught.exception.reason, "lock")
         finally:
+            release.touch()
             if proc.poll() is None:
                 try:
                     proc.wait(timeout=5)

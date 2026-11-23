@@ -12,7 +12,9 @@ Claude Code supports **hooks** — shell commands (or Python scripts) that run a
 
 - `PreToolUse` — fires before each tool call
 - `PostToolUse` — fires after each tool call completes
+- `Notification` — fires when Claude Code sends a notification (a permission prompt or a wait for input, among other types)
 - `Stop` — fires when the agent finishes a turn
+- `UserPromptSubmit` — fires when the user submits a prompt
 
 Hooks call `python -m cli_avatars_emit`, which sends a small UDP packet to the overlay. The overlay listens on `127.0.0.1` only and applies the state on top of the 2-second poll. If no packet arrives, behavior stays the poll.
 
@@ -47,7 +49,7 @@ After `pip install -e .` the same commands are available as `cli-avatars-emit`.
 
 | Command | What it does |
 |---------|----------------|
-| `state --source claude --id ID --state busy` | `idle`, `busy`, `thinking`, or `subagent` for that session. For Claude, `ID` is the first 8 characters of the session id. |
+| `state --source claude --id ID --state busy` | `idle`, `busy`, `thinking`, `subagent`, or `blocked` for that session. `blocked` means the agent is waiting on a decision, a permission prompt, or a reply. For Claude, `ID` is the first 8 characters of the session id. |
 | `say --from claude:ID --to grok:ID --icon question` | Queues an icon for the recipient and draws it above the sender. Icons: `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing`. |
 | `say ... --note "..."` | Sanitised into `channel/<room>.jsonl` (control characters removed, 240 characters, icon on the allowlist) and written to the local log. The Chat panel shows it. The desktop bubble does not. |
 | `inbox --for grok:ID` | Prints queued icons for that recipient. The output is untrusted data from the sender. The note is not printed. |
@@ -90,7 +92,7 @@ python -m cli_avatars_emit hooks install
 python -m cli_avatars_emit hooks install --apply
 ```
 
-That registers `hooks/claude_chat_hook.py` for `SessionStart`, `UserPromptSubmit`, and `Stop`. Details: [Chat hook (P3E-HOOKS)](#chat-hook-p3e-hooks).
+That registers `hooks/claude_chat_hook.py` for `SessionStart`, `UserPromptSubmit`, `Stop`, `PreToolUse`, `PostToolUse`, and `Notification`. The last three also emit avatar state. `Notification` is limited to permission and input waits (`permission_prompt`, `idle_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, `agent_needs_input`). Auth and quota notices are not included. Details: [Chat hook (P3E-HOOKS)](#chat-hook-p3e-hooks).
 
 ### Step 2 — Optional UDP state hooks
 
@@ -107,10 +109,15 @@ For tool-level poses before the next poll, add hook commands that call `cli_avat
     ],
     "Stop": [
       { "command": "python -m cli_avatars_emit state --source claude --id abcd1234 --state idle" }
+    ],
+    "Notification": [
+      { "matcher": "permission_prompt|idle_prompt", "command": "python -m cli_avatars_emit state --source claude --id abcd1234 --state blocked" }
     ]
   }
 }
 ```
+
+`hooks install` already registers the chat hook for those events, and that script emits the same states. A second copy of these commands is only for a setup that does not use the chat hook.
 
 Run `pip install -e .` in the clone so `python -m cli_avatars_emit` resolves, or use `python <clone>/cli_avatars_emit.py state ...`.
 
@@ -122,7 +129,9 @@ python overlay.py
 
 The overlay listens on UDP `127.0.0.1:47200`. A state packet updates a matching avatar immediately. The next poll still wins once the session file is newer than that packet.
 
-Typical UDP state map: tool start → `busy`, tool end → `thinking`, turn end → `idle`, subagent → `subagent`.
+Typical UDP state map: tool start (`PreToolUse`) → `busy`, tool end (`PostToolUse`) → `thinking`, a submitted prompt (`UserPromptSubmit`) → `thinking`, turn end → `idle`, subagent → `subagent`. A `Notification` for a permission prompt or a wait for input → `blocked`. The next `PreToolUse`, `UserPromptSubmit`, or `PostToolUse` replaces `blocked` with that event's state. The notification message is not stored and not shown.
+
+The Claude session scan follows the same wait. A tail line with `stop_reason` `tool_deferred` or `tool_deferred_unavailable`, a tool named `AskUserQuestion`, or one of those notification types is `blocked`. A newer tool call is `busy`. A newer thought, a user prompt, or a tool result is `thinking`. A finished result is `idle`. The line's message text is not kept.
 
 ---
 
@@ -134,7 +143,11 @@ The agent id is the first 8 characters of `session_id`. That is the same id `Cla
 
 | Event | What the hook does |
 |-------|--------------------|
-| `SessionStart`, `UserPromptSubmit` | Prints a short context block when something is new: the topic summary, the pins, unread inbox rows, and decision answers for this agent. Marks those rows read. `needs_summary: true` counts as new. If nothing is new, it prints nothing. The block is capped at 2000 characters. |
+| `SessionStart` | Prints a short context block when something is new: the topic summary, the pins, unread inbox rows, and decision answers for this agent. Marks those rows read. `needs_summary: true` counts as new. If nothing is new, it prints nothing. The block is capped at 2000 characters. |
+| `UserPromptSubmit` | Same context block as `SessionStart`. Also emits `thinking`, which clears `blocked`. The prompt text is not executed. |
+| `PreToolUse` | Emits `busy`. That clears `blocked`. The tool name and tool input are not stored. |
+| `PostToolUse` | Emits `thinking`. That clears `blocked`. |
+| `Notification` | Emits `blocked` when the type is a permission prompt or a wait for input (`permission_prompt`, `idle_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, `agent_needs_input`). Other notification types, such as `auth_success`, do not change state. The notification message is not printed and not stored. |
 | `Stop` | Emits `idle`. When `chat.auto_notes` is true (the default), stores a sanitised note of the last assistant message (240 characters) with `say --note` on the topic channel. The bubble stays icon-only. |
 
 Claude Code adds plain-text stdout from `SessionStart` and `UserPromptSubmit` to the model's context. The block is labelled untrusted data. A failure, a lock timeout, or bad stdin still exits 0, so Claude is not blocked. Each store lock waits at most a quarter of a second.
@@ -268,7 +281,7 @@ Frame sheet, 4×. Top row is the 1 px ring, bottom row is the 2 px ring:
 | `type` | `state`, `chat` | Session state, or an icon addressed to another agent |
 | `token` | string | Must match the local token file. Missing or wrong tokens are dropped |
 | `source` + `id` | `state` only | Session identity. Claude ids are 8 characters |
-| `state` | `idle`, `busy`, `thinking`, `subagent` | Avatar status |
+| `state` | `idle`, `busy`, `thinking`, `subagent`, `blocked` | Avatar status. Any other value is rejected. When several statuses collapse to one, worst first is `error`, `blocked`, `busy`, `thinking`, `done`, `idle`. `error` and `done` are overlay statuses, not bus values. |
 | `from`, `to` | `source:id` | Chat sender and recipient |
 | `icon` | `speech`, `question`, `ok`, `warn`, `error`, `thought`, `typing`, `decision` | Drawn in the bubble above the sender. `decision` is also drawn while that avatar has an open decision. The glyph is a code placeholder until the 16×16 cell arrives. |
 | `note`, `text` | optional string | Logged in `events.log`. `say --note` also stores a sanitised copy on the channel. The bubble does not draw it. |

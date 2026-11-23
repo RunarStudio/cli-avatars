@@ -19,6 +19,21 @@ from rooms import project_folder
 IDLE = "idle"
 THINKING = "thinking"
 BUSY = "busy"
+BLOCKED = "blocked"
+
+# A Claude transcript line that means the agent is waiting on a person.
+# ``tool_deferred`` is the result Claude writes when a tool is paused for
+# a reply. AskUserQuestion is that same wait. Notification types match the
+# hook matcher in claude_chat_hooks (permission or input, not auth or quota).
+_WAIT_STOP = frozenset({"tool_deferred", "tool_deferred_unavailable"})
+_WAIT_NOTIFY = frozenset({
+    "permission_prompt",
+    "idle_prompt",
+    "elicitation_dialog",
+    "elicitation_url_dialog",
+    "agent_needs_input",
+})
+_WAIT_TOOL = "AskUserQuestion"
 
 # Same thresholds the overlay scanner used before this split.
 STALE_AFTER = 900       # seconds; older session jsonl is treated as ended
@@ -80,6 +95,75 @@ _ERROR_SUBTYPES = frozenset({
     "error_max_budget_usd",
     "error_max_structured_output_retries",
 })
+
+
+def _line_blocked(line: str) -> bool:
+    """True when this transcript line is a permission or reply wait.
+
+    The message text is not returned. A line that only mentions those
+    words inside other text is not a wait.
+    """
+    if (
+        "stop_reason" not in line
+        and "notification_type" not in line
+        and _WAIT_TOOL not in line
+    ):
+        return False
+    try:
+        obj = json.loads(line)
+    except Exception:
+        return False
+    if not isinstance(obj, dict):
+        return False
+    stop = obj.get("stop_reason")
+    if isinstance(stop, str) and stop in _WAIT_STOP:
+        return True
+    kind = obj.get("notification_type")
+    if isinstance(kind, str) and kind in _WAIT_NOTIFY:
+        return True
+    message = obj.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, list):
+        return False
+    for block in content:
+        if (
+            isinstance(block, dict)
+            and block.get("type") == "tool_use"
+            and block.get("name") == _WAIT_TOOL
+        ):
+            return True
+    return False
+
+
+def _prompt_or_tool_result(line: str) -> bool:
+    """A submitted prompt or a finished tool result.
+
+    This is the transcript form of ``UserPromptSubmit`` and ``PostToolUse``.
+    A ``tool_result`` is not a new prompt, but the tool has finished, so it
+    is the same clear. The text is not returned.
+    """
+    if "user" not in line and "tool_result" not in line:
+        return False
+    try:
+        obj = json.loads(line)
+    except Exception:
+        return False
+    if not isinstance(obj, dict):
+        return False
+    message = obj.get("message") if isinstance(obj.get("message"), dict) else None
+    if message is None and obj.get("type") == "user":
+        message = obj
+    if not isinstance(message, dict):
+        return False
+    if obj.get("type") != "user" and message.get("role") != "user":
+        return False
+    content = message.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                return False
+        return True
+    return isinstance(content, str) or content is None
 
 
 def _result_failed(line: str) -> Optional[bool]:
@@ -197,6 +281,13 @@ class ClaudeJsonlSource(SessionSource):
                 f.seek(max(0, size - 4096))
                 lines = f.read().decode("utf-8", errors="ignore").splitlines()
             for line in reversed(lines[-30:]):
+                if _line_blocked(line):
+                    # A wait is newer than an older tool call. A later tool,
+                    # thought, or finished result still wins, because this
+                    # walk returns the newest marker.
+                    ended = _result_failed(line)
+                    failed = bool(ended) if ended is not None else False
+                    return BLOCKED, "", failed
                 ended = _result_failed(line)
                 if ended is not None:
                     # A finished turn wins over the word "tool_use" inside its text.
@@ -212,6 +303,8 @@ class ClaudeJsonlSource(SessionSource):
                         pass
                     return BUSY, "", False
                 if '"thinking"' in line:
+                    return THINKING, "", False
+                if _prompt_or_tool_result(line):
                     return THINKING, "", False
         except Exception:
             pass
