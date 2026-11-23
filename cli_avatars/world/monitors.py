@@ -37,10 +37,29 @@ def monitor_factor(dpi: int) -> int:
 
     ``round`` in Python uses banker's rounding, so ``round(2.5)`` is 2.
     250% (240 dpi) must be 3, so this adds 1/2 before truncating.
+    100% and 125% stay 1. 150% is 2.
     """
     if dpi <= 0:
         return 1
     return max(1, int(dpi / 96 + 0.5))
+
+
+def tk_scaling(dpi: int) -> float:
+    """Tk pixels-per-point for this DPI. 96 → 1.333, 120 → 1.667, 144 → 2."""
+    if dpi <= 0:
+        return 96.0 / 72.0
+    return float(dpi) / 72.0
+
+
+def ui_should_scale(mode: str) -> bool:
+    """True when the process must size text itself. Bitmap-stretched mode stays put."""
+    return mode in ("per-monitor-v2", "per-monitor", "system")
+
+
+def dpi_body(width: int, height: int, dpi: int) -> tuple[int, int]:
+    """Desktop sprite box. The sheet stays the same; the draw size follows the factor."""
+    factor = monitor_factor(dpi)
+    return int(width) * factor, int(height) * factor
 
 
 @dataclass(frozen=True)

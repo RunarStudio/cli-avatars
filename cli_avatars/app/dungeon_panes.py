@@ -13,9 +13,21 @@ _FG = "#aaccff"
 _FLOOR = "#1a1422"
 
 
+def install_fonts(root) -> None:
+    """Point-sized faces. ``tk scaling`` rebuilds them when the window DPI changes."""
+    import tkinter.font as tkfont
+
+    known = set(tkfont.names(root))
+    if "DungeonText" not in known:
+        tkfont.Font(root, name="DungeonText", family="Courier", size=10)
+    if "DungeonTitle" not in known:
+        tkfont.Font(root, name="DungeonTitle", family="Courier", size=11, weight="bold")
+
+
 def mount(view) -> None:
     """Build toolbar, docks, scene, and status bar on ``view.app.root``."""
     root = view.app.root
+    install_fonts(root)
     root.title("Dungeon")
     root.minsize(720, 480)
     root.configure(bg=_BG)
@@ -158,7 +170,7 @@ def _body(view, root) -> None:
     view._chat_host = tk.Frame(root, bg=_BG)
     view._settings = tk.Frame(view._right_body, bg=_BG)
     view._pop_note = tk.Label(
-        view._right_body, text="Chat is in its own window.", bg=_BG, fg=_DIM, font=("Courier", 10),
+        view._right_body, text="Chat is in its own window.", bg=_BG, fg=_DIM, font="DungeonText",
     )
     view.app._chat_host = view._chat_host
     view._right_open = True
@@ -184,12 +196,12 @@ def _btn(parent, text, command):
     return tk.Button(
         parent, text=text, command=command, bg=_SEL, fg=_FG,
         activebackground="#334477", activeforeground="white",
-        font=("Courier", 10), relief="flat", padx=8, pady=2, cursor="hand2",
+        font="DungeonText", relief="flat", padx=8, pady=2, cursor="hand2",
     )
 
 
 def _header(parent, text, hide) -> None:
     row = tk.Frame(parent, bg=_BAR)
     row.pack(fill="x")
-    tk.Label(row, text="  " + text, bg=_BAR, fg="#88aaff", font=("Courier", 11, "bold")).pack(side="left")
+    tk.Label(row, text="  " + text, bg=_BAR, fg="#88aaff", font="DungeonTitle").pack(side="left")
     _btn(row, text="Hide", command=hide).pack(side="right", padx=4, pady=2)

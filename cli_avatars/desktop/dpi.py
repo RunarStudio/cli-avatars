@@ -25,6 +25,26 @@ def reset_dpi_state() -> None:
     _MODE = None
 
 
+def read_window_dpi(hwnd: int) -> int | None:
+    """``GetDpiForWindow`` for the Dungeon. None off Windows or when the hwnd is missing.
+
+    The monitor signature does not change when a window is dragged between
+    monitors, so the text scale follows this value.
+    """
+    if sys.platform != "win32" or not hwnd:
+        return None
+    try:
+        user = ctypes.WinDLL("user32", use_last_error=True)
+        user.GetDpiForWindow.argtypes = [ctypes.c_void_p]
+        user.GetDpiForWindow.restype = ctypes.c_uint
+        value = int(user.GetDpiForWindow(int(hwnd)))
+    except (OSError, AttributeError, ValueError, TypeError):
+        return None
+    if value < 1:
+        return None
+    return value
+
+
 def set_dpi_aware() -> str:
     """Set awareness once. Returns ``per-monitor-v2``, ``per-monitor``, ``system``, ``none``, or ``skipped``."""
     global _MODE

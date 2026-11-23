@@ -430,7 +430,7 @@ exists (see also `app/input.py`), not from the tick.
 | Dungeon window | WIN-DUNGEON.3 | `cli_avatars/app/dungeon_window.py` | app | Framed root. Close quits. ESC cancels a drag or closes a dock |
 | Places and door | WIN-DUNGEON.5/.6 | `model/place.py`, `app/places.py`, `app/crossing.py` | model + app | Door and Call home. Desktop escape is Windows only |
 | Overlays | WIN-DUNGEON.2/.7 | `cli_avatars/app/overlays.py` | app | One topmost `Toplevel` per monitor on Windows, withdrawn when empty. Linux and macOS keep that window withdrawn and unmapped (`desktop_escape` is false) |
-| Click-through, DPI, poses, interactions, sounds | WIN-DUNGEON.7, POSE-MAP, AVATAR-INTERACT, SOUNDS | `desktop/clickthrough.py` (Win32 bits), `world/avatar.py` (pose), `app/shell.py` (wiring) | desktop + app | Click-through and per-monitor `tk scaling` are still open. Wire Win32 from the shell after the root exists, not from the tick |
+| Click-through, DPI, poses, interactions, sounds | WIN-DUNGEON.7, POSE-MAP, AVATAR-INTERACT, SOUNDS | `desktop/clickthrough.py` (Win32 bits), `app/desktop_follow.py` (33 ms timer), `world/avatar.py` (pose) | desktop + app | Empty overlay pixels set `WS_EX_TRANSPARENT`; a sprite clears it. `tk scaling` is `dpi/72` (96 → 1.333, 120 → 1.667, 144 → 2). Wired from the shell, not the tick |
 
 ### 6.1 cli_runner rules
 

@@ -8,7 +8,7 @@ from bubbles import integer_scale
 from cli_avatars.app.render import photos_for, sync_images
 from cli_avatars.desktop.capabilities import HAS_PIL
 from cli_avatars.tuning import TUNING
-from portal import portal_top_left, render_portal
+from portal import SPRITE, portal_top_left, render_portal
 
 if HAS_PIL:
     try:
@@ -26,6 +26,7 @@ def _draw_portal(self: Any, floors, floor_hwnds, now: float | None = None) -> No
     if not HAS_PIL or _ImageTk is None:
         self._portal_items = sync_images(self.canvas, ids, [])
         self._portal_sig = None
+        self._portal_hit = None
         return
     if now is None:
         now = time.time()
@@ -36,15 +37,19 @@ def _draw_portal(self: Any, floors, floor_hwnds, now: float | None = None) -> No
         logging.getLogger("cli_avatars.portal").exception("portal draw failed")
         self._portal_items = sync_images(self.canvas, ids, [])
         self._portal_sig = None
+        self._portal_hit = None
         return
     if view is None:
         self._portal_items = sync_images(self.canvas, ids, [])
         self._portal_sig = None
+        self._portal_hit = None
         return
     scale = integer_scale(TUNING.avatar_scale)
     key = ("portal", view.phase, view.index, scale)
     x, y = portal_top_left(view.surface_x, view.surface_y, scale)
     x, y = int(round(x)), int(round(y))
+    size = SPRITE * integer_scale(scale)
+    self._portal_hit = (x, y, size, size)
     sig = (key, x, y)
     if sig == getattr(self, "_portal_sig", None) and ids:
         self.canvas.tag_lower("portal")
@@ -55,6 +60,7 @@ def _draw_portal(self: Any, floors, floor_hwnds, now: float | None = None) -> No
     if photo is None:
         self._portal_items = sync_images(self.canvas, ids, [])
         self._portal_sig = None
+        self._portal_hit = None
         return
     self._portal_items = sync_images(self.canvas, ids, [(x, y, photo, "portal")])
     self._portal_sig = sig
