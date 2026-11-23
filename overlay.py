@@ -786,7 +786,7 @@ class Avatar:
     def _anim_status(self) -> str:
         if getattr(self, "_dying", False):
             return "dying"
-        if self.agent.status == S.IDLE and (abs(self.vx) > 0.1 or self._wall_climb is not None):
+        if self.agent.status in (S.IDLE, S.BLOCKED) and (abs(self.vx) > 0.1 or self._wall_climb is not None):
             return S.BUSY
         return self.agent.status
 
