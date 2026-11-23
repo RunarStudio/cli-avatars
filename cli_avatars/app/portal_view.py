@@ -1,6 +1,7 @@
 """One portal on the meeting surface, behind the avatars."""
 
 import logging
+import time
 
 from bubbles import integer_scale
 from portal import portal_top_left, render_portal

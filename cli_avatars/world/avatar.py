@@ -24,7 +24,7 @@ from cli_avatars.tuning import (
 
 class Avatar:
     def __init__(self, agent: AgentInfo, sw, sh, color_idx,
-                 registry: Optional["SpriteRegistry"] = None,
+                 registry: Optional[object] = None,
                  spring_mode: bool = False):
         self.agent      = agent
         self.sw, self.sh = sw, sh

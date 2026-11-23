@@ -1,6 +1,7 @@
 """Talk bubbles, decision bubbles, and the blocked mark on the canvas."""
 
 import logging
+import time
 
 from bubbles import blocked_indicator, integer_scale, place_blocked_mark, render_bubble
 from decisions import open_agent_ids, place_open_decisions
