@@ -25,4 +25,4 @@ py-modules = [
     "win32",
     "claude_chat_hooks",
 ]
-packages = ["cli_avatars_mcp"]
+packages = ["cli_avatars", "cli_avatars.runner", "cli_avatars_mcp"]
