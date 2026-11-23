@@ -8,6 +8,8 @@ Produces two onefile executables:
 
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_submodules
+
 ROOT = Path(SPECPATH)
 
 datas = [
@@ -19,17 +21,23 @@ datas = [
 hiddenimports = [
     "bundle_paths",
     "bubbles",
+    "chat_window",
     "chatlog",
+    "claude_chat_hooks",
+    "cli_avatars_emit",
     "decisions",
     "events",
     "hud",
     "inbox",
     "meetings",
+    "overlay",
     "perchas",
     "portal",
     "rooms",
+    "routing",
     "sessions",
     "sprite_loader",
+    "subskins",
     "topics",
     "win32",
     "PIL",
@@ -39,7 +47,7 @@ hiddenimports = [
     "numpy",
     "pystray",
     "pywinctl",
-]
+] + collect_submodules("cli_avatars")
 
 
 def _analysis(script):

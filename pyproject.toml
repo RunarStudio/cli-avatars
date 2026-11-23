@@ -15,22 +15,65 @@ cli-avatars-emit = "cli_avatars_emit:main"
 py-modules = [
     "bundle_paths",
     "bubbles",
-    "cli_avatars_emit",
-    "events",
-    "inbox",
-    "sessions",
-    "overlay",
-    "sprite_loader",
-    "perchas",
-    "win32",
+    "chat_window",
+    "chatlog",
     "claude_chat_hooks",
+    "cli_avatars_emit",
+    "decisions",
+    "events",
+    "hud",
+    "inbox",
+    "meetings",
+    "overlay",
+    "perchas",
+    "portal",
+    "rooms",
+    "routing",
+    "sessions",
+    "sprite_loader",
+    "subskins",
+    "topics",
+    "win32",
 ]
-packages = [
-    "cli_avatars",
-    "cli_avatars.effects",
-    "cli_avatars.model",
-    "cli_avatars.physics",
-    "cli_avatars.runner",
-    "cli_avatars.sprites",
-    "cli_avatars_mcp",
-]
+
+[tool.setuptools.packages.find]
+include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "TID"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"subprocess".msg = "subprocess stays in cli_avatars.runner"
+
+[tool.ruff.lint.per-file-ignores]
+# Legacy top-level modules stay as they are, apart from real pyflakes errors.
+"bundle_paths.py" = ["E", "W", "I", "B"]
+"bubbles.py" = ["E", "W", "I", "B"]
+"chat_window.py" = ["E", "W", "I", "B"]
+"chatlog.py" = ["E", "W", "I", "B"]
+"claude_chat_hooks.py" = ["E", "W", "I", "B"]
+"cli_avatars_emit.py" = ["E", "W", "I", "B"]
+"decisions.py" = ["E", "W", "I", "B"]
+"events.py" = ["E", "W", "I", "B"]
+"hud.py" = ["E", "W", "I", "B"]
+"inbox.py" = ["E", "W", "I", "B"]
+"meetings.py" = ["E", "W", "I", "B"]
+"overlay.py" = ["E", "W", "I", "B"]
+"perchas.py" = ["E", "W", "I", "B"]
+"portal.py" = ["E", "W", "I", "B"]
+"rooms.py" = ["E", "W", "I", "B"]
+"routing.py" = ["E", "W", "I", "B"]
+"sessions.py" = ["E", "W", "I", "B"]
+"sprite_loader.py" = ["E", "W", "I", "B"]
+"subskins.py" = ["E", "W", "I", "B"]
+"topics.py" = ["E", "W", "I", "B"]
+"win32.py" = ["E", "W", "I", "B"]
+"hooks/**" = ["E", "W", "I", "B"]
+"tests/**" = ["E", "W", "I", "B"]
+"tools/**" = ["E", "W", "I", "B"]
+"cli_avatars_mcp/**" = ["E", "W", "I", "B"]
+"cli_avatars/runner/**" = ["TID"]
