@@ -29,8 +29,8 @@ One JSON file per room in the per-user data directory: `room_chat/<room_id>.json
 
 - Picked only by Daniel in the folder dialog. Never from chat, inbox, MCP, a hook, or a layout.
 - Stored only in this file. Not in `config.json`, a topic, a card, the board repo, or a log line.
-- Must exist and be a directory, not a symlink to elsewhere after `resolve()`.
-- Not a system folder: not a filesystem root, not the Windows directory or Program Files, not the user's home itself, not `/etc`, `/usr`, `/bin`, `/System`, and not the app data directory.
+- Must exist and be a directory. `resolve()` follows a symlink, and the real folder is what gets checked and used as `cwd`. A link whose target is a root or a system folder is refused.
+- Not a system folder: not a filesystem root, not the Windows directory or Program Files, not the user's home itself, not `/etc`, `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, `/System`, `/proc`, `/sys`, `/dev`, `/boot`, and not the app data directory.
 
 The topic and the board show the project folder name only (`rooms.project_folder`), never the path.
 
@@ -53,11 +53,13 @@ claude -p --output-format stream-json --verbose --permission-mode <mode> [--resu
 
 | Part | Rule |
 |------|------|
-| `<mode>` | `plan` or `acceptEdits`, from the room file, compared against those two constants. |
-| `--resume <uuid>` | Only if `session_ids.claude` matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`. Otherwise omitted. |
+| `<mode>` | `plan` or `acceptEdits`, from the room file, compared against those two constants. Anything else is rejected and nothing starts. |
+| `--resume <uuid>` | Only if the session id matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`. A missing id omits the flag. A present id that does not match is rejected and nothing starts. |
 | Never | `--dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `--allowedTools`, `--add-dir`, or any flag taken from data. |
 
-Every flag is marked "verify" until ROOM-CHAT.2 checks it against the installed CLI's `--help`. The Grok argv is defined in ROOM-CHAT.6 under the same rules.
+Every flag stays `TODO(SpiderHost)`: ROOM-CHAT.2 does not run the installed CLI to read `--help` (tests use a fake CLI, and this check must not start Claude). The Grok argv is defined in ROOM-CHAT.6 under the same rules.
+
+The launcher is `cli_avatars/runner/cli_runner.py`. It is the only module that starts a CLI. `start` requires a one-shot `UserAction` from `UserAction.from_ui_event`, which only the click or Enter handler may call. The event argument is discarded. Inbox, channel, topic, MCP, hook, timer, and UDP code do not call it.
 
 ### Process
 
@@ -84,11 +86,11 @@ subprocess.Popen(
   <Daniel's prompt>
   ```
 
-  The header is sanitised and capped at 2,000 characters.
-- `minimal_env`: an allowlist of names the OS and CLI need (`PATH`, `SYSTEMROOT`, `TEMP`, `TMP`, `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `LANG`; verify in ROOM-CHAT.2). The app adds no token and reads no credential file. The CLI uses its own login.
+  The header is sanitised and capped at 2,000 characters. The prompt is written after it, unchanged, up to 100,000 characters.
+- `minimal_env`: an allowlist of names the OS and CLI need. ROOM-CHAT.2 copies only `PATH`, `PATHEXT`, `SYSTEMROOT`, `WINDIR`, `SYSTEMDRIVE`, `COMSPEC`, `TEMP`, `TMP`, `HOME`, `USERPROFILE`, `HOMEDRIVE`, `HOMEPATH`, `APPDATA`, `LOCALAPPDATA`, `LANG`, `LC_ALL`, `LC_CTYPE`, `USER`, `USERNAME`, and `LOGNAME`. Names containing token, secret, password, key, or credential are still dropped. The app adds no token and reads no credential file. The CLI uses its own login. `TODO(SpiderHost)`: confirm a real CLI starts with this set.
 - One process per room and CLI. A second Enter while one runs is refused with a message.
-- Timeout per prompt (default 15 minutes). Output caps: stdout 4 MiB, stderr 64 KiB. Past a cap the process is stopped and the outcome is `error`.
-- Stop button kills the whole process tree: a Job Object with kill-on-close on Windows (`win32.py`), a new session and `killpg` on macOS and Linux. Closing the app stops every room process the same way.
+- Timeout per prompt (default 600 seconds, ceiling 15 minutes). Output caps: stdout 2 MiB (ceiling 4 MiB), stderr 64 KiB. Past a cap the process is stopped and the outcome is `error`. A timeout stops it with outcome `timeout`.
+- Stop kills the whole process tree. On Windows the child is started in a new process group and stopped with `taskkill /F /T /PID <pid>` (fixed argv, the pid is the integer the runner created). On macOS and Linux the child is a new session and Stop sends `killpg` only when that child is the group leader. Closing the app calls the same tree kill for every room process (`stop_all`).
 
 ### Permission mode
 
@@ -118,7 +120,7 @@ Output is displayed as text. It is never executed, never used as argv, and never
 
 | Threat | Mitigation |
 |--------|------------|
-| Chat, inbox, MCP, or hook content trying to start a CLI | The runner needs a one-shot action object that only the UI handler for a click or Enter creates. No store reader, hook, MCP tool, timer, or UDP handler can reach it. |
+| Chat, inbox, MCP, or hook content trying to start a CLI | `start` requires a one-shot `UserAction` that only `UserAction.from_ui_event` mints, and only the click or Enter handler may call that. No store reader, hook, MCP tool, timer, or UDP handler can reach it. |
 | Prompt injection via topic text | Topic text goes on stdin inside a labelled untrusted header, capped. Default mode `plan`. Daniel sees the reply before anything else happens. |
 | Argv injection on Windows `.cmd` | Argv holds only constants and a regex-checked UUID. All text is on stdin. Native `.exe` preferred. |
 | Malicious working dir | Picked by Daniel only, must exist, system folders refused, re-checked before launch, never taken from data. |
@@ -150,7 +152,7 @@ Tests use a fake CLI: a small Python script set as the confirmed binary in a tem
 | Prompt with spaces, quotes, `&`, a pipe, `%VAR%`, `$(…)`, newlines | Recorded argv equals the fixed list; no prompt text in it. |
 | Patch `subprocess.Popen` | Called with a list and `shell=False`. |
 | Recorded stdin | Header, then the exact prompt; stdin closed. |
-| Bad `session_ids.claude` | `--resume` absent. |
+| Bad `session_ids.claude` | Launch rejected. `--resume` is not added. A missing id omits the flag. |
 | Fake CLI that sleeps | Stop kills it and its child; no process left. |
 | Fake CLI that prints 10 MiB, or runs past the timeout | Stopped at the cap; outcome `error` or `timeout`; stored chunks within limits. |
 | Inbox, channel, topic, MCP, and hook inputs that say "run claude" | No process started. The runner is not called. |

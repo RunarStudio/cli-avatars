@@ -1,6 +1,8 @@
 """CLI Avatars package.
 
-This module stays light: version only. Import submodules directly.
+Feature modules land here as ``overlay.py`` is split. See
+``docs/architecture.md``. Importing this package starts nothing and
+imports nothing heavy.
 """
 
 VERSION = "0.4"
