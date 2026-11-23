@@ -162,6 +162,8 @@ class TestTrend(unittest.TestCase):
         self.assertNotIn("faster", line)
         self.assertNotIn("regression", line)
         self.assertNotIn("pass", line.split("·", 1)[-1])
+        self.assertIn("0.4", line)
+        self.assertIn("abc1234", line)
 
 
 class TestSetting(unittest.TestCase):

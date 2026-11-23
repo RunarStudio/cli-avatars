@@ -80,3 +80,8 @@ select = ["E", "F", "W", "I", "B", "TID"]
 "tools/**" = ["E", "W", "I", "B"]
 "cli_avatars_mcp/**" = ["E", "W", "I", "B"]
 "cli_avatars/runner/**" = ["TID"]
+# The updater and the installer script start git, Python, and PyInstaller.
+# Argv is a fixed list and shell is false. Chat text never reaches them.
+"cli_avatars/update/proc.py" = ["TID"]
+"tools/build_installer.py" = ["TID"]
+"packaging/cli_avatars.spec" = ["TID"]

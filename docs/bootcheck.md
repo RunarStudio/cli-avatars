@@ -27,7 +27,7 @@ Turn it off with `desktop.bootcheck` set to `false` in `config.json`, or Setting
 
 ## Results
 
-The bottom status bar shows one line, for example `Boot check 14/14 ok · 1.3 s`. A click opens the per-check list in the Settings dock. That list is not a new window.
+The bottom status bar shows one line, for example `Boot check 14/14 ok · 1.3 s · 0.4.0 abc1234`. The version and the short commit sit on that line. A click opens the per-check list in the Settings dock. That list is not a new window.
 
 Compared with the previous run, the line adds more passes (`+1 pass`), `faster` or `slower` when the total moves by at least 20 ms, and a regression count. A check that was `ok` and no longer is, is marked `regression` in the list. A check that newly passes is marked `new pass`.
 

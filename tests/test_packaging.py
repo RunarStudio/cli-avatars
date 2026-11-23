@@ -15,6 +15,7 @@ PACKAGES = (
     "cli_avatars.runner",
     "cli_avatars.sprites",
     "cli_avatars.world",
+    "cli_avatars.update",
     "cli_avatars_mcp",
 )
 
@@ -47,6 +48,28 @@ class PackagingTests(unittest.TestCase):
         self.assertIn('collect_submodules("cli_avatars")', text)
         for path in sorted(ROOT.glob("*.py")):
             self.assertIn(f'"{path.stem}"', text, path.name)
+
+    def test_version_matches_pyproject(self):
+        from cli_avatars.__version__ import __version__
+
+        text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn(f'version = "{__version__}"', text)
+
+    def test_onedir_spec_and_per_user_installer(self):
+        spec = (ROOT / "packaging" / "cli_avatars.spec").read_text(encoding="utf-8")
+        iss = (ROOT / "packaging" / "installer.iss").read_text(encoding="utf-8")
+        self.assertIn("exclude_binaries=True", spec)
+        self.assertIn("COLLECT(", spec)
+        self.assertIn("__version__.py", spec)
+        self.assertIn("shell=False", spec)
+        self.assertIn("PrivilegesRequired=lowest", iss)
+        self.assertIn("{localappdata}\\Programs\\CLI Avatars", iss)
+        self.assertIn("{localappdata}\\cli-avatars", iss)
+        self.assertIn("Also delete app data", iss)
+        self.assertIn("{autoprograms}", iss)
+        self.assertIn('Name: "desktopicon"', iss)
+        self.assertNotIn("C:\\Users", iss)
+        self.assertNotIn("PrivilegesRequired=admin", iss)
 
 
 if __name__ == "__main__":

@@ -1119,6 +1119,10 @@ class BoundaryTest(unittest.TestCase):
         for path in (REPO / "cli_avatars").rglob("*.py"):
             if "runner" in path.parts:
                 continue
+            # The updater's fixed-argv helper is the other process boundary.
+            # Chat, inbox, hooks, and MCP still cannot import it to run text.
+            if path.relative_to(REPO).as_posix() == "cli_avatars/update/proc.py":
+                continue
             files.append(path)
         self.assertGreaterEqual(len(files), 8)
         for path in files:
@@ -1136,6 +1140,10 @@ class BoundaryTest(unittest.TestCase):
         hook = (REPO / "hooks" / "claude_chat_hook.py").read_text(encoding="utf-8")
         self.assertNotIn("cli_runner", hook)
         self.assertNotIn("from_ui_event", hook)
+        proc = (REPO / "cli_avatars" / "update" / "proc.py").read_text(encoding="utf-8")
+        self.assertIn("shell=False", proc)
+        self.assertNotIn("shell=True", proc)
+        self.assertNotIn("shell = True", proc)
 
     def test_only_ui_modules_reference_the_runner(self) -> None:
         # Covers events.py (UDP), cli_avatars_emit.py, overlay timers, and any

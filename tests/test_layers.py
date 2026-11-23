@@ -2,7 +2,7 @@
 
 No tkinter below app/. No cycles. Physics, effects, and sprites do not
 import each other, except physics.geometry may import sprites.registry.
-subprocess stays in runner/cli_runner.py.
+subprocess stays in runner/cli_runner.py, plus the updater's fixed-argv helper.
 """
 
 import ast
@@ -283,16 +283,23 @@ class TestLayers(unittest.TestCase):
 
     def test_subprocess_only_in_cli_runner(self):
         problems = []
-        runner = "cli_avatars.runner.cli_runner"
+        allowed = {
+            "cli_avatars.runner.cli_runner",
+            "cli_avatars.update.proc",
+        }
+        allowed_files = {
+            "cli_avatars/runner/cli_runner.py",
+            "cli_avatars/update/proc.py",
+        }
         for path, module, visitor in _parsed():
-            if module == runner:
+            if module in allowed:
                 continue
             for name, lineno, _where in visitor.imports:
                 root = name.split(".")[0]
                 if root == "subprocess" or name.startswith("subprocess."):
                     problems.append(f"{path.relative_to(ROOT)}:{lineno} imports {name}")
             rel = path.relative_to(ROOT).as_posix()
-            if rel != "cli_avatars/runner/cli_runner.py" and visitor.exec_calls:
+            if rel not in allowed_files and visitor.exec_calls:
                 problems.append(f"{rel} {visitor.exec_calls}")
         self.assertEqual(problems, [])
 
