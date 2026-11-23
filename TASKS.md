@@ -429,6 +429,7 @@ A parent task can have subtasks. Write them as indented lines (two spaces) under
   - [x] [ART][feat] SUBSKIN.15 @pixel: idle / working / dying states for subagent skins (dying = subchat closing) (feat/subagent-dying)
     - Subagent sheets use three rows: idle (4), working (4), dying (4). Busy and thinking play working. A missing row falls back to the first row that has frames.
     - When the subchat closes, or the parent avatar goes away, the child plays dying once (4 frames at 120 ms). The spring line shrinks. The child ignores the leash and is not pulled if the parent is dragged. Then the avatar is removed.
+- [ ] [ART][art] BLDG-KIT: dungeon kit imported to Sprites/dungeon_kit/ (placeholder, pending owner OK)
 - [ ] [ART][feat] GROK-SKIN-BUSY: Sprite loader uses its own busy row per `docs/grok-skin-spec.md` once Caine's sheet lands. Sheet 40×40, 4 cols × 6 rows: idle 4, walk 4, thinking 2, done 2, subagent 2, busy 2.
 - [ ] [ART][art] CAINE-SKIN: Caine draws the skin sheet.
   - Each subagent sheet needs idle, working, and dying rows (4 frames each). Dying plays when the subchat closes.
