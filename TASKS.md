@@ -442,6 +442,7 @@ One short sentence above an orchestrator. The words come from structured events.
 - [x] [OVL][feat] BUBBLES.2: Hold about 4 s, one new line per avatar per 3 s, Stop hides at once, overlap steps up or hides. The same sentence follows the avatar in the Dungeon and on the desktop overlay. Overlay bubbles are in the click-through hit test. Optional dots on the spring line.
 - [x] [OVL][feat] BUBBLES.3: Settings dock and tray toggle. `bubbles.activity` defaults on, `bubbles.subagents` defaults off, `bubbles.duration_s` is 1–12 and defaults to 4, `bubbles.spring_dots` defaults on.
   - Windows check 2026-11-23 (5707b68): 721 pass. BUBBLES.1, BUBBLES.2, and BUBBLES.3.
+  - Windows check 2026-11-23 (2256dbc): layout follow-up. 784 ran, 0 failed, 7 Windows-only skips. Demo first paint and a later shot pass every layout check.
 
 ## Out of scope (Daniel 2026-11-23)
 
