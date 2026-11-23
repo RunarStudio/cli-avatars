@@ -39,6 +39,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | BOARD | Task board: cards, local and git stores, CLI and MCP tools |
 | WEB | Phone web view: LAN server, pairing, mobile pages |
 | BLDG | Building view: dungeon-kit scene in Tk and on the web |
+| BOOTCHECK | Startup checks on this PC: sprites, config, window, history |
 
 ### Types (`[type]`)
 
@@ -73,7 +74,14 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | BOARD | 1 | 2 (subtasks 0/10) |
 | WEB | 0 | 1 (subtasks 0/4) |
 | BLDG | 1 | 3 (subtasks 0/3) |
-| **Total** | 50 | 58 |
+| BOOTCHECK | 1 | 0 |
+| **Total** | 51 | 58 |
+
+## Boot check
+
+Local startup checks during the first two seconds. The Dungeon stays responsive. See `docs/bootcheck.md`.
+
+- [x] [BOOTCHECK][feat] BOOTCHECK: Run read-only startup checks within 2.0 s, show `Boot check N/N ok` on the Dungeon status bar, open the list in the Settings dock, and append `bootcheck_history.jsonl` (cap 200) with a trend against the previous run. `desktop.bootcheck` defaults on. `--bootcheck-only` prints the table and exits 0 or 1.
 
 ## 📦 Portable Windows build
 

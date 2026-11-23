@@ -15,6 +15,7 @@ import tkinter as tk
 from typing import Optional
 
 from bundle_paths import asset_path
+from cli_avatars.app.bootcheck import start_bootcheck
 from cli_avatars.app.bubbles_view import (
     BubblesView,
     _draw_blocked_marks,
@@ -173,6 +174,10 @@ class OverlayApp:
 
         # Load sprites and set up UI in background so window appears immediately
         threading.Thread(target=self._deferred_init, daemon=True).start()
+        try:
+            start_bootcheck(self)
+        except Exception:
+            print("[WARN] Boot check did not start")
         self._tick()
 
     def _deferred_init(self):

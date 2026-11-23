@@ -1,8 +1,10 @@
 """Config window. Apply writes ``TUNING``. Movers read ``TUNING`` at call time."""
 
 import tkinter as tk
+from dataclasses import replace
 from tkinter import ttk
 
+from cli_avatars.desktop.settings import desktop_settings, with_bootcheck
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
 
@@ -124,6 +126,32 @@ def _build_config_ui(self, win):
                            orient="horizontal", bg=BG, fg=FG, troughcolor=SEL,
                            highlightthickness=0, showvalue=True, length=150,
                            font=("Courier", 7), command=_on_win_alpha).pack(side="left"))
+
+    v_boot = tk.BooleanVar(win, desktop_settings(getattr(self, "config", {})).bootcheck)
+
+    def _save_boot():
+        enabled = bool(v_boot.get())
+        from cli_avatars.app.bootcheck import save_bootcheck_pref
+
+        path = getattr(self, "_config_path", None)
+        if path is not None:
+            save_bootcheck_pref(path, enabled)
+        self.config = with_bootcheck(getattr(self, "config", {}), enabled)
+        desktop = getattr(self, "desktop", None)
+        if desktop is not None:
+            try:
+                self.desktop = replace(desktop, bootcheck=enabled)
+            except TypeError:
+                pass
+
+    def boot_widget(parent):
+        tk.Checkbutton(
+            parent, variable=v_boot, text="on startup", command=_save_boot,
+            bg=BG, fg=FG, selectcolor=SEL, activebackground=BG, activeforeground="white",
+            font=FONT, highlightthickness=0,
+        ).pack(side="left")
+
+    row(td, "Boot check", boot_widget)
 
     tk.Frame(td, bg="#223366", height=1).pack(fill="x", padx=12, pady=(10, 4))
 
