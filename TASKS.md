@@ -61,7 +61,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 | Epic | Done | Open |
 |------|------|------|
-| CHAT | 7 | 8 (subtasks 0/13) |
+| CHAT | 7 | 8 (subtasks 1/13) |
 | SRC | 6 | 4 (subtasks 0/3) |
 | MCP | 1 | 3 |
 | OVL | 19 | 8 (subtasks 2/3) |
@@ -557,7 +557,7 @@ See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md)
   - [ ] [BOARD][feat] TASKBACK.5 @agents: Tasks centre tab in the Dungeon (BOARD.4 retargeted): columns, filters, Daniel's edits and drag, live agent updates, card click opens Chat. Done when selftest builds it off-screen, a move writes one `moved` event, and draw is ≤ 2 ms. (after TASKBACK.2 and WIN-DUNGEON.4) (M)
   - [ ] [BOARD][feat] TASKBACK.6 @agents: Chat dock task card and target chip (Orchestrator via inbox or resume, one-shot Claude/Grok, Both); `prompt` event carries the card id; runner header gains the task lines. Done when fake-CLI tests show constant argv, the card line in the header, and no process from the inbox path or a status update. (after ROOM-CHAT.1/.3/.4, CHAT-SEND-CLAUDE) (M)
 - [ ] [CHAT][feat] MEMMAP: Memory map in the left dock: an Obsidian-like graph of which .md files each session reads and how often, with metrics to check memory is optimised. Relative paths only, never content, local only.
-  - [ ] [CHAT][feat] MEMMAP.1 @pixel: Pure memmap/model.py: path normaliser (relative, outside-root tokens, hashing), kind classifier, record validator, project root finder. Done when tests cover Windows/POSIX/UNC/`..`/drive paths and no absolute path survives. (S)
+  - [x] [CHAT][feat] MEMMAP.1 @pixel: Pure memmap/model.py: path normaliser (relative, outside-root tokens, hashing), kind classifier, record validator, project root finder. Done when tests cover Windows/POSIX/UNC/`..`/drive paths and no absolute path survives. (S)
   - [ ] [CHAT][feat] MEMMAP.2 @pixel: Hook capture of PostToolUse Read on *.md/*.mdc, UserPromptSubmit turn markers, SessionStart inferred auto-loads into memmap/<project>/reads.jsonl (lock, caps, rotation, retention, `memmap.enabled`); update docs/claude-hooks.md. Done when fake payload tests show one record per .md Read, no content stored, and the hook stays in budget. (after MEMMAP.1; live check after CLAUDE-HOOK-INSTALL) (S)
   - [ ] [CHAT][feat] MEMMAP.3 @agents: Aggregator (pure): nodes, co-read and link edges, recency fade, window and topic filters, metrics (reads per task, duplicates, never read, hot large files, token estimate). Done when fixture tests pass and 10,000 records aggregate in < 20 ms. (after MEMMAP.1) (M)
   - [ ] [CHAT][feat] MEMMAP.4 @agents: Collapsible memory map section under Topics in the left dock: force layout on a worker thread, kind colours, read-count size, hover, click highlight, metrics strip. Done when selftest builds it with fixture data, collapse state survives a relaunch, and draw is ≤ 2 ms. (after MEMMAP.3) (M)
