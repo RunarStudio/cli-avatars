@@ -221,17 +221,19 @@ def _scan(
         if op == "read":
             st[0] += 1
             turn = record["turn"]
-            seen = state[0].get(path)
+            reads = state[0]
+            seen = reads.get(path)
             if seen is None:
-                state[0][path] = [1, turn]
+                reads[path] = [1, turn]
             else:
                 if seen[0] >= dup_limit or seen[1] == turn:
                     st[2] += 1
                 seen[0] += 1
                 seen[1] = turn
-            group = state[1].get(turn)
+            turns = state[1]
+            group = turns.get(turn)
             if group is None:
-                state[1][turn] = {path: stamp}
+                turns[turn] = {path: stamp}
             elif stamp > group.get(path, neg):
                 group[path] = stamp
         else:
@@ -315,9 +317,8 @@ def _co_edges(
     order = sorted(shown)
     n = len(order)
     rank = {path: i for i, path in enumerate(order)}
-    weight: dict[int, int] = {}
-    last: dict[int, float] = {}
-    neg = float("-inf")
+    pairs: dict[int, list] = {}  # key -> [turns, newest read]
+    get = pairs.get
     for group in groups:
         items = [(rank[p], t) for p, t in group.items() if p in rank]
         count = len(items)
@@ -329,18 +330,22 @@ def _co_edges(
             base = a * n
             for b, stamp_b in items[i + 1:]:
                 key = base + b
-                weight[key] = weight.get(key, 0) + 1
                 newest = stamp_a if stamp_a > stamp_b else stamp_b
-                if newest > last.get(key, neg):
-                    last[key] = newest
+                entry = get(key)
+                if entry is None:
+                    pairs[key] = [1, newest]
+                else:
+                    entry[0] += 1
+                    if newest > entry[1]:
+                        entry[1] = newest
     exp, floor = math.exp, FADE_FLOOR
     edges = []
-    for key in sorted(weight):
-        w = weight[key]
+    for key in sorted(pairs):
+        w, newest = pairs[key]
         if w < co_read_min:
             continue
         a, b = divmod(key, n)
-        alpha = exp(-max(0.0, now - last[key]) / FADE_SECONDS)
+        alpha = exp(-max(0.0, now - newest) / FADE_SECONDS)
         edges.append(Edge(order[a], order[b], "co", w, alpha if alpha > floor else floor))
     return edges
 
