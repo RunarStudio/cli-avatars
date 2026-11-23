@@ -1,6 +1,8 @@
 """Door timing, the open/closed rule, and the walk home. No tkinter."""
 
+import os
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 from cli_avatars.app.dungeon_map import border_outside, door_anchor
@@ -218,6 +220,38 @@ class DoorTests(unittest.TestCase):
         self.assertEqual(book.children_ready("hero", 10.0), 1)
         self.assertEqual(book.children_ready("hero", 10.3), 3)
         self.assertEqual(book.children_ready("missing", 10.0), 8)
+
+    def test_without_desktop_escape_a_blocked_agent_cannot_leave(self):
+        from cli_avatars.app.place_store import empty_file, remember
+
+        book, app, agents, avatar = _book("blocked", "open")
+        app.desktop_escape = False
+        app.overlays.legacy = False
+        app.overlays.layout = SimpleNamespace(
+            monitors=(SimpleNamespace(id="abcd1234"),),
+            monitor=lambda _x, _y: None,
+        )
+        book._file = remember(empty_file(), "hero", "abcd1234", 10, 10, 1000.0)
+        book._actors.clear()
+        book.reconcile(agents)
+        self.assertEqual(book._actors["hero"].where, "inside")
+        self.assertNotIn("hero", book.desktop_ids())
+        book.tick(agents, 1000.0)
+        self.assertNotIn("hero", book._cross)
+        self.assertFalse(book.handoff(avatar, -2000.0, -1000.0))
+        self.assertEqual(book._actors["hero"].where, "inside")
+        self.assertNotIn("hero", app.avatars)
+
+    def test_desktop_escape_follows_the_platform(self):
+        from cli_avatars.desktop.capabilities import desktop_escape_available
+
+        self.assertEqual(desktop_escape_available(), os.name == "nt")
+
+    def test_the_toolbar_hides_the_door_when_escape_is_off(self):
+        text = Path("cli_avatars/app/dungeon_panes.py").read_text(encoding="utf-8")
+        self.assertIn('getattr(app, "desktop_escape", True)', text)
+        self.assertIn('text="Door: open"', text)
+        self.assertIn('text="Call home"', text)
 
     def test_toggle_door_does_not_write_from_an_offscreen_book(self):
         book, app, _agents, _av = _book("idle", "open")

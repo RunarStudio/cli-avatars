@@ -90,15 +90,22 @@ class PlaceBook:
         for aid in list(self._actors):
             if aid not in agents:
                 self._drop_actor(aid)
+        escape = self.allows_desktop()
         for aid, agent in agents.items():
             actor = self._actors.get(aid)
             if actor is None:
-                spot = self._file.spots.get(aid)
+                spot = self._file.spots.get(aid) if escape else None
                 if spot is not None and self._monitor_ok(spot.monitor):
                     actor = Place(aid, DESKTOP, "drag", None)
                 else:
                     actor = new_actor(aid)
                 self._actors[aid] = actor
+            elif not escape and actor.where != INSIDE:
+                self._actors[aid] = new_actor(aid)
+                held_out = self.app.avatars.pop(aid, None)
+                if held_out is not None:
+                    held_out.cleanup(getattr(self.app, "canvas", None))
+                actor = self._actors[aid]
             if actor.where == INSIDE:
                 self._ensure_inside(agent)
             else:
@@ -155,8 +162,14 @@ class PlaceBook:
         dungeon_z, covers = occlusion_covers(hwnd)
         return drop_on_dungeon(vx, vy, rect, covers, dungeon_z)
 
+    def allows_desktop(self) -> bool:
+        """Windows may leave the Dungeon. Linux and macOS stay inside."""
+        return bool(getattr(self.app, "desktop_escape", True))
+
     def handoff(self, av, pointer_x: float, pointer_y: float) -> bool:
         """The pointer left the client. The sprite continues on the overlay."""
+        if not self.allows_desktop():
+            return False
         aid = av.agent.agent_id
         actor = self._actors.get(aid)
         if actor is None:
@@ -260,7 +273,8 @@ class PlaceBook:
         from cli_avatars.model.crossing import arch_visible
 
         zoom = getattr(getattr(self.app, "dungeon", None), "_zoom", 1)
-        paint_door(scene, arch_visible(self.door(), now, self._arch_until), zoom, self._door_images)
+        if self.allows_desktop():
+            paint_door(scene, arch_visible(self.door(), now, self._arch_until), zoom, self._door_images)
         paint_marks(self, now)
         dragging = getattr(self.app, "_drag_av", None)
         settled = sorted(

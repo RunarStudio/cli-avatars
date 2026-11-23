@@ -151,6 +151,8 @@ def note_drag(book, aid: str, now: float, x: float, y: float) -> None:
 
 
 def _start_escapes(book, agents, now: float) -> None:
+    if not getattr(book.app, "desktop_escape", True):
+        return
     door = book.door()
     for aid, actor in list(book._actors.items()):
         if actor.where != INSIDE or aid in book._cross:

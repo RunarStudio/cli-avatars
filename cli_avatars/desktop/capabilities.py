@@ -1,12 +1,22 @@
 """Optional desktop libraries, and the one DPI call.
 
+``desktop_escape_available`` is Windows only. Linux and macOS have no
+colour-key overlay, so avatars stay in the Dungeon.
+
 Imported before tkinter. ``set_dpi_aware()`` runs here, at import, before
 any ``tk.Tk()``. ``HAS_PIL`` follows Pillow's ``Image`` module. ``ImageTk``
 stays out of this package so the layer check still holds; the overlay
 imports it when ``HAS_PIL`` is true.
 """
 
+import os
+
 from cli_avatars.desktop.dpi import set_dpi_aware
+
+
+def desktop_escape_available() -> bool:
+    """True when an overlay can leave the Dungeon. Windows only."""
+    return os.name == "nt"
 
 HAS_WINCTL = False
 HAS_W32 = False
