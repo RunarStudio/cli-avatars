@@ -1,4 +1,8 @@
-"""Procedural 8×8 fallback sprite. ImageTk is imported inside make_photo."""
+"""Procedural 8×8 fallback sprite.
+
+``make_photo`` returns a PIL image. ``app.render.PhotoCache`` is the only
+place that builds an ``ImageTk.PhotoImage``.
+"""
 
 import math
 
@@ -29,9 +33,10 @@ def _parse_sprite(rows, body_rgba, skin_rgba=(255, 200, 150, 255), dark_rgba=(40
     return img
 
 
-def make_photo(body_hex, status, frame, mirror=False):
+def make_photo(body_hex: str, status: str, frame: int, mirror: bool = False) -> object | None:
+    """PIL image for one procedural cell, or None when Pillow is missing."""
     try:
-        from PIL import Image, ImageDraw, ImageTk
+        from PIL import Image, ImageDraw
     except ImportError:
         return None
     br, bg, bb = tuple(int(body_hex.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
@@ -53,6 +58,6 @@ def make_photo(body_hex, status, frame, mirror=False):
         dr.rectangle([27, 0, 30, 4], fill=(32, 24, 8, 255))
         dr.point((28, 6), fill=(32, 24, 8, 255))
     if mirror:
-        flip = getattr(getattr(Image, "Transpose", Image), "FLIP_LEFT_RIGHT")
+        flip = getattr(Image, "Transpose", Image).FLIP_LEFT_RIGHT
         img = img.transpose(flip)
-    return ImageTk.PhotoImage(img)
+    return img

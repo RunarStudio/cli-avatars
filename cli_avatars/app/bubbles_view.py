@@ -2,27 +2,43 @@
 
 import logging
 import time
+from typing import Any
 
 from bubbles import blocked_indicator, integer_scale, place_blocked_mark, render_bubble
-from decisions import open_agent_ids, place_open_decisions
-from events import EventRejected
-
+from cli_avatars.app.render import photos_for, sync_images
+from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.desktop.capabilities import HAS_PIL
 from cli_avatars.model.agent import S
 from cli_avatars.tuning import TUNING
 from cli_avatars.world.avatar import Avatar
+from decisions import open_agent_ids, place_open_decisions
+from events import EventRejected
 
 if HAS_PIL:
     try:
-        from PIL import ImageTk
+        from PIL import ImageTk as _ImageTk
     except ImportError:
         HAS_PIL = False
+        _ImageTk = None
+else:
+    _ImageTk = None
 
 
-def _draw_talk_bubbles(self):
+def _ready() -> bool:
+    return bool(HAS_PIL and _ImageTk is not None)
+
+
+def _clear(self: Any, attr: str, ids: list) -> None:
+    setattr(self, attr, sync_images(self.canvas, ids, []))
+
+
+def _draw_talk_bubbles(self: Any) -> None:
     """Icon bubble above the sender. Subagent avatars are not in this map."""
-    self.canvas.delete("talk_bubble")
-    if not HAS_PIL:
+    ids = list(getattr(self, "_talk_items", None) or [])
+    if not _ready():
+        _clear(self, "_talk_items", ids)
+        self._talk_sig = None
+        self._talk_photos = []
         return
     scale = integer_scale(TUNING.avatar_scale)
     boxes = {
@@ -33,37 +49,64 @@ def _draw_talk_bubbles(self):
         placed = self.scanner.bubbles.place(time.time(), boxes, scale)
     except Exception:
         logging.getLogger("cli_avatars.bubbles").exception("bubble layout failed")
+        _clear(self, "_talk_items", ids)
+        self._talk_sig = None
+        self._talk_photos = []
         return
-    cache = getattr(self, "_talk_cache", None)
-    if cache is None or cache[0] != scale:
-        cache = (scale, {})
-        self._talk_cache = cache
-    store = cache[1]
+    sig = tuple(
+        (item.icon, item.typing_frame, scale, round(item.alpha, 2), item.x, item.y)
+        for item in placed
+    )
+    if sig == getattr(self, "_talk_sig", None) and len(ids) == len(placed):
+        return
+    cache = photos_for(self)
     photos = []
+    rows = []
     for item in placed:
-        key = (item.icon, item.typing_frame, scale, round(item.alpha, 2))
-        photo = store.get(key)
-        if photo is None:
-            image = render_bubble(item.icon, scale, item.typing_frame, item.alpha)
-            if image is None:
-                continue
-            photo = ImageTk.PhotoImage(image)
-            store[key] = photo
-        photos.append(photo)
-        self.canvas.create_image(
-            item.x, item.y, image=photo, anchor="nw", tags="talk_bubble",
+        key = ("talk", item.icon, item.typing_frame, scale, round(item.alpha, 2))
+        photo = cache.get(
+            key,
+            lambda icon=item.icon, scale=scale, typing=item.typing_frame, alpha=item.alpha:
+                render_bubble(icon, scale, typing, alpha),
         )
+        if photo is None:
+            continue
+        photos.append(photo)
+        rows.append((item.x, item.y, photo, "talk_bubble"))
+    self._talk_items = sync_images(self.canvas, ids, rows)
     self._talk_photos = photos
+    self._talk_sig = sig if len(rows) == len(placed) else None
 
 
-def _draw_decision_bubbles(self):
+def _open_agents(self: Any):
+    """Open decision ids, read at most twice a second."""
+
+    def load():
+        try:
+            return open_agent_ids(self._chat_directory(), timeout=0.05)
+        except EventRejected:
+            return None
+        except Exception:
+            logging.getLogger("cli_avatars.decisions").exception("decision bubble failed")
+            return None
+
+    gate = getattr(self, "_decision_read", None)
+    if not isinstance(gate, StoreThrottle):
+        gate = StoreThrottle()
+        self._decision_read = gate
+    return gate.get(load)
+
+
+def _draw_decision_bubbles(self: Any) -> None:
     """Decision icon while that avatar has an open decision.
 
     The glyph is the code placeholder in ``bubbles.decision_placeholder``
     (TODO(Caine art)). One bubble per avatar, on the top-right.
     """
-    self.canvas.delete("decision_bubble")
-    if not HAS_PIL:
+    ids = list(getattr(self, "_decision_items", None) or [])
+    if not _ready():
+        _clear(self, "_decision_items", ids)
+        self._decision_sig = None
         return
     scale = integer_scale(TUNING.avatar_scale)
     boxes = {
@@ -73,37 +116,47 @@ def _draw_decision_bubbles(self):
     for subs in self.sub_avatars.values():
         for sv in subs:
             boxes[sv.agent.agent_id] = (sv.x, sv.y, sv.aw, sv.ah)
-    try:
-        agents = open_agent_ids(self._chat_directory(), timeout=0.05)
-        placed = place_open_decisions(agents, boxes, scale)
-    except EventRejected:
+    agents = _open_agents(self)
+    if agents is None:
+        _clear(self, "_decision_items", ids)
+        self._decision_sig = None
         return
+    try:
+        placed = place_open_decisions(agents, boxes, scale)
     except Exception:
         logging.getLogger("cli_avatars.decisions").exception("decision bubble failed")
+        _clear(self, "_decision_items", ids)
+        self._decision_sig = None
         return
     if not placed:
+        _clear(self, "_decision_items", ids)
+        self._decision_sig = ()
         return
     key = ("decision", scale)
-    photo = self._decision_photo if getattr(self, "_decision_photo_key", None) == key else None
+    sig = (key, tuple((x, y) for _agent_id, x, y, _w, _h in placed))
+    if sig == getattr(self, "_decision_sig", None) and len(ids) == len(placed):
+        return
+    photo = photos_for(self).get(key, lambda scale=scale: render_bubble("decision", scale, 0, 1.0))
     if photo is None:
-        image = render_bubble("decision", scale, 0, 1.0)
-        if image is None:
-            return
-        photo = ImageTk.PhotoImage(image)
-        self._decision_photo = photo
-        self._decision_photo_key = key
-    for _agent_id, x, y, _w, _h in placed:
-        self.canvas.create_image(x, y, image=photo, anchor="nw", tags="decision_bubble")
+        _clear(self, "_decision_items", ids)
+        self._decision_sig = None
+        return
+    rows = [(x, y, photo, "decision_bubble") for _agent_id, x, y, _w, _h in placed]
+    self._decision_items = sync_images(self.canvas, ids, rows)
+    self._decision_photo = photo
+    self._decision_sig = sig
 
 
-def _draw_blocked_marks(self):
+def _draw_blocked_marks(self: Any) -> None:
     """Amber '!' above an avatar whose state is blocked.
 
     The badge is a separate canvas image. It does not change the
     sprite cell (orchestrators stay 40×40, subagents 32×32).
     """
-    self.canvas.delete("blocked_mark")
-    if not HAS_PIL:
+    ids = list(getattr(self, "_blocked_items", None) or [])
+    if not _ready():
+        _clear(self, "_blocked_items", ids)
+        self._blocked_sig = None
         return
     scale = integer_scale(TUNING.avatar_scale)
     boxes: list[tuple] = []
@@ -121,24 +174,30 @@ def _draw_blocked_marks(self):
     for sv in getattr(self, "_lingering_subs", ()):
         take(sv)
     if not boxes:
+        _clear(self, "_blocked_items", ids)
+        self._blocked_sig = ()
         return
+    spots = [place_blocked_mark(box, scale) for box in boxes]
     key = ("blocked", scale)
-    photo = self._blocked_photo if getattr(self, "_blocked_photo_key", None) == key else None
+    sig = (key, tuple((x, y) for x, y, _w, _h in spots))
+    if sig == getattr(self, "_blocked_sig", None) and len(ids) == len(spots):
+        return
+    photo = photos_for(self).get(key, lambda scale=scale: blocked_indicator(scale))
     if photo is None:
-        image = blocked_indicator(scale)
-        photo = ImageTk.PhotoImage(image)
-        self._blocked_photo = photo
-        self._blocked_photo_key = key
-    for box in boxes:
-        x, y, _w, _h = place_blocked_mark(box, scale)
-        self.canvas.create_image(x, y, image=photo, anchor="nw", tags="blocked_mark")
+        _clear(self, "_blocked_items", ids)
+        self._blocked_sig = None
+        return
+    rows = [(x, y, photo, "blocked_mark") for x, y, _w, _h in spots]
+    self._blocked_items = sync_images(self.canvas, ids, rows)
+    self._blocked_photo = photo
+    self._blocked_sig = sig
 
 
 class BubblesView:
-    def __init__(self, app):
+    def __init__(self, app: Any) -> None:
         self.app = app
 
-    def step(self, frame=None):
+    def step(self, frame: Any = None) -> None:
         _draw_talk_bubbles(self.app)
         _draw_decision_bubbles(self.app)
         _draw_blocked_marks(self.app)

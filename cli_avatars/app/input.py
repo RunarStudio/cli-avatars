@@ -26,13 +26,13 @@ class InputController:
                 return av
         return None
 
-    def on_left_press(self, event):
+    def on_left_press(self, event: object) -> None:
         app = self.app
         app._press_av = self._avatar_at(event.x, event.y)
         app._gesture.press(event.x, event.y)
         app._drag_av = None
 
-    def on_left_drag(self, event):
+    def on_left_drag(self, event: object) -> None:
         app = self.app
         av = getattr(app, "_press_av", None)
         if av is None or av not in app.avatars.values():
@@ -54,7 +54,7 @@ class InputController:
         av.y = float(ny)
         app._drag_prev = (event.x, event.y)
 
-    def on_left_release(self, event):
+    def on_left_release(self, event: object) -> None:
         app = self.app
         kind = app._gesture.release()
         av = getattr(app, "_press_av", None)
@@ -72,7 +72,7 @@ class InputController:
         if kind == "click" and av is not None:
             app._open_chat_for_avatar(av)
 
-    def on_double_click(self, event):
+    def on_double_click(self, event: object) -> None:
         app = self.app
         app._drag_av = None  # cancel drag started by the first click
         for av in list(app.avatars.values()):
@@ -80,7 +80,7 @@ class InputController:
                 app._focus_linked_console(av.agent.pid)
                 return
 
-    def on_right_click(self, event):
+    def on_right_click(self, event: object) -> None:
         app = self.app
         for av in list(app.avatars.values()) + [sv for sl in app.sub_avatars.values() for sv in sl]:
             if av.x <= event.x <= av.x + av.aw and av.y <= event.y <= av.y + av.ah:

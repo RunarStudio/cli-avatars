@@ -27,13 +27,21 @@ ROOT = Path(__file__).resolve().parent.parent
 class _Canvas:
     def __init__(self):
         self.ops = []
+        self.n = 0
 
     def delete(self, *args):
-        self.ops.append(args)
+        self.ops.append(("delete", args))
 
     def create_line(self, *args, **kwargs):
+        self.n += 1
         self.ops.append(("line", args))
-        return 1
+        return self.n
+
+    def coords(self, *args, **kwargs):
+        self.ops.append(("coords", args))
+
+    def itemconfig(self, *args, **kwargs):
+        self.ops.append(("itemconfig", args))
 
 
 class _Root:
@@ -85,9 +93,11 @@ class AppSmokeTests(unittest.TestCase):
         ]
         self.assertEqual(len(controllers), 4)
         frame = Frame({}, [], [], [], {}, {})
-        RenderController(app).floor_lines(frame)
-        self.assertIn(("elastic",), app.canvas.ops)
-        self.assertIn(("floor_line",), app.canvas.ops)
+        render = RenderController(app)
+        render.floor_lines(frame)
+        self.assertEqual(app.canvas.ops, [])
+        render.floor_lines(frame)
+        self.assertEqual(app.canvas.ops, [])
         PoolController(app).sync(frame)
         self.assertEqual(app.avatars, {})
 

@@ -8,19 +8,13 @@ CLICK-THROUGH: after the root exists, Win32 click-through is wired from
 """
 
 # DPI awareness runs at import, before tkinter and before any tk.Tk().
-import cli_avatars.desktop.capabilities  # noqa: F401
-
+import cli_avatars.desktop.capabilities  # noqa: F401  # isort: skip
 import random
 import threading
+import tkinter as tk
 from typing import Optional
 
-import tkinter as tk
-
 from bundle_paths import asset_path
-from portal import PortalPlayer
-from rooms import load_config, rooms_from_config
-from routing import PointerGesture
-
 from cli_avatars.app.bubbles_view import (
     BubblesView,
     _draw_blocked_marks,
@@ -39,13 +33,16 @@ from cli_avatars.app.rooms_panel import RoomsPanel
 from cli_avatars.app.skin_picker import PICK, PICK_ANIMS, PICK_FRAME_MS, SkinPicker
 from cli_avatars.app.subagents import SubagentController
 from cli_avatars.app.tick import TickLoop
-from cli_avatars.desktop.focus import focus_console, focus_linked_console
+from cli_avatars.desktop.focus import focus_linked_console
 from cli_avatars.desktop.tray import setup_tray
 from cli_avatars.paths import CONFIG_PATH, images_dir
 from cli_avatars.sprites.registry import REGISTRY, load_sprites
 from cli_avatars.tuning import CHROMA_KEY, TUNING
 from cli_avatars.world.scanner import SessionScanner
 from cli_avatars.world.terrain import WindowTerrain
+from portal import PortalPlayer
+from rooms import load_config, rooms_from_config
+from routing import PointerGesture
 
 
 class OverlayApp:
@@ -186,7 +183,7 @@ class OverlayApp:
                 pass
         self.root.quit()
 
-    def run(self):
+    def run(self) -> None:
         print(f"[AI Overlay v0.4] {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
         print("[AI Overlay] Drag HUD | R-Click avatar=terminal | R-Click empty=quit | ESC=quit")
         self.root.mainloop()
@@ -198,7 +195,7 @@ class OverlayApp:
     def _meeting_stage(self, floors, floor_hwnds):
         return self._ctrl("pool", PoolController)._meeting_stage(floors, floor_hwnds)
 
-    def color_for(self, av):
+    def color_for(self, av: object) -> str:
         return avatar_color(av)
 
     def _drive_subagent(self, sv, parent_av, floors, walls, dt=1.0):
@@ -210,9 +207,6 @@ class OverlayApp:
 
     def _release_finished_dying(self, now=None):
         return self._ctrl("subagents", SubagentController)._release_finished_dying(now=now)
-
-    def _end_spring(self, sv):
-        return self._ctrl("subagents", SubagentController)._end_spring(sv)
 
     def _apply_spring(self, sv, parent_av, dt=1.0):
         return self._ctrl("subagents", SubagentController)._apply_spring(sv, parent_av, dt)
@@ -374,9 +368,6 @@ class OverlayApp:
 
     def _on_right_click(self, event):
         return self._ctrl("pointer", InputController).on_right_click(event)
-
-    def _focus_console(self):
-        return focus_console()
 
     def _focus_linked_console(self, pid):
         return focus_linked_console(pid)

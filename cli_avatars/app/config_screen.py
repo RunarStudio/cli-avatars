@@ -9,7 +9,8 @@ from cli_avatars.tuning import TUNING
 
 def _open_config_screen(self):
     if self._config_win and self._config_win.winfo_exists():
-        self._config_win.lift(); return
+        self._config_win.lift()
+        return
     win = tk.Toplevel(self.root)
     win.title("Overlay Config")
     win.geometry("340x460+300+80")
@@ -21,8 +22,9 @@ def _open_config_screen(self):
 
 
 def _build_config_ui(self, win):
-    BG = "#0d0d1a"; FG = "#aaccff"; SEL = "#223366"
-    FONT = ("Courier", 9); BFONT = ("Courier", 9, "bold")
+    BG, FG, SEL = "#0d0d1a", "#aaccff", "#223366"
+    FONT = ("Courier", 9)
+    BFONT = ("Courier", 9, "bold")
 
     style = ttk.Style(win)
     style.theme_use("default")

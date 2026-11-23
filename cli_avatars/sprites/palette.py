@@ -11,7 +11,7 @@ def _pil_image():
     return Image
 
 
-def sample_sprite_colors(registry, skin: str, n=3) -> list:
+def sample_sprite_colors(registry: object, skin: str, n: int = 3) -> list:
     """Sample n visually distinct colors from a sprite's idle frame."""
     if not (registry and _pil_image() is not None):
         return []

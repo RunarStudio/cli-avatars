@@ -319,7 +319,7 @@ class TestOverlayWiring(unittest.TestCase):
         self.assertLess(config, rooms_btn)
         self.assertIn("build_rooms(", rooms)
         self.assertIn("save_rooms_pref", rooms)
-        self.assertIn("av.draw(self.canvas)", pool)
+        self.assertIn("av.draw(self.canvas, canvas_photos(self))", pool)
 
 
 if __name__ == "__main__":

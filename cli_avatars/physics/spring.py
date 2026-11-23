@@ -41,7 +41,7 @@ def clamp_speed(vx: float, vy: float, cap: float) -> tuple[float, float]:
     return vx * scale, vy * scale
 
 
-def apply_spring(sv, parent_av, dt: float = 1.0, mode: str | None = None) -> None:
+def apply_spring(sv: object, parent_av: object, dt: float = 1.0, mode: str | None = None) -> None:
     """Pull a subagent toward its parent. One call is one frame at dt=1.
 
     Ground children hang under the parent: the line is slack inside
@@ -88,7 +88,7 @@ def apply_spring(sv, parent_av, dt: float = 1.0, mode: str | None = None) -> Non
     sv.vx, sv.vy = clamp_speed(sv.vx, sv.vy, TUNING.spring_max_speed)
 
 
-def apply_fly_spring(sv, parent_av, dt: float = 1.0) -> None:
+def apply_fly_spring(sv: object, parent_av: object, dt: float = 1.0) -> None:
     """Hold a fly child on the point above the parent's head."""
     if not math.isfinite(sv.vx) or not math.isfinite(sv.vy):
         sv.vx = 0.0

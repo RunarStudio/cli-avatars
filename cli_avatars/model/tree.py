@@ -32,7 +32,8 @@ import re
 from dataclasses import dataclass
 from typing import Iterable, Iterator, Mapping, Protocol, Sequence
 
-from events import STATE_SEVERITY, sanitize_text, worst_state as collapse_states
+from events import STATE_SEVERITY, sanitize_text
+from events import worst_state as collapse_states
 from rooms import ERROR, SUBAGENT, project_folder
 from sessions import BUSY, IDLE
 

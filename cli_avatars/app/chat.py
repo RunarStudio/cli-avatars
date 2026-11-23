@@ -133,7 +133,7 @@ class ChatController:
     def _show_chat(self, topic_id=None, address_id=None):
         return _show_chat(self.app, topic_id, address_id)
 
-    def open(self, topic_id=None, address_id=None):
+    def open(self, topic_id: str | None = None, address_id: str | None = None) -> None:
         """ROOM-CHAT.4 / BOARD.4 entry. Same path as the Chat button."""
         return _show_chat(self.app, topic_id, address_id)
 
@@ -152,5 +152,5 @@ class ChatController:
     def _open_chat_for_avatar(self, avatar):
         return _open_chat_for_avatar(self.app, avatar)
 
-    def refresh(self, frame=None):
+    def refresh(self, frame: object = None) -> None:
         return _update_chat_win(self.app)

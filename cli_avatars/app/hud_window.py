@@ -10,11 +10,11 @@ import tkinter as tk
 from tkinter import ttk
 
 from bundle_paths import asset_path
+from cli_avatars.app.throttle import StoreThrottle
+from cli_avatars.desktop.capabilities import HAS_PIL
 from decisions import decisions_caption, open_count
 from events import EventRejected
 from hud import hud_status_lines, status_row_style
-
-from cli_avatars.desktop.capabilities import HAS_PIL
 
 if HAS_PIL:
     try:
@@ -84,8 +84,9 @@ def _show_hud_win(self):
 
 
 def _create_hud_win(self):
-    BG = "#0d0d1a"; FG = "#aaccff"; SEL = "#223366"
-    FONT = ("Courier", 10); BFONT = ("Courier", 11, "bold")
+    BG, FG, SEL = "#0d0d1a", "#aaccff", "#223366"
+    FONT = ("Courier", 10)
+    BFONT = ("Courier", 11, "bold")
 
     win = tk.Toplevel(self.root)
     offscreen = getattr(self, "_offscreen", False)
@@ -176,7 +177,6 @@ def _create_hud_win(self):
                      anchor="w", padx=12, pady=1)
 
     # Resize grip — bottom-right corner drag
-    import tkinter.ttk as ttk
     grip_style = ttk.Style(win)
     grip_style.configure("Dark.TSizegrip", background=BG)
     grip = ttk.Sizegrip(win, style="Dark.TSizegrip")
@@ -226,12 +226,31 @@ def _paint_hud_rows(self, rows):
                        font=font, anchor="w", justify="left", padx=10)
         lbl.pack(fill="x")
         labels.append(lbl)
-    for lbl, (text, color) in zip(labels, rows):
+    for lbl, (text, color) in zip(labels, rows, strict=False):
         lbl.config(text=text, fg=color)
         if not lbl.winfo_ismapped():
             lbl.pack(fill="x")
     for lbl in labels[len(rows):]:
         lbl.pack_forget()
+
+
+def _decision_count_now(self) -> int:
+    """Open decisions, read at most twice a second."""
+
+    def load() -> int:
+        try:
+            return open_count(self._chat_directory(), timeout=0.05)
+        except EventRejected:
+            return self._decision_count
+        except Exception:
+            logging.getLogger("cli_avatars.decisions").exception("decision count failed")
+            return self._decision_count
+
+    gate = getattr(self, "_decision_read", None)
+    if not isinstance(gate, StoreThrottle):
+        gate = StoreThrottle()
+        self._decision_read = gate
+    return gate.get(load)
 
 
 def _update_hud_win(self, agents):
@@ -245,15 +264,8 @@ def _update_hud_win(self, agents):
         talks.config(text="  " + talk.text, fg=talk.color)
     decisions = getattr(self, "_hud_decisions_lbl", None)
     if decisions is not None and decisions.winfo_exists():
-        count = self._decision_count
-        try:
-            count = open_count(self._chat_directory(), timeout=0.05)
-            self._decision_count = count
-        except EventRejected:
-            count = self._decision_count
-        except Exception:
-            logging.getLogger("cli_avatars.decisions").exception("decision count failed")
-            count = self._decision_count
+        count = _decision_count_now(self)
+        self._decision_count = count
         decisions.config(
             text="  " + decisions_caption(count),
             fg="#ffffff" if count else "#aaaaaa",
@@ -284,5 +296,5 @@ class HudWindow:
     def _update_hud_win(self, agents):
         return _update_hud_win(self.app, agents)
 
-    def refresh(self, frame):
+    def refresh(self, frame: object) -> None:
         return _update_hud_win(self.app, frame.agents)

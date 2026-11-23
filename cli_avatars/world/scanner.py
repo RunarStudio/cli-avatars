@@ -10,6 +10,8 @@ import time
 from typing import Optional
 
 from bubbles import BubbleBoard
+from cli_avatars.model.agent import AgentInfo, S
+from cli_avatars.tuning import REAL_SESSION_SKINS, TUNING
 from events import (
     EventBus,
     EventSource,
@@ -21,17 +23,14 @@ from events import (
 from meetings import MeetingBoard
 from rooms import project_folder
 from sessions import (
+    GROK_SKIN_SENTINEL,
     ClaudeJsonlSource,
     CompositeSource,
-    GROK_SKIN_SENTINEL,
     default_sources,
     grok_appearance,
     grok_skin_id,
     merge_id,
 )
-
-from cli_avatars.model.agent import AgentInfo, S
-from cli_avatars.tuning import REAL_SESSION_SKINS, TUNING
 
 
 class SessionScanner:
@@ -70,11 +69,14 @@ class SessionScanner:
                 print(f"[WARN] Event listener not started ({exc}). Polling still works.")
                 self._events = None
 
-    def get_agents(self):
-        with self._lock: return dict(self._agents)
+    def get_agents(self) -> dict:
+        with self._lock:
+            return dict(self._agents)
 
-    def loop(self):
-        while True: self._scan(); time.sleep(TUNING.session_scan_rate)
+    def loop(self) -> None:
+        while True:
+            self._scan()
+            time.sleep(TUNING.session_scan_rate)
 
     def _on_bus_event(self, event):
         """Apply a UDP state immediately. Poll publishes are ignored here."""
@@ -165,7 +167,8 @@ class SessionScanner:
 
     def _match_pids(self, found: dict):
         import re
-        hash_of = lambda p: re.sub(r'[^a-zA-Z0-9]', '-', str(p).lower())
+        def hash_of(path):
+            return re.sub(r'[^a-zA-Z0-9]', '-', str(path).lower())
         try:
             import psutil
             for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cwd']):

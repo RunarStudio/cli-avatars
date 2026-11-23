@@ -48,19 +48,13 @@ class WindowTerrain:
             return
         self._apply(snapshot)
 
-    def get_snapshot(self):
+    def get_snapshot(self) -> tuple:
         """(floors, walls, floor_hwnds, window positions), all from the same scan."""
         with self._lock:
             return (list(self._floors), list(self._walls),
                     list(self._floor_hwnds), dict(self._win_pos))
 
-    def get_floors(self):
-        with self._lock: return list(self._floors)
-
-    def get_walls(self):
-        with self._lock: return list(self._walls)
-
-    def loop(self):
+    def loop(self) -> None:
         n, times = 0, []
         while True:
             t0 = time.perf_counter()
