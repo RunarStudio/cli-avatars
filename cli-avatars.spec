@@ -16,6 +16,7 @@ datas = [
     (str(ROOT / "Sprites"), "Sprites"),
     (str(ROOT / "Caine_Icon.ico"), "."),
     (str(ROOT / "Caine_Icon.png"), "."),
+    (str(ROOT / "docs" / "examples" / "bots-roster.example.json"), "docs/examples"),
 ]
 
 hiddenimports = [
@@ -48,7 +49,7 @@ hiddenimports = [
     "numpy",
     "pystray",
     "pywinctl",
-] + collect_submodules("cli_avatars")
+] + collect_submodules("cli_avatars") + collect_submodules("bots")
 
 
 def _analysis(script):

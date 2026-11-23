@@ -216,4 +216,9 @@ class HudWindow:
         return _update_hud_win(self.app, agents)
 
     def refresh(self, frame: object) -> None:
-        return _update_hud_win(self.app, frame.agents)
+        agents = frame.agents
+        if isinstance(agents, dict):
+            agents = {
+                key: agent for key, agent in agents.items() if getattr(agent, "source", "") != "bot"
+            }
+        return _update_hud_win(self.app, agents)

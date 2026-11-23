@@ -12,11 +12,9 @@ from __future__ import annotations
 import time
 
 from cli_avatars.app.dungeon_map import (
-    canvas_from_scene,
     client_rect_v,
     drop_on_dungeon,
     past_edge,
-    ring_spot,
     virtual_from_canvas,
 )
 from cli_avatars.app.overlays import bind_avatar
@@ -281,10 +279,10 @@ class PlaceBook:
             aid for aid, actor in self._actors.items()
             if actor.where == INSIDE and aid not in self._cross
         )
-        spots = self._spot_centers(len(settled))
+        spots = self._spot_map(settled)
         photos = canvas_photos(self.app)
-        for index, aid in enumerate(settled):
-            self._paint_inside(scene, aid, spots[index], photos, dragging, now, posed=False)
+        for aid in settled:
+            self._paint_inside(scene, aid, spots.get(aid, (0.0, 0.0)), photos, dragging, now, posed=False)
         for aid in list(self._cross):
             if self._actors.get(aid) is not None and self._actors[aid].where in (INSIDE, RETURNING):
                 self._paint_inside(scene, aid, (0.0, 0.0), photos, dragging, now, posed=True)
@@ -399,28 +397,20 @@ class PlaceBook:
         monitors = getattr(layout, "monitors", None) or ()
         return any(getattr(item, "id", None) == ident for item in monitors)
 
+    def spot_center(self, aid: str, ids) -> tuple[float, float]:
+        from cli_avatars.app.inside_spots import one_center
+
+        return one_center(self, aid, ids)
+
+    def _spot_map(self, ids) -> dict[str, tuple[float, float]]:
+        from cli_avatars.app.inside_spots import centers_for
+
+        return centers_for(self, ids)
+
     def _spot_centers(self, count: int) -> list[tuple[float, float]]:
-        scene = self._scene()
-        width, height = 800, 600
-        if scene is not None:
-            try:
-                width = int(scene.winfo_width())
-                height = int(scene.winfo_height())
-            except Exception:
-                width, height = 800, 600
-        if width < 2:
-            width = 800
-        if height < 2:
-            height = 600
-        dungeon = getattr(self.app, "dungeon", None)
-        zoom = getattr(dungeon, "_zoom", 1)
-        pan = getattr(dungeon, "_pan", (0, 0))
-        centers = []
-        for index in range(count):
-            sx, sy = ring_spot(index, count)
-            dx, dy = canvas_from_scene(sx, sy, zoom, pan)
-            centers.append((width / 2.0 + dx, height / 2.0 + dy))
-        return centers
+        from cli_avatars.app.inside_spots import ring_centers
+
+        return ring_centers(self, count)
 
     def _paint_inside(self, scene, aid, spot, photos, dragging, now, posed: bool) -> None:
         from cli_avatars.app.crossing import pose

@@ -24,6 +24,7 @@ def _load_tk():
         tk = tk_mod
     return tk
 
+
 from chatlog import (
     ChannelTail,
     ScrollFollow,
@@ -66,6 +67,20 @@ from topics import (
     topic_messages,
     unpin_item,
 )
+
+
+def install_bot_redactor() -> None:
+    """Mask token-shaped snippets in bot status before the dock shows them.
+
+    Loaded on use. Importing this module must not pull the package in.
+    """
+    import importlib
+
+    from bots.status import use_redactor
+
+    module = importlib.import_module("cli_avatars.runner.cli_runner")
+    use_redactor(module.redact_secrets)
+
 
 BG = "#0d0d1a"
 TITLE_BG = "#111133"

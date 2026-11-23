@@ -5,6 +5,7 @@ from dataclasses import replace
 from tkinter import ttk
 
 from activity import bind_settings, bubble_settings
+from cli_avatars.app.bots_ui import build_bots_settings
 from cli_avatars.desktop.settings import desktop_settings, with_bootcheck
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
@@ -210,6 +211,9 @@ def _build_config_ui(self, win):
         bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
         font=FONT, relief="flat", padx=10, pady=4, cursor="hand2")
     rescan_btn.pack(pady=6)
+
+    tbots = tab(" Bots ")
+    build_bots_settings(self, tbots)
 
     # ── Tab 3: Behavior ───────────────────────────────────────────
     tb = tab(" Behavior ")

@@ -41,6 +41,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | BLDG | Building view: dungeon-kit scene in Tk and on the web |
 | BOOTCHECK | Startup checks on this PC: sprites, config, window, history |
 | INSTALL | Per-user Windows install and the in-app dev update |
+| BOTS | Grok Bot roster: groups in the Topics dock, pull-only status |
 
 ### Types (`[type]`)
 
@@ -77,7 +78,8 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | BLDG | 1 | 3 (subtasks 0/3) |
 | BOOTCHECK | 1 | 0 |
 | INSTALL | 4 | 0 |
-| **Total** | 58 | 58 |
+| BOTS | 5 | 0 |
+| **Total** | 63 | 58 |
 
 ## Boot check
 
@@ -95,6 +97,17 @@ Per-user Windows install and an in-app update from `dev`. See `docs/install-and-
 - [x] [INSTALL][feat] INSTALL-UI: Settings dock shows version, commit, last checked, and Update app. The tray has the same item. Progress is on the status bar. The button is disabled, with a reason, when git or PyInstaller is missing. The boot-check status line includes the version and commit; history already stores both.
 - [x] [INSTALL][chore] INSTALL-WIN: On SpiderHost, build from a temp clone and install only into a temp directory (`/DIR` plus `CLI_AVATARS_DATA_DIR`). Do not install into the real Programs folder unless that run is separate. Needs PyInstaller (`requirements-build.txt`) and Inno Setup 6.6 or newer (`ISCC`) on that machine, and git on `PATH` before Update app enables. The frozen status line should show the short commit from `version.json`.
   - Windows check 2026-11-23 (86dfce2): 732 pass, 0 fail; official build ok; installed app shows `0.4.0 86dfce25e51b`; Update app enabled; uninstall left app data.
+
+## Bots
+
+Grok Bot cloud assistants in the Topics dock, grouped by topic, with pull-only status. The roster stays in the per-user data directory. See `docs/bot-status.md`.
+
+- [x] [BOTS][feat] BOTS.1 @pixel: Roster `bots/roster.json` (groups and bots), id-free example, Settings editing for add, rename, reorder, collapse, assign, and import.
+- [x] [BOTS][feat] BOTS.2 @pixel: Topics dock Bots area. Collapsible groups, 40×40 hue-shifted skins, name, status dot, and Show group in Dungeon. A floor area is used when the floor exposes one; otherwise the group is a cluster.
+- [x] [BOTS][feat] BOTS.3 @pixel: Pull-only `bots/status_source.py`. Git fetch on an interval (minimum 30 s) with fixed argv, `shell=False`, and existing git credentials. Strict status JSON, redaction, stale offline. No listening port.
+- [x] [BOTS][docs] BOTS.4 @pixel: `docs/bot-status.md` file format and the write contract (one small JSON per bot, only on change, at most once per 2 minutes, generic text).
+- [x] [BOTS][feat] BOTS.5 @pixel: Tests for roster schema and migration, grouping, status clamping and staleness, the fetch scheduler, and the no-network fallback.
+  - Windows check 2026-11-23 (18b5094): 722 pass. BOTS.1 through BOTS.5.
 
 ## 📦 Portable Windows build
 

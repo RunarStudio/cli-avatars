@@ -81,6 +81,22 @@ class OverlayApp:
         self._rooms_sig = None
         self._rooms_thumbs = {}
         self._rooms_warns = {}
+        self._bot_photos = []
+        self._bot_vars = []
+        try:
+            from chat_window import install_bot_redactor
+
+            install_bot_redactor()
+        except Exception:
+            print("[WARN] Bot status redaction did not install")
+        try:
+            from bots.service import BotService
+
+            self.bots = BotService()
+            self.bots.start()
+        except Exception:
+            print("[WARN] Bot roster did not start")
+            self.bots = None
         self._rooms_drag = None
         self._chat_shown = False
         self._chat_win = None

@@ -41,7 +41,7 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp"]
+include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*"]
 
 [tool.ruff]
 line-length = 120
@@ -87,3 +87,5 @@ select = ["E", "F", "W", "I", "B", "TID"]
 "cli_avatars/update/proc.py" = ["TID"]
 "tools/build_installer.py" = ["TID"]
 "packaging/cli_avatars.spec" = ["TID"]
+# Git fetch for bot status. Argv is fixed and shell is false. Not a model CLI.
+"bots/status_source.py" = ["TID251"]
