@@ -146,7 +146,7 @@ The agent id is the first 8 characters of `session_id`. That is the same id `Cla
 | `SessionStart` | Prints a short context block when something is new: the topic summary, the pins, unread inbox rows, and decision answers for this agent. Marks those rows read. `needs_summary: true` counts as new. If nothing is new, it prints nothing. The block is capped at 2000 characters. |
 | `UserPromptSubmit` | Same context block as `SessionStart`. Also emits `thinking`, which clears `blocked`. The prompt text is not executed. |
 | `PreToolUse` | Emits `busy`. That clears `blocked`. The tool name and tool input are not stored. |
-| `PostToolUse` | Emits `thinking`. That clears `blocked`. |
+| `PostToolUse` | Emits `thinking`. That clears `blocked`. With the memory map on, a `Read` of a `.md` or `.mdc` file stores that file's path relative to the project root and the length of the returned text ([Memory map capture](#memory-map-capture-memmap2)). Other tool input and all tool output are not stored. |
 | `Notification` | Emits `blocked` when the type is a permission prompt or a wait for input (`permission_prompt`, `idle_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, `agent_needs_input`). Other notification types, such as `auth_success`, do not change state. The notification message is not printed and not stored. |
 | `Stop` | Emits `idle`. When `chat.auto_notes` is true (the default), stores a sanitised note of the last assistant message (240 characters) with `say --note` on the topic channel. The bubble stays icon-only. |
 
@@ -163,6 +163,53 @@ Claude Code adds plain-text stdout from `SessionStart` and `UserPromptSubmit` to
 ```
 
 A Stop that Claude Code is already continuing (`stop_hook_active`) does not store a second note.
+
+### Memory map capture (MEMMAP.2)
+
+The same hook records which Markdown files a session reads, for the memory map
+([task-backend-and-memory-map.md](task-backend-and-memory-map.md), section 4). Code: `memmap/`.
+
+| Event | Record |
+|-------|--------|
+| `PostToolUse`, `tool_name` `Read`, path ending in `.md` or `.mdc` | `op: read`: the path and `chars`, the length of the text the tool returned. The text is counted and dropped. |
+| `UserPromptSubmit` | `op: turn`: a turn marker. The session's turn count goes up by one; later reads carry it. The prompt is not stored. |
+| `SessionStart` | `op: auto`, `inferred: true`: `CLAUDE.md` and `CLAUDE.local.md` from the cwd up to the project root, and the user-level `CLAUDE.md`, when they exist. Size from the file system only; the files are not opened. Then records older than the retention window are pruned. |
+
+What is stored, per record: time, session (`claude:<id>` or `grok:<id>`), turn, CLI, op, path, kind
+(`instructions`, `memory`, `docs`, `task notes`, `other`), and `chars`. Never file content,
+prompts, tool output or an absolute path.
+
+- The project root is the nearest folder above the cwd with `.git` (a file check, no git
+  command), else the nearest with `CLAUDE.md` or `AGENTS.md`, else the cwd. It never becomes your
+  home folder or a drive root. Paths are stored relative to it, with `/` separators.
+- Outside the root: `@user/CLAUDE.md` (the user-level file), `@user-memory/<name>.md` (Claude's
+  per-project memory folder), otherwise `@external/<8 hex>.md`, a one-way hash of the path. An
+  in-root path that cannot be stored as is (over 240 characters, a leading `@` or `~`, or a
+  character such as `:`) becomes `@hashed/<8 hex>.md`.
+- Files: `memmap/<project>/reads.jsonl` (rotates at 4 MiB to `reads.<n>.jsonl`, at most 16) and
+  `memmap/<project>/sessions.json` (turn counts, newest 256 sessions) in the per-user data
+  directory, owner-only, never in git.
+- A hook payload over the 256 KiB stdin cap (a very large Read) is skipped as a whole, so that
+  read is not recorded.
+- Each write waits at most a quarter of a second for the lock. Any failure writes nothing and the
+  hook still exits 0.
+- Known cost: on Windows one hook call takes about 430–530 ms of wall time (measured 23/11/2026),
+  mostly Python start-up. The hook runs on every tool event, with or without the memory map.
+
+`config.json`:
+
+```json
+{
+  "memmap": {
+    "enabled": true,
+    "retention_days": 30
+  }
+}
+```
+
+Missing means on with 30 days (decisions H and J). Only `"enabled": false` turns capture off.
+`retention_days` is 1 to 365; anything else is 30. To delete everything, remove the `memmap`
+folder in the data directory (a Settings button comes with MEMMAP.4).
 
 ### Install on Windows
 

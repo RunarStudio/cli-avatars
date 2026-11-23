@@ -321,6 +321,7 @@ that doc in the same commit.
 ```text
 memmap/.lock
 memmap/<project>/reads.jsonl          append-only, rotates at 4 MiB to reads.<n>.jsonl
+memmap/<project>/sessions.json        turn counter per session (newest 256), MEMMAP.2
 memmap/<project>/links.json           cached link edges (4.3), rebuilt when an mtime changes
 ```
 
@@ -366,9 +367,10 @@ a symlink, inside the project root) only to extract link targets, keeps the rela
 
 ### 4.4 Where the project root comes from
 
-The hook payload's `cwd`, walked up to the nearest folder that contains `.git`, `CLAUDE.md` or
-`AGENTS.md` (a file check only, no git command), capped at 8 levels. If none is found, the cwd
-itself. The root path is used in memory to make paths relative and is never written.
+The hook payload's `cwd`, walked up at most 8 levels: the nearest folder with `.git` wins, else
+the nearest with `CLAUDE.md` or `AGENTS.md` (file checks only, no git command), else the cwd
+itself. The home folder and a drive or filesystem root are never picked. The root path is used
+in memory to make paths relative and is never written.
 
 ### 4.5 Metrics: is memory well optimised?
 
@@ -391,7 +393,8 @@ These are hints for Daniel. The app does not edit, move or summarise any file.
   UNC prefix, `~`, or `..`. A path that normalises outside the root becomes a token:
   `@user/CLAUDE.md` for the user-level instructions file, `@user-memory/<name>.md` for the
   CLI's own per-project memory folder, otherwise `@external/<first 8 hex of SHA-1 of the path>.md`
-  (Decision K).
+  (Decision K). An in-root path that cannot be stored as is (over 240 characters, a leading `@`
+  or `~`, or a character such as `:`) becomes `@hashed/<8 hex>.md`.
 - File content is never stored. `chars` is a length. Link extraction keeps targets only.
 - Transcript text, prompts, tool output and search queries are never stored.
 - Owner-only data dir, never in git, never sent anywhere. The phone view (WEB) does not serve it
@@ -448,9 +451,12 @@ ROOM-CHAT.4 → MEMMAP.6 after GROK-LOGIN.
 
 ---
 
-## 6. Open decisions for Daniel
+## 6. Decisions
 
-Letters are local to this doc. Each has a recommended default; the design above assumes it.
+**Approved by Daniel 2026-11-23** (19:37 Paris): every recommended default below, A–M. The
+alternatives are kept for the record only.
+
+Letters are local to this doc. The design above follows these defaults.
 
 - **A. Backend shape.** Recommended: one shared library (`registry/`) with the existing file
   locks; every process writes through it, no daemon. Alternative: the app owns the files and

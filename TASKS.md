@@ -61,7 +61,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 | Epic | Done | Open |
 |------|------|------|
-| CHAT | 7 | 8 (subtasks 0/13) |
+| CHAT | 7 | 8 (subtasks 2/13) |
 | SRC | 6 | 4 (subtasks 0/3) |
 | MCP | 1 | 3 |
 | OVL | 19 | 8 (subtasks 2/3) |
@@ -70,10 +70,10 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | WS | 1 | 1 |
 | DOCS | 6 | 16 (subtasks 0/9) |
 | TAURI | 0 | 4 |
-| BOARD | 0 | 3 (subtasks 0/10) |
+| BOARD | 1 | 2 (subtasks 0/10) |
 | WEB | 0 | 1 (subtasks 0/4) |
 | BLDG | 1 | 3 (subtasks 0/3) |
-| **Total** | 49 | 59 |
+| **Total** | 50 | 58 |
 
 ## 📦 Portable Windows build
 
@@ -548,7 +548,7 @@ Product features only (see Scope). Team process items remain on the board elsewh
 
 See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md) (design, mockup `docs/img/dungeon-tasks-memmap-mockup.png`). Order and fit with WIN-DUNGEON.4–.8: section 5.1 of that doc.
 
-- [ ] [BOARD][decision] TASKBACK-DEC: Daniel picks decisions A–M in section 6 of docs/task-backend-and-memory-map.md (each has a recommended default).
+- [x] [BOARD][decision] TASKBACK-DEC: Daniel approved every recommended default A–M in section 6 of docs/task-backend-and-memory-map.md (2026-11-23).
 - [ ] [BOARD][feat] TASKBACK: One registry owns tasks (board cards), topics and chats; AIs only change status and progress through a narrow Agent API; chat dock calls one CLI or the topic orchestrator.
   - [ ] [BOARD][chore] TASKBACK.1 @pixel: Port BOARD.1 (board/model.py, board/store.py, tests) from Spidey PR #27 via PORT-AG; amend docs/board.md with `progress`, `status_note`, kinds `progress`/`status`, optional `via`. Done when the ported and new board tests pass and bad progress/via values are rejected. (S)
   - [ ] [BOARD][feat] TASKBACK.2 @pixel: `registry/` package: full API, AgentApi, policy (agent transitions, ownership, rate limits), lock order. Security-critical. Done when tests prove agents cannot create (switch off), delete, retitle, reassign, reach `done` or touch cards they do not own, and two processes serialise on one card. (after TASKBACK.1) (M)
@@ -557,8 +557,8 @@ See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md)
   - [ ] [BOARD][feat] TASKBACK.5 @agents: Tasks centre tab in the Dungeon (BOARD.4 retargeted): columns, filters, Daniel's edits and drag, live agent updates, card click opens Chat. Done when selftest builds it off-screen, a move writes one `moved` event, and draw is ≤ 2 ms. (after TASKBACK.2 and WIN-DUNGEON.4) (M)
   - [ ] [BOARD][feat] TASKBACK.6 @agents: Chat dock task card and target chip (Orchestrator via inbox or resume, one-shot Claude/Grok, Both); `prompt` event carries the card id; runner header gains the task lines. Done when fake-CLI tests show constant argv, the card line in the header, and no process from the inbox path or a status update. (after ROOM-CHAT.1/.3/.4, CHAT-SEND-CLAUDE) (M)
 - [ ] [CHAT][feat] MEMMAP: Memory map in the left dock: an Obsidian-like graph of which .md files each session reads and how often, with metrics to check memory is optimised. Relative paths only, never content, local only.
-  - [ ] [CHAT][feat] MEMMAP.1 @pixel: Pure memmap/model.py: path normaliser (relative, outside-root tokens, hashing), kind classifier, record validator, project root finder. Done when tests cover Windows/POSIX/UNC/`..`/drive paths and no absolute path survives. (S)
-  - [ ] [CHAT][feat] MEMMAP.2 @pixel: Hook capture of PostToolUse Read on *.md/*.mdc, UserPromptSubmit turn markers, SessionStart inferred auto-loads into memmap/<project>/reads.jsonl (lock, caps, rotation, retention, `memmap.enabled`); update docs/claude-hooks.md. Done when fake payload tests show one record per .md Read, no content stored, and the hook stays in budget. (after MEMMAP.1; live check after CLAUDE-HOOK-INSTALL) (S)
+  - [x] [CHAT][feat] MEMMAP.1 @pixel: Pure memmap/model.py: path normaliser (relative, outside-root tokens, hashing), kind classifier, record validator, project root finder. Done when tests cover Windows/POSIX/UNC/`..`/drive paths and no absolute path survives. (S)
+  - [x] [CHAT][feat] MEMMAP.2 @pixel: Hook capture of PostToolUse Read on *.md/*.mdc, UserPromptSubmit turn markers, SessionStart inferred auto-loads into memmap/<project>/reads.jsonl (lock, caps, rotation, retention, `memmap.enabled`); update docs/claude-hooks.md. Done when fake payload tests show one record per .md Read, no content stored, and the hook stays in budget. (after MEMMAP.1; live check after CLAUDE-HOOK-INSTALL) (S)
   - [ ] [CHAT][feat] MEMMAP.3 @agents: Aggregator (pure): nodes, co-read and link edges, recency fade, window and topic filters, metrics (reads per task, duplicates, never read, hot large files, token estimate). Done when fixture tests pass and 10,000 records aggregate in < 20 ms. (after MEMMAP.1) (M)
   - [ ] [CHAT][feat] MEMMAP.4 @agents: Collapsible memory map section under Topics in the left dock: force layout on a worker thread, kind colours, read-count size, hover, click highlight, metrics strip. Done when selftest builds it with fixture data, collapse state survives a relaunch, and draw is ≤ 2 ms. (after MEMMAP.3) (M)
   - [ ] [CHAT][feat] MEMMAP.5 @agents: Per-task memory metrics on the task card and Tasks tab, joined through the registry's task-topic-session links. Done when two cards in two topics get separate counts. (after MEMMAP.3 and TASKBACK.2) (S)

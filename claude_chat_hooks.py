@@ -529,6 +529,31 @@ def handle_stop(
         return
 
 
+def _record_memmap(
+    directory: Path,
+    payload: dict,
+    event: str,
+    session: str,
+    source: str,
+    config_path: Path | None,
+) -> None:
+    """Memory map capture (MEMMAP.2): relative ``.md`` paths and lengths, never content."""
+    try:
+        from memmap.capture import record_hook_event
+
+        record_hook_event(
+            payload,
+            event,
+            directory=directory,
+            session=session,
+            cli=source,
+            config_path=config_path,
+            timeout=HOOK_LOCK_TIMEOUT,
+        )
+    except Exception:
+        return
+
+
 def handle_payload(
     payload: object,
     *,
@@ -565,6 +590,7 @@ def handle_payload(
     state = state_for_hook(event, payload.get("notification_type"))
     if state:
         _emit_state(directory, agent_id, port, state, source)
+    _record_memmap(directory, payload, event, f"{source}:{agent_id}", source, config_path)
     if event in _CONTEXT_EVENTS:
         return context_block(directory, store_id, topic_id)
     return ""
