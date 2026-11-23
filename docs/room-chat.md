@@ -30,7 +30,8 @@ One JSON file per room in the per-user data directory: `room_chat/<room_id>.json
 - Picked only by Daniel in the folder dialog. Never from chat, inbox, MCP, a hook, or a layout.
 - Stored only in this file. Not in `config.json`, a topic, a card, the board repo, or a log line.
 - Must exist and be a directory. `resolve()` follows a symlink, and the real folder is what gets checked and used as `cwd`. A link whose target is a root or a system folder is refused.
-- Not a system folder: not a filesystem root, not the Windows directory or Program Files, not the user's home itself, not `/etc`, `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, `/System`, `/proc`, `/sys`, `/dev`, `/boot`, and not the app data directory.
+- Not a UNC or device path on Windows (`cmd.exe` falls back to the Windows folder for a UNC cwd).
+- Not a system folder: not a filesystem root, not the Windows directory, Program Files, or ProgramData, not the user's home itself or the folder that holds every home, not `/etc`, `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, `/System`, `/proc`, `/sys`, `/dev`, `/boot`, and not the app data directory.
 
 The topic and the board show the project folder name only (`rooms.project_folder`), never the path.
 
@@ -39,7 +40,7 @@ The topic and the board show the project folder name only (`rooms.project_folder
 ### Binary
 
 - Allowlist: `claude` now, `grok` later. No other name.
-- Resolved once with `shutil.which` when Daniel opens Settings → Room chat. The full path is shown there and Daniel confirms it. The confirmed path is stored in the per-user data directory, not in git.
+- Resolved once from absolute `PATH` entries when Daniel opens Settings → Room chat (`shutil.which` on macOS and Linux; on Windows a direct search, because `which` tries the current directory first). A path that resolves to a shell or interpreter, or a `.cmd`/`.bat` path containing characters `cmd.exe` parses, is refused. The full path is shown there and Daniel confirms it. The confirmed path is stored in the per-user data directory, not in git.
 - On Windows, prefer a native `.exe`. A `.cmd` or `.bat` shim is used only if no `.exe` exists, and Settings says so.
 - Before each launch the stored path must still exist and be the same file (size and mtime). If not, Settings asks again. The app does not search `PATH` per launch.
 

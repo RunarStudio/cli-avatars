@@ -658,6 +658,130 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(DEFAULT_STDOUT_CAP_BYTES, 2 * 1024 * 1024)
         self.assertEqual(DEFAULT_STDERR_CAP_BYTES, 64 * 1024)
 
+    def test_user_action_cannot_be_copied_or_pickled(self) -> None:
+        import copy
+        import pickle
+
+        action = UserAction.from_ui_event("enter")
+        for clone in (copy.copy, copy.deepcopy, pickle.dumps):
+            with self.assertRaises(TypeError):
+                clone(action)
+
+    def test_stop_after_reap_signals_no_pid(self) -> None:
+        from cli_avatars.runner import cli_runner
+
+        proc = subprocess.Popen([sys.executable, "-c", "pass"])
+        proc.wait(timeout=5)
+        calls = []
+        with (
+            patch.object(cli_runner.os, "kill", lambda *a: calls.append(("kill", a))),
+            patch.object(cli_runner.os, "killpg", lambda *a: calls.append(("killpg", a))),
+            patch.object(cli_runner.os, "getpgid", lambda _pid: 4242),
+            patch.object(cli_runner, "_taskkill_tree", lambda pid: calls.append(("tk", pid))),
+        ):
+            cli_runner._signal_tree(proc)
+        self.assertEqual(calls, [])
+
+    def test_stderr_redaction_covers_bearer_json_and_github(self) -> None:
+        samples = {
+            "Authorization: Bearer abcdef123456secret": "abcdef123456secret",
+            '{"token": "abcdef123456secret"}': "abcdef123456secret",
+            "ANTHROPIC_API_KEY=plainvalue123": "plainvalue123",
+            "gho_abcdefghijklmnop": "gho_abcdefghijklmnop",
+            "bearer zzzzzzzzzzzz9": "zzzzzzzzzzzz9",
+        }
+        for text, secret in samples.items():
+            self.assertNotIn(secret, redact_secrets(text), text)
+        self.assertEqual(redact_secrets("input_tokens: 12"), "input_tokens: 12")
+
+    def test_shim_path_with_cmd_metacharacters_is_refused(self) -> None:
+        for path in (
+            "C:\\a&calc\\claude.cmd",
+            "C:\\Users\\x%PATH%\\claude.cmd",
+            "C:\\Users\\a|b\\claude.bat",
+            'C:\\Users\\a"b\\claude.CMD',
+        ):
+            with self.assertRaises(CliRejected):
+                build_argv(path, "plan", None)
+        build_argv("C:\\Users\\a&b\\claude.exe", "plan", None)
+        build_argv("C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd", "plan", None)
+
+    def test_shell_or_interpreter_binary_is_refused(self) -> None:
+        for name in ("bash", "sh", "python3.12", "cmd.exe", "pwsh.exe", "node"):
+            fake = self.root / name
+            fake.write_text("#!/bin/sh\n", encoding="utf-8")
+            resolved = resolve_binary("claude", finder=lambda _n, p=fake: str(p))
+            with self.assertRaises(CliRejected, msg=name):
+                confirm_binary(resolved)
+
+    def test_relative_path_entries_are_not_searched(self) -> None:
+        here = self.root / "cwd"
+        here.mkdir()
+        (here / "claude").write_text("#!/bin/sh\n", encoding="utf-8")
+        (here / "claude").chmod(0o755)
+        (here / "claude.exe").write_bytes(b"MZ")
+        previous = os.getcwd()
+        os.chdir(here)
+        try:
+            for platform in ("linux", "win32"):
+                with self.assertRaises(CliRejected, msg=platform):
+                    resolve_binary("claude", path=os.pathsep.join((".", "", "sub")), platform=platform)
+            shim_dir = self.root / "shimdir"
+            shim_dir.mkdir()
+            (shim_dir / "claude.cmd").write_text("@echo off\r\n", encoding="utf-8")
+            found = resolve_binary(
+                "claude",
+                path=os.pathsep.join((".", str(shim_dir))),
+                platform="win32",
+            )
+            self.assertTrue(found.path.endswith("claude.cmd"))
+        finally:
+            os.chdir(previous)
+
+    def test_system_root_is_matched_after_resolve(self) -> None:
+        from cli_avatars.runner import cli_runner
+
+        real = self.root / "private-etc"
+        (real / "inner").mkdir(parents=True)
+        alias = self.root / "etc-alias"
+        alias.symlink_to(real, target_is_directory=True)
+        with patch.object(cli_runner, "_POSIX_SYSTEM_DIRS", (str(alias),)):
+            for sample in (alias, real, real / "inner"):
+                with self.assertRaises(CliRejected):
+                    validate_working_dir(sample, platform="linux")
+
+    def test_unc_and_device_working_dirs_are_refused_on_windows(self) -> None:
+        for sample in ("\\\\server\\share\\proj", "//server/share/proj", "\\\\?\\C:\\proj"):
+            with self.assertRaises(CliRejected) as caught:
+                validate_working_dir(sample, platform="win32")
+            self.assertIn("local", str(caught.exception))
+
+    def test_home_parent_is_refused(self) -> None:
+        home = self.root / "users" / "me"
+        home.mkdir(parents=True)
+        data = self.root / "appdata"
+        with self.assertRaises(CliRejected):
+            validate_working_dir(home.parent, home=home, app_data=data)
+
+    def test_lone_surrogate_prompt_is_rejected(self) -> None:
+        self._mode("record")
+        with self.assertRaises(CliRejected):
+            self._start(prompt="bad \ud800 text")
+        self.assertFalse((self.work / "fake-cli-record.json").exists())
+
+    def test_str_subclass_mode_and_session_are_rejected(self) -> None:
+        class Sneaky(str):
+            def __eq__(self, other: object) -> bool:
+                return True
+
+            def __hash__(self) -> int:
+                return hash("plan")
+
+        with self.assertRaises(CliRejected):
+            build_argv("claude-bin", Sneaky("bypassPermissions"), None)
+        with self.assertRaises(CliRejected):
+            build_argv("claude-bin", "plan", Sneaky(SESSION))
+
     def test_room_id_and_bad_callback_are_rejected(self) -> None:
         with self.assertRaises(CliRejected):
             self._start(room_id="../etc")
@@ -691,6 +815,31 @@ class BoundaryTest(unittest.TestCase):
         hook = (REPO / "hooks" / "claude_chat_hook.py").read_text(encoding="utf-8")
         self.assertNotIn("cli_runner", hook)
         self.assertNotIn("from_ui_event", hook)
+
+    def test_only_ui_modules_reference_the_runner(self) -> None:
+        # Covers events.py (UDP), cli_avatars_emit.py, overlay timers, and any
+        # module split out later; a package-level import has no "cli_runner".
+        allowed = {"chat_window.py"}
+        needles = (
+            "cli_runner",
+            "cli_avatars.runner",
+            "cli_avatars import runner",
+            "from_ui_event",
+            "UserAction",
+        )
+        skip = {"tests", "tools", "build", ".git", ".venv", "venv"}
+        checked = 0
+        for path in REPO.rglob("*.py"):
+            rel = path.relative_to(REPO)
+            if skip & set(rel.parts) or rel.parts[:2] == ("cli_avatars", "runner"):
+                continue
+            if rel.as_posix() in allowed:
+                continue
+            checked += 1
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for needle in needles:
+                self.assertNotIn(needle, text, f"{rel} references the runner ({needle})")
+        self.assertGreaterEqual(checked, 20)
 
     def test_runner_source_never_sets_shell_true(self) -> None:
         text = (REPO / "cli_avatars" / "runner" / "cli_runner.py").read_text(encoding="utf-8")
