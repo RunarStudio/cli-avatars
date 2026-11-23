@@ -89,6 +89,8 @@ _NON_UI = (
 def _alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        return _windows_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -104,6 +106,49 @@ def _alive(pid: int) -> bool:
     if tail and tail[0] == "Z":
         return False
     return True
+
+
+def _windows_alive(pid: int) -> bool:
+    """True while ``pid`` has not exited.
+
+    ``os.kill(pid, 0)`` raises ``WinError 87`` on Windows. A null
+    ``OpenProcess`` means the pid is gone. ``STILL_ACTIVE`` (259) is also
+    a legal exit code, so a still-running process is the one
+    ``WaitForSingleObject`` says is not signaled yet.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    process_query_limited_information = 0x1000
+    synchronize = 0x00100000
+    still_active = 259
+    wait_timeout = 0x00000102
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    kernel.GetExitCodeProcess.restype = wintypes.BOOL
+    kernel.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel.CloseHandle.restype = wintypes.BOOL
+    handle = kernel.OpenProcess(
+        process_query_limited_information | synchronize, False, pid,
+    )
+    if not handle:
+        return False
+    try:
+        code = wintypes.DWORD()
+        if kernel.GetExitCodeProcess(handle, ctypes.byref(code)) and code.value != still_active:
+            return False
+        return kernel.WaitForSingleObject(handle, 0) == wait_timeout
+    finally:
+        kernel.CloseHandle(handle)
+
+
+def _kill_pid(pid: int) -> None:
+    """Last-resort kill for a pid this test started. ``SIGKILL`` is POSIX-only."""
+    os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
 
 
 def _wait_for(path: Path, timeout: float = 5) -> None:
@@ -160,7 +205,7 @@ class RunnerTest(unittest.TestCase):
                 continue
             if _alive(pid):
                 try:
-                    os.kill(pid, signal.SIGKILL)
+                    _kill_pid(pid)
                 except OSError:
                     pass
         self._tmp.cleanup()
@@ -250,11 +295,15 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(Path(record["cwd"]).resolve(), self.work.resolve())
         names = set(record["env_names"])
         allowed = set(ENV_ALLOWLIST)
-        if sys.platform == "win32":
-            allowed.add("NoDefaultCurrentDirectoryInExePath")
+        # Python on Windows upper-cases the block CreateProcess receives.
+        # POSIX keeps the runner's spelling, and that check stays exact.
+        if os.name == "nt":
+            names = {name.casefold() for name in names}
+            allowed = {name.casefold() for name in allowed}
+            allowed.add("nodefaultcurrentdirectoryinexpath")
         self.assertTrue(names <= allowed)
-        if sys.platform == "win32":
-            self.assertIn("NoDefaultCurrentDirectoryInExePath", names)
+        if os.name == "nt":
+            self.assertIn("nodefaultcurrentdirectoryinexpath", names)
         else:
             self.assertNotIn("NoDefaultCurrentDirectoryInExePath", names)
         for blocked in (
@@ -264,7 +313,8 @@ class RunnerTest(unittest.TestCase):
             "PYTHONPATH",
             "PYTHONHOME",
         ):
-            self.assertNotIn(blocked, names)
+            probe = blocked.casefold() if os.name == "nt" else blocked
+            self.assertNotIn(probe, names)
         self.assertNotIn("secret-token-value", json.dumps(record))
         self.assertEqual(lines, ['{"type":"result","ok":true}'])
 
@@ -638,13 +688,20 @@ class RunnerTest(unittest.TestCase):
 
         with (
             patch.object(cli_runner.os, "kill", lambda *a: calls.append(("kill", a))),
-            patch.object(cli_runner.os, "killpg", lambda *a: calls.append(("killpg", a))),
-            patch.object(cli_runner.os, "getpgid", getpgid),
+            patch.object(
+                cli_runner.os, "killpg", lambda *a: calls.append(("killpg", a)), create=True,
+            ),
+            patch.object(cli_runner.os, "getpgid", getpgid, create=True),
             patch.object(cli_runner, "_taskkill_tree", lambda pid: calls.append(("tk", pid))),
             patch.object(cli_runner, "_terminate_job", lambda proc: calls.append(("job", proc.pid))),
         ):
             cli_runner._signal_tree(proc)
-        self.assertEqual(calls, [])
+        # A reaped pid is never signalled. On Windows the job handle is not
+        # a pid: terminating it is how orphans die after the parent exits.
+        if os.name == "nt":
+            self.assertEqual(calls, [("job", proc.pid)])
+        else:
+            self.assertEqual(calls, [])
 
     def test_stderr_redaction_covers_bearer_json_and_github(self) -> None:
         samples = {
