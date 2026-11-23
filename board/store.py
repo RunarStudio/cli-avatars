@@ -14,9 +14,10 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Callable
 
-from events import EventRejected, _restrict_to_user, app_data_dir, directory_lock, ensure_private_dir
 from board.model import MAX_HISTORY, clean_board_project, new_event, now_ts, valid_uuid, validate_card, validate_event
+from events import LOCK_TIMEOUT, EventRejected, _restrict_to_user, app_data_dir, directory_lock, ensure_private_dir
 
 BOARD_DIR_NAME = "board"
 MAX_CARD_BYTES = 64 * 1024
@@ -26,7 +27,7 @@ ROTATION_NAME = re.compile(r"events\.([1-9][0-9]*)\.jsonl")
 
 
 class LocalStore:
-    """list / get / put / append_event / sync over local files."""
+    """list / get / put / update / append_event / sync over local files."""
 
     def __init__(self, directory: Path | None = None) -> None:
         base = Path(directory) if directory else app_data_dir()
@@ -58,13 +59,13 @@ class LocalStore:
                     return card
         return None
 
-    def put(self, card: dict, actor: str = "daniel") -> dict:
+    def put(self, card: dict, actor: str = "daniel", timeout: float = LOCK_TIMEOUT) -> dict:
         """Validate, set ``updated``, append created, edited, or moved and/or assigned.
 
         A card file that exists but cannot be read is ``schema``, never recreated.
         """
         card = validate_card({**card, "updated": now_ts()})
-        with directory_lock(self._ensure_root()):
+        with directory_lock(self._ensure_root(), timeout=timeout):
             old = self.get(card["id"])
             if old is None and self._card_file_exists(card["id"]):
                 raise EventRejected("schema")
@@ -75,7 +76,8 @@ class LocalStore:
                 events.append(new_event("created", actor, card["id"]))
             else:
                 if old["column"] != card["column"]:
-                    events.append(new_event("moved", actor, card["id"], **{"from": old["column"], "to": card["column"]}))
+                    events.append(new_event("moved", actor, card["id"],
+                                            **{"from": old["column"], "to": card["column"]}))
                 if old["assignee"] != card["assignee"]:
                     events.append(new_event("assigned", actor, card["id"],
                                             **{"from": old["assignee"], "to": card["assignee"]}))
@@ -88,13 +90,40 @@ class LocalStore:
                 self._append_line(card["project"], event)
         return card
 
-    def append_event(self, event: dict, project: str | None = None) -> dict:
+    def update(self, card_id: str, change: Callable[[dict], tuple[dict, list[dict]] | None],
+               timeout: float = LOCK_TIMEOUT) -> dict | None:
+        """Read, ``change``, write, all inside the board lock, so two processes never lose a write.
+
+        ``change(card)`` gets the current card and returns ``(new card, events)``, or None for a no-op
+        (nothing is written). It may raise ``EventRejected``. The id and project cannot change;
+        ``updated`` is set here. Returns the written card, or the unchanged card on a no-op.
+        """
+        if not valid_uuid(card_id):
+            raise EventRejected("schema")
+        with directory_lock(self._ensure_root(), timeout=timeout):
+            old = self.get(card_id)
+            if old is None:
+                raise EventRejected("missing")
+            changed = change(old)
+            if changed is None:
+                return old
+            new, events = changed
+            card = validate_card({**new, "id": old["id"], "project": old["project"], "created": old["created"],
+                                  "updated": now_ts(), "history": []})
+            events = [validate_event({**event, "card": card_id}) for event in events]
+            card["history"] = (old["history"] + events)[-MAX_HISTORY:]
+            self._write_card(card)
+            for event in events:
+                self._append_line(card["project"], event)
+        return card
+
+    def append_event(self, event: dict, project: str | None = None, timeout: float = LOCK_TIMEOUT) -> dict:
         """Append to ``events.jsonl``; a card event also lands in that card's history.
 
         A board-level event (``card`` null) names its board with ``project``.
         """
         event = validate_event(event)
-        with directory_lock(self._ensure_root()):
+        with directory_lock(self._ensure_root(), timeout=timeout):
             if event["card"] is None:
                 project = clean_board_project(project)
                 if not project:
@@ -110,7 +139,10 @@ class LocalStore:
         return event
 
     def events(self, project: str) -> list[dict]:
-        """Valid records of the rotations and ``events.jsonl``, oldest first; bad, oversized and partial lines skipped."""
+        """Valid records of the rotations and ``events.jsonl``, oldest first.
+
+        Bad, oversized and partial lines are skipped.
+        """
         project_dir = self._dir(clean_board_project(project))
         if project_dir is None:
             return []
