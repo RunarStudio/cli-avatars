@@ -42,7 +42,7 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board"]
+include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board", "registry"]
 
 [tool.ruff]
 line-length = 120

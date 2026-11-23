@@ -51,7 +51,7 @@ hiddenimports = [
     "numpy",
     "pystray",
     "pywinctl",
-] + collect_submodules("cli_avatars") + collect_submodules("bots") + collect_submodules("board")
+] + collect_submodules("cli_avatars") + collect_submodules("bots") + collect_submodules("board") + collect_submodules("registry")
 
 
 def _analysis(script):

@@ -261,7 +261,10 @@ store, not a fire-and-forget packet.
   turned into `@external/<sha1[:8]>` (Decision K), rate windows.
 - `registry/limits.py`: `registry/limits.json` holds timestamps per `write:<agent>` /
   `propose:<agent>`, nothing else; its lock is taken and released before the board lock.
-- Decision J (30 days) applies to memory-map read records; board events are not pruned.
+- Decision J (30 days) applies to memory-map read records and to rotated board event files
+  (`events.<n>.jsonl` older than 30 days go at the next rotation; `events.jsonl` and card
+  history are kept). Agent notes are also secret-redacted by the board model
+  (`cli_avatars.redaction`).
 
 ---
 
