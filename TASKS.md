@@ -535,13 +535,13 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 See [`docs/windowed-dungeon.md`](docs/windowed-dungeon.md).
 
-- [ ] [OVL][feat] WIN-DUNGEON.1 @pixel: `desktop/monitors.py` and pure `world/monitors.py` (5.1); signature. (S)
+- [x] [OVL][feat] WIN-DUNGEON.1 @pixel: `desktop/monitors.py` and pure `world/monitors.py` (5.1); signature. (S)
 - [ ] [OVL][feat] WIN-DUNGEON.2 @pixel: One overlay per monitor (5.2–5.5); avatars in virtual px; terrain over all monitors; drag clamp to the monitor union; hot-plug polling. Dungeon not yet involved. (M)
-- [ ] [OVL][feat] WIN-DUNGEON.3 @pixel: Dungeon root window (3.1–3.3): framed, resizable, pin, close = quit, ESC change, tray items; docks for Topics, Chat (with pop out), Settings, Skins; status bar replaces the HUD; geometry per signature in the data dir. Scene area shows an empty dungeon floor. (M)
+- [ ] [OVL][feat] WIN-DUNGEON.3 @pixel: Dungeon root window (3.1–3.3): framed, resizable, pin, close = quit, ESC change, tray items; docks for Topics, Chat (with pop out), Settings, Skins; status bar replaces the HUD; geometry per signature in the data dir. Scene area shows an empty dungeon floor. Door toggle is not in this step. (M)
 - [ ] [BLDG][feat] WIN-DUNGEON.4 @agents: Scene in the Dungeon: `building_view.py` renders BLDG.1 scene JSON with zoom auto and pan; inside actors at their spots; click opens the chat dock, double-click focuses the console. (M)
-- [ ] [OVL][feat] WIN-DUNGEON.5 @pixel: `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. (M)
-- [ ] [OVL][feat] WIN-DUNGEON.6 @agents: Escape and return animations (4.2): door, arch swap, portal at the border, size hand-off, child stagger; roam rules; `idle_return_s`; Call home. (S)
+- [ ] [OVL][feat] WIN-DUNGEON.5 @pixel: `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. Drag-out works with the door open or closed. (M)
+- [ ] [OVL][feat] WIN-DUNGEON.6 @agents: Door toggle lands here (toolbar and tray, default open). Escape and return animations (4.2). Door open: blocked/error may escape and return when it clears. Door closed: drag-out only. `idle_return_s`. Call home. (S)
 - [ ] [OVL][feat] WIN-DUNGEON.7 @pixel: Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. (S)
-- Door: when open, blocked/error agents may escape; when closed, drag only. All-roam is the last, low-priority step. Defaults A close=quit, C chat docked + pop-out, D all monitors, E idle 5 min -> walk home.
+- [ ] [OVL][feat] WIN-DUNGEON.8 @agents: Last, low priority. `dungeon.wander` (default off): while the door is open, agents may leave after 30–120 s and return after a random walk. A closed door blocks it. (S)
 
 - [x] [DOCS][docs] TASKS-EPICS: tag TASKS.md with epics and workflow types
