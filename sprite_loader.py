@@ -278,6 +278,17 @@ class SpriteSheet:
             self._mirror_cache[key] = cached
         return cached
 
+    def get_image(self, row: int, frame_idx: int, mirror: bool = False):
+        """PIL cell for (row, frame). A missing row falls back like get_photo."""
+        row = self.resolve_row(row)
+        frames = self._frames[row] if row < len(self._frames) else []
+        if not frames:
+            return None
+        image = frames[int(frame_idx) % len(frames)]
+        if mirror and _FLIP_H is not None:
+            return image.transpose(_FLIP_H)
+        return image
+
     def get_render_size(self) -> tuple[int, int]:
         """Returns (width, height) of one rendered cell in pixels."""
         return (self.cell_w, self.cell_h)
@@ -380,6 +391,22 @@ class SpriteRegistry:
         row = self._status_row(sheet, status)
         # SpriteSheet.resolve_row falls back when that animation is missing.
         return sheet.get_photo(row, frame, mirror=mirror)
+
+    def get_image(self, name: str, status: str, frame: int, mirror: bool = False):
+        """PIL cell for this skin. The overlay wraps it in PhotoCache."""
+        with self._lock:
+            sheet = self._sheets.get(name)
+        if not sheet:
+            return None
+        return sheet.get_image(self._status_row(sheet, status), frame, mirror=mirror)
+
+    def frame_count(self, name: str, status: str) -> int:
+        """Frames in the row this status draws, after the missing-row fallback."""
+        with self._lock:
+            sheet = self._sheets.get(name)
+        if not sheet:
+            return 0
+        return sheet.get_frame_count(sheet.resolve_row(self._status_row(sheet, status)))
 
     def _status_row(self, sheet: "SpriteSheet", status: str) -> int:
         """Row index before the missing-row fallback.

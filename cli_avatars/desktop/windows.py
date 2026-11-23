@@ -6,12 +6,11 @@ or a missing pywinctl, returns None so the caller keeps the previous snapshot.
 """
 
 import perchas
-
 from cli_avatars.desktop.capabilities import HAS_W32, HAS_WINCTL, pwc, w32
 from cli_avatars.tuning import FLOOR_MARGIN, PERCH_MIN_LEN, PERCH_MIN_Y
 
 
-def terrain_from_windows(wins, screen):
+def terrain_from_windows(wins: list, screen: tuple) -> tuple:
     """Perches = visible pieces of non-maximized window tops (perchas.py)."""
     built = perchas.build_perches(wins, screen, min_len=PERCH_MIN_LEN)
     kept = [p for p in built if p.y >= PERCH_MIN_Y]
@@ -22,7 +21,7 @@ def terrain_from_windows(wins, screen):
     return floors, walls, hwnds, pos
 
 
-def scan_live(own_title, screen):
+def scan_live(own_title: str, screen: tuple | None) -> tuple | None:
     """(floors, walls, hwnds, positions), or None to keep the last snapshot.
 
     The pywinctl fallback returns empty hwnds and positions. It includes
@@ -74,7 +73,7 @@ def _scan_pwc(own_title):
     return floors, walls, [], {}
 
 
-def window_moves(prev, cur):
+def window_moves(prev: dict, cur: dict) -> dict:
     """(dx, dy) for windows that moved. Empty when win32 perches are off.
 
     The overlay used to call ``perchas.window_moves`` directly. ``app`` is

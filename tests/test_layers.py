@@ -189,17 +189,11 @@ class TestLayers(unittest.TestCase):
                 imagetk = name == "PIL.ImageTk" or name.endswith(".ImageTk")
                 if root == "tkinter" or name.startswith("tkinter."):
                     problems.append(f"{path.name}:{lineno} imports {name}")
-                if imagetk or (name == "PIL" and where == "make_photo"):
-                    allowed = (
-                        module == "cli_avatars.sprites.procedural"
-                        and where == "make_photo"
-                        and imagetk
-                    )
-                    if not allowed and imagetk:
-                        problems.append(f"{path.name}:{lineno} imports ImageTk in {where}")
+                if imagetk:
+                    problems.append(f"{path.name}:{lineno} imports ImageTk in {where}")
         self.assertEqual(problems, [])
 
-    def test_imagetk_stays_inside_make_photo(self):
+    def test_imagetk_is_not_in_sprites(self):
         procedural = PACKAGE / "sprites" / "procedural.py"
         tree = ast.parse(procedural.read_text(encoding="utf-8"))
         found = []
@@ -219,7 +213,7 @@ class TestLayers(unittest.TestCase):
                     found.append(".".join(self.stack) or "<module>")
 
         Finder().visit(tree)
-        self.assertEqual(found, ["make_photo"])
+        self.assertEqual(found, [])
 
     def test_no_cycles(self):
         graph: dict[str, set[str]] = {}

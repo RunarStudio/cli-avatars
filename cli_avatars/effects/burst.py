@@ -8,13 +8,19 @@ from typing import Optional
 
 @dataclass
 class Particle:
-    x: float; y: float; vx: float; vy: float
-    color: str; life: int; max_life: int
+    x: float
+    y: float
+    vx: float
+    vy: float
+    color: str
+    life: int
+    max_life: int
     canvas_id: Optional[int] = None
 
 
 class BurstEffect:
-    N = 14; LIFE = 50
+    N = 14
+    LIFE = 50
 
     def __init__(self, cx, cy, color, extra_colors=None, n=None, life=None, speed_max=4.0):
         base_palette = [color, "#ffffff", "#ffdd44", "#88ffcc", "#ff88cc", "#aaddff"]
@@ -33,14 +39,19 @@ class BurstEffect:
                 life=life, max_life=life,
             ))
 
-    def tick(self, canvas):
+    def tick(self, canvas: object) -> bool:
         alive = False
         for p in self.particles:
             if p.life <= 0:
-                if p.canvas_id: canvas.delete(p.canvas_id); p.canvas_id = None
+                if p.canvas_id:
+                    canvas.delete(p.canvas_id)
+                    p.canvas_id = None
                 continue
             alive = True
-            p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= 1
+            p.x += p.vx
+            p.y += p.vy
+            p.vy += 0.12
+            p.life -= 1
             r  = max(1, int(5*p.life/p.max_life))
             x0,y0 = int(p.x)-r, int(p.y)-r
             x1,y1 = int(p.x)+r, int(p.y)+r
@@ -50,6 +61,7 @@ class BurstEffect:
                 p.canvas_id = canvas.create_oval(x0,y0,x1,y1, fill=p.color, outline="", tags="burst")
         return alive
 
-    def cleanup(self, canvas):
+    def cleanup(self, canvas: object) -> None:
         for p in self.particles:
-            if p.canvas_id: canvas.delete(p.canvas_id)
+            if p.canvas_id:
+                canvas.delete(p.canvas_id)

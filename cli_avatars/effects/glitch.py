@@ -16,9 +16,12 @@ class GlitchFlash:
         self.palette = self.PINK_PALETTE if pink else self.DARK_PALETTE
         self._items: list[int] = []
         # 20% inset so the matrix sits inside the avatar bounds
-        inset_x = aw * 0.10;  inset_y = ah * 0.10
-        self.mx  = ax + inset_x;  self.my = ay + inset_y
-        self.mw  = aw * 0.80;     self.mh = ah * 0.80
+        inset_x = aw * 0.10
+        inset_y = ah * 0.10
+        self.mx = ax + inset_x
+        self.my = ay + inset_y
+        self.mw = aw * 0.80
+        self.mh = ah * 0.80
         self._cw = self.mw / self.GRID
         self._ch = self.mh / self.GRID
         self._draw_cells()

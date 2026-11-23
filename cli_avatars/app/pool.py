@@ -4,14 +4,14 @@ import logging
 import random
 import time
 
-from meetings import AvatarPose, PerchSpan, Stage
-
+from cli_avatars.app.render import canvas_photos
 from cli_avatars.effects.burst import BurstEffect
 from cli_avatars.model.agent import S
 from cli_avatars.sprites.palette import sample_sprite_colors as _sample_sprite_colors
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
 from cli_avatars.world.avatar import Avatar
+from meetings import AvatarPose, PerchSpan, Stage
 
 
 def _refresh_activity(self, av: "Avatar") -> None:
@@ -64,7 +64,7 @@ def _meeting_stage(self, floors, floor_hwnds) -> Stage:
     return Stage(float(self.sw), float(self.sh), floor_y, tuple(perches), poses)
 
 
-def sync(self, frame):
+def sync(self, frame: object) -> None:
     agents = frame.agents
     for aid in self.avatars.keys() - agents.keys():
         self.scanner.meetings.release(aid)
@@ -78,7 +78,7 @@ def sync(self, frame):
         self._cidx += 1
 
 
-def ride(self, frame):
+def ride(self, frame: object) -> None:
     """Snapshot origins, then slide avatars that stand on a moving perch."""
     agents = frame.agents
     moves = frame.moves
@@ -101,7 +101,7 @@ def ride(self, frame):
 
     frame.origins = origins
 
-def meet(self, frame):
+def meet(self, frame: object) -> None:
     floors = frame.floors
     floor_hwnds = frame.floor_hwnds
     if self._drag_av is not None:
@@ -116,7 +116,7 @@ def meet(self, frame):
 
     frame.steers = steers
 
-def step_avatars(self, frame):
+def step_avatars(self, frame: object) -> None:
     agents = frame.agents
     floors = frame.floors
     walls = frame.walls
@@ -134,7 +134,7 @@ def step_avatars(self, frame):
             av.vx  *= 0.97
             av.y   += av.vy
             av.x   += av.vx
-            av.draw(self.canvas)
+            av.draw(self.canvas, canvas_photos(self))
             if av._vanish_frames >= 65 or av.y < -av.ah:
                 sprite_cols = _sample_sprite_colors(REGISTRY, av.agent.skin)
                 cx, cy = av.x + av.aw / 2, av.y + av.ah / 2
@@ -159,7 +159,7 @@ def step_avatars(self, frame):
                 av.y = float(self.sh - av.ah - 10)
                 av.vx = random.choice([-TUNING.walk_speed, TUNING.walk_speed])
                 av.vy = 0.0
-        av.draw(self.canvas)
+        av.draw(self.canvas, canvas_photos(self))
 
     for aid in vanished_aids:
         av = self.avatars.pop(aid)
@@ -173,16 +173,16 @@ class PoolController:
     def __init__(self, app):
         self.app = app
 
-    def sync(self, frame):
+    def sync(self, frame: object) -> None:
         return sync(self.app, frame)
 
-    def ride(self, frame):
+    def ride(self, frame: object) -> None:
         return ride(self.app, frame)
 
-    def meet(self, frame):
+    def meet(self, frame: object) -> None:
         return meet(self.app, frame)
 
-    def step_avatars(self, frame):
+    def step_avatars(self, frame: object) -> None:
         return step_avatars(self.app, frame)
 
     def _refresh_activity(self, av):

@@ -17,7 +17,7 @@ def _clamp_span(delta: float) -> float:
     return delta
 
 
-def leash_px_from_config(config) -> float:
+def leash_px_from_config(config: object) -> float:
     """Leash radius in px. ``subagent.leash_px`` wins when it is a positive number."""
     default = float(TUNING.subagent_leash_max)
     if not isinstance(config, dict):
@@ -33,7 +33,7 @@ def leash_px_from_config(config) -> float:
     return float(raw)
 
 
-def constrain_leash(sv, parent_av, leash: float) -> None:
+def constrain_leash(sv: object, parent_av: object, leash: float) -> None:
     """Keep a child inside the leash circle around the parent's center.
 
     The child is placed on the circle when it is outside, not on the

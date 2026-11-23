@@ -1,6 +1,7 @@
 """Orchestrator rooms list. Run: python -m unittest discover -s tests"""
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -59,8 +60,26 @@ def _blob(card) -> str:
 
 class TestImportSurface(unittest.TestCase):
     def test_no_gui_modules_loaded(self):
-        forbidden = {"tkinter", "pywinctl", "pystray"}
-        self.assertTrue(forbidden.isdisjoint(sys.modules))
+        root = Path(__file__).resolve().parent.parent
+        code = (
+            "import sys\n"
+            "sys.path.insert(0, %r)\n"
+            "import rooms\n"
+            "forbidden = {'tkinter', 'pywinctl', 'pystray'}\n"
+            "bad = sorted(forbidden.intersection(sys.modules))\n"
+            "if bad:\n"
+            "    sys.stderr.write('loaded ' + ','.join(bad) + '\\n')\n"
+            "    raise SystemExit(1)\n"
+        ) % str(root)
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            shell=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
 class TestProjectFolder(unittest.TestCase):
@@ -300,7 +319,7 @@ class TestOverlayWiring(unittest.TestCase):
         self.assertLess(config, rooms_btn)
         self.assertIn("build_rooms(", rooms)
         self.assertIn("save_rooms_pref", rooms)
-        self.assertIn("av.draw(self.canvas)", pool)
+        self.assertIn("av.draw(self.canvas, canvas_photos(self))", pool)
 
 
 if __name__ == "__main__":

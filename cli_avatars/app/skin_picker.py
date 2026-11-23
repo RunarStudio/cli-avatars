@@ -9,6 +9,8 @@ from cli_avatars.model.agent import S
 from cli_avatars.sprites.registry import (
     HAS_SPRITES,
     REGISTRY,
+)
+from cli_avatars.sprites.registry import (
     is_subagent_sheet as _is_subagent_sheet,
 )
 from cli_avatars.tuning import TUNING
@@ -35,7 +37,8 @@ PICK_FRAME_MS = 150
 
 def _open_skin_picker(self):
     if self._picker and self._picker.winfo_exists():
-        self._picker.lift(); return
+        self._picker.lift()
+        return
     win = tk.Toplevel(self.root)
     win.title("Avatar Skins")
     win.geometry("1000x700+80+60")
@@ -47,7 +50,8 @@ def _open_skin_picker(self):
 
 
 def _picker_sheet(name):
-    if not REGISTRY: return None
+    if not REGISTRY:
+        return None
     with REGISTRY._lock:
         return REGISTRY._sheets.get(name)
 
@@ -56,11 +60,13 @@ def _picker_frame(self, cache, name, row, t_ms, box, hue=0):
     """PhotoImage of skin `name`, animation `row`, at time t_ms, fit in box×box.
     Returns (photo, feet_offset_px) or (None, 0). Cached per sheet/frame/size/hue."""
     sheet = self._picker_sheet(name)
-    if not sheet or not sheet._frames: return None, 0
+    if not sheet or not sheet._frames:
+        return None, 0
     frames = sheet._frames[row] if row < len(sheet._frames) and sheet._frames[row] else None
     if frames is None:
         row = next((r for r, f in enumerate(sheet._frames) if f), None)
-        if row is None: return None, 0
+        if row is None:
+            return None, 0
         frames = sheet._frames[row]
     i = (t_ms // self.PICK_FRAME_MS) % len(frames)
     key = (id(sheet), row, i, box, hue)
@@ -69,7 +75,8 @@ def _picker_frame(self, cache, name, row, t_ms, box, hue=0):
         if hue and HAS_SPRITES:
             img = hue_rotate_image(img, float(hue))
         k = box / max(img.width, img.height)
-        if k >= 2: k = int(k)                   # whole-number upscale keeps pixels crisp
+        if k >= 2:
+            k = int(k)  # whole-number upscale keeps pixels crisp
         if k != 1:
             img = img.resize((max(1, int(img.width * k)), max(1, int(img.height * k))), Image.NEAREST)
         pads = getattr(sheet, "row_foot_pad", None)
@@ -80,30 +87,36 @@ def _picker_frame(self, cache, name, row, t_ms, box, hue=0):
 
 def _build_picker_ui(self, win):
     P = self.PICK
-    TITLE = ("Consolas", 18, "bold"); LBL = ("Consolas", 9, "bold")
-    BODY = ("Consolas", 10); SMALL = ("Consolas", 9)
+    TITLE = ("Consolas", 18, "bold")
+    LBL = ("Consolas", 9, "bold")
+    BODY = ("Consolas", 10)
+    SMALL = ("Consolas", 9)
     cache: dict = {}
     draws: list = []            # (canvas, item_id, fn() -> (skin, row, hue), box, floor_y, cx)
 
     agents = self.scanner.get_agents()
     agent_ids = list(agents.keys())
     labels = [f"{a.name} {'[demo]' if a.is_demo else ''}".strip() for a in agents.values()]
-    lbl_to_id = dict(zip(labels, agent_ids))
+    lbl_to_id = dict(zip(labels, agent_ids, strict=False))
 
     raw = REGISTRY.list_sheets() if REGISTRY else []
     skins = [n for n in raw if not re.search(r"_h\d+$", n) and not _is_subagent_sheet(n)]
     state = {"skin": (agents[agent_ids[0]].skin.split("_h")[0] if agent_ids else
                       (skins[0] if skins else "")), "row": 0}
-    if state["skin"] not in skins and skins: state["skin"] = skins[0]
+    if state["skin"] not in skins and skins:
+        state["skin"] = skins[0]
 
     # ── header ────────────────────────────────────────────────
-    head = tk.Frame(win, bg=P["night"]); head.pack(fill="x", padx=16, pady=(14, 8))
+    head = tk.Frame(win, bg=P["night"])
+    head.pack(fill="x", padx=16, pady=(14, 8))
     tk.Label(head, text="CHOOSE YOUR SKIN", font=TITLE, bg=P["night"], fg=P["ink"]).pack(side="left")
     tk.Label(head, text=f"{len(skins)} skins · {len(agent_ids)} agents", font=SMALL,
              bg=P["night"], fg=P["dim"], bd=1, relief="solid", padx=8).pack(side="right")
 
-    grid = tk.Frame(win, bg=P["night"]); grid.pack(fill="both", expand=True, padx=16, pady=(0, 16))
-    grid.columnconfigure(1, weight=1); grid.rowconfigure(0, weight=1)
+    grid = tk.Frame(win, bg=P["night"])
+    grid.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+    grid.columnconfigure(1, weight=1)
+    grid.rowconfigure(0, weight=1)
 
     def panel(col, width=None):
         f = tk.Frame(grid, bg=P["panel"], highlightthickness=2, highlightbackground=P["line"],
@@ -117,10 +130,12 @@ def _build_picker_ui(self, win):
     # ── roster (left) ─────────────────────────────────────────
     left = panel(0)
     label(left, "Skins").pack(fill="x")
-    outer = tk.Frame(left, bg=P["panel"]); outer.pack(fill="both", expand=True, pady=(8, 0))
+    outer = tk.Frame(left, bg=P["panel"])
+    outer.pack(fill="both", expand=True, pady=(8, 0))
     rc = tk.Canvas(outer, bg=P["panel"], highlightthickness=0, width=232)   # wheel scrolls; no light scrollbar
     rc.pack(side="left", fill="both", expand=True)
-    roster = tk.Frame(rc, bg=P["panel"]); rc.create_window((0, 0), window=roster, anchor="nw")
+    roster = tk.Frame(rc, bg=P["panel"])
+    rc.create_window((0, 0), window=roster, anchor="nw")
     roster.bind("<Configure>", lambda e: rc.configure(scrollregion=rc.bbox("all")))
     rc.bind("<MouseWheel>", lambda e: rc.yview_scroll(int(-e.delta / 120), "units"))
 
@@ -145,9 +160,12 @@ def _build_picker_ui(self, win):
 
     # ── stage (centre) ────────────────────────────────────────
     mid = panel(1)
-    hud = tk.Frame(mid, bg=P["night"]); hud.pack(fill="x")
-    hud_name = tk.Label(hud, font=LBL, bg=P["night"], fg=P["ink"]); hud_name.pack(side="left", padx=6, pady=4)
-    hud_state = tk.Label(hud, font=LBL, bg=P["night"], fg=P["select"]); hud_state.pack(side="right", padx=6)
+    hud = tk.Frame(mid, bg=P["night"])
+    hud.pack(fill="x")
+    hud_name = tk.Label(hud, font=LBL, bg=P["night"], fg=P["ink"])
+    hud_name.pack(side="left", padx=6, pady=4)
+    hud_state = tk.Label(hud, font=LBL, bg=P["night"], fg=P["select"])
+    hud_state.pack(side="right", padx=6)
     SW, SH, GROUND_H = 380, 330, 36
     stage = tk.Canvas(mid, width=SW, height=SH, bg=P["night"], highlightthickness=2,
                       highlightbackground=P["line"])
@@ -164,9 +182,10 @@ def _build_picker_ui(self, win):
     stage.bind("<Configure>", _on_stage_resize)
 
     label(mid, "Agent state → animation").pack(fill="x", pady=(10, 4))
-    states = tk.Frame(mid, bg=P["panel"]); states.pack(fill="x")
+    states = tk.Frame(mid, bg=P["panel"])
+    states.pack(fill="x")
     state_btns = []
-    for idx, (row, name, st) in enumerate(self.PICK_ANIMS):
+    for _idx, (row, name, st) in enumerate(self.PICK_ANIMS):
         b = tk.Label(states, text=f"{name}\n{st}", font=SMALL, bg=P["slot"], fg=P["ink"],
                      justify="left", padx=8, pady=3, highlightthickness=2,
                      highlightbackground=P["line"], cursor="hand2")
@@ -189,21 +208,25 @@ def _build_picker_ui(self, win):
     else:
         tk.Label(right, text="No sessions", font=BODY, bg=P["panel"], fg=P["dim"]).pack(anchor="w", pady=(4, 10))
 
-    hue_lbl = label(right, "Hue 0°"); hue_lbl.pack(fill="x")
+    hue_lbl = label(right, "Hue 0°")
+    hue_lbl.pack(fill="x")
     hue_var = tk.IntVar(win, value=0)
     tk.Scale(right, variable=hue_var, from_=0, to=345, resolution=15, orient="horizontal",
              showvalue=False, bg=P["panel"], troughcolor=P["slot"], highlightthickness=0,
              activebackground=P["select"], command=lambda v: refresh()).pack(fill="x", pady=(2, 10))
 
-    sc_lbl = label(right, f"Scale {TUNING.avatar_scale:.1f}×"); sc_lbl.pack(fill="x")
+    sc_lbl = label(right, f"Scale {TUNING.avatar_scale:.1f}×")
+    sc_lbl.pack(fill="x")
     def _on_scale(val):
         TUNING.avatar_scale = round(float(val) * 2) / 2
         sc_lbl.config(text=f"SCALE {TUNING.avatar_scale:.1f}×")
-        if REGISTRY: REGISTRY.reload_all(TUNING.avatar_scale)
+        if REGISTRY:
+            REGISTRY.reload_all(TUNING.avatar_scale)
         cache.clear()
     sc = tk.Scale(right, from_=0.5, to=4.0, resolution=0.5, orient="horizontal", showvalue=False,
                   bg=P["panel"], troughcolor=P["slot"], highlightthickness=0, command=_on_scale)
-    sc.set(TUNING.avatar_scale); sc.pack(fill="x", pady=(2, 12))
+    sc.set(TUNING.avatar_scale)
+    sc.pack(fill="x", pady=(2, 12))
 
     apply_btn = tk.Label(right, text="APPLY SKIN", font=("Consolas", 13, "bold"), bg=P["select"],
                          fg=P["night"], pady=8, cursor="hand2")
@@ -213,16 +236,19 @@ def _build_picker_ui(self, win):
     toast.pack(fill="x", pady=(6, 8))
 
     label(right, "On screen now").pack(fill="x")
-    sess_box = tk.Frame(right, bg=P["panel"]); sess_box.pack(fill="both", expand=True, pady=(4, 0))
+    sess_box = tk.Frame(right, bg=P["panel"])
+    sess_box.pack(fill="both", expand=True, pady=(4, 0))
 
     def render_sessions():
-        for w in sess_box.winfo_children(): w.destroy()
+        for w in sess_box.winfo_children():
+            w.destroy()
         draws[:] = [d for d in draws if not getattr(d[0], "_sess", False)]
         live = self.scanner.get_agents()
-        for aid, a in list(live.items())[:6]:
+        for _aid, a in list(live.items())[:6]:
             r = tk.Frame(sess_box, bg=P["slot"], highlightthickness=2, highlightbackground=P["line"])
             r.pack(fill="x", pady=2)
-            cv = tk.Canvas(r, width=40, height=40, bg=P["slot"], highlightthickness=0); cv._sess = True
+            cv = tk.Canvas(r, width=40, height=40, bg=P["slot"], highlightthickness=0)
+            cv._sess = True
             cv.pack(side="left", padx=4, pady=2)
             it = cv.create_image(20, 40, anchor="s")
             row = next((rw for rw, _, st in self.PICK_ANIMS if st == a.status), 0)
@@ -235,7 +261,8 @@ def _build_picker_ui(self, win):
     def apply(_e=None):
         aid = lbl_to_id.get(sel_agent.get())
         base, hue = state["skin"], hue_var.get()
-        if not aid or not base: return
+        if not aid or not base:
+            return
         skin = base
         if hue:
             skin = f"{base}_h{hue}"
@@ -249,7 +276,8 @@ def _build_picker_ui(self, win):
 
     # ── behaviour ─────────────────────────────────────────────
     def select(sn):
-        state["skin"] = sn; refresh()
+        state["skin"] = sn
+        refresh()
 
     def refresh():
         sn, row = state["skin"], state["row"]
@@ -283,7 +311,8 @@ def _build_picker_ui(self, win):
 
     t0 = time.perf_counter()
     def tick():
-        if not win.winfo_exists(): return
+        if not win.winfo_exists():
+            return
         t = int((time.perf_counter() - t0) * 1000)
         for cv, item, fn, box, floor_y, cx in draws:
             try:
@@ -298,11 +327,13 @@ def _build_picker_ui(self, win):
                     cv.coords(item, cx, floor_y + pad)   # feet on the floor line
             except tk.TclError:
                 pass
-        if len(cache) > 1500: cache.clear()
+        if len(cache) > 1500:
+            cache.clear()
         win.after(50, tick)
 
     render_sessions()
-    if labels: on_agent()
+    if labels:
+        on_agent()
     refresh()
     tick()
 

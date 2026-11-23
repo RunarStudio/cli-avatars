@@ -1,8 +1,7 @@
 """``python overlay.py`` and ``--selftest``. The shell owns the window."""
 
 # DPI awareness runs at import, before tkinter and before any tk.Tk().
-import cli_avatars.desktop.capabilities  # noqa: F401
-
+import cli_avatars.desktop.capabilities  # noqa: F401  # isort: skip
 import sys
 import tkinter as tk
 from pathlib import Path
@@ -12,9 +11,9 @@ from typing import Optional
 from bubbles import BubbleBoard
 from bundle_paths import asset_path
 from chat_window import ChatWindow
-
 from cli_avatars.app.shell import OverlayApp
-from cli_avatars.sprites.registry import REGISTRY, load_sprites as _load_sprites
+from cli_avatars.sprites.registry import REGISTRY
+from cli_avatars.sprites.registry import load_sprites as _load_sprites
 
 
 def run_selftest() -> int:
@@ -67,8 +66,9 @@ def run_selftest() -> int:
         else:
             hud.withdraw()
         import tempfile
-        from events import close_logging
+
         from chat_window import seed_simulated, simulated_agents
+        from events import close_logging
 
         data = tempfile.TemporaryDirectory()
         try:

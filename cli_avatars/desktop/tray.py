@@ -7,7 +7,6 @@ never touches Tk widgets directly.
 import threading
 
 from bundle_paths import asset_path
-
 from cli_avatars.desktop.capabilities import HAS_PIL
 from cli_avatars.paths import images_dir
 
@@ -47,5 +46,5 @@ def _setup_tray(self):
         self._tray = None
 
 
-def setup_tray(app):
+def setup_tray(app: object) -> None:
     return _setup_tray(app)

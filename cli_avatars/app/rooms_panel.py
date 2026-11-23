@@ -9,6 +9,8 @@ import time
 import tkinter as tk
 from types import SimpleNamespace
 
+from cli_avatars.desktop.capabilities import HAS_PIL
+from cli_avatars.model.agent import AGENT_STATUS_COLOR as STATUS_COLOR
 from decisions import open_counts_by_room
 from events import EventRejected
 from rooms import (
@@ -23,9 +25,6 @@ from rooms import (
     warn_icon,
 )
 from topics import group_by_project, source_stamp, status_label, sync_topics
-
-from cli_avatars.desktop.capabilities import HAS_PIL
-from cli_avatars.model.agent import AGENT_STATUS_COLOR as STATUS_COLOR
 
 if HAS_PIL:
     try:
@@ -263,7 +262,8 @@ def _update_rooms_win(self, force: bool = False) -> None:
         counts = open_counts_by_room(directory, timeout=0.2)
     except EventRejected:
         counts = {}
-    sig = (tuple(cards), tuple((name, tuple(row.get("id") for row in rows)) for name, rows in topics), tuple(sorted(counts.items())))
+    topic_sig = tuple((name, tuple(row.get("id") for row in rows)) for name, rows in topics)
+    sig = (tuple(cards), topic_sig, tuple(sorted(counts.items())))
     if not force and sig == self._rooms_sig:
         return
     self._rooms_sig = sig
@@ -493,5 +493,5 @@ class RoomsPanel:
     def _render_orchestrator_dot(self, parent, card):
         return _render_orchestrator_dot(self.app, parent, card)
 
-    def refresh(self, frame=None):
+    def refresh(self, frame: object = None) -> None:
         return _update_rooms_win(self.app)

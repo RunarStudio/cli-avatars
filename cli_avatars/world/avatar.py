@@ -4,11 +4,13 @@
 are read from ``TUNING`` on each step. This module does not import tkinter.
 """
 
+import math
 import random
 import time
 from typing import Optional
 
-from cli_avatars.model.agent import AGENT_STATUS_COLOR as STATUS_COLOR, AgentInfo, S
+from cli_avatars.model.agent import AGENT_STATUS_COLOR as STATUS_COLOR
+from cli_avatars.model.agent import AgentInfo, S
 from cli_avatars.physics.geometry import child_flight_mode
 from cli_avatars.sprites.procedural import make_photo
 from cli_avatars.tuning import (
@@ -24,7 +26,7 @@ from cli_avatars.tuning import (
 
 class Avatar:
     def __init__(self, agent: AgentInfo, sw, sh, color_idx,
-                 registry: Optional["SpriteRegistry"] = None,
+                 registry: Optional[object] = None,
                  spring_mode: bool = False):
         self.agent      = agent
         self.sw, self.sh = sw, sh
@@ -95,11 +97,13 @@ class Avatar:
         """+1 if a perch starts at this wall's top (left side), -1 if it ends there (right side), else 0."""
         for (fx1, fy, fx2, _) in floors:
             if abs(fy - wy1) <= 2:
-                if abs(fx1 - wx) <= 2: return 1
-                if abs(fx2 - wx) <= 2: return -1
+                if abs(fx1 - wx) <= 2:
+                    return 1
+                if abs(fx2 - wx) <= 2:
+                    return -1
         return 0
 
-    def update(self, floors, walls=(), floor_hwnds=(), steer=None):
+    def update(self, floors: object, walls: object = (), floor_hwnds: object = (), steer: object = None) -> None:
         # Dying plays in place. No gravity, no leash, no walk.
         if getattr(self, "_dying", False):
             return
@@ -143,7 +147,8 @@ class Avatar:
                 self.ftick += 1
                 thresh = max(1, int((TUNING.overlay_fps // 6) / self.anim_speed_mult))
                 if self.ftick >= thresh:
-                    self.ftick = 0; self.frame += 1
+                    self.ftick = 0
+                    self.frame += 1
                 curr = self.agent.status
                 if self._prev_status in (S.BUSY, S.THINKING) and curr in (S.IDLE, S.DONE):
                     self._burst_requested = True
@@ -189,7 +194,8 @@ class Avatar:
             self.idle_t -= 1
             if self.idle_t <= 0:
                 if self.vx != 0 and random.random() < 0.015:
-                    self.vx = 0.0; self.idle_t = random.randint(30,90)
+                    self.vx = 0.0
+                    self.idle_t = random.randint(30, 90)
                 elif self.vx == 0:
                     self.dir = random.choice([-1,1])
                     self.vx  = TUNING.walk_speed * self.dir
@@ -216,14 +222,61 @@ class Avatar:
         self.ftick += 1
         thresh = max(1, int((TUNING.overlay_fps // (8 if self._anim_status == S.BUSY else 4)) / self.anim_speed_mult))
         if self.ftick >= thresh:
-            self.ftick = 0; self.frame += 1
+            self.ftick = 0
+            self.frame += 1
 
         curr = self.agent.status
         if self._prev_status in (S.BUSY,S.THINKING) and curr in (S.IDLE,S.DONE):
             self._burst_requested = True
         self._prev_status = curr
 
-    def draw(self, canvas):
+    def photo_key(self) -> tuple:
+        """Cache key: sheet, row, frame, mirror, hue, scale.
+
+        A procedural sprite uses the body color and the pixels that actually
+        change (walk step and the thinking bob) so two identical cells share
+        one PhotoImage.
+        """
+        mirror = self.dir < 0
+        frame = self.frame if isinstance(self.frame, int) and not isinstance(self.frame, bool) else 0
+        scale = float(TUNING.avatar_scale)
+        skin = str(getattr(self.agent, "skin", "") or "")
+        hue = 0
+        base, sep, tail = skin.rpartition("_h")
+        if sep and tail.isdigit() and base:
+            hue = int(tail)
+        registry = self.registry
+        if registry is not None and hasattr(registry, "has") and registry.has(skin):
+            status = self._anim_status
+            row = registry.animation_row(skin, status) if hasattr(registry, "animation_row") else 0
+            count = registry.frame_count(skin, status) if hasattr(registry, "frame_count") else 0
+            index = frame % count if count else 0
+            return (skin, row, index, bool(mirror), hue, scale)
+        bob = None
+        if self.agent.status == S.THINKING:
+            bob = int(2 + math.sin(frame * 0.8) * 1.5)
+        return ("proc", self.color, self.agent.status, frame % 2, bob, bool(mirror), hue, scale)
+
+    def sprite_image(self) -> object:
+        """PIL image, a legacy PhotoImage, or the procedural fallback."""
+        mirror = self.dir < 0
+        frame = self.frame if isinstance(self.frame, int) and not isinstance(self.frame, bool) else 0
+        registry = self.registry
+        if registry is not None and hasattr(registry, "get_image"):
+            image = registry.get_image(self.agent.skin, self._anim_status, frame, mirror=mirror)
+            if image is not None:
+                return image
+        elif registry is not None and hasattr(registry, "get_photo"):
+            photo = registry.get_photo(self.agent.skin, self._anim_status, frame, mirror=mirror)
+            if photo is not None:
+                return photo
+        return make_photo(self.color, self.agent.status, frame, mirror=mirror)
+
+    def draw(self, canvas: object, photos: object = None) -> None:
+        registry = self.registry
+        if registry is not None and hasattr(registry, "ensure_hue_variant"):
+            # TODO(Caine art): load the configured Grok hue the first time it draws.
+            registry.ensure_hue_variant(self.agent.skin)
         px, py = int(self.x), int(self.y)
         if getattr(self, "_dying", False):
             pose = getattr(self, "_dying_pose", None) or {}
@@ -232,22 +285,32 @@ class Avatar:
                 py -= 6
             elif isinstance(frame, int) and frame > 0:
                 py += frame * 2
-        sc     = STATUS_COLOR.get(self.agent.status, "#aaaaaa")
-
-        mirror = self.dir < 0
-        photo = None
-        if self.registry:
-            # TODO(Caine art): load the configured Grok hue the first time it draws.
-            if hasattr(self.registry, "ensure_hue_variant"):
-                self.registry.ensure_hue_variant(self.agent.skin)
-            photo = self.registry.get_photo(
-                self.agent.skin, self._anim_status, self.frame, mirror=mirror)
-        if photo is None:
-            photo = make_photo(self.color, self.agent.status, self.frame, mirror=mirror)
+        sc = STATUS_COLOR.get(self.agent.status, "#aaaaaa")
+        key = self.photo_key()
+        if self.spring_mode:
+            label = self.agent.name
+        else:
+            pfx = "[D] " if self.agent.is_demo else ""
+            parts = [f"{pfx}{self.agent.name}", self.agent.status]
+            if self.agent.tool:
+                parts.append(f"→{self.agent.tool[:10]}")
+            if self.agent.subagents > 0:
+                parts.append(f"⚡{self.agent.subagents}")
+            label = "\n".join(parts)
+        fill = "#7799cc" if (self.agent.is_demo or self.spring_mode) else "white"
+        dash = (4, 2) if (self.agent.is_demo or self.spring_mode) else ()
+        sig = (px, py, self.aw, self.ah, key, label, fill, sc, dash)
+        if sig == getattr(self, "_draw_sig", None) and self.spr_id and self.lbl_id:
+            return
+        if photos is not None:
+            photo = photos.get(key, self.sprite_image)
+        else:
+            photo = self.sprite_image()
 
         if photo:
             if self._spr_mode == "rect" and self.spr_id:
-                canvas.delete(self.spr_id); self.spr_id = None
+                canvas.delete(self.spr_id)
+                self.spr_id = None
             self._spr_mode = "image"
             self._photo = photo
             if self.spr_id:
@@ -257,9 +320,9 @@ class Avatar:
                 self.spr_id = canvas.create_image(px, py, image=self._photo, anchor="nw")
         else:
             if self._spr_mode == "image" and self.spr_id:
-                canvas.delete(self.spr_id); self.spr_id = None
+                canvas.delete(self.spr_id)
+                self.spr_id = None
             self._spr_mode = "rect"
-            dash = (4,2) if (self.agent.is_demo or self.spring_mode) else ()
             if self.spr_id:
                 canvas.coords(self.spr_id, px,py,px+self.aw,py+self.ah)
                 canvas.itemconfig(self.spr_id, fill=self.color, outline=sc, dash=dash)
@@ -268,30 +331,28 @@ class Avatar:
                     px,py,px+self.aw,py+self.ah,
                     fill=self.color, outline=sc, width=2, dash=dash)
 
-        # Label
-        if self.spring_mode:
-            label = self.agent.name
-        else:
-            pfx   = "[D] " if self.agent.is_demo else ""
-            parts = [f"{pfx}{self.agent.name}", self.agent.status]
-            if self.agent.tool:
-                parts.append(f"→{self.agent.tool[:10]}")
-            if self.agent.subagents > 0:
-                parts.append(f"⚡{self.agent.subagents}")
-            label = "\n".join(parts)
-
         lx = px + self.aw//2
         ly = py - 14
         if self.lbl_id:
             canvas.coords(self.lbl_id, lx, ly)
-            canvas.itemconfig(self.lbl_id, text=label)
+            canvas.itemconfig(self.lbl_id, text=label, fill=fill)
         else:
             self.lbl_id = canvas.create_text(
                 lx, ly, text=label,
                 font=("Courier", 7, "bold"),
-                fill="#7799cc" if (self.agent.is_demo or self.spring_mode) else "white",
+                fill=fill,
                 justify="center")
+        self._draw_sig = sig
 
-    def cleanup(self, canvas):
+    def cleanup(self, canvas: object) -> None:
         for iid in [self.spr_id, self.lbl_id]:
-            if iid: canvas.delete(iid)
+            if iid:
+                canvas.delete(iid)
+        for iid in getattr(self, "_elastic_ids", None) or []:
+            if iid:
+                canvas.delete(iid)
+        self.spr_id = None
+        self.lbl_id = None
+        self._elastic_ids = []
+        self._elastic_sig = None
+        self._draw_sig = None

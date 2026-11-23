@@ -8,7 +8,7 @@ import sprites.
 from cli_avatars.sprites.registry import subagent_sprite_mode
 
 
-def child_flight_mode(avatar) -> str:
+def child_flight_mode(avatar: object) -> str:
     """``fly`` when this child was spawned with a fly sheet. Otherwise ground.
 
     An explicit ``_sub_mode`` wins, including in tests that have no registry.
@@ -21,7 +21,7 @@ def child_flight_mode(avatar) -> str:
     return subagent_sprite_mode(str(skin or ""))
 
 
-def elastic_endpoints(parent, child, mode: str) -> tuple[float, float, float, float]:
+def elastic_endpoints(parent: object, child: object, mode: str) -> tuple[float, float, float, float]:
     """Spring line ends. Fly starts at the head and runs upward to the child."""
     x1 = child.x + child.aw / 2.0
     y1 = child.y + child.ah / 2.0

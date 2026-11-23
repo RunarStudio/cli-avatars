@@ -9,11 +9,7 @@ import random
 import time
 from typing import Optional
 
-from meetings import child_follow
-from sessions import SessionInfo, subagent_for
-from subskins import assign_subagent_skin, dying_pose
-
-from cli_avatars.app.render import _draw_elastic
+from cli_avatars.app.render import _draw_elastic, canvas_photos
 from cli_avatars.effects.burst import BurstEffect
 from cli_avatars.model.agent import AgentInfo, S
 from cli_avatars.physics.geometry import child_flight_mode
@@ -22,6 +18,9 @@ from cli_avatars.physics.spring import apply_fly_spring, apply_spring
 from cli_avatars.sprites.registry import REGISTRY, subagent_sprite_mode
 from cli_avatars.tuning import TUNING
 from cli_avatars.world.avatar import Avatar
+from meetings import child_follow
+from sessions import SessionInfo, subagent_for
+from subskins import assign_subagent_skin, dying_pose
 
 
 def _linger(self, frame):
@@ -40,7 +39,7 @@ def _linger(self, frame):
             sv.vx *= 0.97
             sv.y  += sv.vy
             sv.x  += sv.vx
-            sv.draw(self.canvas)
+            sv.draw(self.canvas, canvas_photos(self))
             if sv._float_frames >= 55 or sv.y < -sv.ah:
                 self._bursts.append(BurstEffect(
                     sv.x + sv.aw / 2, sv.y + sv.ah / 2, "#cc66ff"))
@@ -50,7 +49,7 @@ def _linger(self, frame):
             parent = self.avatars.get(getattr(sv.agent, "parent_id", None))
             if parent is not None:
                 self._constrain_leash(sv, parent)
-            sv.draw(self.canvas)
+            sv.draw(self.canvas, canvas_photos(self))
 
     for sv in linger_done:
         sv.cleanup(self.canvas)
@@ -82,7 +81,7 @@ def _release_finished_dying(self, now: Optional[float] = None) -> None:
         still.append(sv)
         if canvas is None:
             continue
-        sv.draw(canvas)
+        sv.draw(canvas, canvas_photos(self))
         parent = avatars.get(getattr(sv.agent, "parent_id", None))
         if parent is not None:
             _draw_elastic(self, parent, sv, shrink=pose["fade"])
@@ -97,7 +96,7 @@ class SubagentController:
     def __init__(self, app):
         self.app = app
 
-    def step(self, frame):
+    def step(self, frame: object) -> None:
         """One frame of every live child. Order matches the old ``_tick``."""
         app = self.app
         agents = frame.agents
@@ -208,7 +207,7 @@ class SubagentController:
                     sv.vx  *= 0.97                        # gentle horizontal drift
                     sv.y   += sv.vy
                     sv.x   += sv.vx
-                    sv.draw(app.canvas)
+                    sv.draw(app.canvas, canvas_photos(app))
                     if sv._float_frames >= 55 or sv.y < -sv.ah:
                         app._bursts.append(BurstEffect(
                             sv.x + sv.aw / 2, sv.y + sv.ah / 2, "#cc66ff"))
@@ -222,10 +221,10 @@ class SubagentController:
                         sv.vx = 0.0
                         sv.vy = 0.0
                         self._constrain_leash(sv, parent_av)
-                        sv.draw(app.canvas)
+                        sv.draw(app.canvas, canvas_photos(app))
                     else:
                         self._drive_subagent(sv, parent_av, floors, walls)
-                        sv.draw(app.canvas)
+                        sv.draw(app.canvas, canvas_photos(app))
 
             for sv in to_remove:
                 sv.cleanup(app.canvas)
@@ -243,7 +242,7 @@ class SubagentController:
                 app.canvas.tag_lower("elastic")
 
 
-    def linger(self, frame):
+    def linger(self, frame: object) -> None:
         return _linger(self.app, frame)
 
     def _release_finished_dying(self, frame=None, now=None):
@@ -288,17 +287,6 @@ class SubagentController:
         sv.spring_mode = False
         sv.vx = 0.0
         sv.vy = 0.0
-
-    def _end_spring(self, sv: Avatar) -> None:
-        """The parent ended or left: this child walks on its own again."""
-        if not sv.spring_mode:
-            return
-        sv.spring_mode = False
-        sv._spring_k_mult = 1.0
-        sv._spring_damp_v = TUNING.spring_damp
-        if abs(sv.vx) < 0.1:
-            sv.dir = 1 if sv.dir >= 0 else -1
-            sv.vx = TUNING.walk_speed * sv.dir
 
     def _apply_spring(self, sv: Avatar, parent_av: Avatar, dt: float = 1.0) -> None:
         """One frame of the ground or fly spring."""

@@ -1,25 +1,14 @@
-"""Focus the terminal that owns an avatar, or this process console.
+"""Focus the terminal that owns an avatar.
 
-``focus_console`` is unused. It stays until SPLIT.5. Both functions are
 Windows ctypes. A failure is swallowed so a click still does nothing harmful.
 """
 
-import ctypes
-
-
-def _focus_console(self):
-    try:
-        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 5)
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
-    except Exception as e:
-        print(f"[overlay] focus_console: {e}")
 
 
 def _focus_linked_console(self, pid: int):
     try:
-        import os, ctypes.wintypes
+        import ctypes.wintypes
+        import os
         candidates: set[int] = set()
         has_vscode = False
 
@@ -53,7 +42,8 @@ def _focus_linked_console(self, pid: int):
                              ("dwFlags", ctypes.c_ulong), ("szExeFile", ctypes.c_char * 260)]
             snap = ctypes.windll.kernel32.CreateToolhelp32Snapshot(0x2, 0)
             parents, names = {}, {}
-            e = PROCESSENTRY32(); e.dwSize = ctypes.sizeof(PROCESSENTRY32)
+            e = PROCESSENTRY32()
+            e.dwSize = ctypes.sizeof(PROCESSENTRY32)
             if ctypes.windll.kernel32.Process32First(snap, ctypes.byref(e)):
                 while True:
                     parents[e.th32ProcessID] = e.th32ParentProcessID
@@ -63,9 +53,11 @@ def _focus_linked_console(self, pid: int):
             ctypes.windll.kernel32.CloseHandle(snap)
             p = seed
             for _ in range(12):
-                if p not in parents: break
+                if p not in parents:
+                    break
                 candidates.add(p)
-                if 'code' in names.get(p, ''): has_vscode = True
+                if 'code' in names.get(p, ''):
+                    has_vscode = True
                 p = parents[p]
 
         found_hwnd: list = []
@@ -97,9 +89,5 @@ def _focus_linked_console(self, pid: int):
         pass
 
 
-def focus_console():
-    return _focus_console(None)
-
-
-def focus_linked_console(pid):
+def focus_linked_console(pid: int) -> None:
     return _focus_linked_console(None, pid)
