@@ -283,7 +283,7 @@ class Paths(_Base):
         note = r"see C:\Users\someone\notes.md, \\nas\share\x.md, /home/someone/secret.md and ~/x/y.md; docs/a.md stays"
         card = self.api.task_progress(ME, card["id"], 10, note=note)
         text = card["status_note"]
-        for leaked in ("Users", "daniel", "nas", "/home", "dan/", "~/"):
+        for leaked in ("Users", "someone", "nas", "/home", "~/"):
             self.assertNotIn(leaked, text)
         self.assertEqual(text.count("@external/"), 4)
         self.assertIn("docs/a.md stays", text)
