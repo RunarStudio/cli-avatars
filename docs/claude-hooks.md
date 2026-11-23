@@ -193,6 +193,8 @@ prompts, tool output or an absolute path.
   read is not recorded.
 - Each write waits at most a quarter of a second for the lock. Any failure writes nothing and the
   hook still exits 0.
+- Known cost: on Windows one hook call takes about 430–530 ms of wall time (measured 23/11/2026),
+  mostly Python start-up. The hook runs on every tool event, with or without the memory map.
 
 `config.json`:
 

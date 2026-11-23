@@ -465,8 +465,7 @@ def response_chars(response: object) -> int | None:
     """Length of the text a Read returned. The text itself is not kept.
 
     Accepts a string, ``{"content": str}``, ``{"file": {"content": str}}``, or a
-    list of ``{"text": str}`` blocks. ``TODO(SpiderHost)``: confirm the live
-    Claude Code ``tool_response`` shape for Read.
+    list of ``{"text": str}`` blocks.
     """
     if isinstance(response, str):
         return min(len(response), MAX_CHARS)
