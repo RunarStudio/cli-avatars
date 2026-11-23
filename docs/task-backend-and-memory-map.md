@@ -418,8 +418,9 @@ These are hints for Daniel. The app does not edit, move or summarise any file.
 | `memmap/graph.py` | `aggregate(records, now=, since=, sessions=, links=)` returns `(Graph, Metrics)` in one pass. `window_start("session" / "today" / "7d" / "30d", now)`; `sessions=` is the topic filter or the selected session. `never_read(files, records, now=, kind_of=)` and `task_reads(records, spans)` (MEMMAP.5 builds the `TaskSpan`s from the registry). |
 | `memmap/links.py` | `refresh_links(root, node_paths, cache, known)` reads only files whose mtime or size changed; `load_links` / `save_links` keep `links.json`. `list_markdown(root)` lists names for "never read". `root` comes from a live session's cwd through `find_project_root` and stays in memory. |
 
-The app calls these on a worker thread, never the Tk thread. Measured on Linux: 10,000 records
-aggregate in about 15 ms.
+The app calls these on a worker thread, never the Tk thread. Measured: 10,000 records aggregate
+in about 9 ms on Linux (Windows ran about 1.4× slower). The first call after start is slower
+(about 17 ms) while the timestamp cache fills.
 
 ---
 

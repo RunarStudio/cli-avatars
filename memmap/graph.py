@@ -9,6 +9,7 @@ file content; link targets come in already extracted (``memmap.links``).
 from __future__ import annotations
 
 import calendar
+import heapq
 import math
 import time
 from dataclasses import dataclass, field
@@ -38,18 +39,22 @@ NEVER_READ_KINDS = ("instructions", "memory", "docs")
 
 _TS_CACHE: dict[str, float] = {}
 _TS_CACHE_MAX = 65536
+_DAY_CACHE: dict[str, int] = {}
 
 
 def ts_seconds(value: str) -> float:
     """Seconds for a validated ``YYYY-MM-DDTHH:MM:SSZ``. Much faster than strptime, which matters at 10k records."""
     found = _TS_CACHE.get(value)
     if found is None:
-        found = float(calendar.timegm((
-            int(value[0:4]), int(value[5:7]), int(value[8:10]),
-            int(value[11:13]), int(value[14:16]), int(value[17:19]), 0, 0, 0,
-        )))
+        date = value[:10]
+        midnight = _DAY_CACHE.get(date)
+        if midnight is None:
+            midnight = _DAY_CACHE[date] = calendar.timegm((int(value[0:4]), int(value[5:7]), int(value[8:10]),
+                                                           0, 0, 0, 0, 0, 0))
+        found = float(midnight + int(value[11:13]) * 3600 + int(value[14:16]) * 60 + int(value[17:19]))
         if len(_TS_CACHE) >= _TS_CACHE_MAX:
             _TS_CACHE.clear()
+            _DAY_CACHE.clear()
         _TS_CACHE[value] = found
     return found
 
@@ -92,7 +97,7 @@ def tokens(chars: int) -> int:
     return chars // CHARS_PER_TOKEN
 
 
-@dataclass
+@dataclass(slots=True)
 class Node:
     path: str
     kind: str
@@ -116,7 +121,7 @@ class Node:
         return tokens(self.chars_total // self.chars_known) if self.chars_known else None
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True)
 class Edge:
     a: str
     b: str
@@ -152,69 +157,142 @@ def _window(
     return out
 
 
-def _table(rows: Sequence[Row]) -> dict[str, Node]:
-    """One node per path, in first-seen order. ``turn`` markers have no node.
+class _Scan:
+    """Everything one pass over the records yields; the graph and the metrics are built from it."""
+
+    __slots__ = ("nodes", "groups", "by_session", "by_day", "starts", "unknown")
+
+    def __init__(self, nodes, groups, by_session, by_day, starts, unknown):
+        self.nodes: dict[str, Node] = nodes
+        self.groups: list[dict[str, float]] = groups
+        self.by_session: dict[str, int] = by_session
+        self.by_day: dict[int, int] = by_day
+        self.starts: dict[tuple[str, float], int] = starts
+        self.unknown: int = unknown
+
+
+def _scan(
+    records: Iterable[Mapping[str, object]],
+    since: float,
+    until: float,
+    sessions: Collection[str] | None,
+    offset: int,
+) -> _Scan:
+    """One pass: per-path counters, duplicate reads, co-read groups and token sums.
 
     A ``read`` is a duplicate when this session already read the path in the
-    same turn, or it is the session's 4th or later read of the path.
+    same turn, or it is the session's 4th or later read of the path. A co-read
+    group is one ``(session, turn)`` as ``{path: newest read}``; reads before the
+    first prompt share turn None, and ``auto`` loads are not grouped. Records
+    arrive in time order, so the local day is kept as a running total.
     """
-    nodes: dict[str, Node] = {}
-    last_turn: dict[tuple[str, str], object] = {}
-    count: dict[tuple[str, str], int] = {}
-    for stamp, record in rows:
+    cache = _TS_CACHE
+    neg = float("-inf")
+    dup_limit = DUP_SESSION_LIMIT
+    per_token = CHARS_PER_TOKEN
+    stats: dict[str, list] = {}
+    # session -> [{path: [reads, last turn]}, {turn: {path: stamp}}, tokens or None]
+    per_session: dict[str, list] = {}
+    by_day: dict[int, int] = {}
+    starts: dict[tuple[str, float], int] = {}
+    unknown = 0
+    day = None
+    day_lo, day_hi, day_cost = float("inf"), neg, 0
+    for record in records:
+        session = record["session"]
+        if sessions is not None and session not in sessions:
+            continue
+        ts = record["ts"]
+        stamp = cache.get(ts)
+        if stamp is None:
+            stamp = ts_seconds(ts)
+        if stamp < since or stamp > until:
+            continue
         op = record["op"]
         if op == "turn":
             continue
-        path, session = record["path"], record["session"]
-        node = nodes.get(path)
-        if node is None:
-            node = nodes[path] = Node(path=path, kind=record["kind"])
-        if op == "auto":
-            node.auto += 1
+        path = record["path"]
+        st = stats.get(path)
+        if st is None:
+            st = stats[path] = [0, 0, 0, neg, 0, 0, set(), record["kind"]]
+        state = per_session.get(session)
+        if state is None:
+            state = per_session[session] = [{}, {}, None]
+        if op == "read":
+            st[0] += 1
+            turn = record["turn"]
+            seen = state[0].get(path)
+            if seen is None:
+                state[0][path] = [1, turn]
+            else:
+                if seen[0] >= dup_limit or seen[1] == turn:
+                    st[2] += 1
+                seen[0] += 1
+                seen[1] = turn
+            group = state[1].get(turn)
+            if group is None:
+                state[1][turn] = {path: stamp}
+            elif stamp > group.get(path, neg):
+                group[path] = stamp
         else:
-            node.reads += 1
-            key = (session, path)
-            seen = count.get(key, 0)
-            if seen >= DUP_SESSION_LIMIT or (seen and last_turn[key] == record["turn"]):
-                node.duplicates += 1
-            count[key] = seen + 1
-            last_turn[key] = record["turn"]
-        node.sessions.add(session)
-        if stamp > node.last_ts:
-            node.last_ts = stamp
+            st[1] += 1
+        st[6].add(session)
+        if stamp > st[3]:
+            st[3] = stamp
         chars = record["chars"]
-        if chars is not None:
-            node.chars_total += chars
-            node.chars_known += 1
-    return nodes
+        if chars is None:
+            unknown += 1
+            continue
+        st[4] += chars
+        st[5] += 1
+        cost = chars // per_token
+        state[2] = cost if state[2] is None else state[2] + cost
+        if not day_lo <= stamp < day_hi:
+            if day is not None:
+                by_day[day] = by_day.get(day, 0) + day_cost
+            day = int((stamp + offset) // 86400)
+            day_lo = day * 86400 - offset
+            day_hi = day_lo + 86400
+            day_cost = 0
+        day_cost += cost
+        if op == "auto":
+            start = (session, stamp)
+            starts[start] = starts.get(start, 0) + chars
+    if day is not None:
+        by_day[day] = by_day.get(day, 0) + day_cost
+    nodes = {
+        path: Node(path, st[7], st[0], st[1], st[2], st[3], st[4], st[5], st[6]) for path, st in stats.items()
+    }
+    groups = [group for state in per_session.values() for group in state[1].values() if len(group) > 1]
+    by_session = {session: state[2] for session, state in per_session.items() if state[2] is not None}
+    return _Scan(nodes, groups, by_session, by_day, starts, unknown)
 
 
 def node_table(records: Iterable[Mapping[str, object]]) -> dict[str, Node]:
-    return _table(_window(records, float("-inf"), float("inf"), None))
+    """One node per path, in first-seen order. ``turn`` markers have no node."""
+    return _scan(records, float("-inf"), float("inf"), None, 0).nodes
 
 
-def _co_read(rows: Sequence[Row], only: Collection[str] | None) -> dict[tuple[str, str], tuple[int, float]]:
-    groups: dict[tuple[str, object], dict[str, float]] = {}
-    for stamp, record in rows:
-        if record["op"] != "read" or (only is not None and record["path"] not in only):
-            continue
-        group = groups.setdefault((record["session"], record["turn"]), {})
-        path = record["path"]
-        if stamp > group.get(path, float("-inf")):
-            group[path] = stamp
+def _pairs(
+    groups: Iterable[Mapping[str, float]], only: Collection[str] | None
+) -> dict[tuple[str, str], tuple[int, float]]:
     weight: dict[tuple[str, str], int] = {}
     last: dict[tuple[str, str], float] = {}
-    for group in groups.values():
-        if len(group) < 2:
+    neg = float("-inf")
+    for group in groups:
+        paths = sorted(group) if only is None else sorted(p for p in group if p in only)
+        count = len(paths)
+        if count < 2:
             continue
-        paths = sorted(group)
-        for i, a in enumerate(paths):
+        for i in range(count - 1):
+            a = paths[i]
             stamp_a = group[a]
             for b in paths[i + 1:]:
                 pair = (a, b)
                 weight[pair] = weight.get(pair, 0) + 1
-                newest = stamp_a if stamp_a > group[b] else group[b]
-                if newest > last.get(pair, float("-inf")):
+                stamp_b = group[b]
+                newest = stamp_a if stamp_a > stamp_b else stamp_b
+                if newest > last.get(pair, neg):
                     last[pair] = newest
     return {pair: (w, last[pair]) for pair, w in weight.items()}
 
@@ -227,12 +305,52 @@ def co_read_weights(
     A turn is one ``(session, turn)``; reads before the first prompt share turn None.
     Only ``read`` counts, so the files every session auto-loads do not tie everything together.
     """
-    return _co_read(_window(records, float("-inf"), float("inf"), None), only)
+    return _pairs(_scan(records, float("-inf"), float("inf"), None, 0).groups, only)
+
+
+def _co_edges(
+    groups: Iterable[Mapping[str, float]], shown: Collection[str], now: float, co_read_min: int
+) -> list[Edge]:
+    """Co-read edges between ``shown`` paths, ordered by ``(a, b)``. Pairs are keyed by path rank, an int."""
+    order = sorted(shown)
+    n = len(order)
+    rank = {path: i for i, path in enumerate(order)}
+    weight: dict[int, int] = {}
+    last: dict[int, float] = {}
+    neg = float("-inf")
+    for group in groups:
+        items = [(rank[p], t) for p, t in group.items() if p in rank]
+        count = len(items)
+        if count < 2:
+            continue
+        items.sort()
+        for i in range(count - 1):
+            a, stamp_a = items[i]
+            base = a * n
+            for b, stamp_b in items[i + 1:]:
+                key = base + b
+                weight[key] = weight.get(key, 0) + 1
+                newest = stamp_a if stamp_a > stamp_b else stamp_b
+                if newest > last.get(key, neg):
+                    last[key] = newest
+    exp, floor = math.exp, FADE_FLOOR
+    edges = []
+    for key in sorted(weight):
+        w = weight[key]
+        if w < co_read_min:
+            continue
+        a, b = divmod(key, n)
+        alpha = exp(-max(0.0, now - last[key]) / FADE_SECONDS)
+        edges.append(Edge(order[a], order[b], "co", w, alpha if alpha > floor else floor))
+    return edges
+
+
+def _rank_key(node: Node) -> tuple[float, str]:
+    return (-node.weight, node.path)
 
 
 def _graph(
-    rows: Sequence[Row],
-    table: Mapping[str, Node],
+    scan: _Scan,
     *,
     now: float,
     since: float,
@@ -240,8 +358,13 @@ def _graph(
     max_nodes: int,
     co_read_min: int,
 ) -> Graph:
-    ranked = sorted(table.values(), key=lambda n: (-n.weight, n.path))
-    drawn, rest = ranked[:max_nodes], ranked[max_nodes:]
+    table = scan.nodes
+    if len(table) <= max_nodes:
+        drawn, rest = sorted(table.values(), key=_rank_key), []
+    else:
+        drawn = heapq.nsmallest(max_nodes, table.values(), key=_rank_key)
+        picked = {n.path for n in drawn}
+        rest = [n for n in table.values() if n.path not in picked]
     for node in drawn:
         node.radius = radius(node.weight)
         node.alpha = fade(now - node.last_ts)
@@ -258,10 +381,7 @@ def _graph(
         fold.alpha = fade(now - fold.last_ts)
         nodes.append(fold)
     shown = {n.path: n for n in drawn}
-    edges = []
-    for (a, b), (weight, last) in sorted(_co_read(rows, shown).items()):
-        if weight >= co_read_min:
-            edges.append(Edge(a, b, "co", weight, fade(now - last)))
+    edges = _co_edges(scan.groups, shown, now, co_read_min) if shown else []
     if links:
         seen = set()
         for source in sorted(links):
@@ -292,9 +412,8 @@ def build_graph(
     The ``max_nodes`` heaviest paths are drawn; the rest fold into one ``+N``
     node that has no edges. Ties break on path so the order is stable.
     """
-    rows = _window(records, since, now, sessions)
-    return _graph(rows, _table(rows), now=now, since=since, links=links, max_nodes=max_nodes,
-                  co_read_min=co_read_min)
+    scan = _scan(records, since, now, sessions, 0)
+    return _graph(scan, now=now, since=since, links=links, max_nodes=max_nodes, co_read_min=co_read_min)
 
 
 @dataclass
@@ -312,49 +431,36 @@ class Metrics:
     heavy_auto_loads: list[tuple[str, float, int]]
 
 
-def _metrics(rows: Sequence[Row], table: Mapping[str, Node], offset: int) -> Metrics:
-    by_session: dict[str, int] = {}
-    by_day_index: dict[int, int] = {}
-    starts: dict[tuple[str, float], int] = {}
-    unknown = 0
-    for stamp, record in rows:
-        op = record["op"]
-        if op == "turn":
-            continue
-        chars = record["chars"]
-        if chars is None:
-            unknown += 1
-            continue
-        cost = chars // CHARS_PER_TOKEN
-        session = record["session"]
-        by_session[session] = by_session.get(session, 0) + cost
-        day = int((stamp + offset) // 86400)
-        by_day_index[day] = by_day_index.get(day, 0) + cost
-        if op == "auto":
-            key = (session, stamp)
-            starts[key] = starts.get(key, 0) + chars
-    by_day = {time.strftime("%Y-%m-%d", time.gmtime(day * 86400)): cost for day, cost in sorted(by_day_index.items())}
-    nodes = sorted(table.values(), key=lambda n: n.path)
+def _metrics(scan: _Scan) -> Metrics:
+    by_day = {time.strftime("%Y-%m-%d", time.gmtime(day * 86400)): cost for day, cost in sorted(scan.by_day.items())}
+    nodes = scan.nodes.values()
     duplicate_files = sorted(
         ((n.path, n.duplicates) for n in nodes if n.duplicates >= DUP_HINT), key=lambda t: (-t[1], t[0])
     )
     hot = []
     for node in nodes:
+        if node.reads < HOT_READS:
+            continue
         per_read = node.tokens_per_read
-        if per_read is not None and per_read >= HOT_TOKENS and node.reads >= HOT_READS:
+        if per_read is not None and per_read >= HOT_TOKENS:
             hot.append((node.path, per_read, node.reads))
     hot.sort(key=lambda t: (-t[1] * t[2], t[0]))
-    auto_loads = sorted(((s, ts, tokens(c)) for (s, ts), c in starts.items()), key=lambda t: (t[1], t[0]))
+    auto_loads = sorted(((s, ts, tokens(c)) for (s, ts), c in scan.starts.items()), key=lambda t: (t[1], t[0]))
+    reads = auto = duplicates = 0
+    for node in nodes:
+        reads += node.reads
+        auto += node.auto
+        duplicates += node.duplicates
     return Metrics(
-        reads=sum(n.reads for n in nodes),
-        auto=sum(n.auto for n in nodes),
-        duplicates=sum(n.duplicates for n in nodes),
+        reads=reads,
+        auto=auto,
+        duplicates=duplicates,
         duplicate_files=duplicate_files,
         hot_files=hot,
-        tokens_total=sum(by_session.values()),
-        tokens_by_session=by_session,
+        tokens_total=sum(scan.by_session.values()),
+        tokens_by_session=scan.by_session,
         tokens_by_day=by_day,
-        unknown_chars=unknown,
+        unknown_chars=scan.unknown,
         auto_loads=auto_loads,
         heavy_auto_loads=[row for row in auto_loads if row[2] > AUTO_COST_HINT],
     )
@@ -379,8 +485,7 @@ def compute_metrics(
     per session start; ``heavy_auto_loads`` are those over 8,000 tokens.
     Days are local dates (``YYYY-MM-DD``).
     """
-    rows = _window(records, since, now, sessions)
-    return _metrics(rows, _table(rows), _offset(now, utc_offset))
+    return _metrics(_scan(records, since, now, sessions, _offset(now, utc_offset)))
 
 
 def aggregate(
@@ -394,11 +499,9 @@ def aggregate(
     utc_offset: int | None = None,
 ) -> tuple[Graph, Metrics]:
     """``build_graph`` and ``compute_metrics`` in one pass over the records: what the panel calls."""
-    rows = _window(records, since, now, sessions)
-    table = _table(rows)
-    metrics = _metrics(rows, table, _offset(now, utc_offset))
-    return _graph(rows, table, now=now, since=since, links=links, max_nodes=max_nodes,
-                  co_read_min=CO_READ_MIN), metrics
+    scan = _scan(records, since, now, sessions, _offset(now, utc_offset))
+    metrics = _metrics(scan)
+    return _graph(scan, now=now, since=since, links=links, max_nodes=max_nodes, co_read_min=CO_READ_MIN), metrics
 
 
 def never_read(
