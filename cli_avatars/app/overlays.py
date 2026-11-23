@@ -255,6 +255,9 @@ class OverlayBoard:
         _attr(win, "-transparentcolor", CHROMA_KEY)
         detach_overlay(win)
         mark_toolwindow(win)
+        from cli_avatars.desktop.clickthrough import set_pass_through, top_hwnd
+
+        set_pass_through(top_hwnd(win), True)
 
     def _bind(self, canvas, window) -> None:
         app = self.app

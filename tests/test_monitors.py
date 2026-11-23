@@ -136,6 +136,21 @@ class TestFactor(unittest.TestCase):
         self.assertEqual(monitor_factor(0), 1)
         self.assertEqual(monitor_factor(-10), 1)
 
+    def test_text_scale_at_100_125_and_150(self):
+        from cli_avatars.world.monitors import dpi_body, tk_scaling, ui_should_scale
+
+        self.assertAlmostEqual(tk_scaling(96), 96 / 72)
+        self.assertAlmostEqual(tk_scaling(120), 120 / 72)
+        self.assertAlmostEqual(tk_scaling(144), 2.0)
+        self.assertEqual(dpi_body(40, 40, 96), (40, 40))
+        self.assertEqual(dpi_body(40, 40, 120), (40, 40))
+        self.assertEqual(dpi_body(40, 40, 144), (80, 80))
+        self.assertEqual(dpi_body(32, 32, 144), (64, 64))
+        self.assertTrue(ui_should_scale("system"))
+        self.assertTrue(ui_should_scale("per-monitor-v2"))
+        self.assertFalse(ui_should_scale("none"))
+        self.assertFalse(ui_should_scale("skipped"))
+
 
 class TestSection2Example(unittest.TestCase):
     def setUp(self):

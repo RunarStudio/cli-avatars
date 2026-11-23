@@ -39,6 +39,7 @@ def _draw_talk_bubbles(self: Any, now: float | None = None) -> None:
         _clear(self, "_talk_items", ids)
         self._talk_sig = None
         self._talk_photos = []
+        self._bubble_hits = []
         return
     if now is None:
         now = time.time()
@@ -54,7 +55,9 @@ def _draw_talk_bubbles(self: Any, now: float | None = None) -> None:
         _clear(self, "_talk_items", ids)
         self._talk_sig = None
         self._talk_photos = []
+        self._bubble_hits = []
         return
+    self._bubble_hits = [(item.x, item.y, item.w, item.h) for item in placed]
     sig = tuple(
         (item.icon, item.typing_frame, scale, round(item.alpha, 2), item.x, item.y)
         for item in placed
@@ -111,6 +114,7 @@ def _draw_decision_bubbles(self: Any) -> None:
     if not _ready():
         _clear(self, "_decision_items", ids)
         self._decision_sig = None
+        self._decision_hits = []
         return
     scale = integer_scale(TUNING.avatar_scale)
     boxes = {
@@ -124,6 +128,7 @@ def _draw_decision_bubbles(self: Any) -> None:
     if agents is None:
         _clear(self, "_decision_items", ids)
         self._decision_sig = None
+        self._decision_hits = []
         return
     try:
         placed = place_open_decisions(agents, boxes, scale)
@@ -131,7 +136,9 @@ def _draw_decision_bubbles(self: Any) -> None:
         logging.getLogger("cli_avatars.decisions").exception("decision bubble failed")
         _clear(self, "_decision_items", ids)
         self._decision_sig = None
+        self._decision_hits = []
         return
+    self._decision_hits = [(x, y, w, h) for _agent_id, x, y, w, h in placed]
     if not placed:
         _clear(self, "_decision_items", ids)
         self._decision_sig = ()

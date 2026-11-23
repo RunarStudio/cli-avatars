@@ -24,6 +24,7 @@ from cli_avatars.app.bubbles_view import (
 )
 from cli_avatars.app.chat import ChatController
 from cli_avatars.app.config_screen import ConfigScreen
+from cli_avatars.app.desktop_follow import start as start_desktop_follow
 from cli_avatars.app.dungeon_window import DungeonWindow
 from cli_avatars.app.hud_window import HudWindow
 from cli_avatars.app.input import InputController
@@ -180,6 +181,7 @@ class OverlayApp:
             start_bootcheck(self)
         except Exception:
             print("[WARN] Boot check did not start")
+        start_desktop_follow(self)
         self._tick()
 
     def _deferred_init(self):

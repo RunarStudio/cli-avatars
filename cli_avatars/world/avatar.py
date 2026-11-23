@@ -22,7 +22,7 @@ from cli_avatars.tuning import (
     WALL_CLIMB_SPEED,
     WALL_MARGIN,
 )
-from cli_avatars.world.monitors import contain_walker, ground_floors
+from cli_avatars.world.monitors import contain_walker, dpi_body, ground_floors, monitor_at, monitor_factor
 
 
 class Avatar:
@@ -79,6 +79,35 @@ class Avatar:
                 return w, h
         return AVATAR_W, AVATAR_H
 
+    def _monitor_dpi(self) -> int:
+        """DPI under the feet. No layout, or a miss, stays at 96 so the sheet size holds."""
+        layout = getattr(self, "monitor_layout", None)
+        if layout is None:
+            return 96
+        try:
+            ident = monitor_at(layout, self.x + self.aw / 2.0, self.y + self.ah - 1.0)
+        except Exception:
+            return 96
+        if not ident:
+            return 96
+        monitor = layout.monitor(ident) if hasattr(layout, "monitor") else None
+        dpi = getattr(monitor, "dpi", 96)
+        return int(dpi) if dpi else 96
+
+    def _scaled_image(self, image):
+        factor = monitor_factor(self._monitor_dpi())
+        if factor <= 1 or not hasattr(image, "resize"):
+            return image
+        width = int(getattr(image, "width", 0) or 0)
+        height = int(getattr(image, "height", 0) or 0)
+        if width < 1 or height < 1:
+            return image
+        try:
+            from PIL import Image
+        except ImportError:
+            return image
+        return image.resize((width * factor, height * factor), Image.NEAREST)
+
     def _foot_pad(self):
         """Empty rows under the sprite's feet (sprite_loader measures them per sheet)."""
         if self.registry and hasattr(self.registry, "get_foot_pad"):
@@ -108,8 +137,10 @@ class Avatar:
         # Dying plays in place. No gravity, no leash, no walk.
         if getattr(self, "_dying", False):
             return
-        self.aw, self.ah = self._sprite_size()
-        fh = self.ah - self._foot_pad()   # feet height: physics uses this, drawing uses ah
+        base_w, base_h = self._sprite_size()
+        dpi = self._monitor_dpi()
+        self.aw, self.ah = dpi_body(base_w, base_h, dpi)
+        fh = self.ah - self._foot_pad() * monitor_factor(dpi)
         last_fh = getattr(self, "_last_fh", fh)
         if self.on_ground and fh != last_fh:
             self.y -= fh - last_fh        # animation changed: keep the feet on the floor
@@ -262,7 +293,7 @@ class Avatar:
         """
         mirror = self.dir < 0
         frame = self.frame if isinstance(self.frame, int) and not isinstance(self.frame, bool) else 0
-        scale = float(TUNING.avatar_scale)
+        scale = float(TUNING.avatar_scale) * monitor_factor(self._monitor_dpi())
         skin = str(getattr(self.agent, "skin", "") or "")
         hue = 0
         base, sep, tail = skin.rpartition("_h")
@@ -288,7 +319,7 @@ class Avatar:
         if registry is not None and hasattr(registry, "get_image"):
             image = registry.get_image(self.agent.skin, self._anim_status, frame, mirror=mirror)
             if image is not None:
-                return image
+                return self._scaled_image(image)
         elif registry is not None and hasattr(registry, "get_photo"):
             photo = registry.get_photo(self.agent.skin, self._anim_status, frame, mirror=mirror)
             if photo is not None:
