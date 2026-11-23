@@ -186,9 +186,9 @@ class RedactionTests(unittest.TestCase):
     def test_body_redacted(self):
         self._assert_redacted(validate_card(_card(body=f"line one\n{FAKE_SECRET}"))["body"])
 
-    def test_status_note_not_stored(self):
+    def test_status_note_redacted(self):
         card = validate_card(_card(status_note=FAKE_SECRET))
-        self.assertNotIn("status_note", card)
+        self._assert_redacted(card["status_note"])
         self.assertNotIn("fake-hunter2", json.dumps(card))
 
     def test_checklist_text_redacted(self):

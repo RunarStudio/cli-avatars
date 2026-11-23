@@ -17,9 +17,18 @@ import os
 import re
 import time
 from pathlib import Path
+from typing import Callable
 
 from board.model import MAX_HISTORY, clean_board_project, new_event, now_ts, valid_uuid, validate_card, validate_event
-from events import EventRejected, _restrict_to_user, app_data_dir, directory_lock, ensure_private_dir, write_all
+from events import (
+    LOCK_TIMEOUT,
+    EventRejected,
+    _restrict_to_user,
+    app_data_dir,
+    directory_lock,
+    ensure_private_dir,
+    write_all,
+)
 from topics import get_topic
 
 BOARD_DIR_NAME = "board"
@@ -33,7 +42,7 @@ ROTATION_NAME = re.compile(r"events\.([1-9][0-9]*)\.jsonl")
 
 
 class LocalStore:
-    """list / get / put / append_event / sync over local files."""
+    """list / get / put / update / append_event / sync over local files."""
 
     def __init__(self, directory: Path | None = None) -> None:
         base = Path(directory) if directory else app_data_dir()
@@ -66,22 +75,20 @@ class LocalStore:
                     return card
         return None
 
-    def put(self, card: dict, actor: str = "daniel") -> dict:
+    def put(self, card: dict, actor: str = "daniel", timeout: float = LOCK_TIMEOUT) -> dict:
         """Validate, set ``updated``, append created, edited, or moved and/or assigned.
 
         A card file that exists but cannot be read is ``schema``, never recreated.
         A new or changed ``topic`` must exist in the topic store, else ``missing``.
         """
         card = validate_card({**card, "updated": now_ts()})
-        with directory_lock(self._ensure_root()):
+        with directory_lock(self._ensure_root(), timeout=timeout):
             old = self.get(card["id"])
             if old is None and self._card_file_exists(card["id"]):
                 raise EventRejected("schema")
             if old is not None and old["project"] != card["project"]:
                 raise EventRejected("schema")
-            topic_changed = card["topic"] is not None and (old is None or old["topic"] != card["topic"])
-            if topic_changed and get_topic(self.base, card["topic"]) is None:
-                raise EventRejected("missing")
+            self._check_topic(None if old is None else old["topic"], card["topic"], timeout)
             events = []
             if old is None:
                 events.append(new_event("created", actor, card["id"]))
@@ -99,13 +106,39 @@ class LocalStore:
             self._write_with_events(card, events)
         return card
 
-    def append_event(self, event: dict, project: str | None = None) -> dict:
+    def update(self, card_id: str, change: Callable[[dict], tuple[dict, list[dict]] | None],
+               timeout: float = LOCK_TIMEOUT) -> dict | None:
+        """Read, ``change``, write, all inside the board lock, so two processes never lose a write.
+
+        ``change(card)`` gets the current card and returns ``(new card, events)``, or None for a no-op
+        (nothing is written). It may raise ``EventRejected``. The id and project cannot change;
+        ``updated`` is set here. Returns the written card, or the unchanged card on a no-op.
+        """
+        if not valid_uuid(card_id):
+            raise EventRejected("schema")
+        with directory_lock(self._ensure_root(), timeout=timeout):
+            old = self.get(card_id)
+            if old is None:
+                raise EventRejected("missing")
+            changed = change(old)
+            if changed is None:
+                return old
+            new, events = changed
+            card = validate_card({**new, "id": old["id"], "project": old["project"], "created": old["created"],
+                                  "updated": now_ts(), "history": []})
+            self._check_topic(old["topic"], card["topic"], timeout)
+            events = [validate_event({**event, "card": card_id}) for event in events]
+            card["history"] = (old["history"] + events)[-MAX_HISTORY:]
+            self._write_with_events(card, events)
+        return card
+
+    def append_event(self, event: dict, project: str | None = None, timeout: float = LOCK_TIMEOUT) -> dict:
         """Append to ``events.jsonl``; a card event also lands in that card's history.
 
         A board-level event (``card`` null) names its board with ``project``.
         """
         event = validate_event(event)
-        with directory_lock(self._ensure_root()):
+        with directory_lock(self._ensure_root(), timeout=timeout):
             if event["card"] is None:
                 project = clean_board_project(project)
                 if not project:
@@ -171,6 +204,11 @@ class LocalStore:
         except OSError:
             return lines
         return lines
+
+    def _check_topic(self, old: object, new: object, timeout: float) -> None:
+        """A new or changed topic must exist in the topic store (board lock, then topics)."""
+        if new is not None and new != old and get_topic(self.base, new, timeout=timeout) is None:
+            raise EventRejected("missing")
 
     def sync(self) -> str:
         return "local"

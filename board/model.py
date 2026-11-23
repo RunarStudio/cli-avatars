@@ -20,7 +20,9 @@ from inbox import valid_agent_id
 from topics import clean_project, valid_topic_id
 
 COLUMNS = ("todo", "doing", "review", "done", "blocked")
-KINDS = ("created", "edited", "moved", "assigned", "commented", "checklist", "linked_pr", "prompt")
+KINDS = ("created", "edited", "moved", "assigned", "commented", "checklist", "linked_pr", "prompt", "progress",
+         "status")
+VIA = ("mcp", "hook", "emit")
 PROMPT_TARGETS = ("claude", "grok", "both")
 PROMPT_OUTCOMES = ("ok", "error", "stopped", "timeout")
 PERSON = "daniel"
@@ -33,6 +35,7 @@ MAX_LABELS = 8
 MAX_CHECKLIST = 20
 MAX_NOTIFY = 8
 MAX_HISTORY = 200
+STATUS_NOTE_LIMIT = 240
 
 _LABEL = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 _MACHINE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,62}$")
@@ -97,6 +100,11 @@ def _reject() -> EventRejected:
     return EventRejected("schema")
 
 
+def valid_progress(value: object) -> bool:
+    """An int 0-100 (``bool`` is not an int here). ``None`` is checked by the caller."""
+    return type(value) is int and 0 <= value <= 100
+
+
 def validate_event(obj: object) -> dict[str, object]:
     if not isinstance(obj, Mapping):
         raise _reject()
@@ -112,9 +120,21 @@ def validate_event(obj: object) -> dict[str, object]:
     for key in ("from", "to"):
         if obj.get(key) is not None:
             value = obj[key]
-            if value not in COLUMNS and not valid_assignee(value):
+            if kind == "progress":
+                if not valid_progress(value):
+                    raise _reject()
+            elif value not in COLUMNS and not valid_assignee(value):
                 raise _reject()
             out[key] = value
+    if obj.get("via") is not None:
+        if obj["via"] not in VIA:
+            raise _reject()
+        out["via"] = obj["via"]
+    if kind == "checklist" and obj.get("index") is not None:
+        index, done = obj.get("index"), obj.get("done")
+        if type(index) is not int or not 0 <= index < MAX_CHECKLIST or type(done) is not bool:
+            raise _reject()
+        out.update(index=index, done=done)
     if obj.get("text") is not None:
         out["text"] = sanitize_body(_redacted(obj["text"]), EVENT_TEXT_LIMIT)
     if obj.get("notify") is not None:
@@ -150,6 +170,8 @@ def validate_card(obj: object) -> dict[str, object]:
         "column": obj["column"],
         "labels": obj.get("labels", []),
         "pr": obj.get("pr"),
+        "progress": obj.get("progress"),
+        "status_note": sanitize_text(_redacted(obj.get("status_note") or ""), STATUS_NOTE_LIMIT),
         "checklist": [],
         "created": obj["created"],
         "updated": obj["updated"],
@@ -166,6 +188,10 @@ def validate_card(obj: object) -> dict[str, object]:
         raise _reject()
     if card["pr"] is not None and not (isinstance(card["pr"], str) and _PR.fullmatch(card["pr"])):
         raise _reject()
+    if card["progress"] is not None and not valid_progress(card["progress"]):
+        raise _reject()
+    if obj.get("status_note") is not None and not isinstance(obj.get("status_note"), str):
+        raise _reject()
     checklist = obj.get("checklist", [])
     if not isinstance(checklist, list) or len(checklist) > MAX_CHECKLIST:
         raise _reject()
@@ -181,6 +207,16 @@ def validate_card(obj: object) -> dict[str, object]:
         raise _reject()
     card["history"] = [validate_event(e) for e in history[-MAX_HISTORY:]]
     return card
+
+
+def effective_progress(card: Mapping) -> int | None:
+    """``progress`` when set, else the checklist ratio (0-100), else None (Decision E)."""
+    if card.get("progress") is not None:
+        return int(card["progress"])
+    items = card.get("checklist") or []
+    if not items:
+        return None
+    return round(100 * sum(1 for item in items if item["done"]) / len(items))
 
 
 def new_card(project: str, title: str, body: str = "", topic: str | None = None,
