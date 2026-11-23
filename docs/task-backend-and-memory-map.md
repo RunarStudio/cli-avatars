@@ -438,8 +438,12 @@ Differences from 4.1–4.6:
 - Panel state lives in `ui/memmap_layout.json`, not `ui/dungeon_window.json`, so the Dungeon's
   own store is not touched.
 - At most 120 edges are drawn: link edges first, then co-read edges by weight.
-- The app does not keep a session's project folder yet, so there are no link edges, and "never"
-  shows "—" with a hint. Both need a root from `sessions.py`.
+- Link edges and "never read" need the project folder. `sessions.py` keeps the cwd of each live
+  Claude / Grok session in memory only (`remember_cwd` / `live_cwds`, at most 32, dropped after
+  15 minutes; never written or shown). The feed maps a cwd to its root with `find_project_root`.
+  When the root's `project_name` matches the shown project, it refreshes links through
+  `links.json` (relative names, re-read only when mtime or size changes) and lists the never-read
+  `.md` files every 30 s. With no live session in the project, "never" shows "—".
 
 Draw budgets. On Windows each Tcl call (create, coords, itemconfigure) costs about seven times what it
 costs on Linux, so the panel keeps the canvas items and sends only what changed

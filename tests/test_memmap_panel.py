@@ -207,7 +207,7 @@ class Views(unittest.TestCase):
         self.assertNotIn(tmp, text)
         self.assertEqual(select_text(result, "", NOW), "")
         self.assertTrue(metric_lines(result, "reads")[0].endswith("tokens (est.)"))
-        self.assertEqual(metric_lines(result, "never"), ["needs the project folder of a live session"])
+        self.assertEqual(metric_lines(result, "never"), ["none, or no live session in this project"])
         self.assertEqual(metric_lines(None, "dup"), [])
 
 

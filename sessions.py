@@ -6,6 +6,7 @@ No GUI imports — unit tests can load this module on Linux.
 
 import json
 import os
+import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
@@ -188,6 +189,32 @@ def _result_failed(line: str) -> Optional[bool]:
     return False
 
 
+# Working folders of live sessions, for the memory map's link edges and
+# "never read" (MEMMAP.4). Memory only: never written, never shown, never sent.
+LIVE_CWD_MAX = 32
+LIVE_CWD_TTL = STALE_AFTER
+_live_cwds: dict = {}
+_live_cwds_lock = threading.Lock()
+
+
+def remember_cwd(cwd, now: Optional[float] = None) -> None:
+    if not isinstance(cwd, str) or not cwd.strip() or len(cwd) > 1024 or "\x00" in cwd:
+        return
+    stamp = time.time() if now is None else now
+    with _live_cwds_lock:
+        _live_cwds.pop(cwd, None)
+        _live_cwds[cwd] = stamp
+        while len(_live_cwds) > LIVE_CWD_MAX:
+            _live_cwds.pop(next(iter(_live_cwds)))
+
+
+def live_cwds(now: Optional[float] = None) -> list:
+    """Working folders seen in the last ``LIVE_CWD_TTL`` seconds, newest first."""
+    stamp = time.time() if now is None else now
+    with _live_cwds_lock:
+        return [cwd for cwd, seen in reversed(_live_cwds.items()) if stamp - seen <= LIVE_CWD_TTL]
+
+
 def _folder_in_text(text: str) -> str:
     """First ``cwd`` folder name in ``text``. The rest of the path is dropped."""
     for line in text.splitlines():
@@ -200,6 +227,7 @@ def _folder_in_text(text: str) -> str:
         if isinstance(obj, dict):
             folder = project_folder(obj.get("cwd"))
             if folder:
+                remember_cwd(obj.get("cwd"))
                 return folder
     return ""
 
@@ -715,6 +743,8 @@ class GrokBuildSource(SessionSource):
                 return None
             cwd = _summary_cwd(summary, cwd_hint)
             project = project_folder(cwd)
+            if project:
+                remember_cwd(cwd)
             title = _summary_title(summary)
             status, tool, failed = grok_state_from_updates(_read_tail(updates_path))
             subs, child_ids = self._subagents(session)
