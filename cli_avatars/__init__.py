@@ -2,5 +2,7 @@
 
 Feature modules land here as ``overlay.py`` is split. See
 ``docs/architecture.md``. Importing this package starts nothing and
-imports nothing.
+imports nothing heavy.
 """
+
+VERSION = "0.4"
