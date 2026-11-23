@@ -584,7 +584,8 @@ See [`docs/windowed-dungeon.md`](docs/windowed-dungeon.md).
 - [ ] [BLDG][feat] WIN-DUNGEON.4 @agents: Scene in the Dungeon: `building_view.py` renders BLDG.1 scene JSON with zoom auto and pan; inside actors at their spots; click opens the chat dock, double-click focuses the console. (M)
 - [x] [OVL][feat] WIN-DUNGEON.5 @pixel: `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. Drag-out works with the door open or closed. (M)
 - [x] [OVL][feat] WIN-DUNGEON.6 @agents: Door toggle lands here (toolbar and tray, default open). Escape and return animations (4.2). Door open: blocked/error may escape and return when it clears. Door closed: drag-out only. `idle_return_s`. Call home. (S)
-- [ ] [OVL][feat] WIN-DUNGEON.7 @pixel: Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. (S)
+- [x] [OVL][feat] WIN-DUNGEON.7 @pixel: Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. (S)
+  - Windows check 2026-11-23 (d43686e): 699 pass, clickthrough+monitors 42 ok, bootcheck 14/14 dpi system, overlay exstyle TRANSPARENT+LAYERED+TOOLWINDOW, text normal size at 125%, close 0.18 s. Manual click-through feel on a desktop avatar still to be tried by Daniel.
 - [ ] [OVL][feat] WIN-DUNGEON.8 @agents: Last, low priority. `dungeon.wander` (default off): while the door is open, agents may leave after 30–120 s and return after a random walk. A closed door blocks it. (S)
 - [ ] [BUILD][chore] UPDATE-VERSION: 'Update version' button that pulls the latest release. Blocked until a functional version exists.
 
