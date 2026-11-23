@@ -280,7 +280,7 @@ class Daniel(_Base):
 class Paths(_Base):
     def test_agent_notes_hash_outside_paths(self):
         card = self.card(assignee=ME)
-        note = r"see C:\Users\daniel\notes.md, \\nas\share\x.md, /home/dan/secret.md and ~/x/y.md; docs/a.md stays"
+        note = r"see C:\Users\someone\notes.md, \\nas\share\x.md, /home/someone/secret.md and ~/x/y.md; docs/a.md stays"
         card = self.api.task_progress(ME, card["id"], 10, note=note)
         text = card["status_note"]
         for leaked in ("Users", "daniel", "nas", "/home", "dan/", "~/"):
