@@ -607,6 +607,7 @@ See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md)
   - [x] [CHAT][feat] MEMMAP.4 @agents: Collapsible memory map section under Topics in the left dock: force layout on a worker thread, kind colours, read-count size, hover, click highlight, metrics strip. Done when selftest builds it with fixture data, collapse state survives a relaunch, and draw is ≤ 2 ms. (after MEMMAP.3) (M)
     - Windows check 2026-11-23 (18a2ec1): 709 pass, 0 fail, 7 skipped; panel probe ok (first build 6.1–6.8 ms, warm redraw 0 ms, update 1.7–2.0 ms, 11 Tcl calls); aggregate budget 14.2–16.3 ms; bootcheck 14/14. Draw budgets in docs/task-backend-and-memory-map.md 4.9.
   - [ ] [CHAT][feat] MEMMAP.5 @agents: Per-task memory metrics on the task card and Tasks tab, joined through the registry's task-topic-session links. Done when two cards in two topics get separate counts. (after MEMMAP.3 and TASKBACK.2) (S)
+    - Groundwork merged 2026-11-23 (731b059): project-dir fix — live session cwds kept in memory in sessions.py feed the memory-map project root, so link edges and the never-read count work. Windows check: 728 ok, test_memmap_roots 6 ok, panel probe ok, bootcheck 14/14. Per-task counts still wait for TASKBACK.2.
   - [ ] [CHAT][feat] MEMMAP.6 @agents: MemReadSource adapter protocol, Grok adapter, MCP-M3 memories as a virtual node (counts only). Done when a fake Grok payload yields the same record and memory_search stores no query. (after MEMMAP.2, GROK-LOGIN, MCP-M3 port) (S)
 
 ### Windowed dungeon
