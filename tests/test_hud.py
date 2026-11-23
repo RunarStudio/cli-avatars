@@ -1,5 +1,6 @@
 """Per-source HUD counts. Run: python -m unittest discover -s tests"""
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -184,6 +185,86 @@ class TestHudPreview(unittest.TestCase):
             data = path.read_bytes()
         self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
         self.assertGreater(len(data), 2000)
+
+
+# Two open decisions from one agent. The bubble read returns that one id.
+# The caption must still see the integer 2. Importing the HUD pulls tkinter,
+# so this runs in a child and the suite process stays free of it.
+_DECISION_COUNT = r"""
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+sys.path.insert(0, sys.argv[1])
+try:
+    import tkinter  # hud_window imports it at module level
+except ImportError:
+    raise SystemExit(77)
+
+from decisions import ask_decision, decisions_caption
+from cli_avatars.app.bubbles_view import _open_agents
+from cli_avatars.app.hud_window import _decision_count_now
+
+directory = Path(sys.argv[2])
+
+
+def app():
+    return SimpleNamespace(_chat_directory=lambda: directory, _decision_count=0)
+
+
+def caption_after_bubbles(shell):
+    agents = _open_agents(shell)
+    count = _decision_count_now(shell)
+    return agents, decisions_caption(count)
+
+
+empty_agents, empty_caption = caption_after_bubbles(app())
+ask_decision(
+    directory,
+    agent="abcd1234",
+    room="hooks",
+    question="Which perch?",
+    options=["a=Same window", "b=Other"],
+    decision_id="00000000-0000-0000-0000-000000000001",
+)
+ask_decision(
+    directory,
+    agent="abcd1234",
+    room="hooks",
+    question="Which floor?",
+    options=["a=Top", "b=Bottom"],
+    decision_id="00000000-0000-0000-0000-000000000002",
+)
+agents, caption = caption_after_bubbles(app())
+print(f"empty={empty_caption}")
+print(f"agents={len(agents)}")
+print(f"open={caption}")
+if empty_agents != [] or empty_caption != "Decisions 0":
+    raise SystemExit(1)
+if len(agents) != 1 or caption != "Decisions 2":
+    raise SystemExit(1)
+"""
+
+
+class TestDecisionCaption(unittest.TestCase):
+    def test_caption_is_an_int_after_the_bubble_read(self):
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as name:
+            proc = subprocess.run(
+                [sys.executable, "-c", _DECISION_COUNT, str(root), name],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                shell=False,
+            )
+        if proc.returncode == 77:
+            self.skipTest(proc.stderr.strip() or "tkinter is not available")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("empty=Decisions 0", proc.stdout)
+        self.assertIn("agents=1", proc.stdout)
+        self.assertIn("open=Decisions 2", proc.stdout)
+        self.assertNotIn("tkinter", sys.modules)
 
 
 if __name__ == "__main__":

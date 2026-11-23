@@ -246,10 +246,13 @@ def _decision_count_now(self) -> int:
             logging.getLogger("cli_avatars.decisions").exception("decision count failed")
             return self._decision_count
 
-    gate = getattr(self, "_decision_read", None)
+    # Agent ids live on ``_decision_agents_read`` (a list). This cache is
+    # only the open count. One throttle for both handed the caption that
+    # list, and ``int(list)`` raised.
+    gate = getattr(self, "_decision_count_read", None)
     if not isinstance(gate, StoreThrottle):
         gate = StoreThrottle()
-        self._decision_read = gate
+        self._decision_count_read = gate
     return gate.get(load)
 
 

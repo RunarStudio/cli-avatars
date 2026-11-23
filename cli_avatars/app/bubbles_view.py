@@ -32,7 +32,7 @@ def _clear(self: Any, attr: str, ids: list) -> None:
     setattr(self, attr, sync_images(self.canvas, ids, []))
 
 
-def _draw_talk_bubbles(self: Any) -> None:
+def _draw_talk_bubbles(self: Any, now: float | None = None) -> None:
     """Icon bubble above the sender. Subagent avatars are not in this map."""
     ids = list(getattr(self, "_talk_items", None) or [])
     if not _ready():
@@ -40,13 +40,15 @@ def _draw_talk_bubbles(self: Any) -> None:
         self._talk_sig = None
         self._talk_photos = []
         return
+    if now is None:
+        now = time.time()
     scale = integer_scale(TUNING.avatar_scale)
     boxes = {
         aid: (av.x, av.y, av.aw, av.ah)
         for aid, av in self.avatars.items()
     }
     try:
-        placed = self.scanner.bubbles.place(time.time(), boxes, scale)
+        placed = self.scanner.bubbles.place(now, boxes, scale)
     except Exception:
         logging.getLogger("cli_avatars.bubbles").exception("bubble layout failed")
         _clear(self, "_talk_items", ids)
@@ -90,10 +92,12 @@ def _open_agents(self: Any):
             logging.getLogger("cli_avatars.decisions").exception("decision bubble failed")
             return None
 
-    gate = getattr(self, "_decision_read", None)
+    # Separate from the HUD count cache. That value is an int; this one
+    # is the asking-agent ids. Sharing the cache mixes the two.
+    gate = getattr(self, "_decision_agents_read", None)
     if not isinstance(gate, StoreThrottle):
         gate = StoreThrottle()
-        self._decision_read = gate
+        self._decision_agents_read = gate
     return gate.get(load)
 
 
@@ -198,6 +202,7 @@ class BubblesView:
         self.app = app
 
     def step(self, frame: Any = None) -> None:
-        _draw_talk_bubbles(self.app)
+        now = getattr(frame, "now", None) if frame is not None else None
+        _draw_talk_bubbles(self.app, now)
         _draw_decision_bubbles(self.app)
         _draw_blocked_marks(self.app)
