@@ -89,7 +89,13 @@ class Win:
 
 # ── DPI ──────────────────────────────────────────────────────────
 def set_dpi_aware() -> str:
-    """Make this process per-monitor DPI aware. Call before tk.Tk(). Returns the mode set."""
+    """Make this process DPI aware. Call before tk.Tk(). Returns the mode set.
+
+    The overlay and ``python -m cli_avatars.desktop.monitors`` use
+    ``cli_avatars.desktop.dpi.set_dpi_aware`` (this module cannot import the
+    package). Keep the ladder below in step with that helper: per-monitor v2,
+    then per-monitor, then system. This copy is for ``python win32.py``.
+    """
     try:
         user32.SetProcessDpiAwarenessContext.argtypes = [ctypes.c_void_p]
         if user32.SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2):

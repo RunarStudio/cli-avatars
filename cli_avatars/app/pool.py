@@ -4,6 +4,7 @@ import logging
 import random
 import time
 
+from cli_avatars.app.overlays import bind_avatar
 from cli_avatars.app.render import canvas_photos
 from cli_avatars.effects.burst import BurstEffect
 from cli_avatars.model.agent import S
@@ -12,6 +13,30 @@ from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
 from cli_avatars.world.avatar import Avatar
 from meetings import AvatarPose, PerchSpan, Stage
+
+
+def _screen_floor(self) -> float:
+    """Y of the ground the meeting planner treats as the screen, not a perch."""
+    board = getattr(self, "overlays", None)
+    layout = getattr(board, "layout", None) if board is not None else None
+    grounds = getattr(layout, "grounds", None) or ()
+    for span in grounds:
+        monitor = layout.monitor(span.monitor_id) if layout is not None else None
+        if monitor is not None and monitor.primary:
+            return float(span.y)
+    if grounds:
+        return float(grounds[0].y)
+    return float(self.sh - 2)
+
+
+def _fall_limit(self) -> float:
+    """Below this, a walker missed every floor and is put back on screen."""
+    board = getattr(self, "overlays", None)
+    layout = getattr(board, "layout", None) if board is not None else None
+    bounds = getattr(layout, "bounds", None) if layout is not None else None
+    if bounds and getattr(layout, "monitors", None):
+        return float(bounds[3] + 80)
+    return float(self.sh + 80)
 
 
 def _refresh_activity(self, av: "Avatar") -> None:
@@ -33,7 +58,7 @@ def _meeting_stage(self, floors, floor_hwnds) -> Stage:
         hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
         pid = int(hwnd) if hwnd is not None else -(i + 1)
         perches.append(PerchSpan(pid, float(fx1), float(fx2), float(fy)))
-    floor_y = float(self.sh - 2)
+    floor_y = _screen_floor(self)
     poses = {}
     for aid, av in self.avatars.items():
         if av._vanishing:
@@ -75,6 +100,7 @@ def sync(self, frame: object) -> None:
     for aid in agents.keys() - self.avatars.keys():
         agent = agents[aid]
         self.avatars[aid] = Avatar(agent, self.sw, self.sh, self._cidx, REGISTRY)
+        bind_avatar(self, self.avatars[aid])
         self._cidx += 1
 
 
@@ -125,6 +151,7 @@ def step_avatars(self, frame: object) -> None:
     vanished_aids = []
     for aid, av in self.avatars.items():
         av.agent = agents[aid]
+        bind_avatar(self, av)
         self._refresh_activity(av)
 
         if av._vanishing:
@@ -154,7 +181,7 @@ def step_avatars(self, frame: object) -> None:
             av.vx = av.vy = 0.0
         else:
             av.update(floors, walls, floor_hwnds, steers.get(aid))
-            if av.y > self.sh + 80:
+            if av.y > _fall_limit(self):
                 av.x = float(random.randint(0, max(1, self.sw - av.aw)))
                 av.y = float(self.sh - av.ah - 10)
                 av.vx = random.choice([-TUNING.walk_speed, TUNING.walk_speed])

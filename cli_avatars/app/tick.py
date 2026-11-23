@@ -19,6 +19,7 @@ import logging
 import time
 from typing import Any
 
+from cli_avatars.app.overlays import apply_monitor_changes, refresh_overlay_visibility
 from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.desktop.windows import window_moves
 from cli_avatars.tuning import TUNING
@@ -114,6 +115,7 @@ class TickLoop:
 
     def step(self) -> None:
         started = time.perf_counter()
+        apply_monitor_changes(self.app)
         frame = self.snapshot()
         for name, method in self.ORDER:
             if not self._store_due(name):
@@ -129,6 +131,7 @@ class TickLoop:
                     logging.getLogger(logger).exception(message)
             else:
                 fn(frame)
+        refresh_overlay_visibility(self.app)
         self._note_tick(started)
         self.schedule()
 

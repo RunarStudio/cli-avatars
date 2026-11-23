@@ -410,6 +410,193 @@ def bounce(layout: Layout, x: float, y: float, vx: float, vy: float) -> tuple[fl
     return (best_point[0], best_point[1], vx, vy, best.id)
 
 
+@dataclass(frozen=True)
+class Step:
+    """A body after the monitor edges have had their say.
+
+    ``facing`` is ``0`` when the direction is unchanged, else ``1`` or ``-1``.
+    ``x`` and ``y`` are the top-left of the sprite.
+    """
+
+    x: float
+    y: float
+    vx: float
+    vy: float
+    facing: int
+
+
+def ground_floors(layout: Layout) -> list[tuple[int, int, int, int]]:
+    """Screen floors along each work-area bottom. Same tuple shape as window perches."""
+    floors = []
+    for span in layout.grounds:
+        floors.append((span.x1, span.y, span.x2, span.y + 2))
+    return floors
+
+
+def _crossed_vertical(layout: Layout, x0: float, x1: float, feet_y: float):
+    """``(source_id, dest_id, edge_x)`` when the center crossed a shared vertical edge."""
+    if x0 == x1:
+        return None
+    for edge in layout.vertical:
+        edge_x = edge.x1
+        # Landing on the edge counts, and so does stepping off it. A center
+        # that sits on the shared x is still mid-crossing.
+        if x1 > x0:
+            crossed = x0 < edge_x <= x1 or x0 == edge_x < x1
+        else:
+            crossed = x1 <= edge_x < x0 or x1 < edge_x == x0
+        if not crossed or not (edge.y1 <= feet_y <= edge.y2):
+            continue
+        if x1 > x0:
+            return edge.a_id, edge.b_id, edge_x
+        return edge.b_id, edge.a_id, edge_x
+    return None
+
+
+def _from_feet(px: float, py: float, x: float, y: float, vx: float, vy: float, width: float, feet: float) -> Step:
+    """Top-left for a clamped foot point, flipping any outward velocity."""
+    nx = px - width / 2.0
+    ny = py - feet
+    facing = 0
+    if nx < x and vx > 0:
+        vx = -abs(vx)
+        facing = -1
+    elif nx > x and vx < 0:
+        vx = abs(vx)
+        facing = 1
+    if ny < y and vy > 0:
+        vy = -abs(vy)
+    elif ny > y and vy < 0:
+        vy = abs(vy)
+    return Step(nx, ny, vx, vy, facing)
+
+
+def _stop_on_source(edge_x: float, moving_right: bool, y: float, vx: float, vy: float, width: float) -> Step:
+    """Pin the center just on the source side of a shared edge and turn around."""
+    if moving_right:
+        center = edge_x - 0.5
+        facing = -1
+        vx = -abs(vx) if vx != 0 else -1.0
+    else:
+        center = edge_x + 0.5
+        facing = 1
+        vx = abs(vx) if vx != 0 else 1.0
+    return Step(center - width / 2.0, y, vx, vy, facing)
+
+
+def _contain_open(
+    layout: Layout, x: float, y: float, vx: float, vy: float,
+    width: float, feet: float, *, cross: bool, prev_x: float, prev_y: float,
+) -> Step:
+    """Throws and flying bodies. Rects are open; the taskbar band is not a wall."""
+    cx = x + width / 2.0
+    feet_y = y + feet
+    prev_cx = prev_x + width / 2.0
+    prev_feet = prev_y + feet
+    src = monitor_at(layout, prev_cx, prev_feet, space="rect")
+    dst = monitor_at(layout, cx, feet_y, space="rect")
+    if src and dst and src != dst and not cross:
+        return _from_feet(
+            *_closest(layout.monitor(src).rect, prev_cx, prev_feet),
+            x, y, vx, vy, width, feet,
+        )
+    if dst is not None:
+        return Step(x, y, vx, vy, 0)
+    bx, by, bvx, bvy, _ident = bounce(layout, cx, feet_y, vx, vy)
+    return _from_feet(bx, by, x, y, bvx, bvy, width, feet)
+
+
+def contain_walker(
+    layout: Layout,
+    prev_x: float,
+    prev_y: float,
+    x: float,
+    y: float,
+    vx: float,
+    vy: float,
+    width: float,
+    feet: float,
+    *,
+    on_ground: bool = False,
+    cross: bool = True,
+    fly: bool = False,
+) -> Step:
+    """Keep a sprite on the monitors.
+
+    ``x, y`` is the proposed top-left and ``feet`` is the distance from the
+    top of the sprite to its feet. A walker on the ground crosses a vertical
+    shared edge (level, step up, or fall) and stops at a corner, a gap, or
+    the outside of the work area. An airborne body, and a flying subagent,
+    may cross the taskbar band and bounce off the monitor rect.
+    """
+    if not layout.monitors:
+        return Step(x, y, vx, vy, 0)
+    if fly or not on_ground:
+        return _contain_open(
+            layout, x, y, vx, vy, width, feet,
+            cross=cross, prev_x=prev_x, prev_y=prev_y,
+        )
+    cx = x + width / 2.0
+    prev_cx = prev_x + width / 2.0
+    feet_y = y + feet
+    prev_feet = prev_y + feet
+    # Gravity already nudged a standing walker a fraction below the ground.
+    # The edge they cross is the one at the feet they were standing on.
+    probe_feet = prev_feet if on_ground else feet_y
+    crossed = _crossed_vertical(layout, prev_cx, cx, probe_feet)
+    if crossed and not cross:
+        _src, _dst, edge_x = crossed
+        return _stop_on_source(edge_x, cx > prev_cx, y, vx, vy, width)
+    if crossed and cross:
+        src, dst, edge_x = crossed
+        decision = walk_across(layout, src, dst, probe_feet)
+        if decision.result == "wall":
+            return _stop_on_source(edge_x, cx > prev_cx, y, vx, vy, width)
+        if decision.result == "step_up":
+            ground = _ground(layout, dst)
+            if ground is not None:
+                return Step(x, ground.y - feet, vx, 0.0, 0)
+        return Step(x, y, vx, vy, 0)
+    src_id = monitor_at(layout, prev_cx, prev_feet, space="work")
+    dst_id = monitor_at(layout, cx, feet_y, space="work")
+    if src_id and dst_id and src_id != dst_id:
+        source = layout.monitor(src_id)
+        px, py = _closest(source.work, cx, feet_y)
+        return _from_feet(px, py, x, y, vx, vy, width, feet)
+    if dst_id is not None:
+        return Step(x, y, vx, vy, 0)
+    px, py, _ident = clamp_walker(layout, cx, feet_y)
+    return _from_feet(px, py, x, y, vx, vy, width, feet)
+
+
+def park_body(layout: Layout, x: float, y: float, width: float, feet: float) -> tuple[float, float]:
+    """Move a body whose feet left every work area onto the nearest one.
+
+    A hot-unplug leaves the avatar standing in a rect that no longer exists.
+    Feet already on a remaining work area stay put.
+    """
+    if not layout.monitors:
+        return (x, y)
+    cx = x + width / 2.0
+    feet_y = y + feet
+    if monitor_at(layout, cx, feet_y, space="work") is not None:
+        return (x, y)
+    px, py, _ident = clamp_walker(layout, cx, feet_y)
+    return (px - width / 2.0, py - feet)
+
+
+def clamp_sprite(layout: Layout, x: float, y: float, width: float, height: float) -> tuple[float, float]:
+    """Drag clamp. The sprite center stays inside the union of monitor rects."""
+    if not layout.monitors:
+        return (x, y)
+    cx = x + width / 2.0
+    cy = y + height / 2.0
+    if monitor_at(layout, cx, cy, space="rect") is not None:
+        return (x, y)
+    px, py, _vx, _vy, _ident = bounce(layout, cx, cy, 0.0, 0.0)
+    return (px - width / 2.0, py - height / 2.0)
+
+
 def clamp_walker(layout: Layout, x: float, y: float) -> tuple[float, float, str]:
     """Nearest point inside a work area. Taskbars push the walker out."""
     if not layout.monitors:

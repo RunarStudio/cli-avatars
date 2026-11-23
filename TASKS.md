@@ -536,7 +536,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 See [`docs/windowed-dungeon.md`](docs/windowed-dungeon.md).
 
 - [x] [OVL][feat] WIN-DUNGEON.1 @pixel: `desktop/monitors.py` and pure `world/monitors.py` (5.1); signature. (S)
-- [ ] [OVL][feat] WIN-DUNGEON.2 @pixel: One overlay per monitor (5.2–5.5); avatars in virtual px; terrain over all monitors; drag clamp to the monitor union; hot-plug polling. Dungeon not yet involved. (M)
+- [x] [OVL][feat] WIN-DUNGEON.2 @pixel: One overlay per monitor (5.2–5.5); avatars in virtual px; terrain over all monitors; drag clamp to the monitor union; hot-plug polling. Dungeon not yet involved. (M)
 - [ ] [OVL][feat] WIN-DUNGEON.3 @pixel: Dungeon root window (3.1–3.3): framed, resizable, pin, close = quit, ESC change, tray items; docks for Topics, Chat (with pop out), Settings, Skins; status bar replaces the HUD; geometry per signature in the data dir. Scene area shows an empty dungeon floor. Door toggle is not in this step. (M)
 - [ ] [BLDG][feat] WIN-DUNGEON.4 @agents: Scene in the Dungeon: `building_view.py` renders BLDG.1 scene JSON with zoom auto and pan; inside actors at their spots; click opens the chat dock, double-click focuses the console. (M)
 - [ ] [OVL][feat] WIN-DUNGEON.5 @pixel: `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. Drag-out works with the door open or closed. (M)

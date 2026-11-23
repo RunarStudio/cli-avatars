@@ -124,28 +124,84 @@ def _floor_spec(frame: Any) -> tuple:
     return tuple(lines)
 
 
+def _sync_lines(canvas: Any, ids: list, spec: tuple) -> list:
+    ids = list(ids)
+    while len(ids) > len(spec):
+        canvas.delete(ids.pop())
+    for index, (x0, y0, x1, y1, width, stipple, color) in enumerate(spec):
+        if index < len(ids):
+            canvas.coords(ids[index], x0, y0, x1, y1)
+            canvas.itemconfig(ids[index], fill=color, width=width, stipple=stipple)
+        else:
+            ids.append(canvas.create_line(
+                x0, y0, x1, y1,
+                fill=color, width=width, stipple=stipple, tags="floor_line",
+            ))
+    return ids
+
+
+def _line_hits(x0: float, y0: float, x1: float, y1: float, rect: tuple) -> bool:
+    left, top, right, bottom = rect
+    return not (
+        max(x0, x1) < left or min(x0, x1) > right
+        or max(y0, y1) < top or min(y0, y1) > bottom
+    )
+
+
+def _clear_ids(canvas: Any, ids: list) -> None:
+    for iid in ids:
+        try:
+            canvas.delete(iid)
+        except Exception:
+            return
+
+
 def floor_lines(self: Any, frame: Any) -> None:
     """Redraw floor and wall marks only when their geometry or alpha changed.
 
     Elastic segments are owned by each child and are not cleared here.
+    With one overlay per monitor, a mark is painted on each canvas it
+    crosses, in that monitor's local pixels.
     """
     spec = _floor_spec(frame)
-    if spec == getattr(self, "_floor_spec", None) and getattr(self, "_floor_ids", None) is not None:
+    board = getattr(self, "overlays", None)
+    slots = []
+    if board is not None and not getattr(board, "legacy", True):
+        slots = list(board.slots())
+    if not slots:
+        for stored in (getattr(self, "_floor_boards", None) or {}).values():
+            _clear_ids(stored[2], stored[1])
+        self._floor_boards = {}
+        if spec == getattr(self, "_floor_spec", None) and getattr(self, "_floor_ids", None) is not None:
+            return
+        self._floor_ids = _sync_lines(self.canvas, getattr(self, "_floor_ids", None) or [], spec)
+        self._floor_spec = spec
         return
-    ids = list(getattr(self, "_floor_ids", None) or [])
-    while len(ids) > len(spec):
-        self.canvas.delete(ids.pop())
-    for index, (x0, y0, x1, y1, width, stipple, color) in enumerate(spec):
-        if index < len(ids):
-            self.canvas.coords(ids[index], x0, y0, x1, y1)
-            self.canvas.itemconfig(ids[index], fill=color, width=width, stipple=stipple)
-        else:
-            ids.append(self.canvas.create_line(
-                x0, y0, x1, y1,
-                fill=color, width=width, stipple=stipple, tags="floor_line",
-            ))
-    self._floor_ids = ids
-    self._floor_spec = spec
+    _clear_ids(self.canvas, list(getattr(self, "_floor_ids", None) or []))
+    self._floor_ids = None
+    self._floor_spec = None
+    boards = getattr(self, "_floor_boards", None)
+    if not isinstance(boards, dict):
+        boards = {}
+        self._floor_boards = boards
+    live = set()
+    for slot in slots:
+        live.add(slot.key)
+        ox, oy = slot.origin
+        local = tuple(
+            (x0 - ox, y0 - oy, x1 - ox, y1 - oy, width, stipple, color)
+            for (x0, y0, x1, y1, width, stipple, color) in spec
+            if _line_hits(x0, y0, x1, y1, slot.monitor.rect)
+        )
+        prev = boards.get(slot.key)
+        if prev is not None and prev[0] == local:
+            continue
+        ids = _sync_lines(slot.canvas, [] if prev is None else prev[1], local)
+        boards[slot.key] = (local, ids, slot.canvas)
+    for key in list(boards):
+        if key not in live:
+            _old, ids, canvas = boards.pop(key)
+            _clear_ids(canvas, ids)
 
 
 def _clear_elastic(canvas: Any, sv: Avatar) -> None:

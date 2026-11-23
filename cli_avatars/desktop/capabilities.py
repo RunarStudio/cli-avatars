@@ -6,6 +6,8 @@ stays out of this package so the layer check still holds; the overlay
 imports it when ``HAS_PIL`` is true.
 """
 
+from cli_avatars.desktop.dpi import set_dpi_aware
+
 HAS_WINCTL = False
 HAS_W32 = False
 HAS_PIL = False
@@ -21,11 +23,14 @@ except ImportError:
     print("       Install: pip install pywinctl")
 
 # Window perches (WINDOW-PERCHES-PLAN.md): real frames via DWM, visible top
-# edges only. DPI awareness must be set before tk.Tk() is created.
+# edges only. DPI awareness is set here, after pywinctl's import and before
+# tk.Tk(). desktop.dpi is the helper the monitor list calls too.
+_DPI_MODE = set_dpi_aware()
+
 try:
     import win32 as w32
     HAS_W32 = True
-    print(f"[INFO] DPI mode: {w32.set_dpi_aware()}")
+    print(f"[INFO] DPI mode: {_DPI_MODE}")
 except Exception as _w32_err:
     w32 = None
     HAS_W32 = False

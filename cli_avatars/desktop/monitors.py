@@ -18,6 +18,8 @@ import hashlib
 import sys
 from dataclasses import dataclass
 
+from cli_avatars.desktop.dpi import set_dpi_aware
+
 # MONITORINFOEXW.szDevice is CCHDEVICENAME wide.
 _DEVICE_CHARS = 32
 _MONITORINFOF_PRIMARY = 1
@@ -115,8 +117,20 @@ def monitors_from_raw(rows) -> list[Monitor]:
     return built
 
 
+def dpi_factor(dpi: int) -> float:
+    """Physical scale, ``dpi / 96``. 120 dpi is 1.25. Not the integer step-up."""
+    value = int(dpi)
+    if value <= 0:
+        value = _DEFAULT_DPI
+    return value / _DEFAULT_DPI
+
+
 def list_monitors() -> list[Monitor]:
-    """Live monitors. An empty list on Linux, or when enumeration fails."""
+    """Live monitors. An empty list on Linux, or when enumeration fails.
+
+    Awareness is set first so the rects share the overlay's coordinate space.
+    """
+    set_dpi_aware()
     if sys.platform != "win32":
         return []
     try:
@@ -240,6 +254,7 @@ def format_monitors(monitors) -> str:
         flag = "yes" if monitor.primary else "no"
         lines.append(
             f"{monitor.id}  primary={flag}  dpi={monitor.dpi}  "
+            f"factor={dpi_factor(monitor.dpi):g}  "
             f"rect={monitor.rect}  work={monitor.work}"
         )
     lines.append("grounds and edges: python -m cli_avatars.world.monitors --png layout.png")
@@ -247,8 +262,13 @@ def format_monitors(monitors) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Print the live monitor list. ``argv`` is ignored; there are no flags."""
+    """Print the live monitor list. ``argv`` is ignored; there are no flags.
+
+    Awareness is set before the query, including when this file is launched
+    with ``python -m cli_avatars.desktop.monitors``.
+    """
     del argv
+    set_dpi_aware()
     print(format_monitors(list_monitors()))
     return 0
 

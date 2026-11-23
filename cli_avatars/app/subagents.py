@@ -9,6 +9,7 @@ import random
 import time
 from typing import Optional
 
+from cli_avatars.app.overlays import bind_avatar
 from cli_avatars.app.render import _draw_elastic, canvas_photos
 from cli_avatars.effects.burst import BurstEffect
 from cli_avatars.model.agent import AgentInfo, S
@@ -28,6 +29,7 @@ def _linger(self, frame):
     walls = frame.walls
     linger_done = []
     for sv in self._lingering_subs:
+        bind_avatar(self, sv)
         if not sv._floating_away and time.time() - sv._task_done_at > 30:
             sv._floating_away = True
             sv._float_frames  = 0
@@ -81,6 +83,7 @@ def _release_finished_dying(self, now: Optional[float] = None) -> None:
         still.append(sv)
         if canvas is None:
             continue
+        bind_avatar(self, sv)
         sv.draw(canvas, canvas_photos(self))
         parent = avatars.get(getattr(sv.agent, "parent_id", None))
         if parent is not None:
@@ -179,6 +182,7 @@ class SubagentController:
                             spring_mode=True)
                 sv._sub_mode = subagent_sprite_mode(skin)
                 sv.x, sv.y = float(px), float(py)
+                bind_avatar(app, sv)
                 sv.anim_speed_mult = random.uniform(0.5, 2.2)
                 sv._spring_k_mult  = random.uniform(0.4, 1.8)
                 sv._spring_damp_v  = random.uniform(0.88, 0.97)
@@ -193,6 +197,7 @@ class SubagentController:
             to_remove = []
             retiring = []
             for sv in sub_list:
+                bind_avatar(app, sv)
                 if getattr(sv, "_dying", False):
                     retiring.append(sv)
                     continue

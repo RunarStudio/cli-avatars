@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from cli_avatars.desktop.monitors import (  # noqa: E402
+    dpi_factor,
     format_monitors,
     monitor_id,
     monitor_signature,
@@ -69,6 +70,60 @@ def section2():
 def _pixel(image, to_px, x, y):
     ix, iy = to_px(x, y)
     return image.getpixel((ix, iy))
+
+
+class TestDpiScale(unittest.TestCase):
+    def test_factor_is_dpi_over_96(self):
+        self.assertEqual(dpi_factor(96), 1.0)
+        self.assertEqual(dpi_factor(120), 1.25)
+        self.assertEqual(dpi_factor(144), 1.5)
+        self.assertEqual(dpi_factor(0), 1.0)
+        rows = monitors_from_raw([
+            ("panel", (0, 0, 1920, 1080), (0, 0, 1920, 1020), 120, True),
+        ])
+        text = format_monitors(rows)
+        self.assertIn("dpi=120", text)
+        self.assertIn("factor=1.25", text)
+        self.assertIn("(0, 0, 1920, 1080)", text)
+        self.assertIn("(0, 0, 1920, 1020)", text)
+        self.assertNotIn("DISPLAY", text)
+
+    def test_cli_entry_sets_dpi_before_the_query(self):
+        import ctypes
+
+        import cli_avatars.desktop.dpi as dpi
+        import cli_avatars.desktop.monitors as dm
+
+        dpi.reset_dpi_state()
+        seen = []
+        from unittest.mock import MagicMock
+
+        user32 = MagicMock()
+        user32.SetProcessDpiAwarenessContext.return_value = 1
+
+        def windll(name, use_last_error=False):
+            seen.append(name)
+            return user32
+
+        def listed():
+            seen.append("list")
+            return []
+
+        try:
+            with patch.object(dpi.sys, "platform", "win32"), \
+                    patch.object(dpi.ctypes, "WinDLL", side_effect=windll, create=True), \
+                    patch.object(dm, "list_monitors", side_effect=listed), \
+                    redirect_stdout(io.StringIO()):
+                self.assertEqual(dm.main([]), 0)
+        finally:
+            dpi.reset_dpi_state()
+        self.assertIn("user32", seen)
+        self.assertIn("list", seen)
+        self.assertLess(seen.index("user32"), seen.index("list"))
+        user32.SetProcessDpiAwarenessContext.assert_called()
+        arg = user32.SetProcessDpiAwarenessContext.call_args.args[0]
+        self.assertIsInstance(arg, ctypes.c_void_p)
+        self.assertEqual(arg.value, 2**64 - 4)
 
 
 class TestFactor(unittest.TestCase):

@@ -25,6 +25,7 @@ from cli_avatars.app.chat import ChatController
 from cli_avatars.app.config_screen import ConfigScreen
 from cli_avatars.app.hud_window import HudWindow
 from cli_avatars.app.input import InputController
+from cli_avatars.app.overlays import OverlayBoard, read_monitors
 from cli_avatars.app.pool import PoolController
 from cli_avatars.app.portal_view import PortalView, _draw_portal
 from cli_avatars.app.render import RenderController
@@ -34,6 +35,7 @@ from cli_avatars.app.skin_picker import PICK, PICK_ANIMS, PICK_FRAME_MS, SkinPic
 from cli_avatars.app.subagents import SubagentController
 from cli_avatars.app.tick import TickLoop
 from cli_avatars.desktop.focus import focus_linked_console
+from cli_avatars.desktop.settings import desktop_settings
 from cli_avatars.desktop.tray import setup_tray
 from cli_avatars.paths import CONFIG_PATH, images_dir
 from cli_avatars.sprites.registry import REGISTRY, load_sprites
@@ -62,6 +64,7 @@ class OverlayApp:
     def __init__(self):
         self._config_path = CONFIG_PATH
         self.config = load_config(self._config_path)
+        self.desktop = desktop_settings(self.config)
         self._subskin_rng = random.Random()
         self._rooms_shown = rooms_from_config(self.config)
         self._rooms_win = None
@@ -107,6 +110,15 @@ class OverlayApp:
         self.scanner = SessionScanner()
         self.scanner._grok_config = self.config
         self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
+        self.overlays = OverlayBoard(self)
+        found = read_monitors()
+        try:
+            self.overlays.sync(found, self.desktop)
+            screen, monitors = self.overlays.screen((0, 0, self.sw, self.sh))
+            self.terrain.set_world(screen, monitors)
+            self.terrain.note_monitors(found, self.desktop.monitor_poll_s)
+        except Exception as exc:
+            print(f"[WARN] Monitor layout: {exc}")
         self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict = {}
         self.sub_avatars: dict = {}   # parent_id → [sub Avatar, …]
