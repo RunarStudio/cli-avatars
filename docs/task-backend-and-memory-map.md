@@ -250,6 +250,19 @@ store, not a fire-and-forget packet.
 - The UI never holds a lock across a Tk callback. It reads snapshots and writes through the
   registry on a worker thread, then refreshes with `after()`.
 
+### 2.6 Code map (TASKBACK.2)
+
+- `registry/facade.py`: `Registry`, the full API. Every write is `LocalStore.update`: one
+  board lock, and a change with no visible difference writes no card and no event.
+- `registry/agent_api.py`: `AgentApi`, the only calls an AI gets (`task_status`,
+  `task_progress`, `task_check`, `topic_state`, `task_propose`). Ownership (Decision D) is
+  checked inside the board lock; topic members are read there too (board, then topics).
+- `registry/policy.py`: move table, topic statuses, notes capped at 240 with outside paths
+  turned into `@external/<sha1[:8]>` (Decision K), rate windows.
+- `registry/limits.py`: `registry/limits.json` holds timestamps per `write:<agent>` /
+  `propose:<agent>`, nothing else; its lock is taken and released before the board lock.
+- Decision J (30 days) applies to memory-map read records; board events are not pruned.
+
 ---
 
 ## 3. Chat connection: one-shot call vs topic orchestrator
