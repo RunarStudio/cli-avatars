@@ -448,9 +448,12 @@ ROOM-CHAT.4 → MEMMAP.6 after GROK-LOGIN.
 
 ---
 
-## 6. Open decisions for Daniel
+## 6. Decisions
 
-Letters are local to this doc. Each has a recommended default; the design above assumes it.
+**Approved by Daniel 2026-11-23** (19:37 Paris): every recommended default below, A–M. The
+alternatives are kept for the record only.
+
+Letters are local to this doc. The design above follows these defaults.
 
 - **A. Backend shape.** Recommended: one shared library (`registry/`) with the existing file
   locks; every process writes through it, no daemon. Alternative: the app owns the files and

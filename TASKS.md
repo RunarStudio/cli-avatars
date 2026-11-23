@@ -70,10 +70,10 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | WS | 1 | 1 |
 | DOCS | 6 | 16 (subtasks 0/9) |
 | TAURI | 0 | 4 |
-| BOARD | 0 | 3 (subtasks 0/10) |
+| BOARD | 1 | 2 (subtasks 0/10) |
 | WEB | 0 | 1 (subtasks 0/4) |
 | BLDG | 1 | 3 (subtasks 0/3) |
-| **Total** | 49 | 59 |
+| **Total** | 50 | 58 |
 
 ## 📦 Portable Windows build
 
@@ -548,7 +548,7 @@ Product features only (see Scope). Team process items remain on the board elsewh
 
 See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md) (design, mockup `docs/img/dungeon-tasks-memmap-mockup.png`). Order and fit with WIN-DUNGEON.4–.8: section 5.1 of that doc.
 
-- [ ] [BOARD][decision] TASKBACK-DEC: Daniel picks decisions A–M in section 6 of docs/task-backend-and-memory-map.md (each has a recommended default).
+- [x] [BOARD][decision] TASKBACK-DEC: Daniel approved every recommended default A–M in section 6 of docs/task-backend-and-memory-map.md (2026-11-23).
 - [ ] [BOARD][feat] TASKBACK: One registry owns tasks (board cards), topics and chats; AIs only change status and progress through a narrow Agent API; chat dock calls one CLI or the topic orchestrator.
   - [ ] [BOARD][chore] TASKBACK.1 @pixel: Port BOARD.1 (board/model.py, board/store.py, tests) from Spidey PR #27 via PORT-AG; amend docs/board.md with `progress`, `status_note`, kinds `progress`/`status`, optional `via`. Done when the ported and new board tests pass and bad progress/via values are rejected. (S)
   - [ ] [BOARD][feat] TASKBACK.2 @pixel: `registry/` package: full API, AgentApi, policy (agent transitions, ownership, rate limits), lock order. Security-critical. Done when tests prove agents cannot create (switch off), delete, retitle, reassign, reach `done` or touch cards they do not own, and two processes serialise on one card. (after TASKBACK.1) (M)
