@@ -62,8 +62,8 @@ check("metrics strip", p.metric_labels["reads"].cget("text") == str(result.metri
 check("hover text", "CLAUDE.md · instructions" in p.node_tip("CLAUDE.md"))
 text = p.select("TASKS.md")
 check("click lists sessions", "read by" in text and "claude:1a2b3c4d" in text and str(TMP) not in text, text)
-check("click dims others", p.canvas.itemcget(p._nodes["README.md"][0], "fill") != p.canvas.itemcget(
-    p._nodes["TASKS.md"][0], "fill"))
+check("click dims others", p.canvas.itemcget(p._nodes["README.md"], "fill") != p.canvas.itemcget(
+    p._nodes["TASKS.md"], "fill"))
 p.set_window("7d")
 check("window button", p.state.window == "7d")
 check("dup list", bool(p.metric_lines("dup")))
@@ -84,12 +84,51 @@ check("collapse survives relaunch", again.state.collapsed and again.fold_btn.cge
 again.toggle_collapsed()
 again.save_now()
 
+
+
+class Calls:
+    """Counts Tcl calls made through the canvas: the cost that grows on Windows."""
+
+    def __init__(self, real):
+        self.real, self.count = real, 0
+
+    def call(self, *args):
+        self.count += 1
+        return self.real.call(*args)
+
+    def __getattr__(self, name):
+        return getattr(self.real, name)
+
+
 store.append_records(TMP / "big", "proj", _synthetic(10_000))
-big = panel("big")
-big.compute_now(Request(window="today", now=SYN_NOW, utc_offset=0))
+big_request = Request(window="today", now=SYN_NOW, utc_offset=0)
+first = []
+for _ in range(5):
+    big = panel("big")
+    big.compute_now(big_request)
+    first.append(big.last_draw_ms)
 root.update()
-best = min(big.draw() for _ in range(5))
 check("61 nodes", len(big._nodes) == 61, str(len(big._nodes)))
-print(f"draw_ms={best:.3f}")
-check("draw budget", best <= 2.0, f"{best:.2f} ms")
+calls = big.canvas.tk = Calls(big.canvas.tk)
+warm = min(big.draw() for _ in range(5))
+check("warm redraw makes no Tcl calls", calls.count == 0, str(calls.count))
+
+
+diff = min(big.draw(force=True) for _ in range(5))
+check("unchanged diff makes no Tcl calls", calls.count == 0, str(calls.count))
+older = big.result
+store.append_records(TMP / "big", "proj", _synthetic(600))
+newer = big.compute_now(Request(window="today", now=SYN_NOW + 60, utc_offset=0))
+update = []
+for i in range(5):
+    calls.count = 0
+    big._take(newer if i % 2 else older)
+    update.append(big.last_draw_ms)
+update_calls = calls.count
+check("update touches only changed items", 0 < calls.count < 189, str(calls.count))
+print(f"first_build_ms={min(first):.3f} warm_ms={warm:.3f} diff_ms={diff:.3f} update_ms={min(update):.3f} "
+      f"items={len(big.canvas.find_all())} update_tcl_calls={update_calls}")
+check("first build budget", min(first) <= 16.0, f"{min(first):.2f} ms")
+check("draw budget", warm <= 2.0 and diff <= 2.0, f"warm {warm:.2f} ms, unchanged diff {diff:.2f} ms")
+check("update budget", min(update) <= 16.0, f"{min(update):.2f} ms")
 root.destroy()

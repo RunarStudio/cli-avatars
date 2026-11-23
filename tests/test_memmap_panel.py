@@ -6,11 +6,20 @@ import subprocess  # noqa: TID251  # the Tk panel runs in a child, like test_hud
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 
 from cli_avatars.app import memmap_store
 from cli_avatars.app.memmap_feed import MapFeed, Request, projects, strongest_edges
-from cli_avatars.app.memmap_view import blend, metric_lines, node_label, node_tip, select_text
+from cli_avatars.app.memmap_view import (
+    LABELS_TOP,
+    blend,
+    label_spots,
+    metric_lines,
+    node_label,
+    node_tip,
+    select_text,
+)
 from cli_avatars.app.memmap_store import PanelState, load_state, save_state, state_from_bytes, with_positions
 from memmap import demo as gen_memmap_demo
 from memmap import store
@@ -140,6 +149,51 @@ class Helpers(unittest.TestCase):
         self.assertTrue(node_label("docs/" + "x" * 40 + ".md").endswith("…"))
 
 
+def _node(path, weight, radius=4):
+    return SimpleNamespace(path=path, weight=weight, radius=radius, folded=0)
+
+
+def _half(text):
+    return 3.5 * len(text)
+
+
+def _overlap(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+class Labels(unittest.TestCase):
+    def test_crowded_cluster_keeps_top_and_hovered(self):
+        nodes = [_node(f"docs/file-{i:02d}.md", 100 - i) for i in range(20)]
+        place = {n.path: (140 + (i % 4) * 3, 100 + (i // 4) * 3) for i, n in enumerate(nodes)}
+        hovered = nodes[-1].path
+        spots = label_spots(nodes, place, set(), 280, 200, _half, always=[hovered])
+        for node in nodes[:LABELS_TOP]:
+            self.assertIn(node.path, spots)
+        self.assertEqual(spots[hovered][0], "file-19.md")
+        self.assertLess(len(spots), 12)
+        free = [p for p in spots if p != hovered and p not in {n.path for n in nodes[:LABELS_TOP]}]
+        boxes = {p: (x - _half(t), top, x + _half(t), top + 11) for p, (t, x, top) in spots.items()}
+        for path in free:
+            for other, box in boxes.items():
+                if other != path:
+                    self.assertFalse(_overlap(boxes[path], box), (path, other))
+
+    def test_small_node_label_is_shortened_or_moved_before_skipped(self):
+        big = [_node("b0.md", 100), _node("b1.md", 100)] + [_node(f"far{i}.md", 100) for i in range(LABELS_TOP)]
+        place = {"b0.md": (190, 128), "b1.md": (190, 110)}
+        place.update({f"far{i}.md": (30 + i * 50, 20) for i in range(LABELS_TOP)})
+        small = _node("docs/a-rather-long-name.md", 1)
+        place[small.path] = (130, 120)
+        spots = label_spots(big + [small], place, set(), 280, 200, _half)
+        self.assertEqual(spots[small.path][0], "a-rather-…")
+        lone = label_spots([small], {small.path: (100, 100)}, set(), 280, 200, _half)
+        self.assertEqual(lone[small.path][0], "a-rather-long-name.md")
+        clamped = label_spots([small], {small.path: (2, 198)}, set(), 280, 200, _half)
+        _text, x, top = clamped[small.path]
+        self.assertGreaterEqual(x - _half(_text), 0)
+        self.assertLessEqual(top + 11, 200)
+
+
 class Views(unittest.TestCase):
     def test_tip_select_and_metrics_text(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -169,7 +223,8 @@ class Panel(unittest.TestCase):
             self.skipTest("tkinter has no display")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         for name in ("fixture drawn", "items reused", "click lists sessions", "expand hides topics",
-                     "collapse survives relaunch", "draw budget"):
+                     "collapse survives relaunch", "warm redraw makes no Tcl calls",
+                     "first build budget", "draw budget", "update budget"):
             self.assertIn(f"ok {name}", proc.stdout)
         self.assertNotIn("tkinter", sys.modules)
 

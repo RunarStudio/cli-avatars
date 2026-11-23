@@ -148,9 +148,11 @@ def _selftest_memmap(host) -> list[str]:
         result = panel.compute_now(Request(window="today"))
         if result is None or not result.graph.nodes or not panel._nodes:
             return ["memmap: panel drew no nodes"]
-        best = min(panel.draw() for _ in range(3))
+        if panel.last_draw_ms > 16.0:
+            return [f"memmap: first build {panel.last_draw_ms:.2f} ms over 16 ms"]
+        best = min(panel.draw(force=True) for _ in range(3))
         if best > 2.0:
-            return [f"memmap: draw {best:.2f} ms over 2 ms"]
+            return [f"memmap: redraw {best:.2f} ms over 2 ms"]
     return []
 
 

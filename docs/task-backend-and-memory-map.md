@@ -428,7 +428,8 @@ in about 9 ms on Linux (Windows ran about 1.4× slower). The first call after st
 |--------|------|
 | `memmap/layout.py` | Fruchterman–Reingold in the unit square, fixed seed. When 80% of the nodes already have a position, those stay put and only new nodes move. |
 | `cli_avatars/app/memmap_feed.py` | Worker-thread side: one `ReadsTail` per project, topic filter from the topic's members, `aggregate`, layout only when the graph's shape changes. |
-| `cli_avatars/app/memmap_view.py` | Labels, tooltip, click text and metric lists (no Tk). |
+| `cli_avatars/app/memmap_view.py` | Labels and their placement, item styles, tooltip, click text and metric lists (no Tk). |
+| `cli_avatars/app/memmap_items.py` | Canvas items that remember their last coords and options, so only changes are sent. |
 | `cli_avatars/app/memmap_panel.py` | The section under Topics in the Dungeon left dock. The Tk thread only draws, at most once a second, and reuses canvas items. |
 | `cli_avatars/app/memmap_store.py` | Panel state (collapsed, expanded, height, window) and node positions. |
 
@@ -439,6 +440,29 @@ Differences from 4.1–4.6:
 - At most 120 edges are drawn: link edges first, then co-read edges by weight.
 - The app does not keep a session's project folder yet, so there are no link edges, and "never"
   shows "—" with a hint. Both need a root from `sessions.py`.
+
+Draw budgets. On Windows each Tcl call (create, coords, itemconfigure) costs about seven times what it
+costs on Linux, so the panel keeps the canvas items and sends only what changed
+(`cli_avatars/app/memmap_items.py`).
+
+| Draw | Budget | Why |
+|------|--------|-----|
+| Redraw, nothing changed (every tick) | ≤ 2 ms | Returns before any Tcl call. Even with that shortcut bypassed (`draw(force=True)`), the diff makes no Tcl calls. |
+| Redraw after new data | ≤ 16 ms | Only the items whose colour, size or place moved: about 10 calls at 60 nodes. Happens at most once a second. |
+| First build | ≤ 16 ms | It has to create every item (about 190 at 60 nodes and 120 edges). It runs once per mount, project or window switch, and one 60 Hz frame (16 ms) is the most a one-off may take without a visible stall. The 20 FPS overlay tick has 50 ms. |
+
+Measured on Linux at 61 nodes and 120 edges, best of 5:
+- first build about 3.6 ms;
+- unchanged redraw about 0 ms (about 0.9 ms with the shortcut bypassed);
+- redraw after new data about 1.1 ms, with 11 Tcl calls.
+
+The probe in `tests/test_memmap_panel.py` asserts the budgets and also the Tcl call counts (none for an
+unchanged redraw), because call counts do not depend on the machine.
+
+Labels: the hovered and selected nodes and the five heaviest are always labelled. Any other label is
+tried at full length and then cut to 10 characters, below its node and then above it. It is dropped
+when every try overlaps a kept label or another node. At most 14 labels are shown, plus the focus
+of a selection.
 
 Demo data: `python tools/gen_memmap_demo.py <data dir>`, then start the app with
 `CLI_AVATARS_DATA_DIR=<data dir>`.

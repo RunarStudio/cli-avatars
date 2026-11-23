@@ -21,6 +21,7 @@ from pathlib import Path
 
 from cli_avatars.app import memmap_view as mv
 from cli_avatars.app.memmap_feed import MapFeed, Request, Result, strongest_edges
+from cli_avatars.app.memmap_items import Items
 from cli_avatars.app.memmap_store import (
     MAX_HEIGHT,
     MIN_HEIGHT,
@@ -55,10 +56,16 @@ class MemmapPanel:
         self.result: Result | None = None
         self._last_ask = 0.0
         self._save_job = None
-        self._nodes: dict[str, tuple[int, int]] = {}
+        self._nodes: dict[str, int] = {}
+        self._labels: dict[str, int] = {}
+        self._drawn: tuple | None = None
+        self._drawn_result: Result | None = None
+        self._size: tuple[int, int] | None = None
+        self._char_w = 0.0
+        self._line = 11.0
+        self._shown: dict[str, str] = {}
         self._item_path: dict[int, str] = {}
         self._edges: list[int] = []
-        self._applied: dict[int, tuple] = {}
         self._selected = ""
         self._hover = ""
         self._widths: dict[str, float] = {}
@@ -77,6 +84,12 @@ class MemmapPanel:
         self._window_row()
         self.canvas = tk.Canvas(self.body, bg=mv.BG, highlightthickness=0, bd=0, height=120)
         self._label_font = tkfont.Font(self.canvas, family="Courier", size=8)
+        self._label_fixed = {"font": self._label_font, "anchor": "n", "tags": "label"}
+        self._items = Items(self.canvas)
+        metrics = self._label_font.metrics()
+        self._line = float(metrics.get("linespace", 11))
+        if metrics.get("fixed"):
+            self._char_w = float(self._label_font.measure("0"))
         self._legend()
         self._metrics_row()
         self.canvas.pack(fill="both", expand=True, padx=4)
@@ -84,7 +97,7 @@ class MemmapPanel:
         self.canvas.tag_bind("node", "<Leave>", self._on_leave)
         self.canvas.tag_bind("node", "<Button-1>", self._on_node_click)
         self.canvas.bind("<Button-1>", self._on_canvas_click, add="+")
-        self.canvas.bind("<Configure>", lambda _e: self.draw())
+        self.canvas.bind("<Configure>", self._on_configure)
         self._tip_box = self.canvas.create_rectangle(0, 0, 0, 0, fill="#16162a", outline=mv.FG, state="hidden",
                                                      tags="tip")
         self._tip_text = self.canvas.create_text(0, 0, text="", fill=mv.INK, font=FONT, anchor="nw", state="hidden",
@@ -298,105 +311,101 @@ class MemmapPanel:
         self.draw()
 
     # Draw
-    def _config(self, item: int, **options) -> None:
-        key = tuple(sorted(options.items()))
-        if self._applied.get(item) != key:
-            self.canvas.itemconfigure(item, **options)
-            self._applied[item] = key
+    def _on_configure(self, event) -> None:
+        self._size = (max(60, int(event.width)), max(60, int(event.height)))
+        self.draw()
 
-    def draw(self) -> float:
-        """Place every node and edge. Items are reused; returns the time taken in ms."""
+    def draw(self, force: bool = False) -> float:
+        """Bring the canvas in line with ``result``; only changed items are touched. Returns ms.
+
+        Unchanged result, size, hover and selection return at once unless ``force``."""
         if self.frame is None:
             return 0.0
         started = time.perf_counter()
-        canvas = self.canvas
-        try:
-            width = max(60, int(canvas.winfo_width()))
-            height = max(60, int(canvas.winfo_height()))
-        except tk.TclError:
-            return 0.0
+        if self._size is None:
+            try:
+                self._size = (max(60, int(self.canvas.winfo_width())), max(60, int(self.canvas.winfo_height())))
+            except tk.TclError:
+                return 0.0
+        width, height = self._size
         result = self.result
+        key = (width, height, self._selected, self._hover)
+        if not force and result is self._drawn_result and key == self._drawn:
+            self.last_draw_ms = (time.perf_counter() - started) * 1000.0
+            return self.last_draw_ms
+        self._drawn, self._drawn_result = key, result
         nodes = result.graph.nodes if result is not None else []
-        self._config(self._empty, state="hidden" if nodes else "normal")
+        self._items.config(self._empty, state="hidden" if nodes else "normal")
         self._metrics(result)
         pad = 20
         span_x, span_y = width - 2 * pad, height - 2 * pad
-        focus = mv.neighbours(self.result, self._selected)
+        focus = mv.neighbours(result, self._selected)
         place = {}
         for node in nodes:
             x, y = result.positions.get(node.path, (0.5, 0.5))
-            place[node.path] = (pad + x * span_x, pad + y * span_y)
+            place[node.path] = (round(pad + x * span_x, 1), round(pad + y * span_y, 1))
         edges = strongest_edges(result.graph) if result is not None else []
-        while len(self._edges) < len(edges):
-            self._edges.append(canvas.create_line(0, 0, 0, 0, fill=mv.EDGE, tags="edge"))
-        for i, item in enumerate(self._edges):
-            if i >= len(edges):
-                self._config(item, state="hidden")
-                continue
-            edge = edges[i]
-            ax, ay = place[edge.a]
-            bx, by = place[edge.b]
-            canvas.coords(item, ax, ay, bx, by)
-            dimmed = bool(focus) and not (edge.a in focus and edge.b in focus)
-            alpha = 0.18 if dimmed else edge.alpha
-            self._config(item, state="normal", fill=mv.blend(mv.EDGE if edge.kind == "co" else mv.FG, alpha),
-                         width=1 if edge.kind == "link" else min(3, 1 + edge.weight // 4),
-                         dash=(3, 3) if edge.kind == "link" else "")
-        canvas.tag_lower("edge")
-        alive = set()
-        labelled = mv.label_spots(nodes, place, focus, width, self._half_width)
+        items = self._items
+        for i, edge in enumerate(edges):
+            old = self._edges[i] if i < len(self._edges) else None
+            item = items.update(old, "line", place[edge.a] + place[edge.b], {"tags": "edge"},
+                                **mv.edge_style(edge, focus))
+            if old is None:
+                self._edges.append(item)
+        for item in self._edges[len(edges):]:
+            items.config(item, state="hidden")
+        marked = tuple(path for path in (self._hover, self._selected) if path)
+        labels = mv.label_spots(nodes, place, focus, width, height, self._half_width, always=marked,
+                                line=self._line)
         for node in nodes:
-            alive.add(node.path)
-            pair = self._nodes.get(node.path)
-            if pair is None:
-                oval = canvas.create_oval(0, 0, 0, 0, width=1, tags="node")
-                text = canvas.create_text(0, 0, font=self._label_font, anchor="n", tags="label")
-                pair = self._nodes[node.path] = (oval, text)
-                self._item_path[oval] = node.path
-            oval, text = pair
-            x, y = place[node.path]
+            path = node.path
+            x, y = place[path]
             r = node.radius
-            canvas.coords(oval, x - r, y - r, x + r, y + r)
-            half = self._half_width(mv.node_label(node.path, node.folded))
-            canvas.coords(text, min(max(x, half + 2), width - half - 2), y + r + 1)
-            dimmed = bool(focus) and node.path not in focus
-            alpha = 0.2 if dimmed else node.alpha
-            color = mv.KIND_COLOR.get(node.kind, mv.KIND_COLOR["other"])
-            outline = "white" if node.path in (self._selected, self._hover) else mv.blend(color, alpha * 0.6)
-            self._config(oval, state="normal", fill=mv.blend(color, alpha), outline=outline)
-            self._config(text, state="normal" if node.path in labelled else "hidden",
-                         text=mv.node_label(node.path, node.folded), fill=mv.blend(mv.INK, max(alpha, 0.35)))
-        for path in list(self._nodes):
-            if path not in alive:
-                oval, text = self._nodes.pop(path)
-                self._item_path.pop(oval, None)
-                self._applied.pop(oval, None)
-                self._applied.pop(text, None)
-                canvas.delete(oval, text)
-        canvas.tag_raise("node")
-        canvas.tag_raise("label")
-        canvas.tag_raise("tip")
+            style, alpha = mv.node_style(node, focus, marked)
+            old = self._nodes.get(path)
+            oval = self._nodes[path] = items.update(old, "oval", (x - r, y - r, x + r, y + r),
+                                                    {"width": 1, "tags": "node"}, **style)
+            self._item_path[oval] = path
+            spot, text = labels.get(path), self._labels.get(path)
+            if spot is not None:
+                self._labels[path] = items.update(text, "text", spot[1:], self._label_fixed, state="normal",
+                                                  text=spot[0], fill=mv.blend(mv.INK, max(alpha, 0.35)))
+            elif text is not None:
+                items.config(text, state="hidden")
+        alive = {node.path for node in nodes}
+        for path in [p for p in self._nodes if p not in alive]:
+            oval = self._nodes.pop(path)
+            self._item_path.pop(oval, None)
+            items.delete(oval, *([self._labels.pop(path)] if path in self._labels else []))
+        if items.restack:
+            items.restack = False
+            for tag, raise_ in (("edge", False), ("node", True), ("label", True), ("tip", True)):
+                (self.canvas.tag_raise if raise_ else self.canvas.tag_lower)(tag)
         self.last_draw_ms = (time.perf_counter() - started) * 1000.0
         return self.last_draw_ms
 
     def _half_width(self, text: str) -> float:
         found = self._widths.get(text)
         if found is None:
-            try:
-                found = self._label_font.measure(text) / 2.0
-            except tk.TclError:
-                found = 3.5 * len(text)
+            if self._char_w:
+                found = self._char_w * len(text) / 2.0
+            else:
+                try:
+                    found = self._label_font.measure(text) / 2.0
+                except tk.TclError:
+                    found = 3.5 * len(text)
             self._widths[text] = found
         return found
 
     def _metrics(self, result: Result | None) -> None:
         values = mv.metric_values(result)
         where = "" if result is None else (f"topic: {result.topic}" if result.topic else result.project)
-        if self.topic_label.cget("text") != where[:28]:
-            self.topic_label.config(text=where[:28])
-        for key, label in self.metric_labels.items():
-            if label.cget("text") != values[key]:
+        values = dict(values, where=where[:28])
+        labels = dict(self.metric_labels, where=self.topic_label)
+        for key, label in labels.items():
+            if self._shown.get(key) != values[key]:
                 label.config(text=values[key])
+                self._shown[key] = values[key]
 
     # Interaction
     def _path_at(self) -> str:

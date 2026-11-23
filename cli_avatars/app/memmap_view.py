@@ -6,6 +6,7 @@ says, so it is tested without a display.
 
 from __future__ import annotations
 
+import functools
 import posixpath
 from typing import Callable, Iterable
 
@@ -30,11 +31,18 @@ KIND_COLOR = {
 KIND_SHORT = {"instructions": "instr", "memory": "memory", "docs": "docs", "task notes": "tasks", "other": "other"}
 WINDOW_LABEL = {"session": "session", "today": "today", "7d": "7d", "30d": "30d"}
 LABELS_SHOWN = 14
+LABELS_TOP = 5
+SHORT_MAX = 10
 
 
 def blend(color: str, alpha: float, bg: str = BG) -> str:
-    """``color`` over ``bg`` at ``alpha``: Tk canvas items have no opacity."""
-    a = max(0.0, min(1.0, alpha))
+    """``color`` over ``bg`` at ``alpha``: Tk canvas items have no opacity. Alpha steps of 1/64."""
+    return _blend(color, round(max(0.0, min(1.0, alpha)) * 64), bg)
+
+
+@functools.lru_cache(maxsize=4096)
+def _blend(color: str, step: int, bg: str) -> str:
+    a = step / 64
     c = [int(color[i:i + 2], 16) for i in (1, 3, 5)]
     b = [int(bg[i:i + 2], 16) for i in (1, 3, 5)]
     return "#" + "".join(f"{round(b[i] + (c[i] - b[i]) * a):02x}" for i in range(3))
@@ -71,8 +79,6 @@ def node_label(path: str, folded: int = 0) -> str:
     return text if len(text) <= LABEL_MAX else text[: LABEL_MAX - 1] + "…"
 
 
-
-
 def neighbours(result, selected: str) -> set[str]:
     """``selected`` and every node it shares an edge with. Empty when nothing is selected."""
     if not selected or result is None:
@@ -86,24 +92,81 @@ def neighbours(result, selected: str) -> set[str]:
     return found
 
 
-def label_spots(nodes: Iterable, place: dict, focus: set[str], width: int,
-                half_width: Callable[[str], float]) -> set[str]:
-    """Paths whose label is drawn: focus first, then heaviest; a label that would overlap a kept one is skipped."""
+def edge_style(edge, focus: set[str]) -> dict:
+    dimmed = bool(focus) and not (edge.a in focus and edge.b in focus)
+    link = edge.kind == "link"
+    return {"state": "normal", "fill": blend(FG if link else EDGE, 0.18 if dimmed else edge.alpha),
+            "width": 1 if link else min(3, 1 + edge.weight // 4), "dash": (3, 3) if link else ""}
+
+
+def node_style(node, focus: set[str], marked: tuple[str, ...]) -> tuple[dict, float]:
+    """Oval options and the alpha its label uses; ``marked`` (hovered, selected) get a white ring."""
+    alpha = 0.2 if focus and node.path not in focus else node.alpha
+    color = KIND_COLOR.get(node.kind, KIND_COLOR["other"])
+    outline = "white" if node.path in marked else blend(color, alpha * 0.6)
+    return {"fill": blend(color, alpha), "outline": outline}, alpha
+
+
+def short_label(text: str) -> str:
+    return text if len(text) <= SHORT_MAX else text[: SHORT_MAX - 1] + "…"
+
+
+def _hits(box, boxes) -> bool:
+    return any(box[0] < b[2] and b[0] < box[2] and box[1] < b[3] and b[1] < box[3] for b in boxes)
+
+
+def label_spots(nodes: Iterable, place: dict, focus: set[str], width: int, height: int,
+                half_width: Callable[[str], float], *, always: Iterable[str] = (),
+                line: float = 11.0) -> dict[str, tuple[str, float, float]]:
+    """``{path: (text, x, top)}`` for the labels to draw (anchor north).
+
+    Hovered / selected (``always``) and the ``LABELS_TOP`` heaviest nodes are always labelled.
+    Any other label is tried full and then shortened, below and then above its node, and is
+    skipped when every try overlaps a kept label or another node.
+    """
+    nodes = list(nodes)
+    forced = set(always)
+    heaviest = sorted(nodes, key=lambda n: (-n.weight, n.path))
+    forced.update(n.path for n in heaviest[:LABELS_TOP])
+    ranked = sorted(heaviest, key=lambda n: (n.path not in always, n.path not in forced, n.path not in focus))
+    circles = {}
+    for node in nodes:
+        x, y = place[node.path]
+        r = node.radius
+        circles[node.path] = (x - r, y - r, x + r, y + r)
+    kept: dict[str, tuple[str, float, float]] = {}
     boxes: list[tuple[float, float, float, float]] = []
-    kept: set[str] = set()
-    ranked = sorted(nodes, key=lambda n: (n.path not in focus, -n.weight, n.path))
     for node in ranked:
-        if len(kept) >= LABELS_SHOWN and node.path not in focus:
+        must = node.path in forced
+        if not must and len(kept) >= LABELS_SHOWN and node.path not in focus:
             break
         x, y = place[node.path]
-        half = half_width(node_label(node.path, node.folded))
-        x = min(max(x, half + 2), width - half - 2)
-        top = y + node.radius + 1
-        box = (x - half, top, x + half, top + 11)
-        if any(box[0] < b[2] and b[0] < box[2] and box[1] < b[3] and b[1] < box[3] for b in boxes):
+        full = node_label(node.path, node.folded)
+        others = circles.copy()
+        del others[node.path]
+        others = others.values()
+        chosen = None
+        for text in dict.fromkeys((full, short_label(full))):
+            half = half_width(text)
+            cx = min(max(x, half + 2), width - half - 2)
+            for top in (y + node.radius + 1, y - node.radius - 1 - line):
+                top = min(max(top, 0.0), height - line)
+                box = (cx - half, top, cx + half, top + line)
+                if not _hits(box, boxes) and not _hits(box, others):
+                    chosen = (text, cx, top, box)
+                    break
+            if chosen:
+                break
+        if chosen is None and must:
+            half = half_width(full)
+            cx = min(max(x, half + 2), width - half - 2)
+            top = min(y + node.radius + 1, height - line)
+            chosen = (full, cx, top, (cx - half, top, cx + half, top + line))
+        if chosen is None:
             continue
+        text, cx, top, box = chosen
         boxes.append(box)
-        kept.add(node.path)
+        kept[node.path] = (text, cx, top)
     return kept
 
 
