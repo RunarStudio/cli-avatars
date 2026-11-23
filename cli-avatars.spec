@@ -14,6 +14,7 @@ ROOT = Path(SPECPATH)
 
 datas = [
     (str(ROOT / "Sprites"), "Sprites"),
+    (str(ROOT / "building"), "building"),
     (str(ROOT / "Caine_Icon.ico"), "."),
     (str(ROOT / "Caine_Icon.png"), "."),
     (str(ROOT / "docs" / "examples" / "bots-roster.example.json"), "docs/examples"),
