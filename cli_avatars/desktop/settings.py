@@ -1,7 +1,8 @@
 """``desktop`` block of config.json. Bad values fall back to the defaults.
 
 Window geometry is not stored here. This is which monitors get an overlay,
-whether a walker may cross, the step-up limit, and the poll interval.
+whether a walker may cross, the step-up limit, the poll interval, and
+whether the startup boot check runs.
 """
 
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ class DesktopSettings:
     cross_monitors: bool
     step_up_px: int
     monitor_poll_s: float
+    bootcheck: bool = True
 
 
 def desktop_settings(config: object) -> DesktopSettings:
@@ -29,7 +31,18 @@ def desktop_settings(config: object) -> DesktopSettings:
         cross_monitors=_bool(block.get("cross_monitors", True), True),
         step_up_px=_int(block.get("step_up_px", 96), 96, 0, 256),
         monitor_poll_s=_float(block.get("monitor_poll_s", 1.0), 1.0, 0.5, 10.0),
+        bootcheck=_bool(block.get("bootcheck", True), True),
     )
+
+
+def with_bootcheck(config: object, enabled: bool) -> dict:
+    """Copy ``config`` and set ``desktop.bootcheck``. The input is not changed."""
+    data = dict(config) if isinstance(config, dict) else {}
+    block = data.get("desktop")
+    copied = dict(block) if isinstance(block, dict) else {}
+    copied["bootcheck"] = bool(enabled)
+    data["desktop"] = copied
+    return data
 
 
 def active_monitors(monitors, choice: object) -> list:

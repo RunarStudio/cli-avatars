@@ -11,6 +11,7 @@ from typing import Optional
 from bubbles import BubbleBoard
 from bundle_paths import asset_path
 from chat_window import ChatWindow
+from cli_avatars.app.bootcheck import run_bootcheck_only
 from cli_avatars.app.shell import OverlayApp
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.sprites.registry import load_sprites as _load_sprites
@@ -125,6 +126,8 @@ def run_selftest() -> int:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = sys.argv[1:] if argv is None else list(argv)
+    if "--bootcheck-only" in args:
+        return run_bootcheck_only()
     if "--selftest" in args:
         return run_selftest()
     app = OverlayApp()
