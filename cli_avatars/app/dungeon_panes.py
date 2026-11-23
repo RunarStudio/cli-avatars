@@ -112,16 +112,20 @@ def show_right(view) -> None:
 
 
 def paint_floor(canvas) -> None:
+    """Agents' kit rooms when they load, else the plain diamond floor."""
     from cli_avatars.app.dungeon_geom import floor_diamonds
+    from cli_avatars.app.dungeon_rooms import paint_rooms
 
     try:
         width, height = int(canvas.winfo_width()), int(canvas.winfo_height())
     except tk.TclError:
         return
-    canvas.delete("floor")
+    canvas.delete("floor_tile")
+    if paint_rooms(canvas):
+        return
     for points, shade in floor_diamonds(width, height):
         color = "#3a3348" if shade else "#2a2436"
-        canvas.create_polygon(*points, fill=color, outline="#221c2c", tags="floor")
+        canvas.create_polygon(*points, fill=color, outline="#221c2c", tags=("floor", "floor_tile"))
 
 
 def mark(button, on: bool) -> None:
