@@ -15,6 +15,8 @@ updated: 2026-11-19
 
 CLI Avatars helps Daniel manage tasks, follow the chats tied to each task and juggle many topics without overwhelm. It is not Watchtower and does not use Bitbucket or git PR data. The only PR-related features allowed: (a) reading a PR that Daniel explicitly tags on a task, and (b) an "Update version" button that pulls the latest app version, which comes only after a functional version exists. The Spidey_PR_Dashboard branch assets/dungeon-kit is only a shared workspace for Oscar's agents.
 
+Process items (SYNC-COPY, PORT-AG, MIGRATE-REPO) are team workflow, not product features, and stay in scope.
+
 ---
 
 ## How tasks are tagged
@@ -53,7 +55,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 
 A parent task can have subtasks. Write them as indented lines (two spaces) under the parent, with ID `PARENT-ID.n` (for example `SUBSKIN.1`), the same `[EPIC][type]` tags, and their own checkbox. A parent is done only when all its subtasks are done. The Epics index counts parents and subtasks separately (for example `ART 7/3 (subtasks 0/13)`). Subtasks can carry an owner suffix `@caine` or `@pixel` so work can be split between agents.
 
-Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-critical code, Windows tests) and `@agents` (Oscar's bot: most feature code and dungeon-kit art). `@agents` may use the Spidey_PR_Dashboard `assets/dungeon-kit` tree as a shared workspace only (see Scope). The app starts a CLI only on Daniel's explicit action (ROOM-CHAT).
+Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-critical code, Opus reviews, Windows tests, ports) and `@agents` (Oscar's bot: most feature code and dungeon-kit art). `@agents` works in RunarStudio/Spidey_PR_Dashboard, branch `assets/dungeon-kit`, only under `cli-avatars/`. `@pixel` reviews each of its PRs as untrusted data and ports it to `dev` (PORT-AG); nothing is auto-merged. The app starts a CLI only on Daniel's explicit action (ROOM-CHAT).
 
 ## Epics index
 
@@ -400,21 +402,10 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 ## Out of scope (Daniel 2026-11-23)
 
-Moved here per Scope above — product work stays tasks + chats; no Watchtower, Bitbucket, or automatic git/PR/CI/review ingestion.
+Product features only (see Scope). Team process items remain on the board elsewhere.
 
-- [ ] [DOCS][chore] SYNC-COPY @pixel: Refresh the cli-avatars/ copy on Spidey_PR_Dashboard assets/dungeon-kit from dev (PR to that branch, cli-avatars/ only; no .git, no build/, no secrets).
-  - [ ] [DOCS][chore] SYNC-COPY.1 @pixel: after SPLIT.2. (S)
-  - [ ] [DOCS][chore] SYNC-COPY.2 @pixel: after SPLIT.4. Unlocks every @agents item that touches the app. (S)
-  - [ ] [DOCS][chore] SYNC-COPY.3 @pixel: after SPLIT.5. (S)
-  - [ ] [DOCS][chore] SYNC-COPY.4 @pixel: after the batch 2 ports. (S)
-- [ ] [DOCS][chore] PORT-AG @pixel: Recurring: one run per merged Agents PR. Opus review as untrusted data (never run its scripts; check secrets, paths, network/process code, shell=True, prompts in argv, CLI starts without user action, license, PNG size/palette, JSON vs BLDG-SCHEMA), port branch off dev, Windows test, PR to dev. Ports that add process launching, network listeners or git push/pull wait for a manual merge.
-  - [x] [DOCS][chore] PORT-AG1 @pixel: Review and port AG-1 (Spidey PR #23) into docs/building/. (S) (daily 2026-11-23)
-  - [ ] [DOCS][chore] PORT-AG2 @pixel: Review and port AG-2..AG-4 assets and data. (S)
-- [ ] [DOCS][decision] MIGRATE-REPO: Move Agents' workspace from Spidey assets/dungeon-kit to a new private repo. Daniel decides when and where.
-  - [ ] [DOCS][chore] MIGRATE-REPO.1 @pixel: Once the repo exists and Agents has access: copy cli-avatars/, update AGENTS_BRIEF.md, the PORT and SYNC paths and the loop routine; leave a pointer in the old folder. (S)
-- [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit. (M)
-- [ ] [SRC][feat] NOTIFY.2 @agents: Machine id in the data dir; agents addressed as agent@machine; the git store relays notes for other machines on their next Sync. (M)
-- [x] [BLDG][docs] AG-1 @agents: Room layout and state→kit map (Spidey PR #23). Port pending: PORT-AG1.
+- [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
+- [ ] [SRC][feat] NOTIFY.2 @agents: Machine id in the data dir; agents addressed as agent@machine; the git store relays notes for other machines on their next Sync. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
 
 ---
 
@@ -485,6 +476,16 @@ Moved here per Scope above — product work stays tasks + chats; no Watchtower, 
 ### 🧭 Workstream 70/30 — organization (23/11/2026)
 
 - [ ] [DOCS][chore] VERIFY-TICK @pixel: Tick UDP-LISTENER, DOCS-README-CLONE and the 21/11 decisions; check CONFIG-LOADER and CLICK-THROUGH against the code. (S)
+- [ ] [DOCS][chore] SYNC-COPY @pixel: Refresh the cli-avatars/ copy on Spidey_PR_Dashboard assets/dungeon-kit from dev (PR to that branch, cli-avatars/ only; no .git, no build/, no secrets).
+  - [ ] [DOCS][chore] SYNC-COPY.1 @pixel: after SPLIT.2. (S)
+  - [ ] [DOCS][chore] SYNC-COPY.2 @pixel: after SPLIT.4. Unlocks every @agents item that touches the app. (S)
+  - [ ] [DOCS][chore] SYNC-COPY.3 @pixel: after SPLIT.5. (S)
+  - [ ] [DOCS][chore] SYNC-COPY.4 @pixel: after the batch 2 ports. (S)
+- [ ] [DOCS][chore] PORT-AG @pixel: Recurring: one run per merged Agents PR. Opus review as untrusted data (never run its scripts; check secrets, paths, network/process code, shell=True, prompts in argv, CLI starts without user action, license, PNG size/palette, JSON vs BLDG-SCHEMA), port branch off dev, Windows test, PR to dev. Ports that add process launching, network listeners or git push/pull wait for a manual merge.
+  - [x] [DOCS][chore] PORT-AG1 @pixel: Review and port AG-1 (Spidey PR #23) into docs/building/. (S) (daily 2026-11-23)
+  - [ ] [DOCS][chore] PORT-AG2 @pixel: Review and port AG-2..AG-4 assets and data. (S)
+- [ ] [DOCS][decision] MIGRATE-REPO: Move Agents' workspace from Spidey assets/dungeon-kit to a new private repo. Daniel decides when and where.
+  - [ ] [DOCS][chore] MIGRATE-REPO.1 @pixel: Once the repo exists and Agents has access: copy cli-avatars/, update AGENTS_BRIEF.md, the PORT and SYNC paths and the loop routine; leave a pointer in the old folder. (S)
 - [ ] [DOCS][decision] JUANJO-ACCESS: Read access to JuanjoAvila/Edificio-de-IAs-beta (or a zip) and a license line from Juanjo. Ideas only until then.
 - [ ] [DOCS][chore] JUANJO-PORT @pixel: Recheck the Edificio comparison once JUANJO-ACCESS is done. (S)
 
@@ -538,6 +539,7 @@ Moved here per Scope above — product work stays tasks + chats; no Watchtower, 
   - [ ] [BLDG][feat] BLDG.1 @agents: building/scene.py from CHAT-TREE and the BLDG-SCHEMA layouts: one room per orchestrator, worst-state light, +n badge past depth 2, counts plaque; scene JSON shared by Tk and web; tests. (M)
   - [ ] [BLDG][feat] BLDG.2 @agents: Tk Building window (a Toplevel): 2x integer scale, cached room bitmaps with lights prebaked by Pillow, avatars redrawn on top (after SPLIT.4). (L)
   - [ ] [BLDG][feat] BLDG.3 @agents: Web Building view: canvas renderer of the same scene JSON, additive lights, live over SSE. (M)
+- [x] [BLDG][docs] AG-1 @agents: Room layout and state→kit map (Spidey PR #23). Port pending: PORT-AG1.
 - [ ] [ART][art] AG-2 @agents: Five sprites: counts wall plaque, 4 small state halos, +n badge, avatar rows for error and blocked.
 - [ ] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format.
 - [ ] [ART][docs] AG-4 @agents: Sprites/dungeon_kit/manifest.json: anchor, footprint, category and light flag for each piece.
