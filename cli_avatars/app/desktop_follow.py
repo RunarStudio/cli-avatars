@@ -56,6 +56,8 @@ def hit_boxes(app) -> list[tuple[float, float, float, float]]:
         boxes.append((float(av.x), float(av.y) - 20.0, width, height + 20.0))
     for extra in list(getattr(app, "_bubble_hits", ()) or ()):
         _take(boxes, extra)
+    for extra in list(getattr(app, "_activity_hits", ()) or ()):
+        _take(boxes, extra)
     for extra in list(getattr(app, "_decision_hits", ()) or ()):
         _take(boxes, extra)
     _take(boxes, getattr(app, "_portal_hit", None))
@@ -136,6 +138,7 @@ def _reapply_fonts(widget) -> None:
 
         tkfont.nametofont("DungeonText").configure(family="Courier", size=10)
         tkfont.nametofont("DungeonTitle").configure(family="Courier", size=11, weight="bold")
+        tkfont.nametofont("DungeonBubble").configure(family="Courier", size=8)
     except Exception:
         pass
     _walk_fonts(widget)

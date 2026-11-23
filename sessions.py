@@ -97,6 +97,15 @@ _ERROR_SUBTYPES = frozenset({
 })
 
 
+def _tool_basename(tool_input: object) -> str:
+    """File basename from a tool-use input. The path and the command are dropped."""
+    try:
+        from activity import basename_from_tool_input
+    except Exception:
+        return ""
+    return basename_from_tool_input(tool_input)
+
+
 def _line_blocked(line: str) -> bool:
     """True when this transcript line is a permission or reply wait.
 
@@ -222,6 +231,7 @@ class SessionInfo:
     parent_id:      Optional[str] = None
     project:        str   = ""
     failed:         bool  = False
+    file:           str   = ""
 
 
 class SessionSource(ABC):
@@ -253,7 +263,7 @@ class ClaudeJsonlSource(SessionSource):
                 if time.time() - f.stat().st_mtime > STALE_AFTER:
                     continue
                 aid = f.stem[:8]
-                status, tool, failed = self._parse_tail(f)
+                status, tool, failed, basename = self._parse_tail(f)
                 sub_dir = f.parent / f.stem / "subagents"
                 if sub_dir.exists():
                     cutoff = time.time() - SUBAGENT_FRESH
@@ -269,12 +279,13 @@ class ClaudeJsonlSource(SessionSource):
                     skin="__new__", is_demo=False,
                     workspace_hash=f.parent.name,
                     source=self.name, parent_id=None,
-                    project=self._project_name(f), failed=failed))
+                    project=self._project_name(f), failed=failed,
+                    file=basename))
             except Exception:
                 pass
         return found
 
-    def _parse_tail(self, path) -> tuple[str, str, bool]:
+    def _parse_tail(self, path) -> tuple[str, str, bool, str]:
         try:
             with open(path, "rb") as f:
                 size = f.seek(0, 2)
@@ -287,28 +298,29 @@ class ClaudeJsonlSource(SessionSource):
                     # walk returns the newest marker.
                     ended = _result_failed(line)
                     failed = bool(ended) if ended is not None else False
-                    return BLOCKED, "", failed
+                    return BLOCKED, "", failed, ""
                 ended = _result_failed(line)
                 if ended is not None:
                     # A finished turn wins over the word "tool_use" inside its text.
-                    return IDLE, "", ended
+                    return IDLE, "", ended, ""
                 if '"tool_use"' in line:
                     try:
                         obj = json.loads(line)
                         for block in obj.get("message", {}).get("content", []):
                             if isinstance(block, dict) and block.get("type") == "tool_use":
                                 name = block.get("name", "")
-                                return BUSY, name if isinstance(name, str) else "", False
+                                tool = name if isinstance(name, str) else ""
+                                return BUSY, tool, False, _tool_basename(block.get("input"))
                     except Exception:
                         pass
-                    return BUSY, "", False
+                    return BUSY, "", False, ""
                 if '"thinking"' in line:
-                    return THINKING, "", False
+                    return THINKING, "", False, ""
                 if _prompt_or_tool_result(line):
-                    return THINKING, "", False
+                    return THINKING, "", False, ""
         except Exception:
             pass
-        return IDLE, "", False
+        return IDLE, "", False, ""
 
     def _project_name(self, path) -> str:
         """Folder name from a ``cwd`` field. The path itself is not kept."""

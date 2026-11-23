@@ -9,6 +9,7 @@ import threading
 import time
 from typing import Optional
 
+from activity import ActivityBoard, activity_demo_enabled
 from bubbles import BubbleBoard
 from cli_avatars.model.agent import AgentInfo, S
 from cli_avatars.tuning import REAL_SESSION_SKINS, TUNING
@@ -33,6 +34,24 @@ from sessions import (
 )
 
 
+def _activity_demo_agents() -> list[AgentInfo]:
+    """Three orchestrators for the activity-bubble check. No prompt text."""
+    return [
+        AgentInfo(
+            agent_id="demo-read", name="Caine", status="busy", tool="Read",
+            file="TASKS.md", is_demo=True, skin="amongo", source="demo",
+        ),
+        AgentInfo(
+            agent_id="demo-think", name="Mira", status="thinking",
+            is_demo=True, skin="meowatar", source="demo",
+        ),
+        AgentInfo(
+            agent_id="demo-subs", name="Orch", status="subagent", subagents=3,
+            is_demo=True, skin="caine", source="demo",
+        ),
+    ]
+
+
 class SessionScanner:
     CLAUDE_DIR = ClaudeJsonlSource.DEFAULT_DIR
 
@@ -54,8 +73,10 @@ class SessionScanner:
         # merge_with_events returns the polled list unchanged.
         self.bus = EventBus()
         self.bubbles = BubbleBoard()
+        self.activity = ActivityBoard()
         self.bus.subscribe(self._on_bus_event)
         self.bus.subscribe(self.bubbles.on_event)
+        self.bus.subscribe(self.activity.on_event)
         # F4: chat between two avatars plans a walk. Bubbles stay on this bus too.
         self.meetings = MeetingBoard()
         self.bus.subscribe(self.meetings.on_event)
@@ -125,15 +146,19 @@ class SessionScanner:
                 skin=info.skin, is_demo=info.is_demo,
                 workspace_hash=info.workspace_hash, pid=info.pid,
                 source=info.source, project=info.project,
-                parent_id=info.parent_id, failed=info.failed)
+                parent_id=info.parent_id, failed=info.failed,
+                file=getattr(info, "file", "") or "")
 
         # No real sessions → single idle demo avatar (hue assigned at spawn)
-        if not found:
+        if not found and not activity_demo_enabled():
             found["demo"] = AgentInfo(
                 agent_id="demo", name="Caine",
                 status=S.IDLE, skin="amongo",
                 subagents=TUNING.test_subagents, is_demo=True,
                 source="")
+        if activity_demo_enabled():
+            for agent in _activity_demo_agents():
+                found[agent.agent_id] = agent
 
         self._match_pids(found)
 

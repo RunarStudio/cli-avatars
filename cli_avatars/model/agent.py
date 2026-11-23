@@ -48,3 +48,4 @@ class AgentInfo:
     project:        str   = ""
     parent_id:      Optional[str] = None
     failed:         bool  = False
+    file:           str   = ""

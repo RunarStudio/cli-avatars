@@ -14,14 +14,30 @@ _FLOOR = "#1a1422"
 
 
 def install_fonts(root) -> None:
-    """Point-sized faces. ``tk scaling`` rebuilds them when the window DPI changes."""
+    """Point-sized faces. ``tk scaling`` rebuilds them when the window DPI changes.
+
+    The Font objects stay on the root. A named font disappears if nothing
+    keeps a Python reference to it.
+    """
     import tkinter.font as tkfont
 
+    held = getattr(root, "_dungeon_fonts", None)
+    if not isinstance(held, dict):
+        held = {}
+        root._dungeon_fonts = held
+    specs = (
+        ("DungeonText", {"family": "Courier", "size": 10}),
+        ("DungeonTitle", {"family": "Courier", "size": 11, "weight": "bold"}),
+        ("DungeonBubble", {"family": "Courier", "size": 8}),
+    )
     known = set(tkfont.names(root))
-    if "DungeonText" not in known:
-        tkfont.Font(root, name="DungeonText", family="Courier", size=10)
-    if "DungeonTitle" not in known:
-        tkfont.Font(root, name="DungeonTitle", family="Courier", size=11, weight="bold")
+    for name, opts in specs:
+        if name in held:
+            continue
+        if name in known:
+            held[name] = tkfont.nametofont(name)
+        else:
+            held[name] = tkfont.Font(root, name=name, **opts)
 
 
 def mount(view) -> None:

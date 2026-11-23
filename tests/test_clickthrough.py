@@ -55,12 +55,14 @@ class HitTests(unittest.TestCase):
             avatars={"a": av},
             sub_avatars={},
             _bubble_hits=[(12, 4, 16, 16)],
+            _activity_hits=[(8, 0, 64, 20)],
             _decision_hits=[],
             _portal_hit=(80, 90, 40, 40),
         )
         boxes = hit_boxes(app)
         self.assertIn((10.0, 20.0, 40.0, 60.0), boxes)
         self.assertIn((12.0, 4.0, 16.0, 16.0), boxes)
+        self.assertIn((8.0, 0.0, 64.0, 20.0), boxes)
         self.assertIn((80.0, 90.0, 40.0, 40.0), boxes)
 
     def test_follow_stays_off_when_the_desktop_is_off(self):

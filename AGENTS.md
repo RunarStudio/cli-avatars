@@ -13,6 +13,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `sessions.py` | `SessionSource` adapters (Claude JSONL, Grok, polling) |
 | `events.py` | Event bus, UDP listener, channel paths, app data dir |
 | `bubbles.py` | Icon speech bubbles on `say` events |
+| `activity.py` | Activity sentences from structured events (state, tool, basename, count, task id). Prompts stay out of the bubble |
 | `meetings.py` | Walk-to-meet planner for paired avatars |
 | `portal.py` | Meeting-point portal sprite |
 | `perchas.py` | Window-top perches / terrain helpers |

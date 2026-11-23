@@ -19,6 +19,7 @@ datas = [
 ]
 
 hiddenimports = [
+    "activity",
     "bundle_paths",
     "bubbles",
     "chat_window",

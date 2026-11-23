@@ -264,6 +264,14 @@ The HUD row `💬 Talks N` counts avatar pairs that sent a chat icon in the last
 
 ---
 
+## Activity bubbles
+
+An orchestrator can show one short sentence above the avatar. The sentence is chosen locally from hook tokens: `hook_event_name`, `tool_name`, a file basename, a subagent count, and a task id. `PreToolUse` with `tool_name` `Task` counts a subagent starting. `SubagentStop` counts one finished (`done`, `failed`, or `lost`) on the parent, whose id is the first 8 characters of `session_id`. `Notification` shows `Waiting on you`. `Stop` hides the sentence. The icon bubble from `say` is unchanged and still does not draw a note.
+
+A prompt, a tool argument, a command, a full path, and a person's message are not copied into the sentence or the activity packet. Settings has `Activity bubbles` (default on), `Show on subagents too` (default off), and a hold of about 4 seconds (`bubbles.activity`, `bubbles.subagents`, `bubbles.duration_s`). The tray has the same on/off switch.
+
+---
+
 ## Meeting walk (F4)
 
 A `say` between two different avatars makes them walk to each other. The bubble still draws on the sender while they walk, and `💬 Talks N` still counts pairs from the last 10 seconds. Nothing in the packet is executed. The walk uses only the sender id and the recipient id.

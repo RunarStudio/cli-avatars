@@ -10,7 +10,7 @@
 8. Lingering subagents.
 9. Dying subagents.
 10. Bursts and glitches.
-11. Portal, then talk, decision, and blocked marks.
+11. Portal, then talk, decision, blocked marks, and activity bubbles.
 12. HUD, rooms panel, chat panel.
 13. Schedule the next tick.
 """

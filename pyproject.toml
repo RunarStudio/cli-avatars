@@ -16,6 +16,7 @@ dev = ["ruff>=0.9"]
 
 [tool.setuptools]
 py-modules = [
+    "activity",
     "bundle_paths",
     "bubbles",
     "chat_window",
@@ -54,6 +55,7 @@ select = ["E", "F", "W", "I", "B", "TID"]
 
 [tool.ruff.lint.per-file-ignores]
 # Legacy top-level modules stay as they are, apart from real pyflakes errors.
+"activity.py" = ["E", "W", "I", "B"]
 "bundle_paths.py" = ["E", "W", "I", "B"]
 "bubbles.py" = ["E", "W", "I", "B"]
 "chat_window.py" = ["E", "W", "I", "B"]

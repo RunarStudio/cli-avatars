@@ -6,6 +6,7 @@ never touches Tk widgets directly.
 
 import threading
 
+from activity import toggle_activity
 from bundle_paths import asset_path
 from cli_avatars.desktop.capabilities import HAS_PIL
 from cli_avatars.paths import images_dir
@@ -45,6 +46,11 @@ def _setup_tray(self):
             update_label[:120],
             lambda icon, item: self.root.after(0, self._update_app),
             enabled=lambda item: not getattr(self, "_update_block", "x"),
+        ))
+        items.append(pystray.MenuItem(
+            "Activity bubbles",
+            lambda icon, item: self.root.after(0, lambda: toggle_activity(self)),
+            checked=lambda item: bool(getattr(getattr(self, "bubbles_cfg", None), "activity", True)),
         ))
         items.append(pystray.Menu.SEPARATOR)
         items.append(pystray.MenuItem("Quit", lambda icon, item: self.root.after(0, self._quit)))

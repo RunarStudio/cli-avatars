@@ -2,6 +2,7 @@
 
 # DPI awareness runs at import, before tkinter and before any tk.Tk().
 import cli_avatars.desktop.capabilities  # noqa: F401  # isort: skip
+import os
 import sys
 import tkinter as tk
 from pathlib import Path
@@ -45,6 +46,17 @@ def run_selftest() -> int:
         else:
             if not REGISTRY.has("caine"):
                 problems.append("caine sheet did not load")
+    try:
+        from activity import line_from_agent
+        from bubbles import render_text_frame
+
+        if line_from_agent("busy", "Read", "TASKS.md", 0) != "Reading TASKS.md":
+            problems.append("activity line")
+        frame = render_text_frame(48, 12)
+        if frame.size[0] < 16 or frame.size[1] < 16:
+            problems.append("activity frame")
+    except Exception as exc:
+        problems.append("activity: " + type(exc).__name__)
     root = None
     try:
         root = tk.Tk()
@@ -158,6 +170,8 @@ def _selftest_memmap(host) -> list[str]:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = sys.argv[1:] if argv is None else list(argv)
+    if "--activity-demo" in args:
+        os.environ["CLI_AVATARS_ACTIVITY_DEMO"] = "1"
     if "--bootcheck-only" in args:
         return run_bootcheck_only()
     if "--selftest" in args:
