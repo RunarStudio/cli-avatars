@@ -17,6 +17,9 @@ def _open_config_screen(self):
 
 
 def _build_config_ui(self, win):
+    from cli_avatars.app.update_ui import mount_update_settings
+
+    mount_update_settings(self, win)
     BG, FG, SEL = "#0d0d1a", "#aaccff", "#223366"
     FONT = ("Courier", 9)
     BFONT = ("Courier", 9, "bold")

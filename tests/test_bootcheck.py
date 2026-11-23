@@ -1,10 +1,12 @@
 """Boot check runner: budget, timeout, history cap, and trend."""
 
 import json
+import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from cli_avatars.bootcheck import (
     HISTORY_CAP,
@@ -12,12 +14,16 @@ from cli_avatars.bootcheck import (
     BootRunner,
     Check,
     CheckResult,
+    Trend,
     append_history,
     compare_runs,
     load_reports,
+    read_commit,
     status_line,
 )
 from cli_avatars.desktop.settings import desktop_settings
+from cli_avatars.paths import REPO_ROOT
+from cli_avatars.update.version import boot_commit
 
 
 def _report(names_ok, ms, names_fail=()):
@@ -162,6 +168,64 @@ class TestTrend(unittest.TestCase):
         self.assertNotIn("faster", line)
         self.assertNotIn("regression", line)
         self.assertNotIn("pass", line.split("·", 1)[-1])
+        self.assertIn("0.4", line)
+        self.assertIn("abc1234", line)
+
+
+class TestFrozenCommit(unittest.TestCase):
+    def test_frozen_boot_line_reads_bundled_version_json(self):
+        full = "a" * 40
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "version.json").write_text(
+                json.dumps({"version": "0.4.0", "commit": full}) + "\n",
+                encoding="utf-8",
+            )
+            exe = root / "cli-avatars.exe"
+            exe.write_text("", encoding="utf-8")
+            with mock.patch.object(sys, "frozen", True, create=True), \
+                    mock.patch.object(sys, "executable", str(exe)):
+                short = boot_commit()
+        self.assertEqual(short, full[:12])
+        self.assertNotEqual(short, read_commit(REPO_ROOT))
+        report = BootReport(
+            "2026-11-23T00:00:00Z", "0.4.0", short,
+            [CheckResult("alpha", "ok", 1.0, "ok")], 100.0, 2000.0,
+        )
+        line = status_line(report, Trend(None, None, (), ()))
+        self.assertIn("0.4.0 " + short, line)
+        app = Path(__file__).resolve().parent.parent / "cli_avatars" / "app" / "bootcheck.py"
+        text = app.read_text(encoding="utf-8")
+        self.assertIn("commit=boot_commit()", text)
+        self.assertNotIn("read_commit(", text)
+
+    def test_frozen_boot_commit_reads_version_json_in_the_bundle(self):
+        full = "c" * 40
+        with tempfile.TemporaryDirectory() as install, tempfile.TemporaryDirectory() as bundle:
+            exe = Path(install) / "cli-avatars.exe"
+            exe.write_text("", encoding="utf-8")
+            (Path(bundle) / "version.json").write_text(
+                json.dumps({"version": "0.4.0", "commit": full}) + "\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(sys, "frozen", True, create=True), \
+                    mock.patch.object(sys, "executable", str(exe)), \
+                    mock.patch.object(sys, "_MEIPASS", bundle, create=True):
+                short = boot_commit()
+        self.assertEqual(short, full[:12])
+
+    def test_source_boot_commit_stays_on_git(self):
+        self.assertFalse(getattr(sys, "frozen", False))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "version.json").write_text(
+                json.dumps({"version": "0.4.0", "commit": "b" * 40}) + "\n",
+                encoding="utf-8",
+            )
+            exe = root / "python"
+            exe.write_text("", encoding="utf-8")
+            with mock.patch.object(sys, "executable", str(exe)):
+                self.assertEqual(boot_commit(), read_commit(REPO_ROOT))
 
 
 class TestSetting(unittest.TestCase):

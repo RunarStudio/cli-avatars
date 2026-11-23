@@ -15,6 +15,7 @@ import tkinter as tk
 from typing import Optional
 
 from bundle_paths import asset_path
+from cli_avatars import VERSION
 from cli_avatars.app.bootcheck import start_bootcheck
 from cli_avatars.app.bubbles_view import (
     BubblesView,
@@ -38,6 +39,7 @@ from cli_avatars.app.rooms_panel import RoomsPanel
 from cli_avatars.app.skin_picker import PICK, PICK_ANIMS, PICK_FRAME_MS, SkinPicker
 from cli_avatars.app.subagents import SubagentController
 from cli_avatars.app.tick import TickLoop
+from cli_avatars.app.update_ui import mount_update_status
 from cli_avatars.desktop.capabilities import desktop_escape_available
 from cli_avatars.desktop.focus import focus_linked_console
 from cli_avatars.desktop.settings import desktop_settings
@@ -181,6 +183,7 @@ class OverlayApp:
             start_bootcheck(self)
         except Exception:
             print("[WARN] Boot check did not start")
+        mount_update_status(self)
         start_desktop_follow(self)
         self._tick()
 
@@ -189,7 +192,13 @@ class OverlayApp:
             load_sprites(REGISTRY)
         self.root.after(0, self._load_bubble_icon)
         self.root.after(0, self._create_hud_win)
-        self.root.after(0, self._setup_tray)
+        try:
+            from cli_avatars.update.tools import probe_tools
+
+            toolchain = probe_tools()
+        except Exception:
+            toolchain = None
+        self.root.after(0, lambda: self._finish_update_probe(toolchain))
 
     def _tick(self):
         self.tick_loop.step()
@@ -218,7 +227,7 @@ class OverlayApp:
         self.root.quit()
 
     def run(self) -> None:
-        print(f"[Dungeon v0.4] overlay {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
+        print(f"[Dungeon v{VERSION}] overlay {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
         print("[Dungeon] Close the window to quit. ESC closes a dock or cancels a drag.")
         self.root.mainloop()
 
@@ -266,6 +275,20 @@ class OverlayApp:
 
     def _bring_all_to_front(self):
         return self._ctrl("hud", HudWindow)._bring_all_to_front()
+
+    def _finish_update_probe(self, toolchain) -> None:
+        from cli_avatars.app.update_ui import apply_probe
+        from cli_avatars.update.machine import Toolchain
+
+        if toolchain is None:
+            toolchain = Toolchain(None, (), False, "Could not check git and PyInstaller")
+        apply_probe(self, toolchain)
+        self._setup_tray()
+
+    def _update_app(self):
+        from cli_avatars.app.update_ui import start_update
+
+        start_update(self)
 
     def _setup_tray(self):
         return setup_tray(self)

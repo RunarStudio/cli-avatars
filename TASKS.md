@@ -40,6 +40,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | WEB | Phone web view: LAN server, pairing, mobile pages |
 | BLDG | Building view: dungeon-kit scene in Tk and on the web |
 | BOOTCHECK | Startup checks on this PC: sprites, config, window, history |
+| INSTALL | Per-user Windows install and the in-app dev update |
 
 ### Types (`[type]`)
 
@@ -75,7 +76,8 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | WEB | 0 | 1 (subtasks 0/4) |
 | BLDG | 1 | 3 (subtasks 0/3) |
 | BOOTCHECK | 1 | 0 |
-| **Total** | 51 | 58 |
+| INSTALL | 3 | 1 |
+| **Total** | 54 | 59 |
 
 ## Boot check
 
@@ -83,6 +85,15 @@ Local startup checks during the first two seconds. The Dungeon stays responsive.
 
 - [x] [BOOTCHECK][feat] BOOTCHECK: Run read-only startup checks within 2.0 s, show `Boot check N/N ok` on the Dungeon status bar, open the list in the Settings dock, and append `bootcheck_history.jsonl` (cap 200) with a trend against the previous run. `desktop.bootcheck` defaults on. `--bootcheck-only` prints the table and exits 0 or 1.
   - Windows check 2026-11-23: 655 pass, `test_bootcheck` 8 ok, selftest ok, `--bootcheck-only` 14/14 in 0.6 s (`dungeon_window` about 610 ms in CLI mode). Live status `Boot check 14/14 ok · 0.0 s · faster`. History has no paths.
+
+## Install and update
+
+Per-user Windows install and an in-app update from `dev`. See `docs/install-and-update.md`. The channel is `dev`. Git uses credentials already configured on the machine. The app does not read or store them.
+
+- [x] [INSTALL][feat] INSTALL-PACK: Onedir PyInstaller spec (`packaging/cli_avatars.spec`), Inno Setup per-user installer (`packaging/installer.iss`, `{localappdata}\Programs\CLI Avatars`, Start menu, optional desktop shortcut), and `tools/build_installer.py`. Version comes from `cli_avatars/__version__.py` plus the short commit. App data stays in the existing data directory and is removed on uninstall only when the checkbox is ticked.
+- [x] [INSTALL][feat] INSTALL-UPDATE: `cli_avatars/update/` clones `dev` once under the data directory `src/`, fetches, compares `origin/dev` with the installed commit, and on a fast-forward runs `git pull --ff-only`, selftest, `--bootcheck-only`, and a PyInstaller staging build. A helper swaps the install directory on restart and rolls back to `.old` when the new build fails `--bootcheck-only`. Fixed argv, `shell` false, timeouts, output in `update.log`.
+- [x] [INSTALL][feat] INSTALL-UI: Settings dock shows version, commit, last checked, and Update app. The tray has the same item. Progress is on the status bar. The button is disabled, with a reason, when git or PyInstaller is missing. The boot-check status line includes the version and commit; history already stores both.
+- [ ] [INSTALL][chore] INSTALL-WIN: On SpiderHost, build from a temp clone and install only into a temp directory (`/DIR` plus `CLI_AVATARS_DATA_DIR`). Do not install into the real Programs folder unless that run is separate. Needs PyInstaller (`requirements-build.txt`) and Inno Setup 6.6 or newer (`ISCC`) on that machine, and git on `PATH` before Update app enables. The frozen status line should show the short commit from `version.json`.
 
 ## 📦 Portable Windows build
 

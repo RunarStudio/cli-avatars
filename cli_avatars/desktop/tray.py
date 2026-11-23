@@ -39,6 +39,13 @@ def _setup_tray(self):
             items.append(pystray.MenuItem(
                 "Call home", lambda icon, item: self.root.after(0, self._call_home),
             ))
+        reason = getattr(self, "_update_block", "Checking git and PyInstaller")
+        update_label = "Update app" if not reason else "Update app — " + reason
+        items.append(pystray.MenuItem(
+            update_label[:120],
+            lambda icon, item: self.root.after(0, self._update_app),
+            enabled=lambda item: not getattr(self, "_update_block", "x"),
+        ))
         items.append(pystray.Menu.SEPARATOR)
         items.append(pystray.MenuItem("Quit", lambda icon, item: self.root.after(0, self._quit)))
         menu = pystray.Menu(*items)

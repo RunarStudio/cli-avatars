@@ -74,13 +74,13 @@ class TestImportSurface(unittest.TestCase):
     def test_package_root_imports_nothing_heavy(self):
         import cli_avatars
 
-        self.assertEqual(cli_avatars.VERSION, "0.4")
+        self.assertEqual(cli_avatars.VERSION, "0.4.0")
         self.assertFalse(hasattr(cli_avatars, "build_tree"))
         parsed = ast.parse(Path(cli_avatars.__file__).read_text(encoding="utf-8"))
-        self.assertEqual(
-            [node for node in parsed.body if isinstance(node, (ast.Import, ast.ImportFrom))],
-            [],
-        )
+        imports = [node for node in parsed.body if isinstance(node, (ast.Import, ast.ImportFrom))]
+        self.assertEqual(len(imports), 1)
+        self.assertIsInstance(imports[0], ast.ImportFrom)
+        self.assertEqual(imports[0].module, "cli_avatars.__version__")
 
     def test_tree_source_has_no_gui_process_or_network(self):
         import cli_avatars.model.tree as tree

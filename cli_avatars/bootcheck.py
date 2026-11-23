@@ -283,9 +283,16 @@ def compare_runs(current: BootReport, previous: BootReport | None) -> Trend:
 
 
 def status_line(report: BootReport, trend: Trend) -> str:
-    """One status-bar line, for example ``Boot check 14/15 ok · 1.3 s``."""
+    """One status-bar line.
+
+    Example: ``Boot check 14/15 ok · 1.3 s · 0.4.0 abc1234``.
+    The version and commit are the same fields stored in the history file.
+    """
     seconds = report.total_ms / 1000.0
     text = f"Boot check {report.passed}/{report.total} ok · {seconds:.1f} s"
+    ident = " ".join(part for part in (report.version, report.commit) if part)
+    if ident:
+        text += " · " + ident
     bits: list[str] = []
     if trend.pass_delta is not None and trend.pass_delta != 0:
         count = trend.pass_delta
