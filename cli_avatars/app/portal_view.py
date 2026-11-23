@@ -20,16 +20,18 @@ else:
     _ImageTk = None
 
 
-def _draw_portal(self: Any, floors, floor_hwnds) -> None:
+def _draw_portal(self: Any, floors, floor_hwnds, now: float | None = None) -> None:
     """One portal on the meeting surface, behind the avatars."""
     ids = list(getattr(self, "_portal_items", None) or [])
     if not HAS_PIL or _ImageTk is None:
         self._portal_items = sync_images(self.canvas, ids, [])
         self._portal_sig = None
         return
+    if now is None:
+        now = time.time()
     try:
         stage = self._meeting_stage(floors, floor_hwnds)
-        view = self._portal.advance(self.scanner.meetings.mark(stage), time.time())
+        view = self._portal.advance(self.scanner.meetings.mark(stage), now)
     except Exception:
         logging.getLogger("cli_avatars.portal").exception("portal draw failed")
         self._portal_items = sync_images(self.canvas, ids, [])
@@ -66,4 +68,6 @@ class PortalView:
         self.app = app
 
     def step(self, frame: Any) -> None:
-        return _draw_portal(self.app, frame.floors, frame.floor_hwnds)
+        return _draw_portal(
+            self.app, frame.floors, frame.floor_hwnds, getattr(frame, "now", None),
+        )

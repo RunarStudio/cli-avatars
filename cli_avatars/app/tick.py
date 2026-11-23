@@ -36,6 +36,8 @@ class Frame:
         self.moves = moves
         self.origins = {}
         self.steers = {}
+        # One clock for the portal and the talk bubbles on this tick.
+        self.now = time.time()
 
 
 class TickLoop:

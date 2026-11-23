@@ -3,6 +3,10 @@
 The draw runs in a child process. A missing ``time`` import is swallowed
 inside the view and used to log a failure, so this test requires the
 canvas items. The parent interpreter does not import tkinter.
+
+The queue and both draws share one timestamp. A second ``time.time()``
+inside the view used to be able to disagree with the queued bubble, and
+the canvas is realized before the items are counted.
 """
 
 import subprocess
@@ -22,6 +26,17 @@ try:
     import tkinter as tk
 except ImportError:
     raise SystemExit(77)
+try:
+    root = tk.Tk()
+except tk.TclError:
+    raise SystemExit(77)
+# Realize the canvas before the views import ImageTk and draw. A withdrawn
+# root with no managed canvas can report zero items on some Tk builds.
+root.geometry("+20000+20000")
+canvas = tk.Canvas(root, width=640, height=480, highlightthickness=0)
+canvas.pack()
+root.update_idletasks()
+root.withdraw()
 
 from bubbles import BubbleBoard
 from portal import PortalPlayer
@@ -32,16 +47,12 @@ from cli_avatars.desktop.capabilities import HAS_PIL
 
 if not HAS_PIL:
     raise SystemExit(77)
-try:
-    root = tk.Tk()
-except tk.TclError:
-    raise SystemExit(77)
-root.withdraw()
-canvas = tk.Canvas(root, width=640, height=480, highlightthickness=0)
-import time
-now = time.time()
+
+# Fixed clock: the bubble is queued at this instant and both draws use it.
+# Do not call time.time() again between the queue and the canvas count.
+NOW = 1_700_000_000.0
 board = BubbleBoard()
-if not board.queue.push("alpha", "speech", now):
+if not board.queue.push("alpha", "speech", NOW):
     raise SystemExit("bubble was not queued")
 mark = SimpleNamespace(phase="WALK_TO", pair=("alpha", "beta"), x=180.0, y=320.0)
 app = SimpleNamespace(
@@ -57,8 +68,13 @@ app = SimpleNamespace(
         bubbles=board,
     ),
 )
-_draw_portal(app, [], [])
-_draw_talk_bubbles(app)
+_draw_portal(app, [], [], NOW)
+_draw_talk_bubbles(app, NOW)
+root.update_idletasks()
+# Second pass: an unchanged signature must keep the items already drawn.
+_draw_talk_bubbles(app, NOW)
+_draw_portal(app, [], [], NOW)
+root.update_idletasks()
 portal = len(canvas.find_withtag("portal"))
 bubble = len(canvas.find_withtag("talk_bubble"))
 print(f"portal={portal} bubble={bubble}")
