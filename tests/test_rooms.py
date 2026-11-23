@@ -156,6 +156,7 @@ class TestRoomsModel(unittest.TestCase):
         self.assertEqual(dot_color("busy"), BLUE)
         self.assertEqual(dot_color("thinking"), VIOLET)
         self.assertEqual(dot_color("subagent"), ACCENT)
+        self.assertEqual(dot_color("blocked"), "#FFB000")
         card = build_rooms([
             _row(status="idle", last_seen=NOW - 1),
         ], NOW)[0]

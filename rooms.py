@@ -22,6 +22,7 @@ IDLE = "idle"
 BUSY = "busy"
 THINKING = "thinking"
 SUBAGENT = "subagent"
+BLOCKED = "blocked"
 ERROR = "error"
 
 # More than five minutes idle. Exactly five minutes stays in the active group.
@@ -32,12 +33,14 @@ GREY = "#9a98b8"
 BLUE = "#4488ff"
 VIOLET = "#aa44ff"
 ACCENT = "#ffcf4a"
+AMBER = "#FFB000"
 
 DOT_COLOR = {
     IDLE: GREY,
     BUSY: BLUE,
     THINKING: VIOLET,
     SUBAGENT: ACCENT,
+    BLOCKED: AMBER,
 }
 
 ROOMS_KEY = "rooms"

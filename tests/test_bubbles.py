@@ -325,5 +325,20 @@ class TestArt(unittest.TestCase):
         self.assertEqual(icons.size, (9 * len(bubbles.ICON_CELLS), 9))
 
 
+class TestBlockedMark(unittest.TestCase):
+    def test_badge_is_amber_and_sits_above_the_cell(self):
+        from bubbles import BLOCKED_AMBER, blocked_indicator, place_blocked_mark
+        image = blocked_indicator(1)
+        self.assertEqual(image.size, (9, 9))
+        self.assertEqual(image.getpixel((2, 4)), (255, 176, 0, 255))
+        self.assertEqual(BLOCKED_AMBER, "#FFB000")
+        for width, height in ((40, 40), (32, 32)):
+            box = (8, 30, width, height)
+            x, y, mark_w, mark_h = place_blocked_mark(box, 1)
+            self.assertEqual((box[2], box[3]), (width, height))
+            self.assertEqual((x, mark_w, mark_h), (8, 9, 9))
+            self.assertLessEqual(y + mark_h, 30)
+
+
 if __name__ == "__main__":
     unittest.main()

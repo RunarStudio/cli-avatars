@@ -2,8 +2,9 @@
 
 The overlay draws these lines in the status panel and keeps the talks row
 as its own label. One row per source that has sessions, for example
-``Claude 3 | busy 1 thinking 1 idle 1 | sub 2``. A total line above them
-counts subagents from every source.
+``Claude 3 | blocked 0 busy 1 thinking 1 idle 1 | sub 2``. A total line
+above them counts subagents from every source. ``blocked`` is a session
+waiting on a decision, a permission prompt, or a reply.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Iterable, Mapping, Sequence
 
+BLOCKED = "blocked"
 BUSY = "busy"
 THINKING = "thinking"
 IDLE = "idle"
@@ -35,6 +37,7 @@ class SourceCounts:
 
     source: str
     sessions: int
+    blocked: int
     busy: int
     thinking: int
     idle: int
@@ -71,7 +74,7 @@ def status_row_style(line: str, *, waiting: bool = False) -> tuple[str, str]:
 def format_source_row(row: SourceCounts) -> str:
     return (
         f"{source_label(row.source)} {row.sessions} | "
-        f"busy {row.busy} thinking {row.thinking} idle {row.idle} | "
+        f"blocked {row.blocked} busy {row.busy} thinking {row.thinking} idle {row.idle} | "
         f"sub {row.subagents}"
     )
 
@@ -84,13 +87,14 @@ def format_total_row(rows: Sequence[SourceCounts]) -> str:
     shows its own ``sub`` count.
     """
     sessions = sum(row.sessions for row in rows)
+    blocked = sum(row.blocked for row in rows)
     busy = sum(row.busy for row in rows)
     thinking = sum(row.thinking for row in rows)
     idle = sum(row.idle for row in rows)
     subs = sum(row.subagents for row in rows)
     return (
         f"Total {sessions + subs} | "
-        f"busy {busy} thinking {thinking} idle {idle} | "
+        f"blocked {blocked} busy {busy} thinking {thinking} idle {idle} | "
         f"sub {subs}"
     )
 
@@ -143,6 +147,7 @@ def tally_sources(agents: Iterable | Mapping) -> list[SourceCounts]:
     def bucket(source: str) -> dict[str, int]:
         return buckets.setdefault(source, {
             "sessions": 0,
+            "blocked": 0,
             "busy": 0,
             "thinking": 0,
             "idle": 0,
@@ -160,7 +165,7 @@ def tally_sources(agents: Iterable | Mapping) -> list[SourceCounts]:
         data = bucket(source)
         data["sessions"] += 1
         status = getattr(agent, "status", "")
-        if status in (BUSY, THINKING, IDLE):
+        if status in (BLOCKED, BUSY, THINKING, IDLE):
             data[status] += 1
         data["subagents"] += _as_int(getattr(agent, "subagents", 0))
 
@@ -189,7 +194,7 @@ def hud_status_lines(agents: Iterable | Mapping) -> list[str]:
 def mixed_sessions() -> list[SimpleNamespace]:
     """Six live sessions used by the unit test and the preview image.
 
-    Claude matches the row ``Claude 3 | busy 1 thinking 1 idle 1 | sub 2``.
+    Claude matches the row ``Claude 3 | blocked 0 busy 1 thinking 1 idle 1 | sub 2``.
     Grok and emit are the other sources. The demo row must not change the counts.
     """
     def row(agent_id: str, source: str, status: str, subagents: int = 0, *, is_demo: bool = False):
