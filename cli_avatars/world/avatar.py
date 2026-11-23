@@ -415,6 +415,9 @@ class Avatar:
                 parts.append(f"→{self.agent.tool[:10]}")
             if self.agent.subagents > 0:
                 parts.append(f"⚡{self.agent.subagents}")
+            line = getattr(self.agent, "status_line", "")
+            if isinstance(line, str) and line:
+                parts.append(line[:32])
             label = "\n".join(parts)
         fill = "#7799cc" if (self.agent.is_demo or self.spring_mode) else "white"
         dash = (4, 2) if (self.agent.is_demo or self.spring_mode) else ()

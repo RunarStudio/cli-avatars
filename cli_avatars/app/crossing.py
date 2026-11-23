@@ -158,7 +158,7 @@ def _start_escapes(book, agents, now: float) -> None:
         if actor.where != INSIDE or aid in book._cross:
             continue
         agent = agents.get(aid)
-        if agent is None:
+        if agent is None or getattr(agent, "source", "") == "bot":
             continue
         nxt = rule_escape(actor, door, agent.status)
         if nxt.where != ESCAPING:
@@ -267,9 +267,7 @@ def _leave_overlay(book, av, aid: str) -> None:
 def _return_points(book, av, aid: str) -> tuple[tuple[float, float], tuple[float, float]]:
     door = _door_top(book, av)
     ids = sorted(set(book.inside_ids()) | {aid})
-    spots = book._spot_centers(len(ids))
-    index = ids.index(aid)
-    cx, cy = spots[index]
+    cx, cy = book.spot_center(aid, ids)
     return (door, (cx - av.aw / 2.0, cy - av.ah / 2.0))
 
 

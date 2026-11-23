@@ -29,6 +29,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `claude_chat_hooks.py` | Merge chat hooks into Claude `settings.json` |
 | `hooks/claude_chat_hook.py` | Stdlib Claude Code hook (chat context + idle) |
 | `cli_avatars_mcp/` | Local stdio MCP server (`server`, `tools`, `install`, `projects`) |
+| `bots/` | Grok Bot roster and pull-only status (`roster`, `status`, `status_source`, `service`). Files live in the data dir, not in git. |
 | `tools/gen_ponmi.py`, `tools/gen_meowatar_gifs.py`, `tools/gen_subskin_placeholders.py` | Offline sprite / GIF generators (not imported at runtime) |
 
 **Subagent assets:** `Sprites/subagents/manifest.json` lists eight 32×32 placeholder sheets (`imp`, `claude4`, `winged_light`, `cat`, `dog`, `dragon`, `mini_drone`, `little_grok`) with per-skin `mode` (`fly` or `ground`). Each sheet is three rows — idle, working, dying — with four frames. Busy and thinking use working. A missing row falls back to the first row that has frames. Regenerate placeholders with `python tools/gen_subskin_placeholders.py`.
@@ -63,7 +64,7 @@ Before merging a **fix**, also run `python overlay.py --selftest` and start the 
 
 ## TASKS.md and commits
 
-Task lines use: `- [ ] [EPIC][type] ID: description` (or `- [x]` when done). Epics include CHAT, SRC, MCP, OVL, ART, BUILD, WS, DOCS, TAURI; types include feat, fix, art, chore, docs, decision.
+Task lines use: `- [ ] [EPIC][type] ID: description` (or `- [x]` when done). Epics include CHAT, SRC, MCP, OVL, ART, BUILD, WS, DOCS, TAURI, BOTS; types include feat, fix, art, chore, docs, decision.
 
 Cite the task **ID** in commit messages when the change completes or advances that task (e.g. `fix: F4-BUG1 meeting preview child sprite`).
 
@@ -88,5 +89,6 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Building scene | `docs/building-scene.md` |
 | Task board | `docs/board.md` |
 | Room chat | `docs/room-chat.md` |
+| Bot roster and status | `docs/bot-status.md` |
 
 Hooks: install with `python -m cli_avatars_emit hooks install --apply`; do not rely on removed `claude_hooks_example.py`.

@@ -77,7 +77,7 @@ def hue_rotate_image(img: "Image.Image", degrees: float) -> "Image.Image":
     h[mb] = ((r[mb] - g[mb]) / delta[mb]) + 4
     h = (h / 6.0 + degrees / 360.0) % 1.0
 
-    s  = np.where(max_c > 0, delta / max_c, 0.0)
+    s = np.divide(delta, max_c, out=np.zeros_like(delta), where=max_c > 0)
     v  = max_c
     h6 = h * 6.0
     i  = h6.astype(int) % 6

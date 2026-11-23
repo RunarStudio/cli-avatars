@@ -9,6 +9,7 @@ import time
 import tkinter as tk
 from types import SimpleNamespace
 
+from cli_avatars.app.bots_ui import bot_signature, render_bot_sections
 from cli_avatars.desktop.capabilities import HAS_PIL
 from cli_avatars.model.agent import AGENT_STATUS_COLOR as STATUS_COLOR
 from decisions import open_counts_by_room
@@ -214,7 +215,7 @@ def _update_rooms_win(self, force: bool = False) -> None:
     except EventRejected:
         counts = {}
     topic_sig = tuple((name, tuple(row.get("id") for row in rows)) for name, rows in topics)
-    sig = (tuple(cards), topic_sig, tuple(sorted(counts.items())))
+    sig = (tuple(cards), topic_sig, tuple(sorted(counts.items())), bot_signature(self))
     if not force and sig == self._rooms_sig:
         return
     self._rooms_sig = sig
@@ -255,6 +256,7 @@ def _render_topic_groups(self, groups, cards, counts) -> None:
                  font=("Courier", 10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
         for topic in topics:
             self._render_topic_card(parent, topic, int(counts.get(str(topic.get("id")), 0)))
+    render_bot_sections(self, parent)
     tk.Label(parent, text="Orchestrators", bg=bg, fg="#9a98b8",
              font=("Courier", 9), anchor="w").pack(anchor="w", padx=12, pady=(10, 2))
     if not cards:

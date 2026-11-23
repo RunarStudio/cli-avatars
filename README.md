@@ -200,6 +200,8 @@ The chat hook is the same script. A payload that carries Grok's own fields, or a
 
 Until a Grok sprite exists, those avatars use the Caine sheet shifted by `grok.hue` degrees (`200` unless `config.json` says otherwise). `grok.skin` picks the base sheet. The HUD row for Grok uses its own mark and color. Details: [docs/grok-sessions.md](docs/grok-sessions.md).
 
+Grok Bot cloud assistants are a separate list. They sit in the Topics dock, grouped by topic, with a status dot. The roster is per-user (`bots/roster.json` in the data directory). Status is pulled from a git branch or a local folder. The app does not open a port for it. Details: [docs/bot-status.md](docs/bot-status.md).
+
 ---
 
 ## Subagent skins

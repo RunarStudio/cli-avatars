@@ -40,6 +40,7 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | WEB | Phone web view: LAN server, pairing, mobile pages |
 | BLDG | Building view: dungeon-kit scene in Tk and on the web |
 | BOOTCHECK | Startup checks on this PC: sprites, config, window, history |
+| BOTS | Grok Bot roster: groups in the Topics dock, pull-only status |
 
 ### Types (`[type]`)
 
@@ -75,7 +76,8 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | WEB | 0 | 1 (subtasks 0/4) |
 | BLDG | 1 | 3 (subtasks 0/3) |
 | BOOTCHECK | 1 | 0 |
-| **Total** | 51 | 58 |
+| BOTS | 5 | 0 |
+| **Total** | 56 | 58 |
 
 ## Boot check
 
@@ -83,6 +85,16 @@ Local startup checks during the first two seconds. The Dungeon stays responsive.
 
 - [x] [BOOTCHECK][feat] BOOTCHECK: Run read-only startup checks within 2.0 s, show `Boot check N/N ok` on the Dungeon status bar, open the list in the Settings dock, and append `bootcheck_history.jsonl` (cap 200) with a trend against the previous run. `desktop.bootcheck` defaults on. `--bootcheck-only` prints the table and exits 0 or 1.
   - Windows check 2026-11-23: 655 pass, `test_bootcheck` 8 ok, selftest ok, `--bootcheck-only` 14/14 in 0.6 s (`dungeon_window` about 610 ms in CLI mode). Live status `Boot check 14/14 ok · 0.0 s · faster`. History has no paths.
+
+## Bots
+
+Grok Bot cloud assistants in the Topics dock, grouped by topic, with pull-only status. The roster stays in the per-user data directory. See `docs/bot-status.md`.
+
+- [x] [BOTS][feat] BOTS.1 @pixel: Roster `bots/roster.json` (groups and bots), id-free example, Settings editing for add, rename, reorder, collapse, assign, and import.
+- [x] [BOTS][feat] BOTS.2 @pixel: Topics dock Bots area. Collapsible groups, 40×40 hue-shifted skins, name, status dot, and Show group in Dungeon. A floor area is used when the floor exposes one; otherwise the group is a cluster.
+- [x] [BOTS][feat] BOTS.3 @pixel: Pull-only `bots/status_source.py`. Git fetch on an interval (minimum 30 s) with fixed argv, `shell=False`, and existing git credentials. Strict status JSON, redaction, stale offline. No listening port.
+- [x] [BOTS][docs] BOTS.4 @pixel: `docs/bot-status.md` file format and the write contract (one small JSON per bot, only on change, at most once per 2 minutes, generic text).
+- [x] [BOTS][feat] BOTS.5 @pixel: Tests for roster schema and migration, grouping, status clamping and staleness, the fetch scheduler, and the no-network fallback.
 
 ## 📦 Portable Windows build
 
