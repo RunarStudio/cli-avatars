@@ -1,9 +1,12 @@
 # Room layout and agent state → dungeon kit
 
-> Ported from Spidey_PR_Dashboard PR #23 by Agents, reviewed 2026-11-23 (PORT-AG1, source commit `e81d155`).
-> Proposal only. Where it disagrees with [`docs/building-scene.md`](../building-scene.md) (BLDG-SCHEMA), BLDG-SCHEMA is the source of truth; see [Differences vs BLDG-SCHEMA](#differences-vs-bldg-schema).
+> Ported from Spidey_PR_Dashboard PR #23 (PORT-AG1, `e81d155`) and updated from PR #27 @ `dbc7374` by Agents.
+> Proposal. Where it disagrees with [`docs/building-scene.md`](../building-scene.md) (BLDG-SCHEMA), BLDG-SCHEMA is the source of truth.
+> The Dungeon centre tab now draws `building/layouts/compact.json` with this kit (`cli_avatars/app/dungeon_rooms.py`).
 
 Proposal for the Building view: one room per orchestrator, built from `Sprites/dungeon_kit/` at 2× integer scale (nearest neighbour). Docs only: no app code changes. Names in the previews are made up.
+
+**Source of truth: BLDG-SCHEMA** ([`docs/building-scene.md`](../building-scene.md)). Where this proposal disagrees with it, BLDG-SCHEMA wins; see [Status vs BLDG-SCHEMA](#status-vs-bldg-schema). The room tables below are now data in `building/layouts/compact.json` (tiling `4`) and `building/layouts/tower.json` (tiling `16`), checked by `tests/test_layouts.py`.
 
 ![one room](room_layout_preview.png)
 
@@ -30,7 +33,7 @@ The tree is orchestrator (depth 0) → agents (depth 1) → subagents (depth 2) 
 
 | Node | Size | Place | Kit pieces |
 |---|---|---|---|
-| Orchestrator | 40×40 | centre of the magic circle, tile (1.5, 1.5) | `o09-circulo-magico.png` at (1, 1); lectern `o10-atril-con-grimorio.png` at (3, 1) |
+| Orchestrator | 40×40 | on the magic circle, at the layout's `circle.spot` (an integer tile) | `o09-circulo-magico.png` at (1, 1); lectern `o10-atril-con-grimorio.png` at (3, 1) |
 | Agent slot S1 | 40×40 | stands (6, 2), desk (6, 1) | `o14-mesa-con-vela.png` |
 | Agent slot S2 | 40×40 | stands (4, 5), desk (3, 5) | `o14-mesa-con-vela.png` |
 | Agent slot S3 | 40×40 | stands (1, 6), desk (1, 5) | `o14-mesa-con-vela.png` |
@@ -42,25 +45,27 @@ Folding rules, so a room never fills with sprites:
 
 | Overflow | Shown as |
 |---|---|
-| Agents 5+ | `+n` pip on the door `b16-puerta-der.png`; listed on click |
-| Subagents 4+ of one agent | `+n` pip on that agent's third subagent |
-| Any node at depth 3+ | counted into the `+n` pip of its depth-2 ancestor; never a sprite |
-| Subagent slot outside the room or taken | folds into the same `+n` pip |
+| Agents past the last desk | 1 each (plus its subtree) on the orchestrator's `badge_more` |
+| Subagents past `sub_spots.max_per_desk` | 1 each (plus its subtree) on the parent agent's `badge_more` |
+| Any node at depth 3+ | counted into `badge_more` of its depth-2 ancestor; never a sprite |
+| Orchestrators with no free slot | `building.more_rooms`; the last slot's plaque shows `+n rooms` |
 
-Labels: orchestrator and agents get a name tag in their state colour; subagents get none.
+The door holds only the `blocked` bars.
+
+Labels: orchestrator and agents get a name tag in their state colour; subagents get none. Name tags, node halos and timings are renderer extras, not schema fields.
 
 ## 3. Agent state → kit
 
-Each node carries its state with three things: a small halo at its feet, a prop next to its slot, and an avatar row. The room light shows the room's worst state: error > blocked > busy > thinking > done > idle.
+Each node carries its state with an avatar row (plus an optional renderer halo). The room shows one prop, chosen from the room state, in its `prop_slots`. The room light shows the room's worst state: error > blocked > busy > thinking > done > idle.
 
 | State | Room light (pool) | Node halo | Flicker (alpha of the light) | Prop | Main row (40×40, `sprite_loader.ANIM_ROW`) | Sub row (32×32, `subskins.STATUS_TO_ROW`) |
 |---|---|---|---|---|---|---|
 | idle | none, torches only | none | steady; dims after 5 min (`rooms.IDLE_AFTER`, `fade_image` 0.55) | `o15-banco.png` | 0 idle | idle |
-| thinking | `b30-luz-azul.png` | `b26` shifted blue | slow pulse, 1.6 s, 60–100 % | `o11-bola-de-cristal.png` | 2 sit | working |
-| busy | `b28-luz-verde.png` | `b26` shifted green | fast flicker, 3 levels at 120 ms | `o12-caldero.png` | 1 run | working |
+| thinking | `b30-luz-azul.png` | `b26` shifted blue | slow pulse, 1.6 s, 60–100 % | none | 2 sit | working |
+| busy | `b28-luz-verde.png` | `b26` shifted green | fast flicker, 3 levels at 120 ms | none | 1 run | working |
 | done | none | none | candle steady, fades with the linger | `o02-cofre.png` | 3 stand | dying, once, then removed |
-| error | `b29-luz-roja.png` | `b26` shifted red | steady; warn icon blinks 500 ms | `o05-calavera.png` + decal `o21-mancha-de-sangre.png` | 3 stand | idle |
-| blocked | `b27-luz-ambar.png` | `b26` as is (amber) | slow pulse, 0.8 s | gate `b21-reja-izq.png` + `b22-reja-der.png` on the slot's two front edges | 0 idle (no row yet) | idle |
+| error | `b29-luz-roja.png` | `b26` shifted red | steady; warn icon blinks 500 ms | `o05-calavera.png` (no blood decal unless `theme.allow_sets` lists `blood`) | 3 stand | idle |
+| blocked | `b27-luz-ambar.png` | `b26` as is (amber) | slow pulse, 0.8 s | one bars piece on `door.at`: `b21-reja-izq.png` or `b22-reja-der.png`, matching `door.side` | 0 idle (no row yet) | idle |
 
 Colours follow the thread's dungeon reading: green works, blue waits, red stopped, amber needs you. The warn icon is the existing `Sprites/talk/icons.png` cell 3 (`rooms.warn_icon`). The node halo is `b26` with a hue shift, the same method as `sprite_loader.hue_rotate_image`, until real small halos exist.
 
@@ -75,11 +80,11 @@ One plaque per room, hung on the back right wall (`b09-muro-der.png`, between th
 | Rooms | Layout at 2× | Fits 1920×1080 |
 |---|---|---|
 | 1 | full 10 × 8 room, as above | yes |
-| 4 | 2 × 2 iso lattice, room origins (0, 0), (11, 0), (0, 9), (11, 9): one empty tile between rooms; drawn back to front by u + v; tag on each room's west corner in its worst-state colour | yes, 1280 × 800 |
-| 16 | 4 × 4 lattice of compact 6 × 5 rooms (orchestrator and desks only, subagents only on the plaque), origins every 7 u and 6 v | yes, about 1600 × 900 |
-| more | same 4 × 4 page, paged by project | yes |
+| 4 | `compact.json`: 2 × 2 rooms of 10 × 8 tiles, 6 desks each, origins (0, 0), (10, 0), (0, 8), (10, 8); front rooms use low walls; drawn back to front by u + v; tag on each room's west corner in its worst-state colour | yes, 1280 × 800 |
+| 16 | `tower.json`: 4 floors of 2 × 2 rooms of 7 × 6 tiles, 3 desks each, `slot = floor * 4 + i`; each floor sits 12 tiles back on x and y so the floors stack on screen without hiding each other; stairs `b20-escalera-der` on floors 0–2 | at 1× |
+| more | no paging: extra orchestrators are counted in `building.more_rooms` | — |
 
-Order: rooms needing the user first (blocked, error), then newest activity, the same order `rooms.build_rooms` already uses for active versus long idle. A click on a room opens it full size; Esc goes back.
+Order: slots are stable by node id; a new orchestrator takes the lowest free slot (`building/scene.py`). A click on a room opens it full size; Esc goes back.
 
 ## 6. Data each element reads
 
@@ -117,31 +122,33 @@ The room only reads and shows. It never executes chat content and never starts a
 
 `room_layout_preview.png`: one room, 1 orchestrator (busy), 3 agents (thinking, blocked, error), 4 subagents (idle, done, busy, and one at depth 3 folded into `+1`), a legend with every state, and the counts plaque. `room_layout_tile4.png`: four rooms, light = worst state. Both are composed from the kit files above, the 50 px avatar sheets cropped to 40×40 (`ember_mage`, `forest_scout`, `frost_wanderer`) and the 32×32 placeholder subagent sheets, at 2× nearest neighbour. Room pools are drawn at 1.6× alpha so they read in a still image.
 
-## Differences vs BLDG-SCHEMA
+## Status vs BLDG-SCHEMA
 
-[`docs/building-scene.md`](../building-scene.md) wins on every point below. Sections refer to the numbered sections above.
+AG-3 answer to each point of upstream's "Differences vs BLDG-SCHEMA" list (`docs/building/ROOM_LAYOUT.md`). **done**: closed here; **theirs**: upstream code owns it, nothing to do in this folder.
 
-| # | Topic | This proposal | BLDG-SCHEMA |
+| # | Topic | Status | Why |
 |---|---|---|---|
-| 1 | Coordinates | Kit `(u, v, z)` with the `INDEX.md` formula (section 1). | Tiles `(x, y, floor)`, integers, room-local plus room `origin`; a floor is `FLOOR_Z = 3` height units. |
-| 2 | Anchor | `INDEX.md` anchors, measured from the top (north) vertex of the tile. | Manifest anchor is the bottom-centre (south vertex) of the footprint: `anchor_manifest = (ax + (w - h) * 16, ay + (w + h) * 8)`; light pieces `(+0, +8)`. |
-| 3 | Orchestrator spot | Tile `(1.5, 1.5)` (section 2). | `circle.spot` is an integer tile. Fractional spots fail validation. |
-| 4 | Room shape | Fixed 10 × 8 room, four agent slots. | Each room comes from a layout file: `size` 4–16 per side, up to 8 `desks`, plus `sub_spots`, `plaque`, `light_points`, `door`, `prop_slots`. The section 1 and 2 tables should be rewritten as a `building/layouts/<name>.json` (task AG-3). |
-| 5 | `span` and `set` | Wall runs and floors listed tile by tile ("u = 1…9"). Object sets are not named. | Use the optional `span: [w, h]` for floors and wall runs. The manifest's optional `set` tags each `o` piece (`dungeon`, `skulls`, `spells`, `tables`, `blood`, ...). A mixed `b01`–`b04` floor needs one entry per tile or per patch, up to the 512-entry `structure` cap. |
-| 6 | Tiling 16 | A 4 × 4 lattice of compact 6 × 5 rooms on one floor, then paging by project (section 5). | `"16"` is a stair building: 4 floors of 2 × 2 rooms, `slot = floor * 4 + i`, optional `stairs`. Tiling `"4"` with origins `(0, 0)`, `(11, 0)`, `(0, 9)`, `(11, 9)` is valid (rooms may not overlap; gaps are allowed). |
-| 7 | Room order and overflow | Rooms that need the user (blocked, error) first, then the newest; extra rooms go to more pages. | Slots are stable by node id: a new orchestrator takes the lowest free slot. Orchestrators with no free slot are counted in `building.more_rooms`, and the last slot's plaque shows `+n rooms`. No paging. |
-| 8 | Agent overflow | Agents 5+ become a `+n` pip on the door. | Agents past the last desk add 1 each (plus their subtree) to the orchestrator's `badge_more`. The door is where the `blocked` bars go. |
-| 9 | Subagent overflow | Subagents 4+ go on the third subagent's pip; three fixed offsets. | Extra subagents add to the parent agent's `badge_more`. `sub_spots` has up to 4 offsets (−3..3) and a `max_per_desk`. Depth 3+ on the depth-2 ancestor matches in both. |
-| 10 | Props | One prop per node, next to its slot; `thinking` gets a crystal ball (`o11`), `busy` a cauldron (`o12`). | One prop per room, chosen from the room state and placed in `prop_slots` (`chest`, `skull`, `bench`). `busy` and `thinking` have no prop. |
-| 11 | `blocked` prop | Gates `b21` and `b22` on the slot's two front edges. | One bars piece (`b21-reja-izq` or `b22-reja-der`, matching `door.side`) on `door.at`. |
-| 12 | `error` decal | Adds `o21-mancha-de-sangre`. | `blood` is excluded by default (decision I). A layout that uses it needs `theme.allow_sets: ["blood"]`, and the scene adds no decals. |
-| 13 | Node halos and name tags | Hue-shifted `b26` halo at each node's feet, plus a name tag in the state colour. | The scene actor has no halo or label field, and `light` is limited to `b27`–`b30` or `null`. Halos and tags are renderer extras, or need a schema version bump. |
-| 14 | Animation timing | Flicker, pulse, and warn-blink timings (section 3). | Out of scope: "Animation timing is not part of this format." |
-| 15 | `blocked` avatar row | Main row 0 (idle). | `sprite_loader.ANIM_ROW["blocked"]` is 3 (stand), with the amber mark telling it apart from `done`. Subagent row is `idle`, the same in both. |
-| 16 | `done` subagent row | "dying, once, then removed". | `subskins.STATUS_TO_ROW["done"]` is `idle`. The dying row plays when the subchat closes, which is overlay behaviour, not a scene state. |
-| 17 | `blocked` state | "needs: a `blocked` status" (section 6), defined as waiting on the user (permission prompt or question). | Already in code: `sessions.BLOCKED` (Claude permission or reply waits, `_line_blocked`), `cli_avatars/model/agent.py`, `events.STATE_SEVERITY`, `ANIM_ROW`, `STATUS_TO_ROW`. The CHAT-BLOCKED task (bus event, HUD, rooms) is still open. BLDG-SCHEMA's meaning is wider: waiting on anything outside the agent, such as a decision or a review. |
-| 18 | Tree and depth | "needs: tree reader" and "needs: computed field" for subagents at depth 2+ and for depth (section 6). | CHAT-TREE now exists in `cli_avatars/model/tree.py`: `build_tree` gives `Node.depth` at any depth, stable opaque node ids (`kind:` plus 16 hex characters), `Tree.worst_state` per subtree, and `Tree.counts`. `building/scene.py` reads the tree, not `SessionInfo.parent_id` chains or `rooms.RoomCard`. |
-| 19 | Counts | Four counts on the plaque (agents, subagents, conversations, open topics); the orchestrator count only in the header. | Room `counts` has five keys: `orchestrators`, `agents`, `subagents`, `conversations`, `open_topics` (`tree.COUNT_KEYS`). Folded nodes are counted. |
-| 20 | Conversations and open topics | Conversations are chat nodes in the room's tree; open topics are matched on `project`. | Conversations are topics with any room node in `members`; open topics are those with status `open` or `waiting_on_user` (`Tree.counts`). |
-| 21 | Room name | `RoomCard.project`, else `RoomCard.name`. | Room `title`: sanitised with `events.sanitize_text`, at most 80 characters, never a path or URL. |
-| 22 | Missing sprites | Five sprites not in the kit (section 7): plaque, four small halos, the `+n` pip, main `error` row 5, main `blocked` row 6. | Plaque text and `+n` are drawn by the renderer, so the schema needs no sprite for them. Halos are not in the schema (row 13). The avatar rows do not change the schema. |
+| 1 | Coordinates | done | Layouts use integer `(x, y, floor)`, room-local plus `origin`. |
+| 2 | Anchor | done | `manifest.json` anchors are the footprint's south vertex: `(ax + (w - h) * 16, ay + (w + h) * 8)`, light pieces `+ (0, 8)`. `INDEX.md` keeps the north-vertex values. |
+| 3 | Orchestrator spot | done | `circle.spot` is an integer tile; the 1.5 spot is gone. |
+| 4 | Room shape | done | Rooms come from `building/layouts/*.json`: `size`, `desks`, `sub_spots`, `plaque`, `light_points`, `door`, `prop_slots`. |
+| 5 | `span` and `set` | done | Floors and wall runs use `span`; every `o` piece has a manifest `set` taken from its `INDEX.md` group. |
+| 6 | Tiling 16 | done | `tower.json`: 4 floors of 2 × 2 rooms, stairs on floors 0–2. |
+| 7 | Room order and overflow | done | Paging dropped; slot positions follow `slot = floor * 4 + i`. Slot assignment and `more_rooms` run in `building/scene.py`. |
+| 8 | Agent overflow | done | Orchestrator `badge_more`; the door holds only the bars. |
+| 9 | Subagent overflow | done | `sub_spots`: 2 offsets, `max_per_desk` 2; extras go to the parent's `badge_more`. |
+| 10 | Props | done | One prop per room in `prop_slots`; none for `busy` and `thinking`. |
+| 11 | `blocked` prop | done | One bars piece matching `door.side`, on `door.at`. |
+| 12 | `error` decal | done | No `blood` or `torture` piece in either layout; no `theme.allow_sets`. |
+| 13 | Node halos and name tags | done | Marked as renderer extras, not schema fields. |
+| 14 | Animation timing | done | Marked as renderer extras, not schema fields. |
+| 15 | `blocked` avatar row | theirs | `sprite_loader.ANIM_ROW` (core module). |
+| 16 | `done` subagent row | theirs | `subskins.STATUS_TO_ROW` and overlay behaviour. |
+| 17 | `blocked` state | theirs | Already in code (`sessions.BLOCKED`, CHAT-BLOCKED). |
+| 18 | Tree and depth | theirs | CHAT-TREE `cli_avatars/model/tree.py`; the scene reads the tree, not `RoomCard`. |
+| 19 | Counts | theirs | `tree.COUNT_KEYS`, five keys. |
+| 20 | Conversations and open topics | theirs | `Tree.counts`. |
+| 21 | Room name | theirs | Scene `title`, sanitised by `events.sanitize_text`. |
+| 22 | Missing sprites | done | AG-2 drew the plaque, halos, `+n` badge, digits and the `error`/`blocked` rows; the schema needs none of them. |
+
+Open outside the 22 points (manifest, not layouts): BLDG-SCHEMA categories are `stairs`, `torch`, `bars`, `stain`, `plaque`, while the kit uses `stair`, `light`, `door`, `decal`, `ui`, `state`, `avatar-row`; wall-hung and light pieces have footprint `[0, 0]` where the schema wants 1–4; avatar rows live in `avatar-rows/`, not a plain file name.

@@ -1,7 +1,9 @@
 """MCP tool bodies. They do not import the MCP SDK.
 
-Reads use the project store, topics, and decisions. The only writes are
-the caller's own status event and one message on a topic channel.
+Reads use the project store, topics, and decisions. Writes are the
+caller's own status event, one message on a topic channel, and project
+records through the same lock and validators the store uses.
+Memories are local notes on a project, searched by substring only.
 Nothing in an argument is executed, imported, or passed to a shell.
 ``directory`` is keyword-only so a client cannot aim the tool at another folder.
 """
@@ -31,10 +33,16 @@ from events import (
 )
 from topics import ensure_topic, list_topics, show_topic, valid_topic_id
 
+from cli_avatars_mcp.memories import add_memory, clean_query, search_memories
 from cli_avatars_mcp.projects import (
+    KV_VALUE_LIMIT,
+    NAME_LIMIT,
+    REQUIREMENTS_LIMIT,
     STATUSES,
     get_project,
     list_projects,
+    save_project,
+    update_project,
     valid_kv_key,
     valid_slug,
 )
@@ -134,6 +142,126 @@ def kv_get(
     if not isinstance(value, str):
         raise EventRejected("schema")
     return {"project": str(record["slug"]), "key": key, "value": value}
+
+
+def project_save(
+    slug: str,
+    name: str,
+    path: str = "",
+    repo_url: str = "",
+    branch: str = "",
+    status: str = "idea",
+    requirements: str = "",
+    key_files: list[str] | None = None,
+    topics: list[str] | None = None,
+    *,
+    directory: Path | str | None = None,
+) -> dict[str, object]:
+    """Create or replace one project. Stored key-values stay.
+
+    ``path`` is not opened, ``repo_url`` is not fetched, and no text is run.
+    """
+    _within(name, NAME_LIMIT)
+    _within(requirements, REQUIREMENTS_LIMIT)
+    return save_project(_directory(directory), {
+        "slug": slug,
+        "name": name,
+        "path": path,
+        "repo_url": repo_url,
+        "branch": branch,
+        "status": status,
+        "requirements": requirements,
+        "key_files": key_files,
+        "topics": topics,
+    }, keep_kv=True)
+
+
+def requirements_set(
+    project: str,
+    text: str,
+    *,
+    directory: Path | str | None = None,
+) -> dict[str, str]:
+    """Replace a project's requirements text. The text is data, not run."""
+    if not isinstance(text, str):
+        raise EventRejected("schema")
+    _within(text, REQUIREMENTS_LIMIT)
+    record = update_project(
+        _directory(directory),
+        project,
+        lambda current: {**current, "requirements": text},
+    )
+    return {"project": str(record["slug"]), "requirements": str(record["requirements"])}
+
+
+def kv_set(
+    project: str,
+    key: str,
+    value: str,
+    *,
+    directory: Path | str | None = None,
+) -> dict[str, str]:
+    """Set one key-value on a project. The value is data. It is not executed."""
+    if not valid_kv_key(key):
+        raise EventRejected("schema")
+    if not isinstance(value, str):
+        raise EventRejected("schema")
+    _within(value, KV_VALUE_LIMIT)
+
+    def change(current: dict[str, object]) -> dict[str, object]:
+        values = dict(current.get("kv") or {})
+        values[key] = value
+        return {**current, "kv": values}
+
+    record = update_project(_directory(directory), project, change)
+    return {"project": str(record["slug"]), "key": key, "value": record["kv"][key]}
+
+
+def kv_delete(
+    project: str,
+    key: str,
+    *,
+    directory: Path | str | None = None,
+) -> dict[str, str]:
+    """Delete one key-value from a project. An absent key is ``missing``."""
+    if not valid_kv_key(key):
+        raise EventRejected("schema")
+
+    def change(current: dict[str, object]) -> dict[str, object]:
+        values = dict(current.get("kv") or {})
+        if key not in values:
+            raise EventRejected("missing")
+        del values[key]
+        return {**current, "kv": values}
+
+    record = update_project(_directory(directory), project, change)
+    return {"project": str(record["slug"]), "key": key, "deleted": "true"}
+
+
+def memories_add(
+    project: str,
+    text: str,
+    *,
+    directory: Path | str | None = None,
+) -> dict[str, object]:
+    """Store one note on a project. The note is data. It is not executed."""
+    return add_memory(_directory(directory), project, text)
+
+
+def memories_search(
+    project: str,
+    query: str,
+    *,
+    directory: Path | str | None = None,
+) -> dict[str, object]:
+    """Notes on a project whose text contains the query. Local match only."""
+    notes = search_memories(_directory(directory), project, query)
+    return {"project": project, "query": clean_query(query), "notes": notes}
+
+
+def _within(value: object, limit: int) -> None:
+    if isinstance(value, str) and len(value) > limit:
+        raise EventRejected("schema")
 
 
 def project_resource(slug: str, *, directory: Path | str | None = None) -> str:

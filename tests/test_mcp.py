@@ -495,9 +495,15 @@ class TestStdio(unittest.TestCase):
                 names = sorted(tool.name for tool in listed.tools)
                 self.assertEqual(names, [
                     "decisions_list",
+                    "kv_delete",
                     "kv_get",
+                    "kv_set",
+                    "memories_add",
+                    "memories_search",
                     "project_get",
+                    "project_save",
                     "projects_list",
+                    "requirements_set",
                     "say",
                     "status_set",
                     "topic_show",

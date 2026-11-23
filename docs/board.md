@@ -20,6 +20,8 @@ One JSON object per card.
 | `labels` | At most 8. Each `^[a-z0-9][a-z0-9_-]{0,31}$`. |
 | `pr` | Optional. `https://github.com/<owner>/<repo>/pull/<n>` only. Any other host, scheme, or userinfo is rejected. **In scope:** Daniel tags a URL here; the app may read that tagged PR only when implemented. **Out of scope (see `README.md` / `TASKS.md` § Scope):** automatic forge, Bitbucket, CI, or review ingestion. |
 | `checklist` | At most 20 `{text, done}`. `text` sanitised, at most 240. |
+| `progress` | Optional int 0–100 (`true` / `50.0` / `"50"` are rejected). `null` means "use the checklist ratio" (`board.model.effective_progress`). |
+| `status_note` | Sanitised, at most 240. The agent's one-line "where I am". Empty by default. |
 | `created`, `updated` | ISO 8601 UTC with `Z`. |
 | `history` | Newest 200 events (below). The full list is in `events.jsonl`. |
 
@@ -39,10 +41,13 @@ Unknown fields are dropped. `token` is never stored.
 | `ts` | ISO 8601 UTC. |
 | `card` | Card UUID, or `null` for a board-level event (a room prompt, see [room-chat.md](room-chat.md)). |
 | `actor` | `daniel`, an agent id, `agent@machine`, or `emit:mcp`. |
-| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`. |
-| `from`, `to` | Optional. Old and new column or assignee. |
+| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`. |
+| `from`, `to` | Optional. Old and new column or assignee; for `progress`, old and new ints 0–100. |
+| `via` | Optional. `mcp`, `hook` or `emit`: the path an agent write came through. Anything else is rejected. |
 | `text` | Optional. Sanitised, at most 2,000. A comment's text lives here. |
 | `notify` | Optional. Up to 8 assignee ids that should get an inbox line for this event. |
+
+A `checklist` event may add `index` (0–19) and `done` (bool). A `status` event carries only `text` (the new status note).
 
 A `prompt` event adds `room`, `target` (`claude`, `grok`, `both`), and `outcome` (`ok`, `error`, `stopped`, `timeout`). It does not copy the prompt text; that is already on the topic channel.
 
@@ -54,6 +59,7 @@ One interface, two stores. The CLI, MCP tools, web API, and chat window call the
 list(project, column?, assignee?) -> [card]
 get(card_id) -> card | None
 put(card) -> card            # validates, sets updated, appends an event
+update(card_id, change) -> card   # LocalStore: read, change(card), write inside one lock; None = no-op
 append_event(event)
 sync() -> result             # GitStore only; LocalStore returns "local"
 ```

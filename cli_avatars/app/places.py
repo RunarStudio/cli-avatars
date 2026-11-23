@@ -417,12 +417,15 @@ class PlaceBook:
 
     def _paint_inside(self, scene, aid, spot, photos, dragging, now, posed: bool) -> None:
         from cli_avatars.app.crossing import pose
+        from cli_avatars.app.dungeon_rooms import rooms_scale
+        from cli_avatars.app.room_fit import fit_inside
 
         av = self.app._inside.get(aid)
         if av is None:
             return
         av.monitor_layout = None
         av._board = None
+        photos = fit_inside(av, photos, rooms_scale(scene))
         shown = pose(self, aid, now) if posed else None
         if shown is not None:
             av.x, av.y = shown.x, shown.y
@@ -444,13 +447,15 @@ class PlaceBook:
         count = getattr(av.agent, "subagents", 0)
         if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
             return
-        count = min(count, 8)
+        from cli_avatars.app.room_fit import child_size
+
+        count, size = min(count, 8), child_size(av, _CHILD_SIZE)
         for index in range(count):
-            left = av.x + av.aw + 6 + index * (_CHILD_SIZE + 4)
-            top = av.y + av.ah - _CHILD_SIZE
+            left = av.x + av.aw + 6 + index * (size + 4)
+            top = av.y + av.ah - size
             try:
                 scene.create_rectangle(
-                    left, top, left + _CHILD_SIZE, top + _CHILD_SIZE,
+                    left, top, left + size, top + size,
                     fill=_CHILD[index], outline=_CHILD[index], tags=("inside-sub",),
                 )
             except Exception:

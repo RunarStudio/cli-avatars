@@ -1,0 +1,1282 @@
+{
+  "pieces": {
+    "b01-losa": {
+      "anchor": [
+        16,
+        16
+      ],
+      "category": "floor",
+      "file": "b01-losa.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        33,
+        24
+      ],
+      "x4": "4x/b01-losa.png"
+    },
+    "b02-losa-clara": {
+      "anchor": [
+        16,
+        16
+      ],
+      "category": "floor",
+      "file": "b02-losa-clara.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        33,
+        24
+      ],
+      "x4": "4x/b02-losa-clara.png"
+    },
+    "b03-losa-oscura": {
+      "anchor": [
+        16,
+        16
+      ],
+      "category": "floor",
+      "file": "b03-losa-oscura.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        33,
+        24
+      ],
+      "x4": "4x/b03-losa-oscura.png"
+    },
+    "b04-losa-agrietada": {
+      "anchor": [
+        16,
+        16
+      ],
+      "category": "floor",
+      "file": "b04-losa-agrietada.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        33,
+        24
+      ],
+      "x4": "4x/b04-losa-agrietada.png"
+    },
+    "b05-losa-rejilla": {
+      "anchor": [
+        16,
+        16
+      ],
+      "category": "floor",
+      "file": "b05-losa-rejilla.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        33,
+        24
+      ],
+      "x4": "4x/b05-losa-rejilla.png"
+    },
+    "b06-roca": {
+      "anchor": [
+        16,
+        8
+      ],
+      "category": "floor",
+      "file": "b06-roca.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        32,
+        30
+      ],
+      "x4": "4x/b06-roca.png"
+    },
+    "b07-roca-honda": {
+      "anchor": [
+        16,
+        -6
+      ],
+      "category": "floor",
+      "file": "b07-roca-honda.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        32,
+        31
+      ],
+      "x4": "4x/b07-roca-honda.png"
+    },
+    "b08-muro-izq": {
+      "anchor": [
+        16,
+        35
+      ],
+      "category": "wall",
+      "file": "b08-muro-izq.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        22,
+        29
+      ],
+      "x4": "4x/b08-muro-izq.png"
+    },
+    "b09-muro-der": {
+      "anchor": [
+        5,
+        35
+      ],
+      "category": "wall",
+      "file": "b09-muro-der.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        21,
+        29
+      ],
+      "x4": "4x/b09-muro-der.png"
+    },
+    "b10-muro-izq-bajo": {
+      "anchor": [
+        16,
+        29
+      ],
+      "category": "wall",
+      "file": "b10-muro-izq-bajo.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        22,
+        23
+      ],
+      "x4": "4x/b10-muro-izq-bajo.png"
+    },
+    "b11-muro-der-bajo": {
+      "anchor": [
+        5,
+        29
+      ],
+      "category": "wall",
+      "file": "b11-muro-der-bajo.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        21,
+        23
+      ],
+      "x4": "4x/b11-muro-der-bajo.png"
+    },
+    "b12-esquina": {
+      "anchor": [
+        16,
+        40
+      ],
+      "category": "wall",
+      "file": "b12-esquina.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        32,
+        34
+      ],
+      "x4": "4x/b12-esquina.png"
+    },
+    "b13-arco-izq": {
+      "anchor": [
+        16,
+        46
+      ],
+      "category": "door",
+      "file": "b13-arco-izq.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        22,
+        40
+      ],
+      "x4": "4x/b13-arco-izq.png"
+    },
+    "b14-arco-der": {
+      "anchor": [
+        5,
+        46
+      ],
+      "category": "door",
+      "file": "b14-arco-der.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        21,
+        40
+      ],
+      "x4": "4x/b14-arco-der.png"
+    },
+    "b15-puerta-izq": {
+      "anchor": [
+        16,
+        46
+      ],
+      "category": "door",
+      "file": "b15-puerta-izq.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        22,
+        40
+      ],
+      "x4": "4x/b15-puerta-izq.png"
+    },
+    "b16-puerta-der": {
+      "anchor": [
+        5,
+        46
+      ],
+      "category": "door",
+      "file": "b16-puerta-der.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        21,
+        40
+      ],
+      "x4": "4x/b16-puerta-der.png"
+    },
+    "b17-remate-izq": {
+      "anchor": [
+        16,
+        29
+      ],
+      "category": "wall",
+      "file": "b17-remate-izq.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        22,
+        23
+      ],
+      "x4": "4x/b17-remate-izq.png"
+    },
+    "b18-remate-der": {
+      "anchor": [
+        5,
+        29
+      ],
+      "category": "wall",
+      "file": "b18-remate-der.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        21,
+        23
+      ],
+      "x4": "4x/b18-remate-der.png"
+    },
+    "b19-escalera-izq": {
+      "anchor": [
+        16,
+        20
+      ],
+      "category": "stair",
+      "file": "b19-escalera-izq.png",
+      "footprint": [
+        1,
+        2
+      ],
+      "light": false,
+      "size": [
+        49,
+        44
+      ],
+      "x4": "4x/b19-escalera-izq.png"
+    },
+    "b20-escalera-der": {
+      "anchor": [
+        32,
+        20
+      ],
+      "category": "stair",
+      "file": "b20-escalera-der.png",
+      "footprint": [
+        2,
+        1
+      ],
+      "light": false,
+      "size": [
+        49,
+        44
+      ],
+      "x4": "4x/b20-escalera-der.png"
+    },
+    "b21-reja-izq": {
+      "anchor": [
+        16,
+        44
+      ],
+      "category": "door",
+      "file": "b21-reja-izq.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        17,
+        35
+      ],
+      "x4": "4x/b21-reja-izq.png"
+    },
+    "b22-reja-der": {
+      "anchor": [
+        0,
+        44
+      ],
+      "category": "door",
+      "file": "b22-reja-der.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        17,
+        35
+      ],
+      "x4": "4x/b22-reja-der.png"
+    },
+    "b23-antorcha-izq": {
+      "anchor": [
+        3,
+        15
+      ],
+      "category": "light",
+      "file": "b23-antorcha-izq.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        3,
+        7
+      ],
+      "x4": "4x/b23-antorcha-izq.png"
+    },
+    "b24-antorcha-der": {
+      "anchor": [
+        -2,
+        15
+      ],
+      "category": "light",
+      "file": "b24-antorcha-der.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        3,
+        7
+      ],
+      "x4": "4x/b24-antorcha-der.png"
+    },
+    "b25-pilar": {
+      "anchor": [
+        11,
+        43
+      ],
+      "category": "wall",
+      "file": "b25-pilar.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "size": [
+        22,
+        41
+      ],
+      "x4": "4x/b25-pilar.png"
+    },
+    "b26-halo-antorcha": {
+      "anchor": [
+        12,
+        19
+      ],
+      "category": "light",
+      "file": "b26-halo-antorcha.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        25,
+        23
+      ],
+      "x4": "4x/b26-halo-antorcha.png"
+    },
+    "b27-luz-ambar": {
+      "anchor": [
+        92,
+        57
+      ],
+      "category": "light",
+      "file": "b27-luz-ambar.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        185,
+        101
+      ],
+      "x4": "4x/b27-luz-ambar.png"
+    },
+    "b28-luz-verde": {
+      "anchor": [
+        92,
+        57
+      ],
+      "category": "light",
+      "file": "b28-luz-verde.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        185,
+        101
+      ],
+      "x4": "4x/b28-luz-verde.png"
+    },
+    "b29-luz-roja": {
+      "anchor": [
+        92,
+        57
+      ],
+      "category": "light",
+      "file": "b29-luz-roja.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        185,
+        101
+      ],
+      "x4": "4x/b29-luz-roja.png"
+    },
+    "b30-luz-azul": {
+      "anchor": [
+        92,
+        57
+      ],
+      "category": "light",
+      "file": "b30-luz-azul.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        185,
+        101
+      ],
+      "x4": "4x/b30-luz-azul.png"
+    },
+    "b31-placa-recuentos": {
+      "anchor": [
+        17,
+        12
+      ],
+      "category": "ui",
+      "file": "b31-placa-recuentos.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": false,
+      "size": [
+        40,
+        14
+      ],
+      "x4": "4x/b31-placa-recuentos.png"
+    },
+    "b32-halo-verde": {
+      "anchor": [
+        12,
+        19
+      ],
+      "category": "state",
+      "file": "b32-halo-verde.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        25,
+        23
+      ],
+      "x4": "4x/b32-halo-verde.png"
+    },
+    "b33-halo-azul": {
+      "anchor": [
+        12,
+        19
+      ],
+      "category": "state",
+      "file": "b33-halo-azul.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        25,
+        23
+      ],
+      "x4": "4x/b33-halo-azul.png"
+    },
+    "b34-halo-rojo": {
+      "anchor": [
+        12,
+        19
+      ],
+      "category": "state",
+      "file": "b34-halo-rojo.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        25,
+        23
+      ],
+      "x4": "4x/b34-halo-rojo.png"
+    },
+    "b35-halo-ambar": {
+      "anchor": [
+        12,
+        19
+      ],
+      "category": "state",
+      "file": "b35-halo-ambar.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": true,
+      "size": [
+        25,
+        23
+      ],
+      "x4": "4x/b35-halo-ambar.png"
+    },
+    "b36-insignia-mas-n": {
+      "anchor": [
+        6,
+        4
+      ],
+      "category": "ui",
+      "file": "b36-insignia-mas-n.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": false,
+      "size": [
+        12,
+        9
+      ],
+      "x4": "4x/b36-insignia-mas-n.png"
+    },
+    "b37-cifras": {
+      "anchor": [
+        0,
+        0
+      ],
+      "category": "ui",
+      "file": "b37-cifras.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": false,
+      "size": [
+        39,
+        5
+      ],
+      "x4": "4x/b37-cifras.png"
+    },
+    "blocked": {
+      "anchor": [
+        20,
+        39
+      ],
+      "category": "avatar-row",
+      "file": "avatar-rows/blocked.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": false,
+      "size": [
+        160,
+        40
+      ],
+      "x4": "avatar-rows/4x/blocked.png"
+    },
+    "error": {
+      "anchor": [
+        20,
+        39
+      ],
+      "category": "avatar-row",
+      "file": "avatar-rows/error.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": false,
+      "size": [
+        160,
+        40
+      ],
+      "x4": "avatar-rows/4x/error.png"
+    },
+    "o01-jaula-de-hierro": {
+      "anchor": [
+        14,
+        38
+      ],
+      "category": "prop",
+      "file": "o01-jaula-de-hierro.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "dungeon",
+      "size": [
+        28,
+        38
+      ],
+      "x4": "4x/o01-jaula-de-hierro.png"
+    },
+    "o02-cofre": {
+      "anchor": [
+        12,
+        21
+      ],
+      "category": "prop",
+      "file": "o02-cofre.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "dungeon",
+      "size": [
+        24,
+        20
+      ],
+      "x4": "4x/o02-cofre.png"
+    },
+    "o03-grilletes": {
+      "anchor": [
+        1,
+        12
+      ],
+      "category": "prop",
+      "file": "o03-grilletes.png",
+      "footprint": [
+        0,
+        0
+      ],
+      "light": false,
+      "set": "dungeon",
+      "size": [
+        9,
+        17
+      ],
+      "x4": "4x/o03-grilletes.png"
+    },
+    "o04-lecho-de-paja": {
+      "anchor": [
+        28,
+        25
+      ],
+      "category": "prop",
+      "file": "o04-lecho-de-paja.png",
+      "footprint": [
+        2,
+        1
+      ],
+      "light": false,
+      "set": "dungeon",
+      "size": [
+        40,
+        24
+      ],
+      "x4": "4x/o04-lecho-de-paja.png"
+    },
+    "o05-calavera": {
+      "anchor": [
+        7,
+        16
+      ],
+      "category": "prop",
+      "file": "o05-calavera.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "skulls",
+      "size": [
+        14,
+        11
+      ],
+      "x4": "4x/o05-calavera.png"
+    },
+    "o06-pila-de-calaveras": {
+      "anchor": [
+        13,
+        22
+      ],
+      "category": "prop",
+      "file": "o06-pila-de-calaveras.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "skulls",
+      "size": [
+        25,
+        21
+      ],
+      "x4": "4x/o06-pila-de-calaveras.png"
+    },
+    "o07-huesos-cruzados": {
+      "anchor": [
+        8,
+        16
+      ],
+      "category": "prop",
+      "file": "o07-huesos-cruzados.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "skulls",
+      "size": [
+        16,
+        12
+      ],
+      "x4": "4x/o07-huesos-cruzados.png"
+    },
+    "o08-calavera-con-vela": {
+      "anchor": [
+        7,
+        21
+      ],
+      "category": "prop",
+      "file": "o08-calavera-con-vela.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "skulls",
+      "size": [
+        14,
+        16
+      ],
+      "x4": "4x/o08-calavera-con-vela.png"
+    },
+    "o09-circulo-magico": {
+      "anchor": [
+        21,
+        27
+      ],
+      "category": "prop",
+      "file": "o09-circulo-magico.png",
+      "footprint": [
+        2,
+        2
+      ],
+      "light": true,
+      "set": "spells",
+      "size": [
+        42,
+        22
+      ],
+      "x4": "4x/o09-circulo-magico.png"
+    },
+    "o10-atril-con-grimorio": {
+      "anchor": [
+        9,
+        32
+      ],
+      "category": "prop",
+      "file": "o10-atril-con-grimorio.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "spells",
+      "size": [
+        18,
+        30
+      ],
+      "x4": "4x/o10-atril-con-grimorio.png"
+    },
+    "o11-bola-de-cristal": {
+      "anchor": [
+        9,
+        22
+      ],
+      "category": "prop",
+      "file": "o11-bola-de-cristal.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "spells",
+      "size": [
+        18,
+        20
+      ],
+      "x4": "4x/o11-bola-de-cristal.png"
+    },
+    "o12-caldero": {
+      "anchor": [
+        13,
+        20
+      ],
+      "category": "prop",
+      "file": "o12-caldero.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "spells",
+      "size": [
+        23,
+        18
+      ],
+      "x4": "4x/o12-caldero.png"
+    },
+    "o13-mesa-larga": {
+      "anchor": [
+        30,
+        32
+      ],
+      "category": "prop",
+      "file": "o13-mesa-larga.png",
+      "footprint": [
+        2,
+        1
+      ],
+      "light": true,
+      "set": "tables",
+      "size": [
+        45,
+        32
+      ],
+      "x4": "4x/o13-mesa-larga.png"
+    },
+    "o14-mesa-con-vela": {
+      "anchor": [
+        11,
+        22
+      ],
+      "category": "prop",
+      "file": "o14-mesa-con-vela.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "tables",
+      "size": [
+        23,
+        20
+      ],
+      "x4": "4x/o14-mesa-con-vela.png"
+    },
+    "o15-banco": {
+      "anchor": [
+        26,
+        26
+      ],
+      "category": "prop",
+      "file": "o15-banco.png",
+      "footprint": [
+        2,
+        1
+      ],
+      "light": false,
+      "set": "tables",
+      "size": [
+        37,
+        24
+      ],
+      "x4": "4x/o15-banco.png"
+    },
+    "o16-estanteria": {
+      "anchor": [
+        10,
+        38
+      ],
+      "category": "prop",
+      "file": "o16-estanteria.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "tables",
+      "size": [
+        22,
+        36
+      ],
+      "x4": "4x/o16-estanteria.png"
+    },
+    "o17-potro": {
+      "anchor": [
+        30,
+        33
+      ],
+      "category": "prop",
+      "file": "o17-potro.png",
+      "footprint": [
+        2,
+        1
+      ],
+      "light": false,
+      "set": "torture",
+      "size": [
+        44,
+        33
+      ],
+      "x4": "4x/o17-potro.png"
+    },
+    "o18-cepo": {
+      "anchor": [
+        12,
+        31
+      ],
+      "category": "prop",
+      "file": "o18-cepo.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "torture",
+      "size": [
+        23,
+        30
+      ],
+      "x4": "4x/o18-cepo.png"
+    },
+    "o19-doncella-de-hierro": {
+      "anchor": [
+        11,
+        39
+      ],
+      "category": "prop",
+      "file": "o19-doncella-de-hierro.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "torture",
+      "size": [
+        22,
+        37
+      ],
+      "x4": "4x/o19-doncella-de-hierro.png"
+    },
+    "o20-brasero": {
+      "anchor": [
+        10,
+        26
+      ],
+      "category": "prop",
+      "file": "o20-brasero.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "torture",
+      "size": [
+        21,
+        23
+      ],
+      "x4": "4x/o20-brasero.png"
+    },
+    "o21-mancha-de-sangre": {
+      "anchor": [
+        10,
+        10
+      ],
+      "category": "decal",
+      "file": "o21-mancha-de-sangre.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "blood",
+      "size": [
+        19,
+        6
+      ],
+      "x4": "4x/o21-mancha-de-sangre.png"
+    },
+    "o22-charco-de-sangre": {
+      "anchor": [
+        21,
+        24
+      ],
+      "category": "decal",
+      "file": "o22-charco-de-sangre.png",
+      "footprint": [
+        2,
+        2
+      ],
+      "light": false,
+      "set": "blood",
+      "size": [
+        41,
+        17
+      ],
+      "x4": "4x/o22-charco-de-sangre.png"
+    },
+    "o23-rastro-de-sangre": {
+      "anchor": [
+        25,
+        20
+      ],
+      "category": "decal",
+      "file": "o23-rastro-de-sangre.png",
+      "footprint": [
+        2,
+        1
+      ],
+      "light": false,
+      "set": "blood",
+      "size": [
+        31,
+        16
+      ],
+      "x4": "4x/o23-rastro-de-sangre.png"
+    },
+    "o24-barril": {
+      "anchor": [
+        10,
+        18
+      ],
+      "category": "prop",
+      "file": "o24-barril.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "barrels",
+      "size": [
+        19,
+        15
+      ],
+      "x4": "4x/o24-barril.png"
+    },
+    "o25-barril-tumbado": {
+      "anchor": [
+        12,
+        14
+      ],
+      "category": "prop",
+      "file": "o25-barril-tumbado.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "barrels",
+      "size": [
+        22,
+        12
+      ],
+      "x4": "4x/o25-barril-tumbado.png"
+    },
+    "o26-pila-de-barriles": {
+      "anchor": [
+        15,
+        29
+      ],
+      "category": "prop",
+      "file": "o26-pila-de-barriles.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "barrels",
+      "size": [
+        28,
+        29
+      ],
+      "x4": "4x/o26-pila-de-barriles.png"
+    },
+    "o27-caja-de-madera": {
+      "anchor": [
+        12,
+        23
+      ],
+      "category": "prop",
+      "file": "o27-caja-de-madera.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": false,
+      "set": "barrels",
+      "size": [
+        24,
+        22
+      ],
+      "x4": "4x/o27-caja-de-madera.png"
+    },
+    "o28-frasco-rojo": {
+      "anchor": [
+        6,
+        16
+      ],
+      "category": "prop",
+      "file": "o28-frasco-rojo.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "potions",
+      "size": [
+        12,
+        11
+      ],
+      "x4": "4x/o28-frasco-rojo.png"
+    },
+    "o29-botella-azul": {
+      "anchor": [
+        5,
+        17
+      ],
+      "category": "prop",
+      "file": "o29-botella-azul.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "potions",
+      "size": [
+        10,
+        11
+      ],
+      "x4": "4x/o29-botella-azul.png"
+    },
+    "o30-estante-de-pociones": {
+      "anchor": [
+        10,
+        31
+      ],
+      "category": "prop",
+      "file": "o30-estante-de-pociones.png",
+      "footprint": [
+        1,
+        1
+      ],
+      "light": true,
+      "set": "potions",
+      "size": [
+        22,
+        29
+      ],
+      "x4": "4x/o30-estante-de-pociones.png"
+    }
+  },
+  "schema_version": 1,
+  "tile": [
+    32,
+    16
+  ],
+  "version": 1
+}
