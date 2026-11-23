@@ -106,9 +106,32 @@ class InputController:
             if av.x <= x <= av.x + av.aw and av.y <= y <= av.y + av.ah:
                 app._glitches.append(GlitchFlash(
                     app.canvas, int(av.x), int(av.y), av.aw, av.ah, pink=False))
+                if av in app.avatars.values():
+                    self._home_menu(event, av)
+                    return
                 app._focus_linked_console(av.agent.pid)
                 return
         # Empty space does not quit. Quit is the window button, the tray, or the menu.
+
+    def _home_menu(self, event, av) -> None:
+        """Go home for this desktop avatar. A menu is not a new top-level window."""
+        import tkinter as tk
+
+        app = self.app
+        menu = tk.Menu(app.root, tearoff=0)
+        menu.add_command(label="Go home", command=lambda: _go_home(app, av.agent.agent_id))
+        menu.add_command(
+            label="Focus console", command=lambda: app._focus_linked_console(av.agent.pid),
+        )
+        try:
+            menu.tk_popup(int(event.x_root), int(event.y_root))
+        except tk.TclError:
+            app._focus_linked_console(av.agent.pid)
+        finally:
+            try:
+                menu.grab_release()
+            except tk.TclError:
+                pass
 
     def on_scene_press(self, event: object) -> None:
         app = self.app
@@ -192,3 +215,9 @@ class InputController:
         dragged.vx = max(-max_v, min(dx * THROW_SCALE, max_v))
         dragged.vy = max(-max_v, min(dy * THROW_SCALE, max_v))
         app._drag_av = None
+
+
+def _go_home(app, aid: str) -> None:
+    book = getattr(app, "places", None)
+    if book is not None:
+        book.go_home(aid)

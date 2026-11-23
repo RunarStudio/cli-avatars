@@ -54,6 +54,16 @@ def dungeon_prefs(config: object) -> DungeonPrefs:
     )
 
 
+def config_with_door(config: object, door: str) -> dict:
+    """Copy ``config`` and set ``dungeon.door``. The input is not changed."""
+    data = dict(config) if isinstance(config, dict) else {}
+    block = data.get("dungeon")
+    copied = dict(block) if isinstance(block, dict) else {}
+    copied["door"] = "closed" if door == "closed" else "open"
+    data["dungeon"] = copied
+    return data
+
+
 def config_with_topmost(config: object, topmost: bool) -> dict:
     """Copy ``config`` and set ``dungeon.topmost``. The input is not changed."""
     data = dict(config) if isinstance(config, dict) else {}

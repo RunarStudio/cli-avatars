@@ -111,6 +111,10 @@ def _toolbar(view, root) -> None:
     app._rooms_btn.pack(side="left", padx=4, pady=4)
     app._chat_btn = _btn(bar, text="Chat", command=app._toggle_chat)
     app._chat_btn.pack(side="left", padx=4, pady=4)
+    view._door_btn = _btn(bar, text="Door: open", command=lambda: _toggle_door(app))
+    view._door_btn.pack(side="left", padx=4, pady=4)
+    view._home_btn = _btn(bar, text="Call home", command=lambda: _call_home(app))
+    view._home_btn.pack(side="left", padx=4, pady=4)
     menu = tk.Menu(bar, tearoff=0, bg=_BAR, fg=_INK)
     menu.add_command(label="Quit", command=app._quit)
     tk.Menubutton(
@@ -161,6 +165,18 @@ def _body(view, root) -> None:
     view._sash_r.bind("<B1-Motion>", lambda e: view.drag_dock(view._right, e, 200, 720))
     repack(view)
     show_center(view, "dungeon")
+
+
+def _toggle_door(app) -> None:
+    book = getattr(app, "places", None)
+    if book is not None:
+        book.toggle_door()
+
+
+def _call_home(app) -> None:
+    book = getattr(app, "places", None)
+    if book is not None:
+        book.call_everyone()
 
 
 def _btn(parent, text, command):

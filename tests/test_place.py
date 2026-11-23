@@ -1,8 +1,7 @@
 """Place transitions, the scene map, occlusion, and avatar_places.json.
 
-No Tk. The crossing animation and the door button are WIN-DUNGEON.6, so the
-tick does not call rule escape, idle return, or Call home. These tests lock
-the transitions those controls will use.
+No Tk. The door, Call home, and the idle walk run on the place book.
+The tick module does not own those names. Hot-unplug still parks.
 """
 
 import json
@@ -109,7 +108,7 @@ class PlaceTransitionTests(unittest.TestCase):
         dragged = portal_done(drag_out(new_actor("root")))
         self.assertIs(rule_clear(dragged, "idle"), dragged)
 
-    def test_monitor_loss_call_home_and_idle_are_returns_and_are_not_wired(self):
+    def test_unplug_still_parks_and_the_tick_does_not_own_the_door(self):
         out = portal_done(drag_out(new_actor("root")))
         self.assertEqual(monitor_removed(out).cause, "monitor")
         self.assertEqual(call_home(out).cause, "call")
@@ -117,15 +116,21 @@ class PlaceTransitionTests(unittest.TestCase):
         child = follow(out, new_actor("child", "root"))
         self.assertEqual(monitor_removed(child).where, "desktop")
         self.assertEqual(call_home(new_actor("root")).where, "inside")
+        import cli_avatars.app.crossing as crossing
         import cli_avatars.app.tick as tick
         import cli_avatars.world.monitors as monitors
 
         source = Path(tick.__file__).read_text(encoding="utf-8")
         park = Path(monitors.__file__).read_text(encoding="utf-8")
+        door = Path(crossing.__file__).read_text(encoding="utf-8")
         self.assertNotIn("call_home", source)
         self.assertNotIn("idle_return", source)
         self.assertNotIn("monitor_removed", source)
         self.assertIn("def park_body", park)
+        self.assertIn("call_home", door)
+        self.assertIn("idle_return", door)
+        self.assertNotIn("monitor_removed", door)
+        self.assertNotIn("def wander", door)
 
     def test_a_child_follows_its_parent_and_does_not_lead(self):
         parent = portal_done(drag_out(new_actor("root")))
@@ -299,13 +304,16 @@ class PlaceBookTests(unittest.TestCase):
             AgentInfo("new_sub_0", "bit", parent_id="new"), 800, 600, 1, registry=None, spring_mode=True,
         )
         app.sub_avatars["new"] = [child]
+        app._bursts = []
         self.assertTrue(book.bring_in(home))
-        self.assertEqual(book._actors["new"].where, "inside")
+        self.assertEqual(book._actors["new"].where, "returning")
         self.assertIn("new", app._inside)
         self.assertNotIn("new", app.avatars)
         self.assertEqual(app.sub_avatars, {})
         self.assertNotIn("new", book._file.spots)
         self.assertFalse(child._dying)
+        book.tick(agents, time.time() + 2)
+        self.assertEqual(book._actors["new"].where, "inside")
 
 
 class _Scene:
