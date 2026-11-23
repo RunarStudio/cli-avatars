@@ -10,7 +10,7 @@ Turn it off with `desktop.bootcheck` set to `false` in `config.json`, or Setting
 
 | Check | What it looks at |
 |-------|------------------|
-| `dungeon_window` | The Dungeon is a framed window, minimum 720×480, with a scene. The CLI flag builds that window off-screen and closes it. |
+| `dungeon_window` | The Dungeon is a framed window, minimum 720×480, with a scene. The CLI flag builds that window off-screen and closes it. On Windows that build takes about 0.6 s. Inside the running app the check only inspects the window that is already up. |
 | `assets` | `caine.png`, `bubble.png`, and the talk frame, tail, and icons are files. |
 | `config` | `config.json` is missing (defaults) or a JSON object. `desktop.bootcheck`, when present, is a boolean. |
 | `skins_manifest` | `Sprites/subagents/manifest.json` parses and each skin is `fly` or `ground`. |
@@ -45,4 +45,4 @@ python overlay.py --bootcheck-only
 python overlay.py
 ```
 
-`--selftest` prints `selftest: ok` and exits 0. `--bootcheck-only` prints the table and exits 0 when every check passed. The Dungeon window should appear at once. Within about two seconds the status line settles. Click it and confirm the list is in Settings, with no second top-level window. Set Boot check off, restart, and confirm the line does not run. The history file is under `%LOCALAPPDATA%\cli-avatars\bootcheck_history.jsonl`.
+`--selftest` prints `selftest: ok` and exits 0. `--bootcheck-only` prints the table and exits 0 when every check passed. On Windows the CLI `dungeon_window` check takes about 0.6 s because it builds a Tk window. The Dungeon window should appear at once. Within about two seconds the status line settles. Click it and confirm the list is in Settings, with no second top-level window. Set Boot check off, restart, and confirm the line does not run. The history file is under `%LOCALAPPDATA%\cli-avatars\bootcheck_history.jsonl`.

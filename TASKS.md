@@ -82,6 +82,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 Local startup checks during the first two seconds. The Dungeon stays responsive. See `docs/bootcheck.md`.
 
 - [x] [BOOTCHECK][feat] BOOTCHECK: Run read-only startup checks within 2.0 s, show `Boot check N/N ok` on the Dungeon status bar, open the list in the Settings dock, and append `bootcheck_history.jsonl` (cap 200) with a trend against the previous run. `desktop.bootcheck` defaults on. `--bootcheck-only` prints the table and exits 0 or 1.
+  - Windows check 2026-11-23: 655 pass, `test_bootcheck` 8 ok, selftest ok, `--bootcheck-only` 14/14 in 0.6 s (`dungeon_window` about 610 ms in CLI mode). Live status `Boot check 14/14 ok · 0.0 s · faster`. History has no paths.
 
 ## 📦 Portable Windows build
 
