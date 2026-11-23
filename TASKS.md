@@ -62,7 +62,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 | Epic | Done | Open |
 |------|------|------|
-| CHAT | 7 | 8 (subtasks 2/13) |
+| CHAT | 7 | 8 (subtasks 3/13) |
 | SRC | 6 | 4 (subtasks 0/3) |
 | MCP | 1 | 3 |
 | OVL | 19 | 8 (subtasks 2/3) |
@@ -568,7 +568,8 @@ See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md)
 - [ ] [CHAT][feat] MEMMAP: Memory map in the left dock: an Obsidian-like graph of which .md files each session reads and how often, with metrics to check memory is optimised. Relative paths only, never content, local only.
   - [x] [CHAT][feat] MEMMAP.1 @pixel: Pure memmap/model.py: path normaliser (relative, outside-root tokens, hashing), kind classifier, record validator, project root finder. Done when tests cover Windows/POSIX/UNC/`..`/drive paths and no absolute path survives. (S)
   - [x] [CHAT][feat] MEMMAP.2 @pixel: Hook capture of PostToolUse Read on *.md/*.mdc, UserPromptSubmit turn markers, SessionStart inferred auto-loads into memmap/<project>/reads.jsonl (lock, caps, rotation, retention, `memmap.enabled`); update docs/claude-hooks.md. Done when fake payload tests show one record per .md Read, no content stored, and the hook stays in budget. (after MEMMAP.1; live check after CLAUDE-HOOK-INSTALL) (S)
-  - [ ] [CHAT][feat] MEMMAP.3 @agents: Aggregator (pure): nodes, co-read and link edges, recency fade, window and topic filters, metrics (reads per task, duplicates, never read, hot large files, token estimate). Done when fixture tests pass and 10,000 records aggregate in < 20 ms. (after MEMMAP.1) (M)
+  - [x] [CHAT][feat] MEMMAP.3 @agents: Aggregator (pure): nodes, co-read and link edges, recency fade, window and topic filters, metrics (reads per task, duplicates, never read, hot large files, token estimate). Done when fixture tests pass and 10,000 records aggregate in < 20 ms. (after MEMMAP.1) (M)
+    - Windows check 2026-11-23 (7be67f3): Budget ok x3, best 14.4–14.9 ms per 10,000 records (budget 20); 669 pass, selftest ok, live ok. Linux best about 8.8 ms.
   - [ ] [CHAT][feat] MEMMAP.4 @agents: Collapsible memory map section under Topics in the left dock: force layout on a worker thread, kind colours, read-count size, hover, click highlight, metrics strip. Done when selftest builds it with fixture data, collapse state survives a relaunch, and draw is ≤ 2 ms. (after MEMMAP.3) (M)
   - [ ] [CHAT][feat] MEMMAP.5 @agents: Per-task memory metrics on the task card and Tasks tab, joined through the registry's task-topic-session links. Done when two cards in two topics get separate counts. (after MEMMAP.3 and TASKBACK.2) (S)
   - [ ] [CHAT][feat] MEMMAP.6 @agents: MemReadSource adapter protocol, Grok adapter, MCP-M3 memories as a virtual node (counts only). Done when a fake Grok payload yields the same record and memory_search stores no query. (after MEMMAP.2, GROK-LOGIN, MCP-M3 port) (S)
