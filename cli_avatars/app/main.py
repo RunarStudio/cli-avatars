@@ -84,6 +84,8 @@ def run_selftest() -> int:
         from chat_window import seed_simulated, simulated_agents
         from events import close_logging
 
+        problems += _selftest_memmap(host)
+
         data = tempfile.TemporaryDirectory()
         try:
             seed_simulated(data.name)
@@ -122,6 +124,34 @@ def run_selftest() -> int:
         return 1
     print("selftest: ok")
     return 0
+
+
+def _selftest_memmap(host) -> list[str]:
+    """Memory map section under Topics, filled from fixture records in a temp data dir."""
+    import tempfile
+    import time
+
+    from cli_avatars.app.memmap_feed import Request
+    from cli_avatars.app.memmap_panel import MemmapPanel
+    from memmap import store
+    from memmap.demo import records
+
+    left = getattr(host.dungeon, "_left", None)
+    topics = getattr(host.dungeon, "_topics", None)
+    if left is None or topics is None:
+        return ["memmap: no left dock"]
+    with tempfile.TemporaryDirectory() as tmp:
+        store.append_records(tmp, "selftest", records(time.time()))
+        panel = MemmapPanel(host, directory=tmp, threaded=False)
+        panel.mount(left, topics)
+        host.root.update_idletasks()
+        result = panel.compute_now(Request(window="today"))
+        if result is None or not result.graph.nodes or not panel._nodes:
+            return ["memmap: panel drew no nodes"]
+        best = min(panel.draw() for _ in range(3))
+        if best > 2.0:
+            return [f"memmap: draw {best:.2f} ms over 2 ms"]
+    return []
 
 
 def main(argv: Optional[list[str]] = None) -> int:

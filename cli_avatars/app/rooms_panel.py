@@ -194,6 +194,9 @@ def _build_rooms_win(self) -> None:
     canvas.bind("<Configure>", _on_canvas)
     canvas.pack(fill="both", expand=True)
     self._bind_rooms_scroll(canvas)
+    from cli_avatars.app.memmap_panel import attach
+
+    attach(self, parent)
 
 
 def _update_rooms_win(self, force: bool = False) -> None:
@@ -445,4 +448,7 @@ class RoomsPanel:
         return _render_orchestrator_dot(self.app, parent, card)
 
     def refresh(self, frame: object = None) -> None:
+        panel = getattr(self.app, "_memmap_panel", None)
+        if panel is not None:
+            panel.refresh()
         return _update_rooms_win(self.app)

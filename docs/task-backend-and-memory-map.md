@@ -422,6 +422,27 @@ The app calls these on a worker thread, never the Tk thread. Measured: 10,000 re
 in about 9 ms on Linux (Windows ran about 1.4× slower). The first call after start is slower
 (about 17 ms) while the timestamp cache fills.
 
+### 4.9 Panel (MEMMAP.4)
+
+| Module | Role |
+|--------|------|
+| `memmap/layout.py` | Fruchterman–Reingold in the unit square, fixed seed. When 80% of the nodes already have a position, those stay put and only new nodes move. |
+| `cli_avatars/app/memmap_feed.py` | Worker-thread side: one `ReadsTail` per project, topic filter from the topic's members, `aggregate`, layout only when the graph's shape changes. |
+| `cli_avatars/app/memmap_view.py` | Labels, tooltip, click text and metric lists (no Tk). |
+| `cli_avatars/app/memmap_panel.py` | The section under Topics in the Dungeon left dock. The Tk thread only draws, at most once a second, and reuses canvas items. |
+| `cli_avatars/app/memmap_store.py` | Panel state (collapsed, expanded, height, window) and node positions. |
+
+Differences from 4.1–4.6:
+
+- Panel state lives in `ui/memmap_layout.json`, not `ui/dungeon_window.json`, so the Dungeon's
+  own store is not touched.
+- At most 120 edges are drawn: link edges first, then co-read edges by weight.
+- The app does not keep a session's project folder yet, so there are no link edges, and "never"
+  shows "—" with a hint. Both need a root from `sessions.py`.
+
+Demo data: `python tools/gen_memmap_demo.py <data dir>`, then start the app with
+`CLI_AVATARS_DATA_DIR=<data dir>`.
+
 ---
 
 ## 5. Increments
