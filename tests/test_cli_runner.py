@@ -300,10 +300,10 @@ class RunnerTest(unittest.TestCase):
         if os.name == "nt":
             names = {name.casefold() for name in names}
             allowed = {name.casefold() for name in allowed}
-            allowed.add("nodefaultcurrentdirectoryinexpath")
+            allowed.add("nodefaultcurrentdirectoryinexepath")
         self.assertTrue(names <= allowed)
         if os.name == "nt":
-            self.assertIn("nodefaultcurrentdirectoryinexpath", names)
+            self.assertIn("nodefaultcurrentdirectoryinexepath", names)
         else:
             self.assertNotIn("NoDefaultCurrentDirectoryInExePath", names)
         for blocked in (
