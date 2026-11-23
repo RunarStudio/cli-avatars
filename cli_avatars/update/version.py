@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 from cli_avatars.__version__ import __version__
@@ -145,11 +146,19 @@ def write_stamp(path: Path, version: str, commit: str) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def frozen_install_dir() -> Path | None:
+    """Folder of a frozen executable. A source checkout has no install folder."""
+    if not getattr(sys, "frozen", False):
+        return None
+    return Path(sys.executable).resolve().parent
+
+
 def running_commit(install_dir: Path | None = None, source_root: Path | None = None) -> str:
     """Commit of the build that is running.
 
-    An installed app prefers ``version.json`` beside the executable, then the
-    stamp bundled by PyInstaller. A source checkout uses git.
+    An installed app prefers ``version.json`` beside the executable, then
+    ``version.json`` inside the PyInstaller folder, then ``build_stamp.json``.
+    A source checkout uses git and does not read a stamp beside the interpreter.
     """
     if install_dir is not None:
         _version, commit = read_stamp(install_dir / STAMP_NAME)
@@ -158,16 +167,28 @@ def running_commit(install_dir: Path | None = None, source_root: Path | None = N
     try:
         from bundle_paths import asset_path
 
-        _version, commit = read_stamp(asset_path(BUNDLE_STAMP))
-        if commit:
-            return commit
+        for name in (STAMP_NAME, BUNDLE_STAMP):
+            _version, commit = read_stamp(asset_path(name))
+            if commit:
+                return commit
     except OSError:
         pass
     root = REPO_ROOT if source_root is None else source_root
     return read_commit(root)
 
 
+def boot_commit() -> str:
+    """Short commit for the boot-check status line and ``--bootcheck-only``.
+
+    A frozen build reads the full hash from the bundled ``version.json`` and
+    keeps the first 12 characters. A source checkout reads git.
+    """
+    return short_commit(running_commit(frozen_install_dir()))
+
+
 def display_version(install_dir: Path | None = None, source_root: Path | None = None) -> tuple[str, str]:
     """``(dotted version, short commit)`` for the Settings dock and the boot check."""
+    if install_dir is None:
+        install_dir = frozen_install_dir()
     commit = short_commit(running_commit(install_dir, source_root))
     return product_version(), commit

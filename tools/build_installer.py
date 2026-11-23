@@ -41,7 +41,7 @@ def have_pyinstaller() -> bool:
 
 
 def find_iscc() -> Path | None:
-    """ISCC on PATH, or the standard Inno Setup 6 install folder."""
+    """ISCC on PATH, or the standard Inno Setup 6 folder. 6.6 and newer still use that folder."""
     found = shutil.which("ISCC") or shutil.which("iscc")
     if found:
         return Path(found)
@@ -79,7 +79,7 @@ def explain_missing(*, pyinstaller: bool, inno: bool) -> str:
     if not inno:
         lines.extend([
             "Inno Setup is missing (the ISCC compiler).",
-            "  Install Inno Setup 6 so ISCC is on PATH,",
+            "  Install Inno Setup 6.6 or newer so ISCC is on PATH,",
             "  or leave it in the standard per-user Programs folder",
             "  or in Program Files. Then run:",
             "    python tools/build_installer.py",

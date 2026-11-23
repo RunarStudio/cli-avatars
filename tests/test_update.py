@@ -408,6 +408,7 @@ class TestProcessAndTools(unittest.TestCase):
         self.assertIn("PyInstaller is missing", text)
         self.assertIn("requirements-build.txt", text)
         self.assertIn("Inno Setup is missing", text)
+        self.assertIn("6.6", text)
         self.assertIn("Nothing was installed", text)
         with mock.patch("tools.build_installer.have_pyinstaller", return_value=False), \
                 mock.patch("tools.build_installer.find_iscc", return_value=None), \

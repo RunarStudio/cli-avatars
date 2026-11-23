@@ -42,13 +42,13 @@ from cli_avatars.bootcheck import (
     compare_runs,
     format_table,
     load_last,
-    read_commit,
     stamp_now,
     status_line,
 )
 from cli_avatars.desktop.settings import with_bootcheck
-from cli_avatars.paths import CONFIG_PATH, REPO_ROOT
+from cli_avatars.paths import CONFIG_PATH
 from cli_avatars.tuning import SPRITES_DIR
+from cli_avatars.update.version import boot_commit
 from events import app_data_dir, default_port
 
 _BG = "#0d0d1a"
@@ -127,7 +127,7 @@ def execute(
         report = BootRunner(checks, budget_s=budget).run(
             preset=ready,
             version=VERSION,
-            commit=read_commit(REPO_ROOT),
+            commit=boot_commit(),
         )
         history = directory / HISTORY_NAME
         previous = None

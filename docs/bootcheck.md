@@ -27,11 +27,11 @@ Turn it off with `desktop.bootcheck` set to `false` in `config.json`, or Setting
 
 ## Results
 
-The bottom status bar shows one line, for example `Boot check 14/14 ok · 1.3 s · 0.4.0 abc1234`. The version and the short commit sit on that line. A click opens the per-check list in the Settings dock. That list is not a new window.
+The bottom status bar shows one line, for example `Boot check 14/14 ok · 1.3 s · 0.4.0 abc1234`. The version and the short commit sit on that line. A source checkout takes the commit from git. A frozen build takes it from `version.json` beside the executable (the same stamp the installer copies into the bundle) and shows the first 12 characters. A click opens the per-check list in the Settings dock. That list is not a new window.
 
 Compared with the previous run, the line adds more passes (`+1 pass`), `faster` or `slower` when the total moves by at least 20 ms, and a regression count. A check that was `ok` and no longer is, is marked `regression` in the list. A check that newly passes is marked `new pass`.
 
-Each run is appended to `bootcheck_history.jsonl` in the per-user data directory (`events.app_data_dir()`). On Windows that directory is `%LOCALAPPDATA%\cli-avatars\`. A line holds the UTC timestamp, app version, commit when the checkout exposes one, per-check status and milliseconds, and the total. The file keeps the newest 200 runs. Lines do not store paths.
+Each run is appended to `bootcheck_history.jsonl` in the per-user data directory (`events.app_data_dir()`). On Windows that directory is `%LOCALAPPDATA%\cli-avatars\`. A line holds the UTC timestamp, app version, the short commit (from git, or from the bundled `version.json` when the app is frozen), per-check status and milliseconds, and the total. The file keeps the newest 200 runs. Lines do not store paths.
 
 ## Windows check
 

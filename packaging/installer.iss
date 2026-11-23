@@ -1,8 +1,13 @@
 ; Per-user CLI Avatars installer.
+; Requires Inno Setup 6.6 or newer (CreateCustomForm takes a client size).
 ; Compile from the repo root with ISCC, or via tools/build_installer.py.
 ; App files go to {localappdata}\Programs\CLI Avatars.
 ; App data stays in {localappdata}\cli-avatars and is deleted only when
 ; the uninstall checkbox is ticked. A silent uninstall keeps app data.
+
+#if Ver < 0x06060000
+  #error CLI Avatars requires Inno Setup 6.6 or newer.
+#endif
 
 #ifndef AppVersion
   #define AppVersion "0.4.0"
@@ -70,12 +75,10 @@ begin
   Result := True;
   if UninstallSilent then
     Exit;
-  Form := CreateCustomForm();
+  Form := CreateCustomForm(ScaleX(440), ScaleY(170), False, False);
   try
     Form.BorderStyle := bsDialog;
     Form.Caption := 'Uninstall CLI Avatars';
-    Form.ClientWidth := ScaleX(440);
-    Form.ClientHeight := ScaleY(170);
     Form.Position := poScreenCenter;
 
     Info := TNewStaticText.Create(Form);

@@ -7,7 +7,6 @@ leaves the button disabled and names the reason.
 
 from __future__ import annotations
 
-import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -23,7 +22,7 @@ from cli_avatars.update.machine import (
 )
 from cli_avatars.update.proc import spawn_detached
 from cli_avatars.update.tools import block_reason
-from cli_avatars.update.version import display_version, running_commit
+from cli_avatars.update.version import display_version, frozen_install_dir, running_commit
 from events import app_data_dir
 
 _BG = "#0d0d1a"
@@ -36,9 +35,7 @@ _OK = "#44ff88"
 
 def installed_dir() -> Path | None:
     """Directory of a frozen build. A source checkout has no install directory."""
-    if not getattr(sys, "frozen", False):
-        return None
-    return Path(sys.executable).resolve().parent
+    return frozen_install_dir()
 
 
 def mount_update_status(app) -> None:

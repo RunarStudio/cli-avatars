@@ -4,7 +4,7 @@ CLI Avatars installs per user on Windows and can rebuild itself from the `dev` b
 
 ## Install
 
-`tools/build_installer.py` builds an onedir app with PyInstaller (`packaging/cli_avatars.spec`) and then compiles `packaging/installer.iss` with Inno Setup. The version string comes from `cli_avatars/__version__.py`. The build writes the current commit into `version.json` beside the executable and into `build_stamp.json` inside the bundle.
+`tools/build_installer.py` builds an onedir app with PyInstaller (`packaging/cli_avatars.spec`) and then compiles `packaging/installer.iss` with Inno Setup 6.6 or newer. The version string comes from `cli_avatars/__version__.py`. The build writes the current commit into `version.json` beside the executable and into `build_stamp.json` inside the bundle. A frozen boot check reads that `version.json` and shows the first 12 characters of the commit on the status line.
 
 The installer chooses:
 
@@ -44,14 +44,14 @@ Git inherits the environment, including an existing credential helper, and `GIT_
 
 ## Build the installer
 
-From the repository root, with PyInstaller and Inno Setup 6 installed:
+From the repository root, with PyInstaller and Inno Setup 6.6 or newer installed:
 
 ```bat
 python -m pip install -r requirements-build.txt
 python tools/build_installer.py
 ```
 
-`requirements-build.txt` installs PyInstaller. Inno Setup 6 provides `ISCC`. Put `ISCC` on `PATH`, or install it in the normal per-user Programs folder or in Program Files. If either tool is missing, the script names it and exits 2. It does not download the tools and it does not install the app.
+`requirements-build.txt` installs PyInstaller. Inno Setup 6.6 or newer provides `ISCC`. The uninstall dialog calls `CreateCustomForm` with a client width, a client height, and two keep-size flags, which is the signature from 6.6 onward. Put `ISCC` on `PATH`, or install it in the normal per-user Programs folder or in Program Files. If either tool is missing, the script names it and exits 2. It does not download the tools and it does not install the app.
 
 The setup program is `dist\CLI-Avatars-Setup.exe`.
 
@@ -59,7 +59,7 @@ The setup program is `dist\CLI-Avatars-Setup.exe`.
 
 Use a temporary program folder and a temporary data directory. Do not point this check at the real `%LOCALAPPDATA%\Programs\CLI Avatars` unless that install is a separate, intentional one.
 
-PyInstaller and Inno Setup 6 have to be installed on that machine before `tools/build_installer.py` can produce the setup program. Git has to be on `PATH` before **Update app** will enable. The machine's existing git credentials are used; do not paste a token into config or into the command.
+PyInstaller and Inno Setup 6.6 or newer have to be installed on that machine before `tools/build_installer.py` can produce the setup program. Git has to be on `PATH` before **Update app** will enable. The machine's existing git credentials are used; do not paste a token into config or into the command.
 
 ```bat
 git clone --branch wip/installer --single-branch https://github.com/RunarStudio/cli-avatars.git %TEMP%\cli-avatars-installer-src
