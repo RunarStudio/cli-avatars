@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cli-avatars"
+version = "0.4.0"
+description = "Animated desktop avatars for local AI coding sessions"
+requires-python = ">=3.10"
+
+[project.scripts]
+cli-avatars-emit = "cli_avatars_emit:main"
+
+[tool.setuptools]
+py-modules = [
+    "bundle_paths",
+    "bubbles",
+    "cli_avatars_emit",
+    "events",
+    "inbox",
+    "sessions",
+    "overlay",
+    "sprite_loader",
+    "perchas",
+    "win32",
+    "claude_chat_hooks",
+]
+packages = ["cli_avatars_mcp"]

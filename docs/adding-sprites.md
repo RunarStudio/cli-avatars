@@ -140,4 +140,24 @@ Recommended tools:
 - **GIMP** — free alternative. Use Filters → Animation for frames.
 - **Libresprite** — free fork of an older Aseprite version.
 
-The minimum viable sheet is just Row 0 (idle) with 1–2 frames. All other rows are optional — the overlay falls back to row 0 if a row is missing.
+The minimum viable sheet is just Row 0 (idle) with 1–2 frames. All other rows are optional — the overlay falls back to the first row that has frames if a row is missing.
+
+---
+
+## Subagent skins
+
+Subagent sheets live in `Sprites/subagents/` and are listed in `manifest.json` beside them. Each entry has its own `frame_w` and `frame_h` (the placeholders are 32×32), a `mode` of `fly` or `ground`, and the png file name. The overlay loads that size per skin.
+
+These sheets are not the orchestrator Stream Avatars grid. `manifest.json` lists three rows:
+
+| Row | Name | Frames | When it plays |
+|-----|------|--------|----------------|
+| 0 | idle | 4 | the child is waiting |
+| 1 | working | 4 | the subagent is busy or thinking |
+| 2 | dying | 4 | the subchat or task closes, or the parent avatar goes away |
+
+Dying plays once, about 4 frames at 120 ms. The spring line shrinks toward the child during that pass. The child stays where it is: the leash is ignored, and dragging the parent does not pull it. When the row finishes, the avatar is removed. A missing row falls back to the first row that has frames.
+
+`fly` hovers above the orchestrator's head. `ground` hangs below it on the same spring. Dropping a finished sheet in place of a placeholder means setting `placeholder` to false and keeping the id, so existing `config.json` assignments still resolve. Keep the idle, working, and dying rows.
+
+Regenerate the stand-ins with `python tools/gen_subskin_placeholders.py`. Those files are code, not the final art.

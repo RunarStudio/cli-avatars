@@ -24,7 +24,7 @@ Demo mode activates automatically when no Claude Code sessions are found (4 agen
 |------|------|
 | `overlay.py` | Entry point. OverlayApp, Avatar, SessionScanner, WindowTerrain, HUD |
 | `sprite_loader.py` | SpriteSheet + SpriteRegistry — Stream Avatars row/col format |
-| `claude_hooks_example.py` | Drop into `.claude/hooks/` for real-time UDP events |
+| `hooks/claude_chat_hook.py` | Claude Code chat hook; install via `python -m cli_avatars_emit hooks install` |
 | `requirements.txt` | pip deps |
 | `assets/` | Put PNG sprite sheets here (convert from JPG first) |
 

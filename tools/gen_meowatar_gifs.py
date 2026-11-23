@@ -10,14 +10,16 @@ Outputs: meowatar_preview/*.gif
 from pathlib import Path
 from PIL import Image
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
 CELL_W = 60
 CELL_H = 50
 COLS   = 4
 SCALE  = 4
 FPS    = 6
 
-SRC      = Path(__file__).parent / "Sprites/meowatar.png"
-OUT_DIR  = Path(__file__).parent / "meowatar_preview"
+SRC      = _REPO_ROOT / "Sprites/meowatar.png"
+OUT_DIR  = _REPO_ROOT / "meowatar_preview"
 
 def get_frames(sheet, row, cols=None):
     if cols is None:

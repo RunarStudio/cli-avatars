@@ -8,9 +8,10 @@ active AI agents and lets them walk on window-top edges as terrain.
 v0.4 additions:
   - Caine stick-figure sprite sheet (auto-generated at startup)
   - No session → single idle Caine avatar instead of 4 demo agents
-  - Subagent avatars: spawn Caine stick figures for each active subagent
+  - Subagent avatars: one skin per child, kept for that child's lifetime
   - Elastic spring line connecting main agent to its subagents
-  - Subagent avatars dangle from spring physics, not walk AI
+  - Ground skins hang below the parent; fly skins hover above its head
+  - A closing subchat plays the dying row once, then the child is removed
 
 Dependencies:
     pip install pillow pywinctl numpy
@@ -19,6 +20,8 @@ Run:
     python overlay.py
 
 Controls:
+    Left-click avatar     → open that topic in the chat window
+    Drag avatar           → move it
     Drag HUD panel        → reposition info box
     Right-click avatar    → focus your terminal window
     Right-click empty     → quit
@@ -26,17 +29,82 @@ Controls:
 """
 
 import ctypes
+import logging
+import re
+import sys
 import tkinter as tk
 from tkinter import ttk
 import threading
 import time
 import math
 import random
-import json
 import traceback
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Optional
 from pathlib import Path
+from sessions import (
+    ClaudeJsonlSource,
+    CompositeSource,
+    GROK_SKIN_SENTINEL,
+    SessionInfo,
+    default_sources,
+    grok_appearance,
+    grok_skin_id,
+    merge_id,
+    subagent_for,
+)
+from hud import hud_status_lines, status_row_style
+from rooms import (
+    build_rooms,
+    config_with_rooms,
+    dot_color,
+    fade_hex,
+    fade_image,
+    idle_thumbnail,
+    load_config,
+    project_folder,
+    rooms_from_config,
+    save_rooms_pref,
+    skin_base,
+    warn_icon,
+)
+from events import (
+    EventBus,
+    EventRejected,
+    EventSource,
+    PollingSource,
+    StateEvent,
+    agent_key,
+    app_data_dir,
+    merge_with_events,
+)
+from decisions import (
+    decisions_caption,
+    open_agent_ids,
+    open_count,
+    open_counts_by_room,
+    place_open_decisions,
+)
+from topics import (
+    STATUS_COLOR,
+    group_by_project,
+    source_stamp,
+    status_label,
+    sync_topics,
+)
+from routing import (
+    PointerGesture,
+    config_with_window_box,
+    focus_for,
+    save_window_box,
+)
+from subskins import assign_subagent_skin, dying_pose
+from chat_window import ChatWindow
+from bubbles import BubbleBoard, integer_scale, render_bubble
+from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
+from portal import PortalPlayer, portal_top_left, render_portal
+from bundle_paths import asset_path
 
 VERSION = "0.4"
 
@@ -47,6 +115,17 @@ except ImportError:
     HAS_WINCTL = False
     print("[WARN] pywinctl not installed — window terrain disabled.")
     print("       Install: pip install pywinctl")
+
+# Window perches (WINDOW-PERCHES-PLAN.md): real frames via DWM, visible top
+# edges only. DPI awareness must be set before tk.Tk() is created.
+try:
+    import win32 as w32
+    import perchas
+    HAS_W32 = True
+    print(f"[INFO] DPI mode: {w32.set_dpi_aware()}")
+except Exception as _w32_err:
+    HAS_W32 = False
+    print(f"[WARN] win32 perches unavailable ({_w32_err}) — falling back to pywinctl.")
 
 try:
     from PIL import Image, ImageTk, ImageDraw
@@ -69,7 +148,7 @@ except Exception as _sprite_err:
 # ═══════════════════════════════════════════════════════════════
 
 OVERLAY_FPS       = 20
-WINDOW_SCAN_RATE  = 0.5
+WINDOW_SCAN_RATE  = 0.25   # s between window scans (one scan ≈ 1–2 ms)
 SESSION_SCAN_RATE = 2.0
 GRAVITY           = 0.55
 WALK_SPEED        = 1.8
@@ -77,11 +156,22 @@ JUMP_VEL          = -10.0
 AVATAR_W          = 32
 AVATAR_H          = 32
 FLOOR_MARGIN      = 2
+PERCH_MIN_LEN     = 40    # px: shorter visible pieces of a window top are dropped
+PERCH_MIN_Y       = 40    # px: perches higher than this would put the avatar's head off screen
 CHROMA_KEY        = "#010101"
 
 SPRING_REST   = 80    # px rest length of elastic line
 SPRING_K      = 0.04  # spring stiffness
 SPRING_DAMP   = 0.94  # velocity damping for spring avatars
+# px. A fly child bobs around a point this far above the parent's head.
+FLY_BOB       = 3.0
+# px/frame. The hang from the constants above stays under this, so a
+# fast move or a drag reels the child in instead of flinging it.
+SPRING_MAX_SPEED = 12.0
+# px. A child stays inside this circle around the parent's center.
+# config.json subagent.leash_px overrides it when that value is a positive number.
+SUBAGENT_LEASH_MAX = SPRING_REST * 3
+_SPRING_SPAN = 1.0e6  # px; a larger separation must not overflow the impulse
 THROW_SCALE   = 0.4   # fraction of mouse delta → throw velocity on drag release
 
 FLOOR_LINE_ALPHA = 0.0    # 0.0=off, 1.0=solid — floor platform line visibility
@@ -100,10 +190,11 @@ BODY_COLORS = [
     "#ffaa22", "#22ccff", "#ff4488", "#88ff44",
 ]
 
-SPRITES_DIR = Path(__file__).parent / "Sprites"
+SPRITES_DIR = asset_path("Sprites")
 
 # Skin cycling order for real sessions (index 0 = first real session)
-REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru"]
+REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru",
+                      "ember_mage", "forest_scout", "frost_wanderer"]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -300,6 +391,9 @@ def _load_sprites(registry: "SpriteRegistry") -> None:
         ("amongo",   "amongo.png",       40, 40),
         ("bunnylot", "BunnyLot.png",     40, 56),
         ("michimaru","Michimaru.png",    40, 51),
+        ("ember_mage",     "ember_mage.png",     50, 50),
+        ("forest_scout",   "forest_scout.png",   50, 50),
+        ("frost_wanderer", "frost_wanderer.png", 50, 50),
     ]
     for name, fname, fw, fh in sheets:
         path = SPRITES_DIR / fname
@@ -311,6 +405,25 @@ def _load_sprites(registry: "SpriteRegistry") -> None:
                 print(f"[sprites] could not load {fname}: {e}")
         else:
             print(f"[sprites] not found: {path}")
+
+    sub_dir = SPRITES_DIR / "subagents"
+    if sub_dir.is_dir() and hasattr(registry, "load_subagents"):
+        registry.load_subagents(sub_dir, scale=AVATAR_SCALE)
+
+
+def _is_subagent_sheet(name: str) -> bool:
+    if REGISTRY is None or not hasattr(REGISTRY, "is_subagent_skin"):
+        return False
+    return bool(REGISTRY.is_subagent_skin(name))
+
+
+def subagent_sprite_mode(skin: str) -> str:
+    """Fly or ground for a loaded subagent sheet. Anything else is ground."""
+    if REGISTRY is not None and hasattr(REGISTRY, "skin_mode"):
+        mode = REGISTRY.skin_mode(skin)
+        if mode in ("fly", "ground"):
+            return mode
+    return "ground"
 
 
 def _startup_report(registry) -> None:
@@ -407,6 +520,10 @@ class AgentInfo:
     is_demo:        bool  = False
     workspace_hash: str   = ""
     pid:            int   = 0
+    source:         str   = ""
+    project:        str   = ""
+    parent_id:      Optional[str] = None
+    failed:         bool  = False
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -435,7 +552,7 @@ def _parse_sprite(rows, body_rgba, skin_rgba=(255,200,150,255), dark_rgba=(40,40
             dr.rectangle([x0,y0,x0+scale-1,y0+scale-1], fill=color)
     return img
 
-def make_photo(body_hex, status, frame):
+def make_photo(body_hex, status, frame, mirror=False):
     if not HAS_PIL:
         return None
     br,bg,bb = tuple(int(body_hex.lstrip("#")[i:i+2],16) for i in (0,2,4))
@@ -453,6 +570,9 @@ def make_photo(body_hex, status, frame):
     if status == S.ERROR:
         dr.line([8,12,20,24], fill=(255,60,60,200), width=2)
         dr.line([20,12,8,24], fill=(255,60,60,200), width=2)
+    if mirror:
+        flip = getattr(getattr(Image, "Transpose", Image), "FLIP_LEFT_RIGHT")
+        img = img.transpose(flip)
     return ImageTk.PhotoImage(img)
 
 
@@ -606,6 +726,7 @@ class Avatar:
         self.vy         = 0.0
         self.dir        = 1
         self.on_ground  = False
+        self.perch_hwnd = None   # window the avatar stands on (rides it when it moves)
         self.frame      = 0
         self.ftick      = 0
         self.idle_t     = 0
@@ -630,6 +751,11 @@ class Avatar:
         self._vanish_frames  = 0
         # Set when task finishes and subagent moves to lingering list
         self._task_done_at: Optional[float] = None
+        self._meet_lock = False
+        # Closing subchat: play the dying row, then this avatar is removed.
+        self._dying = False
+        self._dying_at: Optional[float] = None
+        self._dying_pose: Optional[dict] = None
 
     def _sprite_size(self):
         if self.registry:
@@ -638,21 +764,66 @@ class Avatar:
                 return w, h
         return AVATAR_W, AVATAR_H
 
+    def _foot_pad(self):
+        """Empty rows under the sprite's feet (sprite_loader measures them per sheet)."""
+        if self.registry and hasattr(self.registry, "get_foot_pad"):
+            return self.registry.get_foot_pad(self.agent.skin, self._anim_status)
+        return 0
+
     @property
     def _anim_status(self) -> str:
+        if getattr(self, "_dying", False):
+            return "dying"
         if self.agent.status == S.IDLE and (abs(self.vx) > 0.1 or self._wall_climb is not None):
             return S.BUSY
         return self.agent.status
 
-    def update(self, floors, walls=()):
+    @staticmethod
+    def _wall_top_dir(wx, wy1, floors):
+        """+1 if a perch starts at this wall's top (left side), -1 if it ends there (right side), else 0."""
+        for (fx1, fy, fx2, _) in floors:
+            if abs(fy - wy1) <= 2:
+                if abs(fx1 - wx) <= 2: return 1
+                if abs(fx2 - wx) <= 2: return -1
+        return 0
+
+    def update(self, floors, walls=(), floor_hwnds=(), steer=None):
+        # Dying plays in place. No gravity, no leash, no walk.
+        if getattr(self, "_dying", False):
+            return
         self.aw, self.ah = self._sprite_size()
+        fh = self.ah - self._foot_pad()   # feet height: physics uses this, drawing uses ah
+        last_fh = getattr(self, "_last_fh", fh)
+        if self.on_ground and fh != last_fh:
+            self.y -= fh - last_fh        # animation changed: keep the feet on the floor
+        self._last_fh = fh
+
+        # A meeting steer replaces wander and wall climbing. Gravity and the
+        # perch/floor catch below stay as they are, so leaving a perch is a fall.
+        locked = steer is not None and steer.lock
+        if locked and self._wall_climb is not None:
+            self._wall_climb = None
+            self._climb_dir = 0
 
         # Wall climbing overrides normal gravity + walk when active
-        if self._wall_climb is not None and not self.spring_mode:
+        if self._wall_climb is not None and not self.spring_mode and not locked:
             wx, wy1, wy2 = self._wall_climb
+            # Wall with a perch on top: climb until the feet reach it, then step on
+            # Remember the direction once seen, so one scan without the perch can't cancel the climb
+            top_dir = self._wall_top_dir(wx, wy1, floors) or getattr(self, "_climb_dir", 0)
+            self._climb_dir = top_dir
+            target  = wy1 - fh if top_dir else wy1
             near_x = abs((self.x + self.aw / 2) - wx) < WALL_MARGIN + 6
-            in_y   = self.y < wy2 and self.y + self.ah > wy1
-            if near_x and in_y and self.y > wy1:
+            in_y   = self.y < wy2 and self.y + fh >= wy1
+            if top_dir and near_x and self.y <= target + 1:
+                self._wall_climb, self._climb_dir = None, 0
+                self.y   = float(target)
+                self.vy  = 0.0
+                self.dir = top_dir
+                self.vx  = WALK_SPEED * top_dir
+                self.x   = float(wx + 4) if top_dir > 0 else float(wx - self.aw - 4)
+            elif near_x and in_y and self.y > target:
+                self.on_ground, self.perch_hwnd = False, None   # climbing: not riding a window
                 self.vy = -WALL_CLIMB_SPEED
                 self.vx  = 0.0
                 self.x   = float(wx - self.aw // 2)   # stay glued to wall x
@@ -666,25 +837,39 @@ class Avatar:
                     self._burst_requested = True
                 self._prev_status = curr
                 return
-            else:
-                # Reached top or fell off wall — kick off horizontally
-                self._wall_climb = None
+            elif self._wall_climb is not None:
+                # Reached a covered top or fell off wall — kick off horizontally
+                self._wall_climb, self._climb_dir = None, 0
                 self.vx = WALK_SPEED * self.dir
                 self.vy = JUMP_VEL * 0.3
 
-        self.vy += GRAVITY
+        if locked:
+            # This frame, not the next one. Wander stores vx for the following frame.
+            self.vx = float(steer.vx)
+            if steer.facing:
+                self.dir = 1 if steer.facing > 0 else -1
+            self._meet_lock = True
+
+        # Fly children hover. Ground children, and every orchestrator, still fall.
+        if not (self.spring_mode and child_flight_mode(self) == "fly"):
+            self.vy += GRAVITY
         nx = self.x + self.vx
         ny = self.y + self.vy
 
         all_floors = floors + [(0, self.sh-2, self.sw, self.sh)]
         self.on_ground = False
-        for (fx1, fy, fx2, _) in all_floors:
+        self.perch_hwnd = None
+        for i, (fx1, fy, fx2, _) in enumerate(all_floors):
             if fx1 <= nx + self.aw/2 <= fx2:
-                if self.y + self.ah <= fy <= ny + self.ah:
-                    ny, self.vy, self.on_ground = fy - self.ah, 0.0, True
+                if self.y + fh <= fy <= ny + fh:
+                    ny, self.vy, self.on_ground = fy - fh, 0.0, True
+                    self.perch_hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
                     break
 
-        if not self.spring_mode:
+        if not self.spring_mode and not locked:
+            if self._meet_lock:
+                self._meet_lock = False
+                self.idle_t = 0
             # Normal walk AI
             if self.agent.status == S.THINKING and self.on_ground and random.random() < 0.04:
                 self.vy = JUMP_VEL * 0.5
@@ -704,7 +889,7 @@ class Avatar:
             if self._wall_climb is None and walls:
                 cx = self.x + self.aw / 2
                 for (wx, wy1, wy2) in walls:
-                    if abs(cx - wx) < WALL_MARGIN and wy1 <= self.y + self.ah and self.y <= wy2:
+                    if abs(cx - wx) < WALL_MARGIN and wy1 <= self.y + fh and self.y <= wy2:
                         if random.random() < WALL_CLIMB_CHANCE:
                             self._wall_climb = (wx, wy1, wy2)
                             break
@@ -728,13 +913,25 @@ class Avatar:
 
     def draw(self, canvas):
         px, py = int(self.x), int(self.y)
+        if getattr(self, "_dying", False):
+            pose = getattr(self, "_dying_pose", None) or {}
+            frame = pose.get("frame", 0)
+            if pose.get("pop"):
+                py -= 6
+            elif isinstance(frame, int) and frame > 0:
+                py += frame * 2
         sc     = STATUS_COLOR.get(self.agent.status, "#aaaaaa")
 
+        mirror = self.dir < 0
         photo = None
         if self.registry:
-            photo = self.registry.get_photo(self.agent.skin, self._anim_status, self.frame)
+            # TODO(Caine art): load the configured Grok hue the first time it draws.
+            if hasattr(self.registry, "ensure_hue_variant"):
+                self.registry.ensure_hue_variant(self.agent.skin)
+            photo = self.registry.get_photo(
+                self.agent.skin, self._anim_status, self.frame, mirror=mirror)
         if photo is None:
-            photo = make_photo(self.color, self.agent.status, self.frame)
+            photo = make_photo(self.color, self.agent.status, self.frame, mirror=mirror)
 
         if photo:
             if self._spr_mode == "rect" and self.spr_id:
@@ -793,13 +990,40 @@ class Avatar:
 # ═══════════════════════════════════════════════════════════════
 
 class SessionScanner:
-    CLAUDE_DIR = Path.home() / ".claude" / "projects"
+    CLAUDE_DIR = ClaudeJsonlSource.DEFAULT_DIR
 
-    def __init__(self):
+    def __init__(self, sources=None, event_port: Optional[int] = None, listen: bool = True):
         self._agents: dict[str,AgentInfo] = {}
         self._lock    = threading.Lock()
         self._tick    = 0
         self._skin_idx = 0   # cycles through REAL_SESSION_SKINS for new sessions
+        # Built-in sources. Claude is retargeted each scan so CLAUDE_DIR stays live.
+        # Grok runs beside it (see default_sources) when its sessions folder exists.
+        self._claude_source: Optional[ClaudeJsonlSource] = None
+        if sources is None:
+            sources = default_sources()
+            self._claude_source = next(
+                (src for src in sources if isinstance(src, ClaudeJsonlSource)),
+                None,
+            )
+        # Poll results and UDP events both feed the bus. With no UDP events,
+        # merge_with_events returns the polled list unchanged.
+        self.bus = EventBus()
+        self.bubbles = BubbleBoard()
+        self.bus.subscribe(self._on_bus_event)
+        self.bus.subscribe(self.bubbles.on_event)
+        # F4: chat between two avatars plans a walk. Bubbles stay on this bus too.
+        self.meetings = MeetingBoard()
+        self.bus.subscribe(self.meetings.on_event)
+        self._events: Optional[EventSource] = None
+        self._source = PollingSource(self.bus, CompositeSource(sources))
+        if listen:
+            try:
+                self._events = EventSource(self.bus, port=event_port)
+                print(f"[INFO] Events: 127.0.0.1:{self._events.port}")
+            except Exception as exc:
+                print(f"[WARN] Event listener not started ({exc}). Polling still works.")
+                self._events = None
 
     def get_agents(self):
         with self._lock: return dict(self._agents)
@@ -807,58 +1031,91 @@ class SessionScanner:
     def loop(self):
         while True: self._scan(); time.sleep(SESSION_SCAN_RATE)
 
+    def _on_bus_event(self, event):
+        """Apply a UDP state immediately. Poll publishes are ignored here."""
+        if not isinstance(event, StateEvent) or event.origin != "udp":
+            return
+        aid = agent_key(event.source, event.session_id)
+        with self._lock:
+            agent = self._agents.get(aid)
+            if agent is None or agent.is_demo:
+                return
+            if event.ts < agent.last_seen:
+                return
+            agent.status = event.state
+            agent.last_seen = event.ts
+            agent.source = event.source
+
+    def _apply_event_rows(self, found: dict):
+        if self._events is None:
+            return
+        for info in self._events.scan():
+            key = merge_id(info)
+            agent = found.get(key)
+            if agent is None or agent.is_demo:
+                continue
+            if info.last_seen >= agent.last_seen:
+                agent.status = info.status
+                agent.last_seen = info.last_seen
+                if info.source:
+                    agent.source = info.source
+
     def _scan(self):
         self._tick += 1
+        if self._claude_source is not None:
+            self._claude_source.directory = self.CLAUDE_DIR
         found: dict[str, AgentInfo] = {}
+        infos = self._source.scan()
+        if self._events is not None:
+            infos = merge_with_events(infos, self._events.scan())
 
-        if self.CLAUDE_DIR.exists():
-            for f in self.CLAUDE_DIR.glob("*/*.jsonl"):
-                try:
-                    if time.time() - f.stat().st_mtime > 28800:  # 8 hours
-                        continue
-                    aid = f.stem[:8]                          # session UUID → 1 avatar per session
-                    status, tool = self._parse_tail(f)
-                    sub_dir = f.parent / f.stem / "subagents"
-                    if sub_dir.exists():
-                        cutoff = time.time() - 1800
-                        subs = sum(1 for sf in sub_dir.glob("*.jsonl")
-                                   if sf.stat().st_mtime > cutoff)
-                    else:
-                        subs = 0
-                    found[aid] = AgentInfo(
-                        agent_id=aid,
-                        name=f"Claude-{aid[:4]}",
-                        status=status, tool=tool, subagents=subs,
-                        last_seen=f.stat().st_mtime,
-                        skin="__new__", is_demo=False,
-                        workspace_hash=f.parent.name)
-                except Exception:
-                    pass
+        for info in infos:
+            found[info.agent_id] = AgentInfo(
+                agent_id=info.agent_id,
+                name=info.name,
+                status=info.status, tool=info.tool, subagents=info.subagents,
+                last_seen=info.last_seen,
+                skin=info.skin, is_demo=info.is_demo,
+                workspace_hash=info.workspace_hash, pid=info.pid,
+                source=info.source, project=info.project,
+                parent_id=info.parent_id, failed=info.failed)
 
         # No real sessions → single idle demo avatar (hue assigned at spawn)
         if not found:
             found["demo"] = AgentInfo(
                 agent_id="demo", name="Caine",
                 status=S.IDLE, skin="amongo",
-                subagents=TEST_SUBAGENTS, is_demo=True)
+                subagents=TEST_SUBAGENTS, is_demo=True,
+                source="")
 
         self._match_pids(found)
 
-        # Drop real sessions with no live process — avoids ghost avatars from closed sessions
-        live = {aid: ai for aid, ai in found.items() if ai.is_demo or ai.pid}
-        if live:
-            found = live
+        # Drop Claude sessions with no live process — avoids ghost avatars.
+        # Grok has no pid match here; staleness already drops closed sessions.
+        # When nothing has a pid (no Claude process), every session stays.
+        if any(ai.pid for ai in found.values()):
+            found = {
+                aid: ai for aid, ai in found.items()
+                if ai.is_demo or ai.pid or ai.source == "grok"
+            }
 
         with self._lock:
+            self._apply_event_rows(found)
             for aid, new_a in found.items():
                 old = self._agents.get(aid)
                 if old and not old.is_demo and not new_a.is_demo:
                     new_a.skin = old.skin   # preserve existing skin across scans
                     if old.pid:
                         new_a.pid = old.pid
+                    if not new_a.project and old.project:
+                        new_a.project = old.project
                 elif not new_a.is_demo and new_a.skin == "__new__":
                     new_a.skin = REAL_SESSION_SKINS[self._skin_idx % len(REAL_SESSION_SKINS)]
                     self._skin_idx += 1
+                elif not new_a.is_demo and new_a.skin == GROK_SKIN_SENTINEL:
+                    # TODO(Caine art): hue stand-in until the Grok sheet exists.
+                    base, hue = grok_appearance(getattr(self, "_grok_config", None))
+                    new_a.skin = grok_skin_id(base, hue)
             self._agents = found
 
     def _match_pids(self, found: dict):
@@ -878,35 +1135,16 @@ class SessionScanner:
                     if not cwd:
                         continue
                     h = hash_of(cwd)
+                    folder = project_folder(cwd)
                     for ai in found.values():
                         if ai.workspace_hash and ai.workspace_hash.lower() == h:
                             ai.pid = proc.info['pid']  # all sessions in same workspace share pid
+                            if folder and not ai.project:
+                                ai.project = folder
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
         except Exception:
             pass
-
-    def _parse_tail(self, path) -> tuple[str, str]:
-        try:
-            with open(path, "rb") as f:
-                size = f.seek(0, 2)
-                f.seek(max(0, size - 4096))
-                lines = f.read().decode("utf-8", errors="ignore").splitlines()
-            for line in reversed(lines[-30:]):
-                if '"tool_use"' in line:
-                    try:
-                        obj = json.loads(line)
-                        for block in obj.get("message", {}).get("content", []):
-                            if isinstance(block, dict) and block.get("type") == "tool_use":
-                                return S.BUSY, block.get("name", "")
-                    except Exception:
-                        pass
-                    return S.BUSY, ""
-                if '"thinking"' in line:
-                    return S.THINKING, ""
-        except Exception:
-            pass
-        return S.IDLE, ""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -914,11 +1152,45 @@ class SessionScanner:
 # ═══════════════════════════════════════════════════════════════
 
 class WindowTerrain:
-    def __init__(self, own_title):
+    def __init__(self, own_title, screen=None):
         self._floors: list[tuple] = []
         self._walls:  list[tuple] = []
         self._lock   = threading.Lock()
         self._own    = own_title
+        self._screen = screen     # (left, top, right, bottom) of the overlay
+        self._floor_hwnds: list[int] = []          # window of each floor (win32 path)
+        self._win_pos: dict[int, tuple] = {}       # hwnd -> (left, top)
+
+    def _scan(self):
+        if HAS_W32 and self._screen:
+            self._scan_w32()
+        else:
+            self._scan_pwc()
+
+    def _scan_w32(self):
+        """Perches = visible pieces of non-maximized window tops (perchas.py)."""
+        try:
+            wins = w32.list_windows()      # skips minimized, cloaked, our own process
+            perches = perchas.build_perches(wins, self._screen, min_len=PERCH_MIN_LEN)
+            kept   = [p for p in perches if p.y >= PERCH_MIN_Y]
+            floors = [(p.x1, p.y, p.x2, p.y + FLOOR_MARGIN) for p in kept]
+            hwnds  = [p.hwnd for p in kept]
+            walls  = perchas.build_walls(wins, self._screen, min_len=PERCH_MIN_LEN)
+            pos    = {w.hwnd: (w.rect[0], w.rect[1]) for w in wins if not w.maximized}
+        except Exception as e:
+            print(f"[WARN] Terrain (win32): {e}")
+            return
+        with self._lock:
+            self._floors      = floors
+            self._walls       = walls
+            self._floor_hwnds = hwnds
+            self._win_pos     = pos
+
+    def get_snapshot(self):
+        """(floors, walls, floor_hwnds, window positions), all from the same scan."""
+        with self._lock:
+            return (list(self._floors), list(self._walls),
+                    list(self._floor_hwnds), dict(self._win_pos))
 
     def get_floors(self):
         with self._lock: return list(self._floors)
@@ -927,9 +1199,22 @@ class WindowTerrain:
         with self._lock: return list(self._walls)
 
     def loop(self):
-        while True: self._scan(); time.sleep(WINDOW_SCAN_RATE)
+        n, times = 0, []
+        while True:
+            t0 = time.perf_counter()
+            self._scan()
+            n += 1
+            if 20 < n <= 40:               # skip startup (sprite loading), then log once
+                times.append((time.perf_counter() - t0) * 1000)
+                if n == 40:
+                    times.sort()
+                    print(f"[INFO] Terrain scan: median {times[10]:.2f} ms, min {times[0]:.2f}, "
+                          f"max {times[-1]:.2f} ({'win32' if HAS_W32 else 'pywinctl'}), "
+                          f"every {WINDOW_SCAN_RATE}s")
+            time.sleep(WINDOW_SCAN_RATE)
 
-    def _scan(self):
+    def _scan_pwc(self):
+        """Old path (pywinctl): includes shadows, ignores z-order. Fallback only."""
         if not HAS_WINCTL: return
         candidates = []   # (width, x1, y1, x2, y2)
         try:
@@ -975,24 +1260,88 @@ def _alpha_stipple(alpha: float) -> str:
 # ═══════════════════════════════════════════════════════════════
 
 def _hud_status_text(agents) -> tuple[list[tuple[str,str]], bool]:
-    """Return (rows, no_sess) for the HUD status panel."""
-    real     = sum(1 for a in agents.values() if not a.is_demo)
-    demo     = sum(1 for a in agents.values() if a.is_demo)
-    busy     = sum(1 for a in agents.values() if a.status == S.BUSY)
-    subs     = sum(a.subagents for a in agents.values())
-    thinking = sum(1 for a in agents.values() if a.status == S.THINKING)
+    """Return (rows, no_sessions) for the HUD status panel.
 
-    no_sess    = (real == 0 and list(agents.keys()) == ["caine"])
-    sess_color = "#44ff88" if real > 0 else ("#aaaaaa" if no_sess else "#aaccff")
-    sess_line  = "  Waiting for session..." if no_sess else f"  Sessions  : {real} real / {demo} demo"
+    One row per source that has sessions, plus a total that includes
+    subagents from every source. The talks row is a separate label.
+    """
+    lines = hud_status_lines(agents)
+    waiting = bool(lines) and lines[0].strip().startswith("Waiting")
+    return [status_row_style(line, waiting=waiting) for line in lines], waiting
 
-    rows = [
-        (sess_line,                      sess_color),
-        (f"  Busy      : {busy}",        STATUS_COLOR[S.BUSY]     if busy     else "#aaccff"),
-        (f"  Thinking  : {thinking}",    STATUS_COLOR[S.THINKING] if thinking else "#aaccff"),
-        (f"  Subagents : {subs}",        STATUS_COLOR[S.SUBAGENT] if subs     else "#aaccff"),
-    ]
-    return rows, no_sess
+
+def _spring_frame(dt: float) -> float:
+    """Frame scale for one spring step. A tick passes 1.
+
+    ``SPRING_K`` and ``SPRING_DAMP`` are per frame, matching ``OVERLAY_FPS``.
+    A longer dt does not multiply the impulse. A non-finite dt applies nothing.
+    """
+    if isinstance(dt, bool) or not isinstance(dt, (int, float)):
+        return 0.0
+    if not math.isfinite(dt) or dt <= 0.0:
+        return 0.0
+    if dt >= 1.0:
+        return 1.0
+    return float(dt)
+
+
+def _clamp_span(delta: float) -> float:
+    if delta > _SPRING_SPAN:
+        return _SPRING_SPAN
+    if delta < -_SPRING_SPAN:
+        return -_SPRING_SPAN
+    return delta
+
+
+def leash_px_from_config(config) -> float:
+    """Leash radius in px. ``subagent.leash_px`` wins when it is a positive number."""
+    default = float(SUBAGENT_LEASH_MAX)
+    if not isinstance(config, dict):
+        return default
+    block = config.get("subagent")
+    if not isinstance(block, dict):
+        return default
+    raw = block.get("leash_px")
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return default
+    if not math.isfinite(raw) or raw <= 0:
+        return default
+    return float(raw)
+
+
+def child_flight_mode(avatar) -> str:
+    """``fly`` when this child was spawned with a fly sheet. Otherwise ground.
+
+    An explicit ``_sub_mode`` wins, including in tests that have no registry.
+    Orchestrators are not given one, so they stay ground and keep gravity.
+    """
+    mode = getattr(avatar, "_sub_mode", None)
+    if mode in ("fly", "ground"):
+        return mode
+    skin = getattr(getattr(avatar, "agent", None), "skin", "")
+    return subagent_sprite_mode(str(skin or ""))
+
+
+def elastic_endpoints(parent, child, mode: str) -> tuple[float, float, float, float]:
+    """Spring line ends. Fly starts at the head and runs upward to the child."""
+    x1 = child.x + child.aw / 2.0
+    y1 = child.y + child.ah / 2.0
+    x0 = parent.x + parent.aw / 2.0
+    if mode == "fly":
+        y0 = float(parent.y)
+    else:
+        y0 = parent.y + parent.ah / 2.0
+    return x0, y0, x1, y1
+
+
+def _clamp_speed(vx: float, vy: float, cap: float) -> tuple[float, float]:
+    if not math.isfinite(vx) or not math.isfinite(vy) or not math.isfinite(cap) or cap <= 0.0:
+        return 0.0, 0.0
+    speed = math.hypot(vx, vy)
+    if not math.isfinite(speed) or speed <= cap or speed == 0.0:
+        return vx, vy
+    scale = cap / speed
+    return vx * scale, vy * scale
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1003,9 +1352,27 @@ class OverlayApp:
     TITLE = "AI Agent Overlay"
 
     def __init__(self):
+        self._config_path = Path(__file__).resolve().parent / "config.json"
+        self.config = load_config(self._config_path)
+        self._subskin_rng = random.Random()
+        self._rooms_shown = rooms_from_config(self.config)
+        self._rooms_win = None
+        self._rooms_btn = None
+        self._rooms_sig = None
+        self._rooms_thumbs = {}
+        self._rooms_warns = {}
+        self._rooms_drag = None
+        self._chat_shown = False
+        self._chat_win = None
+        self._chat_btn = None
+        self._chat_window = None
+        self._decision_count = 0
+        self._topics_stamp = None
+        self._gesture = PointerGesture()
+        self._press_av = None
         self.root = tk.Tk()
         self.root.title(self.TITLE)
-        _ico = Path(__file__).parent / "Caine_Icon.ico"
+        _ico = asset_path("Caine_Icon.ico")
         if not _ico.exists():
             _ico = Path(__file__).parent.parent / "Images" / "Caine_Icon.ico"
         if _ico.exists():
@@ -1027,10 +1394,13 @@ class OverlayApp:
         self.canvas.pack(fill="both", expand=True)
 
         self.scanner = SessionScanner()
-        self.terrain = WindowTerrain(self.TITLE)
+        self.scanner._grok_config = self.config
+        self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
+        self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict[str, Avatar] = {}
         self.sub_avatars: dict[str, list[Avatar]] = {}   # parent_id → [sub Avatar, …]
         self._lingering_subs: list["Avatar"] = []         # task-done subs waiting to float away
+        self._dying_subs: list["Avatar"] = []             # closing subchat, dying row then gone
         self._dismissed_subs: dict[str, int] = {}         # parent_id → manually dismissed count
         self._cidx   = 0
         self._picker = None
@@ -1059,6 +1429,8 @@ class OverlayApp:
         self._bubble_icon_photo = None
         self._bubble_icon_id    = None
         self._tray = None
+        self._portal = PortalPlayer()
+        self._portal_cache = {}
 
         threading.Thread(target=self.scanner.loop, daemon=True).start()
         threading.Thread(target=self.terrain.loop, daemon=True).start()
@@ -1078,11 +1450,13 @@ class OverlayApp:
 
     def _tick(self):
         agents = self.scanner.get_agents()
-        floors = self.terrain.get_floors()
-        walls  = self.terrain.get_walls()
+        floors, walls, floor_hwnds, win_pos = self.terrain.get_snapshot()
+        moves = perchas.window_moves(self._last_win_pos, win_pos) if HAS_W32 else {}
+        self._last_win_pos = win_pos
 
         # ── Main avatars ──────────────────────────────────────────────
         for aid in self.avatars.keys() - agents.keys():
+            self.scanner.meetings.release(aid)
             self.avatars.pop(aid).cleanup(self.canvas)
             for sv in self.sub_avatars.pop(aid, []):
                 sv.cleanup(self.canvas)
@@ -1092,13 +1466,36 @@ class OverlayApp:
             self.avatars[aid] = Avatar(agent, self.sw, self.sh, self._cidx, REGISTRY)
             self._cidx += 1
 
+        # Ride window moves before the meeting plan, so a perch that slid
+        # still has both avatars on it when the midpoint is measured.
+        origins = {aid: (av.x, av.y) for aid, av in self.avatars.items()}
+        for aid, av in self.avatars.items():
+            if aid not in agents:
+                continue
+            av.agent = agents[aid]
+            self._refresh_activity(av)
+            if av._vanishing or av is self._drag_av:
+                continue
+            if not av.agent.is_demo and time.time() - av.last_active > 300:
+                continue
+            if av.on_ground and av.perch_hwnd in moves:
+                dx, dy = moves[av.perch_hwnd]
+                av.x += dx
+                av.y += dy
+        if self._drag_av is not None:
+            self.scanner.meetings.release(self._drag_av.agent.agent_id)
+        try:
+            steers = self.scanner.meetings.step(
+                self._meeting_stage(floors, floor_hwnds), time.time(), WALK_SPEED,
+            )
+        except Exception:
+            logging.getLogger("cli_avatars.meetings").exception("meeting step failed")
+            steers = {}
+
         vanished_aids = []
         for aid, av in self.avatars.items():
             av.agent = agents[aid]
-
-            # Refresh activity timestamp while agent is doing work
-            if av.agent.status in (S.BUSY, S.THINKING):
-                av.last_active = time.time()
+            self._refresh_activity(av)
 
             if av._vanishing:
                 # Float upward, then pop with sprite-colored particles
@@ -1126,7 +1523,7 @@ class OverlayApp:
             if av is self._drag_av:
                 av.vx = av.vy = 0.0
             else:
-                av.update(floors, walls)
+                av.update(floors, walls, floor_hwnds, steers.get(aid))
                 if av.y > self.sh + 80:
                     av.x = float(random.randint(0, max(1, self.sw - av.aw)))
                     av.y = float(self.sh - av.ah - 10)
@@ -1138,7 +1535,8 @@ class OverlayApp:
             av = self.avatars.pop(aid)
             av.cleanup(self.canvas)
             for sv in self.sub_avatars.pop(aid, []):
-                sv.cleanup(self.canvas)
+                self._begin_dying(sv)
+                self._dying_subs.append(sv)
 
         # ── Subagent avatars ─────────────────────────────────────────
         self.canvas.delete("elastic")   # clear all elastic lines
@@ -1159,18 +1557,26 @@ class OverlayApp:
         for aid, agent in agents.items():
             if (agent.is_demo and TEST_SUBAGENTS == 0) or agent.subagents <= 0:
                 for sv in self.sub_avatars.pop(aid, []):
-                    sv._task_done_at = time.time()
-                    self._lingering_subs.append(sv)
+                    self._begin_dying(sv)
+                    self._dying_subs.append(sv)
                 continue
 
             sub_list = self.sub_avatars.setdefault(aid, [])
             parent_av = self.avatars.get(aid)
+            if parent_av is None:
+                # The parent avatar already left. Finish the children that
+                # are still here, and do not spawn replacements.
+                for sv in sub_list:
+                    self._begin_dying(sv)
+                    self._dying_subs.append(sv)
+                sub_list.clear()
+                continue
 
-            # Trim excess subagent avatars — send to lingering so they float away
+            # Trim excess subagent avatars — the extra child plays dying, then goes.
             while len(sub_list) > agent.subagents:
                 sv = sub_list.pop()
-                sv._task_done_at = time.time()
-                self._lingering_subs.append(sv)
+                self._begin_dying(sv)
+                self._dying_subs.append(sv)
 
             # Consume dismissed-count credit as scanner naturally reports fewer subagents
             dismissed = self._dismissed_subs.get(aid, 0)
@@ -1189,14 +1595,39 @@ class OverlayApp:
             while len(sub_list) < effective_target:
                 px = (parent_av.x if parent_av else self.sw/2) + random.randint(-80,80)
                 py = (parent_av.y if parent_av else 100)
+                # Chosen once, at spawn. Later ticks leave the skin alone.
+                skin = assign_subagent_skin(
+                    getattr(self, "config", None),
+                    aid,
+                    len(sub_list),
+                    self._subagent_skin_pool(),
+                    rng=getattr(self, "_subskin_rng", None),
+                )
+                child = subagent_for(SessionInfo(
+                    agent_id=aid,
+                    name=agent.name,
+                    status=agent.status,
+                    source=agent.source,
+                    is_demo=agent.is_demo,
+                    workspace_hash=agent.workspace_hash,
+                ), len(sub_list))
                 sub_info = AgentInfo(
-                    agent_id=f"{aid}_sub_{len(sub_list)}",
-                    name=f"sub-{len(sub_list)+1}",
-                    status=S.BUSY, skin="bubble",
+                    agent_id=child.agent_id,
+                    name=child.name,
+                    status=child.status,
+                    skin=skin,
+                    is_demo=child.is_demo,
+                    workspace_hash=child.workspace_hash,
+                    source=child.source,
+                    project=agent.project,
+                    parent_id=aid,
+                    last_seen=agent.last_seen,
+                    failed=False,
                 )
                 sv = Avatar(sub_info, self.sw, self.sh,
                             self._cidx + 100 + len(sub_list), REGISTRY,
-                            spring_mode=False)
+                            spring_mode=True)
+                sv._sub_mode = subagent_sprite_mode(skin)
                 sv.x, sv.y = float(px), float(py)
                 sv.anim_speed_mult = random.uniform(0.5, 2.2)
                 sv._spring_k_mult  = random.uniform(0.4, 1.8)
@@ -1210,7 +1641,11 @@ class OverlayApp:
 
             # Update + draw subagents; trigger float-away after 10 min idle
             to_remove = []
+            retiring = []
             for sv in sub_list:
+                if getattr(sv, "_dying", False):
+                    retiring.append(sv)
+                    continue
                 if not sv._floating_away and time.time() - sv.last_active > 600:
                     sv._floating_away = True
                     sv._float_frames  = 0
@@ -1228,12 +1663,26 @@ class OverlayApp:
                             sv.x + sv.aw / 2, sv.y + sv.ah / 2, "#cc66ff"))
                         to_remove.append(sv)
                 else:
-                    sv.update(floors, walls)
-                    sv.draw(self.canvas)
+                    steer = steers.get(aid) if parent_av is not None else None
+                    if (steer is not None and steer.lock and parent_av is not None
+                            and aid in origins):
+                        sv.x, sv.y = child_follow(
+                            origins[aid], (parent_av.x, parent_av.y), (sv.x, sv.y))
+                        sv.vx = 0.0
+                        sv.vy = 0.0
+                        self._constrain_leash(sv, parent_av)
+                        sv.draw(self.canvas)
+                    else:
+                        self._drive_subagent(sv, parent_av, floors, walls)
+                        sv.draw(self.canvas)
 
             for sv in to_remove:
                 sv.cleanup(self.canvas)
                 sub_list.remove(sv)
+            for sv in retiring:
+                if sv in sub_list:
+                    sub_list.remove(sv)
+                self._dying_subs.append(sv)
 
             # Draw elastic lines only for non-floating subagents, then push behind sprites
             if parent_av:
@@ -1263,11 +1712,17 @@ class OverlayApp:
                     linger_done.append(sv)
             else:
                 sv.update(floors, walls)
+                parent = self.avatars.get(getattr(sv.agent, "parent_id", None))
+                if parent is not None:
+                    self._constrain_leash(sv, parent)
                 sv.draw(self.canvas)
 
         for sv in linger_done:
             sv.cleanup(self.canvas)
             self._lingering_subs.remove(sv)
+
+        # Closing subchats: dying row once, spring shrinks, then the child is gone.
+        self._release_finished_dying()
 
         # ── Burst effects ─────────────────────────────────────────────
         for av in list(self.avatars.values()):
@@ -1280,35 +1735,321 @@ class OverlayApp:
         self._bursts   = [b for b in self._bursts   if b.tick(self.canvas)]
         self._glitches = [g for g in self._glitches if g.tick()]
 
+        self._draw_portal(floors, floor_hwnds)
+        self._draw_talk_bubbles()
+        self._draw_decision_bubbles()
         self._update_hud_win(agents)
+        try:
+            self._update_rooms_win()
+        except Exception:
+            logging.getLogger("cli_avatars.rooms").exception("rooms list failed")
+        try:
+            self._update_chat_win()
+        except Exception:
+            logging.getLogger("cli_avatars.chat").exception("chat panel failed")
         self.root.after(1000 // OVERLAY_FPS, self._tick)
+
+    def _refresh_activity(self, av: "Avatar") -> None:
+        """Bump last_active from status and the session timestamp. Idempotent."""
+        if av.agent.status in (S.BUSY, S.THINKING):
+            av.last_active = time.time()
+        if not av.agent.is_demo:
+            if not getattr(av, "_seeded", False):
+                av.last_active = av.agent.last_seen
+                av._seeded = True
+            av.last_active = max(av.last_active, av.agent.last_seen)
+
+    def _meeting_stage(self, floors, floor_hwnds) -> Stage:
+        """Poses and perches for the meeting planner. The screen floor is not a perch."""
+        perches = []
+        for i, floor in enumerate(floors):
+            fx1, fy, fx2, _ = floor
+            hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
+            pid = int(hwnd) if hwnd is not None else -(i + 1)
+            perches.append(PerchSpan(pid, float(fx1), float(fx2), float(fy)))
+        floor_y = float(self.sh - 2)
+        poses = {}
+        for aid, av in self.avatars.items():
+            if av._vanishing:
+                continue
+            fh = float(av.ah - av._foot_pad())
+            pid = av.perch_hwnd
+            if pid is not None:
+                pid = int(pid)
+            elif av.on_ground and abs((av.y + fh) - floor_y) > 4:
+                cx = av.x + av.aw / 2.0
+                feet = av.y + fh
+                for span in perches:
+                    if span.x1 - 1 <= cx <= span.x2 + 1 and abs(span.y - feet) <= 4:
+                        pid = span.perch_id
+                        break
+            poses[aid] = AvatarPose(
+                agent_id=aid,
+                x=float(av.x),
+                y=float(av.y),
+                w=float(av.aw),
+                h=float(av.ah),
+                feet=fh,
+                on_ground=bool(av.on_ground),
+                perch_id=pid,
+                facing=1 if av.dir >= 0 else -1,
+                vy=float(av.vy),
+            )
+        return Stage(float(self.sw), float(self.sh), floor_y, tuple(perches), poses)
 
     # ── Spring physics ────────────────────────────────────────────────
 
     def color_for(self, av: "Avatar") -> str:
         return STATUS_COLOR.get(av.agent.status, av.color)
 
-    def _apply_spring(self, sv: Avatar, parent_av: Avatar):
-        """Pull subagent toward parent with elastic spring force."""
+    def _drive_subagent(self, sv: Avatar, parent_av: Optional[Avatar],
+                        floors, walls, dt: float = 1.0) -> None:
+        """One frame for a child that is not floating and not meeting-locked.
+
+        ``dt`` is in frames. A tick passes 1, the same step ``Avatar.update`` uses.
+        While the spring is attached the child ignores window tops, so it can
+        hang under the parent instead of standing on the same perch.
+        A dying child, or a child whose parent avatar is gone, stays put.
+        """
+        if getattr(sv, "_dying", False):
+            return
+        if parent_av is None:
+            self._begin_dying(sv)
+            return
+        if sv.spring_mode and parent_av is not None:
+            self._apply_spring(sv, parent_av, dt=dt)
+            # Window tops are the parent's floor. A hanging child falls past
+            # them; the screen bottom inside update() is still a floor.
+            sv.update([], [])
+        else:
+            sv.update(floors, walls)
+        if parent_av is not None and getattr(sv.agent, "parent_id", None):
+            self._constrain_leash(sv, parent_av)
+
+    def _begin_dying(self, sv: Avatar, now: Optional[float] = None) -> None:
+        """Start the dying row. Further calls do not rewind the clock.
+
+        The child leaves the spring, drops its velocity, and is not
+        leashed or dragged for the rest of the animation.
+        """
+        if getattr(sv, "_dying", False):
+            return
+        sv._dying = True
+        sv._dying_at = time.time() if now is None else float(now)
+        sv._dying_pose = dying_pose(0)
+        sv.frame = 0
+        sv.spring_mode = False
+        sv.vx = 0.0
+        sv.vy = 0.0
+
+    def _release_finished_dying(self, now: Optional[float] = None) -> None:
+        """Advance dying children. Remove each one after the row has played once."""
+        now_s = time.time() if now is None else float(now)
+        bucket = getattr(self, "_dying_subs", None)
+        if not bucket:
+            return
+        canvas = getattr(self, "canvas", None)
+        avatars = getattr(self, "avatars", None) or {}
+        still: list[Avatar] = []
+        for sv in list(bucket):
+            started = getattr(sv, "_dying_at", now_s)
+            try:
+                elapsed_ms = (float(now_s) - float(started)) * 1000.0
+            except (TypeError, ValueError):
+                elapsed_ms = 0.0
+            pose = dying_pose(elapsed_ms)
+            sv._dying_pose = pose
+            sv.frame = pose["frame"]
+            if pose["done"]:
+                if canvas is not None:
+                    sv.cleanup(canvas)
+                continue
+            still.append(sv)
+            if canvas is None:
+                continue
+            sv.draw(canvas)
+            parent = avatars.get(getattr(sv.agent, "parent_id", None))
+            if parent is not None:
+                self._draw_elastic(parent, sv, shrink=pose["fade"])
+        self._dying_subs = still
+        if canvas is not None:
+            canvas.tag_lower("elastic")
+
+    def _end_spring(self, sv: Avatar) -> None:
+        """The parent ended or left: this child walks on its own again."""
+        if not sv.spring_mode:
+            return
+        sv.spring_mode = False
+        sv._spring_k_mult = 1.0
+        sv._spring_damp_v = SPRING_DAMP
+        if abs(sv.vx) < 0.1:
+            sv.dir = 1 if sv.dir >= 0 else -1
+            sv.vx = WALK_SPEED * sv.dir
+
+    def _apply_spring(self, sv: Avatar, parent_av: Avatar, dt: float = 1.0) -> None:
+        """Pull a subagent toward its parent. One call is one frame at dt=1.
+
+        Ground children hang under the parent: the line is slack inside
+        ``SPRING_REST`` and Hooke's law outside it, then ``SPRING_DAMP``.
+        Fly children are pulled to a point ``SPRING_REST`` above the head
+        and bob a few pixels. Speed is capped so a parent that jumps across
+        the screen, or a huge dt, cannot produce NaN or a fling.
+        """
+        if child_flight_mode(sv) == "fly":
+            self._apply_fly_spring(sv, parent_av, dt)
+            return
+        if not math.isfinite(sv.vx) or not math.isfinite(sv.vy):
+            sv.vx = 0.0
+            sv.vy = 0.0
+        scale = _spring_frame(dt)
+        if scale <= 0.0:
+            return
         px = parent_av.x + parent_av.aw / 2
         py = parent_av.y + parent_av.ah / 2
         sx = sv.x + sv.aw / 2
         sy = sv.y + sv.ah / 2
-        dx, dy = px - sx, py - sy
-        dist = math.sqrt(dx*dx + dy*dy) or 1.0
-        if dist > SPRING_REST:
-            force = (dist - SPRING_REST) * SPRING_K * sv._spring_k_mult
-            sv.vx += (dx / dist) * force
-            sv.vy += (dy / dist) * force
-        sv.vx *= sv._spring_damp_v
-        sv.vy *= sv._spring_damp_v
+        if not all(math.isfinite(v) for v in (px, py, sx, sy)):
+            return
+        dx = _clamp_span(px - sx)
+        dy = _clamp_span(py - sy)
+        dist = math.hypot(dx, dy)
+        k_mult = sv._spring_k_mult
+        if not math.isfinite(k_mult):
+            k_mult = 1.0
+        if dist > SPRING_REST and dist > 0.0:
+            force = (dist - SPRING_REST) * SPRING_K * k_mult * scale
+            if math.isfinite(force):
+                sv.vx += (dx / dist) * force
+                sv.vy += (dy / dist) * force
+        damp = sv._spring_damp_v
+        if not math.isfinite(damp) or damp < 0.0:
+            damp = SPRING_DAMP
+        sv.vx *= damp ** scale
+        sv.vy *= damp ** scale
+        sv.vx, sv.vy = _clamp_speed(sv.vx, sv.vy, SPRING_MAX_SPEED)
 
-    def _draw_elastic(self, parent_av: Avatar, sv: Avatar):
-        """Draw a purple zigzag spring line between parent and subagent."""
-        x0 = parent_av.x + parent_av.aw / 2
-        y0 = parent_av.y + parent_av.ah / 2
-        x1 = sv.x + sv.aw / 2
-        y1 = sv.y + sv.ah / 2
+    def _apply_fly_spring(self, sv: Avatar, parent_av: Avatar, dt: float = 1.0) -> None:
+        """Hold a fly child on the point above the parent's head."""
+        if not math.isfinite(sv.vx) or not math.isfinite(sv.vy):
+            sv.vx = 0.0
+            sv.vy = 0.0
+        scale = _spring_frame(dt)
+        if scale <= 0.0:
+            return
+        phase = getattr(sv, "_fly_phase", 0.0)
+        if isinstance(phase, bool) or not isinstance(phase, (int, float)) or not math.isfinite(phase):
+            phase = 0.0
+        sv._fly_phase = phase + 1.0
+        # The bob is painted on after the spring, then taken off next frame,
+        # so it does not feed back into the hover and grow.
+        prev_bob = getattr(sv, "_fly_bob", 0.0)
+        if isinstance(prev_bob, bool) or not isinstance(prev_bob, (int, float)) or not math.isfinite(prev_bob):
+            prev_bob = 0.0
+        sv.y -= prev_bob
+        sv._fly_bob = 0.0
+        tx = parent_av.x + parent_av.aw / 2.0
+        ty = parent_av.y - SPRING_REST
+        sx = sv.x + sv.aw / 2.0
+        sy = sv.y + sv.ah / 2.0
+        if not all(math.isfinite(v) for v in (tx, ty, sx, sy)):
+            return
+        dx = _clamp_span(tx - sx)
+        dy = _clamp_span(ty - sy)
+        dist = math.hypot(dx, dy)
+        k_mult = sv._spring_k_mult
+        if not math.isfinite(k_mult):
+            k_mult = 1.0
+        if dist > 0.0 and math.isfinite(dist):
+            force = dist * SPRING_K * k_mult * scale
+            if math.isfinite(force):
+                sv.vx += (dx / dist) * force
+                sv.vy += (dy / dist) * force
+        damp = sv._spring_damp_v
+        if not math.isfinite(damp) or damp < 0.0:
+            damp = SPRING_DAMP
+        sv.vx *= damp ** scale
+        sv.vy *= damp ** scale
+        sv.vx, sv.vy = _clamp_speed(sv.vx, sv.vy, SPRING_MAX_SPEED)
+        bob = math.sin(sv._fly_phase * 0.16) * FLY_BOB
+        sv.y += bob
+        sv._fly_bob = bob
+
+    def _subagent_skin_pool(self) -> list[str]:
+        if REGISTRY is not None and hasattr(REGISTRY, "subagent_ids"):
+            return list(REGISTRY.subagent_ids())
+        return []
+
+    def _leash_px(self) -> float:
+        return leash_px_from_config(getattr(self, "config", None))
+
+    def _constrain_leash(self, sv: Avatar, parent_av: Avatar) -> None:
+        """Keep a child inside the leash circle around the parent's center.
+
+        The child is placed on the circle when it is outside, not on the
+        parent. Outward speed is removed so the next frame does not step
+        out and snap back. A walking child also turns around at the
+        left and right edges. A dying child is left where it is.
+        """
+        if getattr(sv, "_dying", False):
+            return
+        leash = self._leash_px()
+        if not math.isfinite(leash) or leash <= 0:
+            return
+        px = parent_av.x + parent_av.aw / 2.0
+        py = parent_av.y + parent_av.ah / 2.0
+        sx = sv.x + sv.aw / 2.0
+        sy = sv.y + sv.ah / 2.0
+        if not all(math.isfinite(v) for v in (px, py, sx, sy, sv.vx, sv.vy)):
+            if not math.isfinite(sv.vx):
+                sv.vx = 0.0
+            if not math.isfinite(sv.vy):
+                sv.vy = 0.0
+            return
+        dx = _clamp_span(sx - px)
+        dy = _clamp_span(sy - py)
+        dist = math.hypot(dx, dy)
+        if dist > leash and dist > 0.0:
+            scale = leash / dist
+            sv.x += (px + dx * scale) - sx
+            sv.y += (py + dy * scale) - sy
+            ux, uy = dx / dist, dy / dist
+            outward = sv.vx * ux + sv.vy * uy
+            if math.isfinite(outward) and outward > 0.0:
+                sv.vx -= ux * outward
+                sv.vy -= uy * outward
+        if sv.spring_mode:
+            return
+        # Pace inside the horizontal leash instead of grinding on the edge.
+        cx = sv.x + sv.aw / 2.0
+        if cx >= px + leash - 0.05:
+            over = cx - (px + leash)
+            if over > 0.0:
+                sv.x -= over
+            sv.vx = -WALK_SPEED if sv.vx == 0.0 else -abs(sv.vx)
+            sv.dir = -1
+        elif cx <= px - leash + 0.05:
+            over = (px - leash) - cx
+            if over > 0.0:
+                sv.x += over
+            sv.vx = WALK_SPEED if sv.vx == 0.0 else abs(sv.vx)
+            sv.dir = 1
+
+    def _draw_elastic(self, parent_av: Avatar, sv: Avatar, shrink: float = 1.0):
+        """Draw a purple zigzag spring line between parent and subagent.
+
+        Ground children keep the line from centre to centre. Fly children
+        start at the parent's head so the line is drawn upward.
+        ``shrink`` pulls the parent end toward the child while a child
+        is dying (1 is the full line, 0 draws nothing).
+        """
+        if not math.isfinite(shrink):
+            shrink = 1.0
+        shrink = max(0.0, min(1.0, float(shrink)))
+        if shrink <= 0.05:
+            return
+        x0, y0, x1, y1 = elastic_endpoints(parent_av, sv, child_flight_mode(sv))
+        x0 = x1 + (x0 - x1) * shrink
+        y0 = y1 + (y0 - y1) * shrink
         dx, dy = x1 - x0, y1 - y0
         dist = math.sqrt(dx*dx + dy*dy)
         if dist < 4:
@@ -1334,7 +2075,7 @@ class OverlayApp:
     # ── HUD status window ─────────────────────────────────────────────
 
     def _load_bubble_icon(self):
-        img_path = Path(__file__).parent / "Sprites" / "bubble.png"
+        img_path = asset_path("Sprites", "bubble.png")
         if not HAS_PIL or not img_path.exists():
             return
         try:
@@ -1356,7 +2097,12 @@ class OverlayApp:
             print(f"[overlay] bubble icon load failed: {e}")
 
     def _bring_all_to_front(self):
-        for win in [self._hud_win, self._picker, self._config_win]:
+        wins = [self._hud_win, self._picker, self._config_win]
+        if self._rooms_shown:
+            wins.append(self._rooms_win)
+        if self._chat_shown:
+            wins.append(self._chat_win)
+        for win in wins:
             if win and win.winfo_exists():
                 win.deiconify()
                 win.lift()
@@ -1367,7 +2113,7 @@ class OverlayApp:
             return
         try:
             import pystray
-            caine_path = Path(__file__).parent / "Caine_Icon.png"
+            caine_path = asset_path("Caine_Icon.png")
             if not caine_path.exists():
                 caine_path = Path(__file__).parent.parent / "Images" / "Caine_Icon.png"
             if caine_path.exists():
@@ -1407,11 +2153,17 @@ class OverlayApp:
         FONT = ("Courier", 10); BFONT = ("Courier", 11, "bold")
 
         win = tk.Toplevel(self.root)
+        offscreen = getattr(self, "_offscreen", False)
+        if offscreen:
+            win.withdraw()
         win.title("AI Overlay")
         win.overrideredirect(True)
         win.attributes("-topmost", False)      # can go behind other windows
         win.configure(bg=BG)
-        win.geometry("340x400+10+10")
+        if offscreen:
+            win.geometry("560x460+20000+20000")
+        else:
+            win.geometry("560x460+10+10")
         win.resizable(True, True)
         try:
             win.wm_attributes("-alpha", 0.92)
@@ -1441,15 +2193,38 @@ class OverlayApp:
         tk.Button(btn_row, text="Config", command=self._open_config_screen,
                   bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
                   font=FONT, relief="flat", padx=10, pady=3, cursor="hand2"
-                  ).pack(side="left")
+                  ).pack(side="left", padx=(0, 4))
+        self._rooms_btn = tk.Button(btn_row, text="Rooms", command=self._toggle_rooms,
+                  bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
+                  font=FONT, relief="flat", padx=10, pady=3, cursor="hand2")
+        self._rooms_btn.pack(side="left", padx=(0, 4))
+        self._paint_rooms_button()
+        self._chat_btn = tk.Button(btn_row, text="Chat", command=self._toggle_chat,
+                  bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
+                  font=FONT, relief="flat", padx=10, pady=3, cursor="hand2")
+        self._chat_btn.pack(side="left")
+        self._paint_chat_button()
 
         tk.Frame(win, bg=SEL, height=1).pack(fill="x", padx=8, pady=(4, 0))
 
-        # Status label — updated every tick
-        self._hud_status_lbl = tk.Label(win, text="", bg=BG, fg=FG,
-                                        font=FONT, anchor="w", justify="left",
-                                        padx=10, pady=8)
-        self._hud_status_lbl.pack(fill="x")
+        # Status lines — one label each so a Grok row can use its own color.
+        self._hud_status_box = tk.Frame(win, bg=BG)
+        self._hud_status_box.pack(fill="x", pady=(8, 0))
+        self._hud_status_lbl = self._hud_status_box
+        self._hud_status_labels: list = []
+        self._hud_status_font = FONT
+        self._hud_status_bg = BG
+        talk0 = self.scanner.bubbles.talks_at(time.time())
+        self._hud_talks_lbl = tk.Label(
+            win, text="  " + talk0.text, bg=BG, fg=talk0.color,
+            font=FONT, anchor="w", justify="left", padx=10,
+        )
+        self._hud_talks_lbl.pack(fill="x", pady=(2, 0))
+        self._hud_decisions_lbl = tk.Label(
+            win, text="  " + decisions_caption(0), bg=BG, fg="#aaaaaa",
+            font=FONT, anchor="w", justify="left", padx=10,
+        )
+        self._hud_decisions_lbl.pack(fill="x", pady=(0, 8))
 
         tk.Frame(win, height=1, bg="#223366").pack(fill="x", padx=8, pady=(4, 0))
         tk.Label(win, text="HOW TO USE", font=("Consolas", 10, "bold"),
@@ -1491,41 +2266,657 @@ class OverlayApp:
             child.bind("<B1-Motion>",       _drag_move)
             child.bind("<ButtonRelease-1>", _drag_end)
 
+        if self._rooms_shown:
+            self._open_rooms_win()
+
+    def _draw_portal(self, floors, floor_hwnds):
+        """One portal on the meeting surface, behind the avatars."""
+        self.canvas.delete("portal")
+        if not HAS_PIL:
+            return
+        try:
+            stage = self._meeting_stage(floors, floor_hwnds)
+            view = self._portal.advance(self.scanner.meetings.mark(stage), time.time())
+        except Exception:
+            logging.getLogger("cli_avatars.portal").exception("portal draw failed")
+            return
+        if view is None:
+            return
+        scale = integer_scale(AVATAR_SCALE)
+        key = (view.phase, view.index, scale)
+        photo = self._portal_cache.get(key)
+        if photo is None:
+            image = render_portal(view.spec, scale, 1)
+            photo = ImageTk.PhotoImage(image)
+            self._portal_cache[key] = photo
+        x, y = portal_top_left(view.surface_x, view.surface_y, scale)
+        self.canvas.create_image(int(round(x)), int(round(y)), image=photo, anchor="nw", tags="portal")
+        self.canvas.tag_lower("portal")
+        if self.canvas.find_withtag("floor_line"):
+            self.canvas.tag_raise("portal", "floor_line")
+
+    def _draw_talk_bubbles(self):
+        """Icon bubble above the sender. Subagent avatars are not in this map."""
+        self.canvas.delete("talk_bubble")
+        if not HAS_PIL:
+            return
+        scale = integer_scale(AVATAR_SCALE)
+        boxes = {
+            aid: (av.x, av.y, av.aw, av.ah)
+            for aid, av in self.avatars.items()
+        }
+        try:
+            placed = self.scanner.bubbles.place(time.time(), boxes, scale)
+        except Exception:
+            logging.getLogger("cli_avatars.bubbles").exception("bubble layout failed")
+            return
+        cache = getattr(self, "_talk_cache", None)
+        if cache is None or cache[0] != scale:
+            cache = (scale, {})
+            self._talk_cache = cache
+        store = cache[1]
+        photos = []
+        for item in placed:
+            key = (item.icon, item.typing_frame, scale, round(item.alpha, 2))
+            photo = store.get(key)
+            if photo is None:
+                image = render_bubble(item.icon, scale, item.typing_frame, item.alpha)
+                if image is None:
+                    continue
+                photo = ImageTk.PhotoImage(image)
+                store[key] = photo
+            photos.append(photo)
+            self.canvas.create_image(
+                item.x, item.y, image=photo, anchor="nw", tags="talk_bubble",
+            )
+        self._talk_photos = photos
+
+    def _draw_decision_bubbles(self):
+        """Decision icon while that avatar has an open decision.
+
+        The glyph is the code placeholder in ``bubbles.decision_placeholder``
+        (TODO(Caine art)). One bubble per avatar, on the top-right.
+        """
+        self.canvas.delete("decision_bubble")
+        if not HAS_PIL:
+            return
+        scale = integer_scale(AVATAR_SCALE)
+        boxes = {
+            aid: (av.x, av.y, av.aw, av.ah)
+            for aid, av in self.avatars.items()
+        }
+        for subs in self.sub_avatars.values():
+            for sv in subs:
+                boxes[sv.agent.agent_id] = (sv.x, sv.y, sv.aw, sv.ah)
+        try:
+            agents = open_agent_ids(self._chat_directory(), timeout=0.05)
+            placed = place_open_decisions(agents, boxes, scale)
+        except EventRejected:
+            return
+        except Exception:
+            logging.getLogger("cli_avatars.decisions").exception("decision bubble failed")
+            return
+        if not placed:
+            return
+        key = ("decision", scale)
+        photo = self._decision_photo if getattr(self, "_decision_photo_key", None) == key else None
+        if photo is None:
+            image = render_bubble("decision", scale, 0, 1.0)
+            if image is None:
+                return
+            photo = ImageTk.PhotoImage(image)
+            self._decision_photo = photo
+            self._decision_photo_key = key
+        for _agent_id, x, y, _w, _h in placed:
+            self.canvas.create_image(x, y, image=photo, anchor="nw", tags="decision_bubble")
+
+    def _paint_hud_rows(self, rows):
+        """One label per status line. Grok uses its own color and mark."""
+        box = getattr(self, "_hud_status_box", None)
+        if box is None:
+            return
+        try:
+            if not box.winfo_exists():
+                return
+        except Exception:
+            return
+        labels = getattr(self, "_hud_status_labels", None)
+        if labels is None:
+            labels = []
+            self._hud_status_labels = labels
+        font = getattr(self, "_hud_status_font", ("Courier", 10))
+        bg = getattr(self, "_hud_status_bg", "#0d0d1a")
+        while len(labels) < len(rows):
+            lbl = tk.Label(box, text="", bg=bg, fg="#aaccff",
+                           font=font, anchor="w", justify="left", padx=10)
+            lbl.pack(fill="x")
+            labels.append(lbl)
+        for lbl, (text, color) in zip(labels, rows):
+            lbl.config(text=text, fg=color)
+            if not lbl.winfo_ismapped():
+                lbl.pack(fill="x")
+        for lbl in labels[len(rows):]:
+            lbl.pack_forget()
+
     def _update_hud_win(self, agents):
         if not (self._hud_win and self._hud_win.winfo_exists()):
             return
         rows, _ = _hud_status_text(agents)
-        self._hud_status_lbl.config(text="\n".join(text for text, _ in rows))
+        self._paint_hud_rows(rows)
+        talks = getattr(self, "_hud_talks_lbl", None)
+        if talks is not None and talks.winfo_exists():
+            talk = self.scanner.bubbles.talks_at(time.time())
+            talks.config(text="  " + talk.text, fg=talk.color)
+        decisions = getattr(self, "_hud_decisions_lbl", None)
+        if decisions is not None and decisions.winfo_exists():
+            count = self._decision_count
+            try:
+                count = open_count(self._chat_directory(), timeout=0.05)
+                self._decision_count = count
+            except EventRejected:
+                count = self._decision_count
+            except Exception:
+                logging.getLogger("cli_avatars.decisions").exception("decision count failed")
+                count = self._decision_count
+            decisions.config(
+                text="  " + decisions_caption(count),
+                fg="#ffffff" if count else "#aaaaaa",
+            )
+
+    # ── Rooms list (alongside the desktop) ────────────────────────────
+
+    def _remember_rooms(self) -> None:
+        self.config = config_with_rooms(self.config, self._rooms_shown)
+        try:
+            save_rooms_pref(self._config_path, self._rooms_shown)
+        except OSError:
+            pass
+
+    def _paint_rooms_button(self) -> None:
+        btn = getattr(self, "_rooms_btn", None)
+        if btn is None:
+            return
+        try:
+            if not btn.winfo_exists():
+                return
+        except Exception:
+            return
+        if self._rooms_shown:
+            btn.config(bg="#334477", fg="white")
+        else:
+            btn.config(bg="#223366", fg="#aaccff")
+
+    def _toggle_rooms(self) -> None:
+        if self._rooms_shown:
+            self._close_rooms()
+            return
+        self._rooms_shown = True
+        self._open_rooms_win()
+        self._paint_rooms_button()
+        self._remember_rooms()
+
+    def _close_rooms(self) -> None:
+        win = getattr(self, "_rooms_win", None)
+        if win is not None:
+            try:
+                if win.winfo_exists():
+                    win.withdraw()
+            except Exception:
+                pass
+        self._rooms_shown = False
+        self._rooms_sig = None
+        self._paint_rooms_button()
+        self._remember_rooms()
+
+    def _open_rooms_win(self) -> None:
+        win = getattr(self, "_rooms_win", None)
+        if win is not None:
+            try:
+                if win.winfo_exists():
+                    win.deiconify()
+                    win.lift()
+                    self._update_rooms_win(force=True)
+                    return
+            except Exception:
+                pass
+        self._build_rooms_win()
+        self._update_rooms_win(force=True)
+
+    def _rooms_records(self):
+        """Top-level sessions, plus each live sub avatar as its own row."""
+        records = list(self.scanner.get_agents().values())
+        for subs in self.sub_avatars.values():
+            for sv in subs:
+                if sv._floating_away:
+                    continue
+                agent = sv.agent
+                records.append(SimpleNamespace(
+                    agent_id=agent.agent_id,
+                    name=agent.name,
+                    status=agent.status,
+                    source=agent.source,
+                    project=agent.project,
+                    parent_id=agent.parent_id,
+                    last_seen=sv.last_active,
+                    skin=agent.skin,
+                    is_demo=agent.is_demo,
+                    failed=agent.failed,
+                    subagents=0,
+                ))
+        return records
+
+    def _scroll_rooms(self, event) -> None:
+        canvas = getattr(self, "_rooms_canvas", None)
+        if canvas is None:
+            return
+        try:
+            if not canvas.winfo_exists():
+                return
+        except Exception:
+            return
+        if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
+            canvas.yview_scroll(-1, "units")
+        else:
+            canvas.yview_scroll(1, "units")
+
+    def _bind_rooms_scroll(self, widget) -> None:
+        widget.bind("<Button-4>", self._scroll_rooms)
+        widget.bind("<Button-5>", self._scroll_rooms)
+        widget.bind("<MouseWheel>", self._scroll_rooms)
+        for child in widget.winfo_children():
+            self._bind_rooms_scroll(child)
+
+    def _room_thumb(self, skin: str, dimmed: bool):
+        if not HAS_PIL:
+            return None
+        key = (skin, bool(dimmed))
+        if key in self._rooms_thumbs:
+            return self._rooms_thumbs[key]
+        photo = None
+        try:
+            image = idle_thumbnail(skin, 32)
+            if image is not None:
+                if dimmed:
+                    image = fade_image(image, 0.5)
+                photo = ImageTk.PhotoImage(image)
+        except Exception:
+            photo = None
+        self._rooms_thumbs[key] = photo
+        return photo
+
+    def _room_warn(self, dimmed: bool):
+        if not HAS_PIL:
+            return None
+        key = bool(dimmed)
+        if key in self._rooms_warns:
+            return self._rooms_warns[key]
+        photo = None
+        try:
+            image = warn_icon(16)
+            if image is not None:
+                if dimmed:
+                    image = fade_image(image, 0.55)
+                photo = ImageTk.PhotoImage(image)
+        except Exception:
+            photo = None
+        self._rooms_warns[key] = photo
+        return photo
+
+    def _build_rooms_win(self) -> None:
+        bg = "#0d0d1a"
+        win = tk.Toplevel(self.root)
+        win.title("Topics")
+        win.overrideredirect(True)
+        win.attributes("-topmost", False)
+        win.configure(bg=bg)
+        win.geometry("440x520+580+10")
+        try:
+            win.attributes("-alpha", 0.94)
+        except Exception:
+            pass
+        self._rooms_win = win
+
+        title_bar = tk.Frame(win, bg="#111133", pady=6, cursor="fleur")
+        title_bar.pack(fill="x")
+        tk.Button(title_bar, text="x", command=self._close_rooms,
+                  bg="#111133", fg="#445566",
+                  activebackground="#330011", activeforeground="#ff6666",
+                  font=("Courier", 10), relief="flat", bd=0,
+                  padx=6, pady=0, cursor="hand2"
+                  ).pack(side="right", padx=(0, 4))
+        tk.Label(title_bar, text="  Topics", bg="#111133",
+                 fg="#88aaff", font=("Courier", 11, "bold"), anchor="w").pack(side="left")
+
+        body = tk.Frame(win, bg=bg)
+        body.pack(fill="both", expand=True)
+        canvas = tk.Canvas(body, bg=bg, highlightthickness=0, bd=0)
+        self._rooms_canvas = canvas
+        inner = tk.Frame(canvas, bg=bg)
+        self._rooms_list = inner
+        window_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_inner(_event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas(event):
+            canvas.itemconfig(window_id, width=event.width)
+
+        inner.bind("<Configure>", _on_inner)
+        canvas.bind("<Configure>", _on_canvas)
+        canvas.pack(fill="both", expand=True)
+        self._bind_rooms_scroll(canvas)
+
+        def _drag_start(event):
+            self._rooms_drag = (event.x_root - win.winfo_x(), event.y_root - win.winfo_y())
+
+        def _drag_move(event):
+            if self._rooms_drag:
+                ox, oy = self._rooms_drag
+                win.geometry(f"+{event.x_root - ox}+{event.y_root - oy}")
+
+        def _drag_end(_event):
+            self._rooms_drag = None
+
+        title_bar.bind("<ButtonPress-1>", _drag_start)
+        title_bar.bind("<B1-Motion>", _drag_move)
+        title_bar.bind("<ButtonRelease-1>", _drag_end)
+        for child in title_bar.winfo_children():
+            if isinstance(child, tk.Label):
+                child.bind("<ButtonPress-1>", _drag_start)
+                child.bind("<B1-Motion>", _drag_move)
+                child.bind("<ButtonRelease-1>", _drag_end)
+
+    def _update_rooms_win(self, force: bool = False) -> None:
+        if not self._rooms_shown:
+            return
+        win = getattr(self, "_rooms_win", None)
+        if win is None or not win.winfo_exists():
+            return
+        cards = build_rooms(self._rooms_records(), time.time())
+        self._sync_topics(force)
+        directory = self._chat_directory()
+        try:
+            topics = group_by_project(self._topic_rows())
+        except EventRejected:
+            topics = []
+        try:
+            counts = open_counts_by_room(directory, timeout=0.2)
+        except EventRejected:
+            counts = {}
+        sig = (tuple(cards), tuple((name, tuple(row.get("id") for row in rows)) for name, rows in topics), tuple(sorted(counts.items())))
+        if not force and sig == self._rooms_sig:
+            return
+        self._rooms_sig = sig
+        self._render_topic_groups(topics, cards, counts)
+
+    def _topic_rows(self) -> list:
+        from topics import list_topics
+        return list_topics(self._chat_directory(), timeout=0.2)
+
+    def _sync_topics(self, force: bool) -> None:
+        directory = self._chat_directory()
+        try:
+            stamp = source_stamp(directory)
+        except OSError:
+            return
+        if not force and stamp == self._topics_stamp:
+            return
+        try:
+            sync_topics(directory, timeout=0.2)
+        except EventRejected:
+            return
+        self._topics_stamp = stamp
+
+    def _render_topic_groups(self, groups, cards, counts) -> None:
+        parent = self._rooms_list
+        for child in parent.winfo_children():
+            child.destroy()
+        bg = "#0d0d1a"
+        if not groups:
+            tk.Label(parent, text="No topics", bg=bg, fg="#9a98b8",
+                     font=("Courier", 10), anchor="w").pack(anchor="w", padx=12, pady=8)
+        for project, topics in groups:
+            label = project or "No project"
+            tk.Label(parent, text=label, bg=bg, fg="#88aaff",
+                     font=("Courier", 10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
+            for topic in topics:
+                self._render_topic_card(parent, topic, int(counts.get(str(topic.get("id")), 0)))
+        tk.Label(parent, text="Orchestrators", bg=bg, fg="#9a98b8",
+                 font=("Courier", 9), anchor="w").pack(anchor="w", padx=12, pady=(10, 2))
+        if not cards:
+            tk.Label(parent, text="No orchestrators", bg=bg, fg="#9a98b8",
+                     font=("Courier", 10), anchor="w").pack(anchor="w", padx=12, pady=4)
+        for card in cards:
+            self._render_orchestrator_dot(parent, card)
+        self._bind_rooms_scroll(parent)
+
+    def _render_topic_card(self, parent, topic, decisions: int) -> None:
+        bg = "#16162a"
+        topic_id = str(topic.get("id") or "")
+        frame = tk.Frame(parent, bg=bg, highlightbackground="#223366",
+                         highlightthickness=1, padx=8, pady=6, cursor="hand2")
+        frame.pack(fill="x", padx=10, pady=3)
+        members = topic.get("members") if isinstance(topic.get("members"), list) else []
+        shown = [str(item) for item in members[:4]]
+        thumbs = tk.Frame(frame, bg=bg)
+        thumbs.pack(side="left", anchor="n")
+        if not shown:
+            shown = [""]
+        for agent_id in shown:
+            if not agent_id:
+                break
+            _name, skin, _status = self._member_face(agent_id)
+            thumb = self._room_thumb(skin, False)
+            if thumb is not None:
+                shot = tk.Label(thumbs, image=thumb, bg=bg, cursor="hand2")
+                shot.image = thumb
+                shot.pack(side="left", padx=(0, 2))
+        body = tk.Frame(frame, bg=bg)
+        body.pack(side="left", fill="x", expand=True, padx=(6, 0))
+        head = tk.Frame(body, bg=bg)
+        head.pack(fill="x")
+        tk.Label(head, text=str(topic.get("title") or topic_id), bg=bg, fg="#e8e6f4",
+                 font=("Courier", 10, "bold"), cursor="hand2").pack(side="left")
+        status = str(topic.get("status") or "open")
+        chip = tk.Label(head, text=status_label(status), bg=STATUS_COLOR.get(status, "#9a98b8"),
+                        fg="#141018" if status == "waiting_on_user" else "white",
+                        font=("Courier", 8), padx=4, cursor="hand2")
+        chip.pack(side="left", padx=(8, 0))
+        if decisions:
+            tk.Label(head, text=f"decisions {decisions}", bg=bg, fg="#9a98b8",
+                     font=("Courier", 8), cursor="hand2").pack(side="right")
+        dots = tk.Frame(body, bg=bg)
+        dots.pack(fill="x", pady=(4, 0))
+        for agent_id in members[:8]:
+            _name, _skin, agent_status = self._member_face(str(agent_id))
+            tk.Label(dots, text="●", bg=bg, fg=dot_color(agent_status),
+                     font=("Courier", 8), cursor="hand2").pack(side="left", padx=(0, 2))
+        self._bind_topic_click(frame, topic_id)
+
+    def _bind_topic_click(self, widget, topic_id: str) -> None:
+        widget.bind("<Button-1>", lambda _event, topic_id=topic_id: self._select_topic(topic_id))
+        for child in widget.winfo_children():
+            self._bind_topic_click(child, topic_id)
+
+    def _select_topic(self, topic_id: str) -> None:
+        """Open this topic in the chat window. The id is a room name, not a command."""
+        if not topic_id:
+            return
+        self._show_chat(topic_id=topic_id)
+
+    def _member_face(self, agent_id: str) -> tuple:
+        info = self._live_agent(agent_id)
+        if info is None or getattr(info, "is_demo", False):
+            return agent_id or "member", "caine", "idle"
+        name = getattr(info, "name", "") or agent_id
+        skin = skin_base(getattr(info, "skin", "") or "") or "caine"
+        status = str(getattr(info, "status", "") or "idle")
+        return str(name), skin, status
+
+    def _live_agent(self, agent_id: str):
+        agents = self.scanner.get_agents()
+        if not isinstance(agents, dict):
+            return None
+        info = agents.get(agent_id)
+        if info is not None:
+            return info
+        source, sep, session_id = str(agent_id).partition(":")
+        if sep and source == "claude":
+            info = agents.get(session_id)
+            if info is not None:
+                return info
+        for candidate in agents.values():
+            if getattr(candidate, "agent_id", None) == agent_id:
+                return candidate
+        return None
+
+    def _render_orchestrator_dot(self, parent, card) -> None:
+        bg = "#101018" if card.dimmed else "#0d0d1a"
+        ink = "#6a6a80" if card.dimmed else "#e8e6f4"
+        row = tk.Frame(parent, bg=bg)
+        row.pack(fill="x", padx=12, pady=1)
+        dot = fade_hex(card.dot) if card.dimmed else card.dot
+        tk.Label(row, text="●", bg=bg, fg=dot, font=("Courier", 10)).pack(side="left")
+        tk.Label(row, text=card.name, bg=bg, fg=ink,
+                 font=("Courier", 9)).pack(side="left", padx=(4, 0))
+        if card.mark:
+            tk.Label(row, text=card.mark, bg=bg, fg="#c6c6dc",
+                     font=("Courier", 9)).pack(side="left", padx=(6, 0))
+        for sub in card.subs:
+            sub_dot = fade_hex(sub.dot) if card.dimmed else sub.dot
+            tk.Label(row, text="●", bg=bg, fg=sub_dot, font=("Courier", 8)).pack(side="left", padx=(6, 0))
+        if card.warn:
+            icon = self._room_warn(card.dimmed)
+            if icon is not None:
+                warn = tk.Label(row, image=icon, bg=bg)
+                warn.image = icon
+                warn.pack(side="left", padx=(4, 0))
+        tk.Label(row, text=card.activity, bg=bg, fg="#9a98b8",
+                 font=("Courier", 9)).pack(side="right")
+
+    # ── Chat window (alongside the desktop) ───────────────────────────
+
+    def _chat_directory(self) -> Path:
+        source = getattr(self.scanner, "_events", None)
+        data = getattr(source, "data_dir", None)
+        if data:
+            return Path(data)
+        return app_data_dir()
+
+    def _remember_chat_box(self, box) -> None:
+        self.config = config_with_window_box(self.config, box)
+        try:
+            save_window_box(self._config_path, box)
+        except OSError:
+            pass
+
+    def _ensure_chat_window(self) -> ChatWindow:
+        window = getattr(self, "_chat_window", None)
+        if window is not None and window.win is not None:
+            try:
+                if window.win.winfo_exists():
+                    return window
+            except Exception:
+                pass
+        window = ChatWindow(
+            self.root,
+            directory=self._chat_directory,
+            agents=self._rooms_records,
+            config=lambda: self.config,
+            config_path=self._config_path,
+            on_box=self._remember_chat_box,
+        )
+        self._chat_window = window
+        return window
+
+    def _show_chat(self, topic_id: str | None = None, address_id: str | None = None) -> None:
+        """Open the chat window. Message text stays data. Nothing is executed."""
+        window = self._ensure_chat_window()
+        self._chat_shown = True
+        window.open(topic_id=topic_id, address_id=address_id)
+        self._chat_win = window.win
+        self._paint_chat_button()
+
+    def _paint_chat_button(self) -> None:
+        btn = getattr(self, "_chat_btn", None)
+        if btn is None:
+            return
+        try:
+            if not btn.winfo_exists():
+                return
+        except Exception:
+            return
+        if self._chat_shown:
+            btn.config(bg="#334477", fg="white")
+        else:
+            btn.config(bg="#223366", fg="#aaccff")
+
+    def _toggle_chat(self) -> None:
+        if self._chat_shown:
+            self._close_chat()
+            return
+        self._show_chat()
+
+    def _close_chat(self) -> None:
+        window = getattr(self, "_chat_window", None)
+        if window is not None:
+            window.hide()
+        self._chat_shown = False
+        self._paint_chat_button()
+
+    def _update_chat_win(self, force: bool = False) -> None:
+        if not self._chat_shown:
+            return
+        window = getattr(self, "_chat_window", None)
+        if window is None:
+            return
+        window.refresh(force=force)
+
+    def _open_chat_for_avatar(self, avatar) -> None:
+        """One click opens that avatar's topic, addressed to its orchestrator."""
+        by_id = {}
+        for main in self.avatars.values():
+            by_id[main.agent.agent_id] = main.agent
+        for subs in self.sub_avatars.values():
+            for child in subs:
+                by_id[child.agent.agent_id] = child.agent
+        for child in self._lingering_subs:
+            by_id[child.agent.agent_id] = child.agent
+        focus = focus_for(avatar.agent, by_id)
+        self._show_chat(topic_id=focus.topic_id, address_id=focus.address_id)
 
     # ── Left-click drag ───────────────────────────────────────────────
 
-    def _on_left_press(self, event):
-        # Click on any bubble sub-agent → dismiss it immediately
-        all_subs = (
-            [sv for sl in self.sub_avatars.values() for sv in sl]
-            + list(self._lingering_subs)
-        )
-        for sv in all_subs:
-            if sv.x <= event.x <= sv.x + sv.aw and sv.y <= event.y <= sv.y + sv.ah:
-                sv._floating_away = True
-                sv._float_frames  = 0
-                # Record the dismissal so the spawn loop doesn't immediately recreate it
-                parent_aid = sv.agent.agent_id.split("_sub_")[0]
-                self._dismissed_subs[parent_aid] = self._dismissed_subs.get(parent_aid, 0) + 1
-                return
+    def _avatar_at(self, x, y):
+        """Top-most avatar under the pointer. Subagents are checked first."""
+        subs = [sv for sl in self.sub_avatars.values() for sv in sl]
+        subs.extend(self._lingering_subs)
+        for sv in subs:
+            if sv.x <= x <= sv.x + sv.aw and sv.y <= y <= sv.y + sv.ah:
+                return sv
         for av in list(self.avatars.values()):
-            if av.x <= event.x <= av.x + av.aw and av.y <= event.y <= av.y + av.ah:
-                self._drag_av   = av
-                self._drag_off  = (int(event.x - av.x), int(event.y - av.y))
-                self._drag_prev = (event.x, event.y)
-                self._glitches.append(GlitchFlash(
-                    self.canvas, int(av.x), int(av.y), av.aw, av.ah, pink=True))
-                return
+            if av.x <= x <= av.x + av.aw and av.y <= y <= av.y + av.ah:
+                return av
+        return None
+
+    def _on_left_press(self, event):
+        self._press_av = self._avatar_at(event.x, event.y)
+        self._gesture.press(event.x, event.y)
+        self._drag_av = None
 
     def _on_left_drag(self, event):
-        av = self._drag_av
-        if av is None:
+        av = getattr(self, "_press_av", None)
+        if av is None or av not in self.avatars.values():
+            self._gesture.move(event.x, event.y)
             return
+        if not self._gesture.move(event.x, event.y):
+            return
+        if self._drag_av is None:
+            self._drag_av = av
+            self._drag_off = (int(event.x - av.x), int(event.y - av.y))
+            self._drag_prev = (event.x, event.y)
+            self._glitches.append(GlitchFlash(
+                self.canvas, int(av.x), int(av.y), av.aw, av.ah, pink=True))
         nx = event.x - self._drag_off[0]
         ny = event.y - self._drag_off[1]
         nx = max(0, min(nx, self.sw - av.aw))
@@ -1535,15 +2926,21 @@ class OverlayApp:
         self._drag_prev = (event.x, event.y)
 
     def _on_left_release(self, event):
-        av = self._drag_av
-        if av is None:
+        kind = self._gesture.release()
+        av = getattr(self, "_press_av", None)
+        self._press_av = None
+        dragged = self._drag_av
+        if kind == "drag" and dragged is not None:
+            dx = event.x - self._drag_prev[0]
+            dy = event.y - self._drag_prev[1]
+            max_v = WALK_SPEED * 3
+            dragged.vx = max(-max_v, min(dx * THROW_SCALE, max_v))
+            dragged.vy = max(-max_v, min(dy * THROW_SCALE, max_v))
+            self._drag_av = None
             return
-        dx = event.x - self._drag_prev[0]
-        dy = event.y - self._drag_prev[1]
-        max_v = WALK_SPEED * 3
-        av.vx = max(-max_v, min(dx * THROW_SCALE, max_v))
-        av.vy = max(-max_v, min(dy * THROW_SCALE, max_v))
         self._drag_av = None
+        if kind == "click" and av is not None:
+            self._open_chat_for_avatar(av)
 
     def _on_double_click(self, event):
         self._drag_av = None  # cancel drag started by the first click
@@ -1555,6 +2952,9 @@ class OverlayApp:
     # ── Right-click ───────────────────────────────────────────────────
 
     def _quit(self):
+        events = getattr(getattr(self, "scanner", None), "_events", None)
+        if events is not None:
+            events.close()
         if getattr(self, "_tray", None):
             try: self._tray.stop()
             except Exception: pass
@@ -1657,211 +3057,287 @@ class OverlayApp:
         except Exception:
             pass
 
-    # ── Skin picker ───────────────────────────────────────────────────
+    # ── Skin picker ("character select") ──────────────────────────────
+    # Layout from docs/skin-select-concept.html: roster left, animated stage
+    # centre, agent / hue / scale / apply + "on screen now" right.
+
+    PICK = dict(night="#141526", panel="#1d1f36", slot="#262948", line="#3a3e6b",
+                ink="#e8e6f4", dim="#9a98b8", select="#ffcf4a", ground="#c6cccf")
+    PICK_ANIMS = [(0, "idle",  S.IDLE), (1, "walk",  S.BUSY), (2, "sit", S.THINKING),
+                  (3, "stand", S.DONE), (4, "jump",  S.SUBAGENT)]
+    PICK_FRAME_MS = 150
 
     def _open_skin_picker(self):
         if self._picker and self._picker.winfo_exists():
             self._picker.lift(); return
         win = tk.Toplevel(self.root)
         win.title("Avatar Skins")
-        win.geometry("300x440+80+80")
-        win.resizable(False, False)
+        win.geometry("1000x700+80+60")
+        win.minsize(900, 640)
         win.attributes("-topmost", True)
-        win.configure(bg="#0d0d1a")
+        win.configure(bg=self.PICK["night"])
         self._picker = win
         self._build_picker_ui(win)
 
-    def _build_picker_ui(self, win):
-        BG  = "#0d0d1a"; FG = "#aaccff"; SEL = "#223366"; FONT = ("Courier",9)
+    @staticmethod
+    def _picker_sheet(name):
+        if not REGISTRY: return None
+        with REGISTRY._lock:
+            return REGISTRY._sheets.get(name)
 
-        agents    = self.scanner.get_agents()
+    def _picker_frame(self, cache, name, row, t_ms, box, hue=0):
+        """PhotoImage of skin `name`, animation `row`, at time t_ms, fit in box×box.
+        Returns (photo, feet_offset_px) or (None, 0). Cached per sheet/frame/size/hue."""
+        sheet = self._picker_sheet(name)
+        if not sheet or not sheet._frames: return None, 0
+        frames = sheet._frames[row] if row < len(sheet._frames) and sheet._frames[row] else None
+        if frames is None:
+            row = next((r for r, f in enumerate(sheet._frames) if f), None)
+            if row is None: return None, 0
+            frames = sheet._frames[row]
+        i = (t_ms // self.PICK_FRAME_MS) % len(frames)
+        key = (id(sheet), row, i, box, hue)
+        if key not in cache:
+            img = frames[i]
+            if hue and HAS_SPRITES:
+                img = hue_rotate_image(img, float(hue))
+            k = box / max(img.width, img.height)
+            if k >= 2: k = int(k)                   # whole-number upscale keeps pixels crisp
+            if k != 1:
+                img = img.resize((max(1, int(img.width * k)), max(1, int(img.height * k))), Image.NEAREST)
+            pads = getattr(sheet, "row_foot_pad", None)
+            pad = int((pads[row] if pads and row < len(pads) else 0) * k)
+            cache[key] = (ImageTk.PhotoImage(img), pad)
+        return cache[key]
+
+    def _build_picker_ui(self, win):
+        P = self.PICK
+        TITLE = ("Consolas", 18, "bold"); LBL = ("Consolas", 9, "bold")
+        BODY = ("Consolas", 10); SMALL = ("Consolas", 9)
+        cache: dict = {}
+        draws: list = []            # (canvas, item_id, fn() -> (skin, row, hue), box, floor_y, cx)
+
+        agents = self.scanner.get_agents()
         agent_ids = list(agents.keys())
-        labels    = [f"{a.name} {'[D]' if a.is_demo else '[R]'}" for a in agents.values()]
+        labels = [f"{a.name} {'[demo]' if a.is_demo else ''}".strip() for a in agents.values()]
         lbl_to_id = dict(zip(labels, agent_ids))
 
-        top = tk.Frame(win, bg=BG, pady=6)
-        top.pack(fill="x", padx=10)
-        tk.Label(top, text="Agent:", bg=BG, fg=FG, font=FONT).pack(side="left")
+        raw = REGISTRY.list_sheets() if REGISTRY else []
+        skins = [n for n in raw if not re.search(r"_h\d+$", n) and not _is_subagent_sheet(n)]
+        state = {"skin": (agents[agent_ids[0]].skin.split("_h")[0] if agent_ids else
+                          (skins[0] if skins else "")), "row": 0}
+        if state["skin"] not in skins and skins: state["skin"] = skins[0]
 
+        # ── header ────────────────────────────────────────────────
+        head = tk.Frame(win, bg=P["night"]); head.pack(fill="x", padx=16, pady=(14, 8))
+        tk.Label(head, text="CHOOSE YOUR SKIN", font=TITLE, bg=P["night"], fg=P["ink"]).pack(side="left")
+        tk.Label(head, text=f"{len(skins)} skins · {len(agent_ids)} agents", font=SMALL,
+                 bg=P["night"], fg=P["dim"], bd=1, relief="solid", padx=8).pack(side="right")
+
+        grid = tk.Frame(win, bg=P["night"]); grid.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+        grid.columnconfigure(1, weight=1); grid.rowconfigure(0, weight=1)
+
+        def panel(col, width=None):
+            f = tk.Frame(grid, bg=P["panel"], highlightthickness=2, highlightbackground=P["line"],
+                         padx=12, pady=12, width=width or 0)
+            f.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 12, 0))
+            return f
+
+        def label(parent, text):
+            return tk.Label(parent, text=text.upper(), font=LBL, bg=P["panel"], fg=P["dim"], anchor="w")
+
+        # ── roster (left) ─────────────────────────────────────────
+        left = panel(0)
+        label(left, "Skins").pack(fill="x")
+        outer = tk.Frame(left, bg=P["panel"]); outer.pack(fill="both", expand=True, pady=(8, 0))
+        rc = tk.Canvas(outer, bg=P["panel"], highlightthickness=0, width=232)   # wheel scrolls; no light scrollbar
+        rc.pack(side="left", fill="both", expand=True)
+        roster = tk.Frame(rc, bg=P["panel"]); rc.create_window((0, 0), window=roster, anchor="nw")
+        roster.bind("<Configure>", lambda e: rc.configure(scrollregion=rc.bbox("all")))
+        rc.bind("<MouseWheel>", lambda e: rc.yview_scroll(int(-e.delta / 120), "units"))
+
+        cards: dict = {}
+        CARD = 84
+        for i, sn in enumerate(skins):
+            card = tk.Frame(roster, bg=P["slot"], highlightthickness=2, width=108, height=CARD + 30,
+                            highlightbackground=P["line"], cursor="hand2")
+            card.grid(row=i // 2, column=i % 2, padx=3, pady=3)
+            card.pack_propagate(False)                  # same size for every card
+            cv = tk.Canvas(card, width=CARD, height=CARD, bg=P["slot"], highlightthickness=0)
+            cv.pack(padx=4, pady=(4, 0))
+            item = cv.create_image(CARD // 2, CARD, anchor="s")
+            draws.append((cv, item, (lambda s=sn: (s, 0, 0)), CARD - 8, CARD - 4, CARD // 2))
+            tk.Label(card, text=sn.replace("_", " "), font=("Consolas", 8), bg=P["slot"], fg=P["ink"]).pack(pady=(0, 4))
+            for w in (card, cv, *card.winfo_children()):
+                w.bind("<Button-1>", lambda e, s=sn: select(s))
+                w.bind("<MouseWheel>", lambda e: rc.yview_scroll(int(-e.delta / 120), "units"))
+            cards[sn] = card
+        if not skins:
+            tk.Label(roster, text="No skins loaded.", font=BODY, bg=P["panel"], fg=P["dim"]).grid()
+
+        # ── stage (centre) ────────────────────────────────────────
+        mid = panel(1)
+        hud = tk.Frame(mid, bg=P["night"]); hud.pack(fill="x")
+        hud_name = tk.Label(hud, font=LBL, bg=P["night"], fg=P["ink"]); hud_name.pack(side="left", padx=6, pady=4)
+        hud_state = tk.Label(hud, font=LBL, bg=P["night"], fg=P["select"]); hud_state.pack(side="right", padx=6)
+        SW, SH, GROUND_H = 380, 330, 36
+        stage = tk.Canvas(mid, width=SW, height=SH, bg=P["night"], highlightthickness=2,
+                          highlightbackground=P["line"])
+        stage.pack(fill="x")
+        stage.create_rectangle(0, SH - GROUND_H, 4000, SH + 4, fill=P["ground"], outline="", tags="ground")
+        big = stage.create_image(SW // 2, SH - GROUND_H, anchor="s")
+        stage_box = [SH - GROUND_H - 20]
+        draws.append((stage, big, (lambda: (state["skin"], state["row"], hue_var.get())),
+                      None, None, None))
+
+        def _on_stage_resize(e):
+            stage.coords("ground", 0, e.height - GROUND_H, e.width, e.height + 4)
+            stage_box[0] = max(64, e.height - GROUND_H - 20)
+        stage.bind("<Configure>", _on_stage_resize)
+
+        label(mid, "Agent state → animation").pack(fill="x", pady=(10, 4))
+        states = tk.Frame(mid, bg=P["panel"]); states.pack(fill="x")
+        state_btns = []
+        for idx, (row, name, st) in enumerate(self.PICK_ANIMS):
+            b = tk.Label(states, text=f"{name}\n{st}", font=SMALL, bg=P["slot"], fg=P["ink"],
+                         justify="left", padx=8, pady=3, highlightthickness=2,
+                         highlightbackground=P["line"], cursor="hand2")
+            b.pack(side="left", padx=(0, 6))
+            b.bind("<Button-1>", lambda e, r=row: (state.update(row=r), refresh()))
+            state_btns.append(b)
+        meta = tk.Label(mid, font=SMALL, bg=P["panel"], fg=P["ink"], justify="left", anchor="w")
+        meta.pack(fill="x", pady=(10, 0))
+
+        # ── apply panel (right) ───────────────────────────────────
+        right = panel(2)
+        label(right, "Agent").pack(fill="x")
         sel_agent = tk.StringVar(win, value=labels[0] if labels else "")
         if labels:
-            m = tk.OptionMenu(top, sel_agent, *labels)
-            m.config(bg=SEL,fg=FG,activebackground="#334477",activeforeground="white",
-                     font=FONT,highlightthickness=0,bd=0)
-            m["menu"].config(bg=SEL,fg=FG,font=FONT)
-            m.pack(side="left",padx=6)
+            om = tk.OptionMenu(right, sel_agent, *labels)
+            om.config(bg=P["slot"], fg=P["ink"], activebackground=P["line"], activeforeground=P["ink"],
+                      font=BODY, highlightthickness=0, bd=0, width=22, anchor="w")
+            om["menu"].config(bg=P["slot"], fg=P["ink"], font=BODY)
+            om.pack(fill="x", pady=(4, 10))
+        else:
+            tk.Label(right, text="No sessions", font=BODY, bg=P["panel"], fg=P["dim"]).pack(anchor="w", pady=(4, 10))
 
-        # ── Scale slider ──────────────────────────────────────────
-        tk.Frame(win, bg="#223366", height=1).pack(fill="x", padx=10, pady=(6,2))
-        sc_row = tk.Frame(win, bg=BG, pady=3)
-        sc_row.pack(fill="x", padx=10)
-        tk.Label(sc_row, text="Scale:", bg=BG, fg=FG, font=FONT).pack(side="left")
-        _sc_lbl = tk.Label(sc_row, text=f"{AVATAR_SCALE:.1f}×",
-                           bg=BG, fg="#44ff88", font=FONT, width=4)
-        _sc_lbl.pack(side="right")
+        hue_lbl = label(right, "Hue 0°"); hue_lbl.pack(fill="x")
+        hue_var = tk.IntVar(win, value=0)
+        tk.Scale(right, variable=hue_var, from_=0, to=345, resolution=15, orient="horizontal",
+                 showvalue=False, bg=P["panel"], troughcolor=P["slot"], highlightthickness=0,
+                 activebackground=P["select"], command=lambda v: refresh()).pack(fill="x", pady=(2, 10))
+
+        sc_lbl = label(right, f"Scale {AVATAR_SCALE:.1f}×"); sc_lbl.pack(fill="x")
         def _on_scale(val):
             global AVATAR_SCALE
-            AVATAR_SCALE = round(float(val) * 2) / 2   # snap to 0.5 steps
-            _sc_lbl.config(text=f"{AVATAR_SCALE:.1f}×")
-            if REGISTRY:
-                REGISTRY.reload_all(AVATAR_SCALE)
-        tk.Scale(sc_row, from_=0.5, to=4.0, resolution=0.5, orient="horizontal",
-                 command=_on_scale, bg=BG, fg=FG, troughcolor="#223366",
-                 highlightthickness=0, showvalue=False, length=140,
-                 ).pack(side="left", padx=6)
-        tk.Frame(win, bg="#223366", height=1).pack(fill="x", padx=10, pady=(2,4))
+            AVATAR_SCALE = round(float(val) * 2) / 2
+            sc_lbl.config(text=f"SCALE {AVATAR_SCALE:.1f}×")
+            if REGISTRY: REGISTRY.reload_all(AVATAR_SCALE)
+            cache.clear()
+        sc = tk.Scale(right, from_=0.5, to=4.0, resolution=0.5, orient="horizontal", showvalue=False,
+                      bg=P["panel"], troughcolor=P["slot"], highlightthickness=0, command=_on_scale)
+        sc.set(AVATAR_SCALE); sc.pack(fill="x", pady=(2, 12))
 
-        # ── Hue shift slider ──────────────────────────────────────────
-        hue_row = tk.Frame(win, bg=BG, pady=3)
-        hue_row.pack(fill="x", padx=10)
-        tk.Label(hue_row, text="Hue shift:", bg=BG, fg=FG, font=FONT).pack(side="left")
-        _hue_lbl = tk.Label(hue_row, text="0°", bg=BG, fg="#44ff88", font=FONT, width=5)
-        _hue_lbl.pack(side="right")
-        hue_var = tk.IntVar(win, value=0)
-        def _on_hue(val):
-            _hue_lbl.config(text=f"{int(float(val))}°")
-            _update_preview()
-        tk.Scale(hue_row, variable=hue_var, from_=0, to=359, resolution=1,
-                 orient="horizontal", bg=BG, fg=FG, troughcolor="#223366",
-                 highlightthickness=0, showvalue=False, length=140,
-                 command=_on_hue).pack(side="left", padx=6)
+        apply_btn = tk.Label(right, text="APPLY SKIN", font=("Consolas", 13, "bold"), bg=P["select"],
+                             fg=P["night"], pady=8, cursor="hand2")
+        apply_btn.pack(fill="x")
+        toast = tk.Label(right, text="", font=SMALL, bg=P["panel"], fg=P["select"],
+                         wraplength=230, justify="left", anchor="w")
+        toast.pack(fill="x", pady=(6, 8))
 
-        # ── Hue preview ───────────────────────────────────────────────
-        preview_row = tk.Frame(win, bg=BG)
-        preview_row.pack(fill="x", padx=10, pady=(4, 2))
-        _preview_canvas = tk.Canvas(preview_row, width=64, height=64, bg="#111122",
-                                    highlightthickness=1, highlightbackground="#223366")
-        _preview_canvas.pack(side="left")
-        _preview_lbl = tk.Label(preview_row, text="— no skin —", bg=BG,
-                                fg="#556677", font=FONT, anchor="w", justify="left")
-        _preview_lbl.pack(side="left", padx=(10, 0))
-        _preview_photo: list = [None]
+        label(right, "On screen now").pack(fill="x")
+        sess_box = tk.Frame(right, bg=P["panel"]); sess_box.pack(fill="both", expand=True, pady=(4, 0))
 
-        def _update_preview():
-            sn  = sel_skin.get()
-            hue = hue_var.get()
-            if not REGISTRY or not sn or not REGISTRY.has(sn):
-                return
-            with REGISTRY._lock:
-                sheet = REGISTRY._sheets.get(sn)
-            if not sheet or not sheet._frames or not sheet._frames[0]:
-                return
-            frame = sheet._frames[0][0]
-            if hue != 0 and HAS_SPRITES:
-                frame = hue_rotate_image(frame, float(hue))
-            size = 64
-            thumb = frame.resize((size, size), Image.NEAREST)
-            _preview_photo[0] = ImageTk.PhotoImage(thumb)
-            _preview_canvas.delete("all")
-            _preview_canvas.create_image(size // 2, size // 2,
-                                         image=_preview_photo[0], anchor="center")
-            _preview_lbl.config(text=f"{sn}\nhue {hue}°", fg=FG)
+        def render_sessions():
+            for w in sess_box.winfo_children(): w.destroy()
+            draws[:] = [d for d in draws if not getattr(d[0], "_sess", False)]
+            live = self.scanner.get_agents()
+            for aid, a in list(live.items())[:6]:
+                r = tk.Frame(sess_box, bg=P["slot"], highlightthickness=2, highlightbackground=P["line"])
+                r.pack(fill="x", pady=2)
+                cv = tk.Canvas(r, width=40, height=40, bg=P["slot"], highlightthickness=0); cv._sess = True
+                cv.pack(side="left", padx=4, pady=2)
+                it = cv.create_image(20, 40, anchor="s")
+                row = next((rw for rw, _, st in self.PICK_ANIMS if st == a.status), 0)
+                draws.append((cv, it, (lambda s=a.skin, rw=row: (s, rw, 0)), 36, 38, 20))
+                tk.Label(r, text=a.name[:18], font=SMALL, bg=P["slot"], fg=P["ink"]).pack(side="left")
+                tk.Label(r, text=a.status, font=SMALL, bg=P["slot"], fg=P["dim"]).pack(side="right", padx=6)
+            if not live:
+                tk.Label(sess_box, text="—", font=BODY, bg=P["panel"], fg=P["dim"]).pack(anchor="w")
 
-        tk.Frame(win, bg="#223366", height=1).pack(fill="x", padx=10, pady=(4, 4))
-
-        tk.Label(win, text="  Choose skin:", bg=BG, fg=FG, font=FONT, anchor="w"
-                 ).pack(fill="x",padx=10,pady=(4,0))
-
-        # Apply button and separator packed at bottom BEFORE the expanding skin list
-        # so they are always visible regardless of how many skins are loaded.
-        def _apply():
-            aid  = lbl_to_id.get(sel_agent.get())
-            base = sel_skin.get()
-            hue  = hue_var.get()
-            if aid and base:
-                if hue != 0:
-                    variant = f"{base}_h{hue}"
-                    if REGISTRY and not REGISTRY.has(variant):
-                        REGISTRY.load_hue_variant(variant, base, float(hue))
-                    skin = variant
-                else:
-                    skin = base
-                self._apply_skin(aid, skin)
-                btn.config(text="Applied!", fg="#44ff88")
-                win.after(1200, lambda: btn.config(text="Apply", fg=FG))
-
-        btn = tk.Button(win, text="Apply", command=_apply,
-            bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
-            font=("Courier",10,"bold"), relief="flat", padx=14, pady=5, cursor="hand2")
-        btn.pack(side="bottom", pady=8)
-        tk.Frame(win, bg="#223366", height=1).pack(side="bottom", fill="x", padx=10, pady=2)
-
-        scroll_outer = tk.Frame(win, bg=BG)
-        scroll_outer.pack(fill="both", expand=True, padx=10, pady=4)
-
-        sb = tk.Scrollbar(scroll_outer, orient="vertical", bg="#223366",
-                          troughcolor=BG, highlightthickness=0, bd=0)
-        sb.pack(side="right", fill="y")
-
-        sc = tk.Canvas(scroll_outer, bg=BG, highlightthickness=0, yscrollcommand=sb.set)
-        sc.pack(side="left", fill="both", expand=True)
-        sb.config(command=sc.yview)
-
-        sf = tk.Frame(sc, bg=BG)
-        sf_id = sc.create_window((0, 0), window=sf, anchor="nw")
-
-        def _on_inner_configure(e):
-            sc.configure(scrollregion=sc.bbox("all"))
-        def _on_canvas_configure(e):
-            sc.itemconfig(sf_id, width=e.width)
-        sf.bind("<Configure>", _on_inner_configure)
-        sc.bind("<Configure>", _on_canvas_configure)
-
-        def _on_mousewheel(e):
-            sc.yview_scroll(int(-1 * (e.delta / 120)), "units")
-
-        sel_skin = tk.StringVar(win, value="meowatar")
-        row_frames: dict[str,tk.Frame] = {}
-        photos: list = []
-
-        raw_names  = REGISTRY.list_sheets() if REGISTRY else []
-        skin_names = [sn for sn in raw_names
-                      if sn != "bubble"
-                      and not (sn.startswith("amongo_h") and sn[8:].isdigit())]
-        if not skin_names:
-            tk.Label(sf, text="No skins loaded.", bg=BG, fg="#556677", font=FONT).pack(anchor="w")
-        else:
-            for sn in skin_names:
-                row = tk.Frame(sf, bg=BG, cursor="hand2", pady=3)
-                row.pack(fill="x")
-                row_frames[sn] = row
-                pc = tk.Canvas(row, width=48, height=48, bg=BG,
-                               highlightthickness=1, highlightbackground="#223366")
-                pc.pack(side="left", padx=(0,8))
-                if REGISTRY:
-                    ph = REGISTRY.get_thumbnail(sn, 48)
-                    if ph: photos.append(ph); pc.create_image(24,24,image=ph,anchor="center")
-                tk.Label(row,text=sn,bg=BG,fg=FG,font=("Courier",10,"bold"),anchor="w").pack(side="left")
-
-        win._photos = photos
-
-        for w in (sc, sf):
-            w.bind("<MouseWheel>", _on_mousewheel)
-
-        def _select(sn):
-            sel_skin.set(sn)
-            _update_preview()
-            for n,f in row_frames.items():
-                c = SEL if n==sn else BG
-                f.config(bg=c)
-                for ch in f.winfo_children():
-                    try: ch.config(bg=c)
-                    except Exception: pass
-
-        for sn, row in row_frames.items():
-            row.bind("<Button-1>", lambda e,s=sn: _select(s))
-            row.bind("<MouseWheel>", _on_mousewheel)
-            for ch in row.winfo_children():
-                ch.bind("<Button-1>", lambda e,s=sn: _select(s))
-                ch.bind("<MouseWheel>", _on_mousewheel)
-
-        if agent_ids:
-            _select(agents[agent_ids[0]].skin)
-
-        def _on_agent_change(*_):
+        def apply(_e=None):
             aid = lbl_to_id.get(sel_agent.get())
-            if aid and aid in agents: _select(agents[aid].skin)
-        sel_agent.trace("w", _on_agent_change)
+            base, hue = state["skin"], hue_var.get()
+            if not aid or not base: return
+            skin = base
+            if hue:
+                skin = f"{base}_h{hue}"
+                if REGISTRY and not REGISTRY.has(skin):
+                    REGISTRY.load_hue_variant(skin, base, float(hue))
+            self._apply_skin(aid, skin)
+            toast.config(text=f"{sel_agent.get()} is now {base.replace('_', ' ')}"
+                              f"{f' ({hue}°)' if hue else ''}.")
+            win.after(250, render_sessions)
+        apply_btn.bind("<Button-1>", apply)
+
+        # ── behaviour ─────────────────────────────────────────────
+        def select(sn):
+            state["skin"] = sn; refresh()
+
+        def refresh():
+            sn, row = state["skin"], state["row"]
+            for n, c in cards.items():
+                c.config(highlightbackground=P["select"] if n == sn else P["line"])
+            for idx, b in enumerate(state_btns):
+                b.config(highlightbackground=P["select"] if self.PICK_ANIMS[idx][0] == row else P["line"])
+            name, st = next((nm, s) for r, nm, s in self.PICK_ANIMS if r == row)
+            hud_name.config(text=sn.replace("_", " ").upper())
+            hud_state.config(text=f"state: {st}")
+            hue_lbl.config(text=f"HUE {hue_var.get()}°")
+            sheet = self._picker_sheet(sn)
+            if sheet:
+                n = len(sheet._frames[row]) if row < len(sheet._frames) else 0
+                pads = getattr(sheet, "row_foot_pad", [])
+                meta.config(text=(f"Row     {row} · {name}\n"
+                                  f"Frames  {f'{n} × {self.PICK_FRAME_MS} ms' if n else 'empty → uses idle'}\n"
+                                  f"Cell    {sheet.cell_w}×{sheet.cell_h} px at {sheet.scale}×\n"
+                                  f"Feet    {pads[row] if row < len(pads) else 0} px empty below"))
+
+        def on_agent(*_):
+            aid = lbl_to_id.get(sel_agent.get())
+            live = self.scanner.get_agents()
+            if aid in live:
+                sk = live[aid].skin
+                m = re.search(r"_h(\d+)$", sk)
+                hue_var.set(int(m.group(1)) if m else 0)
+                state["skin"] = sk[:m.start()] if m else sk
+                refresh()
+        sel_agent.trace_add("write", on_agent)
+
+        t0 = time.perf_counter()
+        def tick():
+            if not win.winfo_exists(): return
+            t = int((time.perf_counter() - t0) * 1000)
+            for cv, item, fn, box, floor_y, cx in draws:
+                try:
+                    skin, row, hue = fn()
+                    if box is None:                     # the stage: size follows the canvas
+                        box = stage_box[0]
+                        floor_y = int(stage.winfo_height()) - GROUND_H if stage.winfo_height() > 1 else SH - GROUND_H
+                        cx = max(1, stage.winfo_width()) // 2
+                    photo, pad = self._picker_frame(cache, skin, row, t, box, hue)
+                    if photo:
+                        cv.itemconfig(item, image=photo)
+                        cv.coords(item, cx, floor_y + pad)   # feet on the floor line
+                except tk.TclError:
+                    pass
+            if len(cache) > 1500: cache.clear()
+            win.after(50, tick)
+
+        render_sessions()
+        if labels: on_agent()
+        refresh()
+        tick()
 
     def _apply_skin(self, agent_id, skin):
         with self.scanner._lock:
@@ -2054,6 +3530,107 @@ class OverlayApp:
         self.root.mainloop()
 
 
-if __name__ == "__main__":
+def run_selftest() -> int:
+    """Load bundled sprites and build the HUD and chat window off-screen.
+
+    Returns 0 when the widgets construct, 1 when an asset or Tk option fails.
+    Used by ``build.ps1`` as ``cli-avatars.exe --selftest``. The chat window
+    is filled from simulated store rows. It does not start a CLI.
+    """
+    problems: list[str] = []
+    required = (
+        asset_path("Sprites", "caine.png"),
+        asset_path("Sprites", "bubble.png"),
+        asset_path("Sprites", "talk", "frame.png"),
+        asset_path("Sprites", "talk", "tail.png"),
+        asset_path("Sprites", "talk", "icons.png"),
+    )
+    for path in required:
+        if not path.is_file():
+            problems.append("missing " + path.name)
+    if REGISTRY is None:
+        problems.append("sprite registry unavailable")
+    else:
+        try:
+            _load_sprites(REGISTRY)
+        except Exception as exc:
+            problems.append("sprites: " + str(exc))
+        else:
+            if not REGISTRY.has("caine"):
+                problems.append("caine sheet did not load")
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.geometry("320x200+20000+20000")
+        host = OverlayApp.__new__(OverlayApp)
+        host.root = root
+        host._offscreen = True
+        host.scanner = SimpleNamespace(bubbles=BubbleBoard())
+        host._rooms_shown = False
+        host._chat_shown = False
+        host._rooms_btn = None
+        host._chat_btn = None
+        host._hud_drag_origin = None
+        host._create_hud_win()
+        root.update_idletasks()
+        hud = getattr(host, "_hud_win", None)
+        if hud is None or not hud.winfo_exists():
+            problems.append("HUD window was not created")
+        else:
+            hud.withdraw()
+        import tempfile
+        from events import close_logging
+        from chat_window import seed_simulated, simulated_agents
+
+        data = tempfile.TemporaryDirectory()
+        try:
+            seed_simulated(data.name)
+            window = ChatWindow(
+                root,
+                directory=Path(data.name),
+                agents=simulated_agents(),
+                config={},
+                config_path=Path(data.name) / "missing-config.json",
+                offscreen=True,
+            )
+            window.open(topic_id="hooks", address_id="abcd1234_sub_0")
+            root.update_idletasks()
+            if window.win is None or not window.win.winfo_exists():
+                problems.append("chat window was not created")
+            elif window.recipient_ids() != ["abcd1234"]:
+                problems.append("chat composer did not address the orchestrator")
+            else:
+                window.win.withdraw()
+        finally:
+            close_logging(Path(data.name))
+            data.cleanup()
+    except tk.TclError as exc:
+        problems.append("tk: " + str(exc))
+    except Exception as exc:
+        problems.append(type(exc).__name__ + ": " + str(exc))
+    finally:
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+    if problems:
+        for item in problems:
+            print("selftest: " + item, file=sys.stderr)
+        return 1
+    print("selftest: ok")
+    return 0
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    args = sys.argv[1:] if argv is None else list(argv)
+    if "--selftest" in args:
+        return run_selftest()
     app = OverlayApp()
     app.run()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -30,12 +30,26 @@ import threading
 from pathlib import Path
 from typing import Optional
 
+from subskins import row_index_for_status
+
 try:
-    from PIL import Image, ImageTk
+    from PIL import Image
     HAS_PIL = True
+    _FLIP_H = getattr(getattr(Image, "Transpose", Image), "FLIP_LEFT_RIGHT")
 except ImportError:
     HAS_PIL = False
+    Image = None  # type: ignore[misc, assignment]
+    _FLIP_H = None
     print("[sprite_loader] Pillow not installed. Run: pip install pillow")
+
+
+def _as_photo(image):
+    """Tk photo for a frame. Imported here so loading sheets does not need Tk."""
+    try:
+        from PIL import ImageTk
+    except ImportError:
+        return None
+    return ImageTk.PhotoImage(image)
 
 try:
     import numpy as np
@@ -126,6 +140,12 @@ class SpriteSheet:
         self.frame_w = frame_w
         self.frame_h = frame_h or frame_w
         self.scale   = scale
+        # Subagent sheets set these from the manifest. Orchestrator sheets stay ground.
+        self.mode = "ground"
+        self.placeholder = False
+        self.role = ""
+        # Subagent sheets: status name → row index. None uses the defaults.
+        self.status_rows = None
 
         if image is not None:
             self.path = Path("<memory>")
@@ -153,6 +173,8 @@ class SpriteSheet:
         # _photos[row][col] = ImageTk.PhotoImage or None (lazy, cached on first use)
         self._frames: list[list[Image.Image]] = []
         self._photos: list[list[Optional[ImageTk.PhotoImage]]] = []
+        # Mirrored PhotoImages, keyed by the source frame's id. Facing left.
+        self._mirror_cache: dict[int, ImageTk.PhotoImage] = {}
         self._slice_all()
 
     def _slice_all(self):
@@ -171,6 +193,44 @@ class SpriteSheet:
                 row_frames.append(cell)
             self._frames.append(row_frames)
             self._photos.append([None] * len(row_frames))
+        self.row_foot_pad = [self._measure_foot_pad(row) for row in self._frames]
+
+    def _measure_foot_pad(self, frames) -> int:
+        """Empty rows under the lowest visible pixel of one animation row.
+
+        Physics stands the avatar on (cell bottom - pad), so the feet,
+        not the empty bottom of the cell, touch the floor.
+        """
+        lowest = 0
+        for cell in frames:
+            bbox = cell.getchannel("A").getbbox()
+            if bbox:
+                lowest = max(lowest, bbox[3])
+        return self.cell_h - lowest if lowest else 0
+
+    def resolve_row(self, row: int) -> int:
+        """Row that actually has frames.
+
+        A missing or empty row falls back to the first row that has pixels,
+        which is idle when the sheet follows the Stream Avatars layout.
+        """
+        if isinstance(row, bool) or not isinstance(row, int):
+            row = 0
+        if row < 0:
+            row = 0
+        if row < len(self._frames) and self._frames[row]:
+            return row
+        for index, frames in enumerate(self._frames):
+            if frames:
+                return index
+        return 0
+
+    def get_foot_pad(self, row: int) -> int:
+        """Pad for a row, with the same fallback as get_photo()."""
+        row = self.resolve_row(row)
+        if not self.row_foot_pad or row >= len(self.row_foot_pad):
+            return 0
+        return self.row_foot_pad[row]
 
     def _is_blank(self, cell: "Image.Image") -> bool:
         """Returns True if a cell has no visible pixels (alpha sum below threshold)."""
@@ -187,7 +247,7 @@ class SpriteSheet:
             return 0
         return len(self._frames[row])
 
-    def get_photo(self, row: int, frame_idx: int) -> Optional["ImageTk.PhotoImage"]:
+    def get_photo(self, row: int, frame_idx: int, mirror: bool = False) -> Optional["ImageTk.PhotoImage"]:
         """
         Return a tkinter-compatible PhotoImage for (row, frame).
 
@@ -197,21 +257,25 @@ class SpriteSheet:
         Keeping them in self._photos prevents that.
 
         frame_idx is modulo'd so it loops — you can pass the raw tick counter.
+        A missing row uses the first row that has frames.
         """
-        if row >= len(self._frames):
-            row = 0
-        frames = self._frames[row]
+        row = self.resolve_row(row)
+        frames = self._frames[row] if row < len(self._frames) else []
         if not frames:
-            for fallback in range(len(self._frames)):
-                if self._frames[fallback]:
-                    frames = self._frames[fallback]
-                    break
-            else:
-                return None
+            return None
         idx = frame_idx % len(frames)
         if self._photos[row][idx] is None:
-            self._photos[row][idx] = ImageTk.PhotoImage(frames[idx])
-        return self._photos[row][idx]
+            self._photos[row][idx] = _as_photo(frames[idx])
+        photo = self._photos[row][idx]
+        if not mirror or photo is None or _FLIP_H is None:
+            return photo
+        image = frames[idx]
+        key = id(image)
+        cached = self._mirror_cache.get(key)
+        if cached is None:
+            cached = _as_photo(image.transpose(_FLIP_H))
+            self._mirror_cache[key] = cached
+        return cached
 
     def get_render_size(self) -> tuple[int, int]:
         """Returns (width, height) of one rendered cell in pixels."""
@@ -219,13 +283,17 @@ class SpriteSheet:
 
     def debug_info(self) -> str:
         """Human-readable summary of this sheet's layout."""
-        anim_names = ["idle", "run", "sit", "stand", "jump"] + \
-                     [f"custom{i}" for i in range(1, 20)]
+        if self.role == "subagent":
+            anim_names = ["idle", "working", "dying"]
+        else:
+            anim_names = ["idle", "run", "sit", "stand", "jump"]
+        anim_names = anim_names + [f"custom{i}" for i in range(1, 20)]
         lines = [
             f"SpriteSheet '{self.path.name}'",
             f"  Image   : {self.image.width}x{self.image.height} px",
             f"  Cell    : {self.cell_w}x{self.cell_h} px  (scale={self.scale}x)",
             f"  Grid    : {self.cols} cols x {self.rows} rows",
+            f"  Role    : {self.role or 'orchestrator'}  mode={self.mode}",
             f"  Animations:",
         ]
         for r, frames in enumerate(self._frames):
@@ -261,6 +329,10 @@ class SpriteRegistry:
         frame_w: int,
         frame_h: Optional[int] = None,
         scale: float = 1.0,
+        mode: Optional[str] = None,
+        placeholder: bool = False,
+        role: str = "",
+        quiet: bool = False,
     ) -> "SpriteSheet":
         """
         Load a sprite sheet and register it under `name`.
@@ -276,7 +348,11 @@ class SpriteRegistry:
             registry.load("amongo", "assets/amongo.png", frame_w=48, scale=2.0)
         """
         sheet = SpriteSheet(path, frame_w, frame_h, scale)
-        print(sheet.debug_info())
+        sheet.mode = mode if mode in ("fly", "ground") else "ground"
+        sheet.placeholder = bool(placeholder)
+        sheet.role = role or ""
+        if not quiet:
+            print(sheet.debug_info())
         with self._lock:
             self._sheets[name] = sheet
         return sheet
@@ -286,6 +362,7 @@ class SpriteRegistry:
         name: str,
         status: str,
         frame: int,
+        mirror: bool = False,
     ) -> Optional["ImageTk.PhotoImage"]:
         """
         Get the right animation frame for a given skin and agent status.
@@ -299,11 +376,27 @@ class SpriteRegistry:
         if not sheet:
             return None
 
-        row = ANIM_ROW.get(status, 0)
-        # If the target row has no frames, fall back to idle (row 0)
-        if sheet.get_frame_count(row) == 0:
-            row = 0
-        return sheet.get_photo(row, frame)
+        row = self._status_row(sheet, status)
+        # SpriteSheet.resolve_row falls back when that animation is missing.
+        return sheet.get_photo(row, frame, mirror=mirror)
+
+    def _status_row(self, sheet: "SpriteSheet", status: str) -> int:
+        """Row index before the missing-row fallback.
+
+        Subagent sheets map busy and thinking to working, and dying to
+        the dying row. Orchestrator sheets keep ANIM_ROW.
+        """
+        if getattr(sheet, "role", "") == "subagent":
+            return row_index_for_status(status, getattr(sheet, "status_rows", None))
+        return ANIM_ROW.get(status, 0)
+
+    def animation_row(self, name: str, status: str) -> int:
+        """Row that will be drawn, after the missing-row fallback. 0 if unknown."""
+        with self._lock:
+            sheet = self._sheets.get(name)
+        if not sheet:
+            return 0
+        return sheet.resolve_row(self._status_row(sheet, status))
 
     def get_render_size(self, name: str) -> tuple[int, int]:
         """Returns rendered cell (width, height) for the named sheet."""
@@ -311,22 +404,57 @@ class SpriteRegistry:
             sheet = self._sheets.get(name)
         return sheet.get_render_size() if sheet else (48, 48)
 
+    def get_foot_pad(self, name: str, status: str) -> int:
+        """Empty rows below the feet for this skin's animation (0 if unknown)."""
+        with self._lock:
+            sheet = self._sheets.get(name)
+        if not sheet or not hasattr(sheet, "row_foot_pad"):
+            return 0
+        return sheet.get_foot_pad(self._status_row(sheet, status))
+
     def reload_all(self, scale: float) -> None:
         """Reload every file-backed sheet at a new scale. Skips in-memory hue variants."""
         with self._lock:
-            snapshot = {
-                n: (str(s.path), s.frame_w, s.frame_h)
+            snapshot = [
+                (
+                    n, str(s.path), s.frame_w, s.frame_h,
+                    getattr(s, "mode", "ground"),
+                    bool(getattr(s, "placeholder", False)),
+                    getattr(s, "role", "") or "",
+                    getattr(s, "status_rows", None),
+                )
                 for n, s in self._sheets.items()
                 if str(s.path) != "<memory>"
-            }
-        for name, (path, fw, fh) in snapshot.items():
+            ]
+        for name, path, fw, fh, mode, placeholder, role, status_rows in snapshot:
             try:
                 sheet = SpriteSheet(path, fw, fh, scale)
+                sheet.mode = mode if mode in ("fly", "ground") else "ground"
+                sheet.placeholder = placeholder
+                sheet.role = role
+                sheet.status_rows = dict(status_rows) if isinstance(status_rows, dict) else None
                 with self._lock:
                     self._sheets[name] = sheet
                 print(f"[sprites] reloaded {name} at {scale:.1f}×")
             except Exception as e:
                 print(f"[sprites] reload failed for {name}: {e}")
+
+    def ensure_hue_variant(self, name: str) -> None:
+        """Register ``base_hDEG`` from an already loaded base sheet.
+
+        TODO(Caine art): Grok sessions use this until a Grok sheet exists.
+        A missing base sheet is left alone so a later sprite load can retry.
+        """
+        base, sep, tail = str(name or "").rpartition("_h")
+        if not sep or not tail.isdigit() or not base:
+            return
+        with self._lock:
+            if name in self._sheets or base not in self._sheets:
+                return
+        try:
+            self.load_hue_variant(name, base, float(tail))
+        except Exception:
+            return
 
     def load_hue_variant(
         self, variant_name: str, base_name: str, hue_degrees: float
@@ -353,7 +481,7 @@ class SpriteRegistry:
             return None
         frame = sheet._frames[0][0]
         thumb = frame.resize((size, size), Image.NEAREST)
-        return ImageTk.PhotoImage(thumb)
+        return _as_photo(thumb)
 
     def has(self, name: str) -> bool:
         with self._lock:
@@ -362,6 +490,63 @@ class SpriteRegistry:
     def list_sheets(self) -> list[str]:
         with self._lock:
             return list(self._sheets.keys())
+
+    def skin_mode(self, name: str) -> str:
+        """``fly`` or ``ground`` from the sheet. Unknown skins are ground."""
+        with self._lock:
+            sheet = self._sheets.get(name)
+        mode = getattr(sheet, "mode", None) if sheet else None
+        return mode if mode in ("fly", "ground") else "ground"
+
+    def is_subagent_skin(self, name: str) -> bool:
+        with self._lock:
+            sheet = self._sheets.get(name)
+        return bool(sheet and getattr(sheet, "role", "") == "subagent")
+
+    def subagent_ids(self) -> list[str]:
+        """Subagent skins in the order they were loaded (manifest order)."""
+        with self._lock:
+            return [name for name, sheet in self._sheets.items()
+                    if getattr(sheet, "role", "") == "subagent"]
+
+    def load_subagents(self, directory, scale: float = 1.0) -> list[str]:
+        """Load ``manifest.json`` sheets. Frame size comes from each entry.
+
+        A missing manifest or a bad sheet is skipped. The overlay keeps
+        running on the sheets that did load.
+        """
+        from subskins import MANIFEST_NAME, load_anim_rows, load_manifest
+
+        root = Path(directory)
+        specs = load_manifest(root / MANIFEST_NAME)
+        status_rows = load_anim_rows(root / MANIFEST_NAME)
+        loaded: list[str] = []
+        for spec in specs:
+            path = root / spec.file
+            if not path.is_file():
+                print(f"[sprites] subagent sheet missing: {spec.id}")
+                continue
+            try:
+                self.load(
+                    spec.id,
+                    str(path),
+                    frame_w=spec.frame_w,
+                    frame_h=spec.frame_h,
+                    scale=scale,
+                    mode=spec.mode,
+                    placeholder=spec.placeholder,
+                    role="subagent",
+                    quiet=True,
+                )
+                sheet = self._sheets.get(spec.id)
+                if sheet is not None:
+                    sheet.status_rows = dict(status_rows)
+            except Exception as exc:
+                print(f"[sprites] could not load subagent {spec.id}: {exc}")
+                continue
+            loaded.append(spec.id)
+            print(f"[sprites] subagent {spec.id} {spec.frame_w}x{spec.frame_h} {spec.mode}")
+        return loaded
 
 
 # ── Utility: JPG → PNG converter ────────────────────────────────────────────
