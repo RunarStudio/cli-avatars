@@ -16,7 +16,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 from events import (
     LOCK_TIMEOUT,
@@ -143,8 +143,9 @@ def save_project(
     project: Mapping[str, object],
     *,
     timeout: float = LOCK_TIMEOUT,
+    keep_kv: bool = False,
 ) -> dict[str, object]:
-    """Validate and write one project. Not an MCP tool in phase 1.
+    """Validate and write one project. ``keep_kv`` keeps the stored key-values.
 
     The record is data. ``path`` and ``key_files`` are not opened.
     """
@@ -152,6 +153,36 @@ def save_project(
     root = _prepare_root(directory)
     with directory_lock(root, timeout=timeout):
         if root.resolve().name != PROJECTS_DIR_NAME:
+            raise EventRejected("schema")
+        if keep_kv:
+            current = _read_one(root, str(record["slug"]))
+            record["kv"] = current["kv"] if current is not None else {}
+        _write_one(root, record)
+    return record
+
+
+def update_project(
+    directory: Path | str,
+    slug: str,
+    change: Callable[[dict[str, object]], Mapping[str, object]],
+    *,
+    timeout: float = LOCK_TIMEOUT,
+) -> dict[str, object]:
+    """Read, change, validate, and write one stored project under one lock.
+
+    An absent project is ``missing``. The slug cannot change.
+    """
+    if not valid_slug(slug):
+        raise EventRejected("schema")
+    root = _existing_root(directory)
+    if root is None:
+        raise EventRejected("missing")
+    with directory_lock(root, timeout=timeout):
+        current = _read_one(root, slug)
+        if current is None:
+            raise EventRejected("missing")
+        record = validate_project(change(dict(current)))
+        if record["slug"] != slug:
             raise EventRejected("schema")
         _write_one(root, record)
     return record
@@ -294,33 +325,33 @@ def _public(record: Mapping[str, object]) -> dict[str, object]:
     return {key: record[key] for key in FIELDS if key in record}
 
 
-def _prepare_root(directory: Path | str) -> Path:
+def _prepare_root(directory: Path | str, name: str = PROJECTS_DIR_NAME) -> Path:
     base = Path(directory)
     if base.is_symlink():
         raise EventRejected("schema")
     ensure_private_dir(base)
-    root = base / PROJECTS_DIR_NAME
+    root = base / name
     if root.is_symlink():
         raise EventRejected("schema")
     ensure_private_dir(root)
     resolved = root.resolve()
-    if resolved.name != PROJECTS_DIR_NAME:
+    if resolved.name != name:
         raise EventRejected("schema")
     return resolved
 
 
-def _existing_root(directory: Path | str) -> Path | None:
+def _existing_root(directory: Path | str, name: str = PROJECTS_DIR_NAME) -> Path | None:
     base = Path(directory)
     if base.is_symlink() or not base.is_dir():
         return None
-    root = base / PROJECTS_DIR_NAME
+    root = base / name
     if root.is_symlink() or not root.is_dir():
         return None
     try:
         resolved = root.resolve()
     except OSError:
         raise EventRejected("schema") from None
-    if resolved.name != PROJECTS_DIR_NAME:
+    if resolved.name != name:
         raise EventRejected("schema")
     return resolved
 
@@ -394,7 +425,7 @@ def _load_path(path: Path) -> tuple[dict[str, object] | None, bool]:
         return None, False
     try:
         obj = json.loads(blob.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError):
+    except (UnicodeError, json.JSONDecodeError, RecursionError):
         return None, False
     if not isinstance(obj, dict):
         return None, False
@@ -412,13 +443,15 @@ def _write_one(root: Path, record: Mapping[str, object]) -> None:
     path = _project_path(root, str(record["slug"]))
     if path.is_symlink():
         raise EventRejected("schema")
-    payload = json.dumps(_public(record), ensure_ascii=False, indent=2) + "\n"
+    payload = (json.dumps(_public(record), ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    if len(payload) > MAX_FILE_BYTES:
+        raise EventRejected("schema")
     tmp = path.with_name(path.name + ".tmp")
     if tmp.is_symlink() or tmp.parent.resolve() != root:
         raise EventRejected("schema")
     fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
-        os.write(fd, payload.encode("utf-8"))
+        os.write(fd, payload)
     finally:
         os.close(fd)
     os.replace(tmp, path)

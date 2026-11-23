@@ -1,6 +1,6 @@
-# Local MCP server (MCP-M1)
+# Local MCP server (MCP-M1, MCP-M2, MCP-M3)
 
-A Claude Code or Grok Build session can connect to CLI Avatars over stdio and read the same local store the overlay already uses. Phase 1 is read-mostly. The only writes are the caller's own avatar state and one message on a topic channel.
+A Claude Code or Grok Build session can connect to CLI Avatars over stdio and read the same local store the overlay already uses. Phase 1 is read-mostly. Its only writes are the caller's own avatar state and one message on a topic channel. Phase 2 adds project, requirements, and key-value writes. Phase 3 adds local memories on a project.
 
 The server does not open a socket. It does not run text from a project, a topic, a decision, or a tool argument. It does not call a model.
 
@@ -15,6 +15,7 @@ python -m cli_avatars_mcp     FastMCP, transport stdio
         ▼
 per-user data directory       same folder as the overlay
   projects/<slug>.json        this phase
+  memories/<slug>.json        notes on a project (M3)
   topics/<id>.json            existing topic store
   decisions.jsonl             existing decisions
   channel/<topic>.jsonl       existing chat log
@@ -54,7 +55,7 @@ One JSON file per slug: `projects/<slug>.json`.
 
 Unknown fields are dropped. A `token` in a file is not returned.
 
-Phase 1 has no MCP tool that writes a project or a key-value. Tests and a later phase call `save_project` in `cli_avatars_mcp/projects.py`.
+Phase 1 has no MCP tool that writes a project or a key-value. Phase 2 tools write through `save_project` and `update_project` in `cli_avatars_mcp/projects.py`, so they use the same lock and the same validators.
 
 ## Tools
 
@@ -68,6 +69,12 @@ Phase 1 has no MCP tool that writes a project or a key-value. Tests and a later 
 | `kv_get` | `project`, `key` | One value from that project's `kv`. |
 | `status_set` | `agent_id`, `state`, `note?` | One state event for that id. `state` is `idle`, `busy`, `thinking`, `subagent`, or `blocked`. |
 | `say` | `topic`, `text` | One channel message as `emit:mcp`. Text is capped at 240 characters, same as other chat notes. |
+| `project_save` | `slug`, `name`, `path?`, `repo_url?`, `branch?`, `status?`, `requirements?`, `key_files?`, `topics?` | Create or replace one project (M2). Stored key-values stay. |
+| `requirements_set` | `project`, `text` | Replace that project's requirements text (M2). |
+| `kv_set` | `project`, `key`, `value` | Set one key-value (M2). |
+| `kv_delete` | `project`, `key` | Delete one key-value (M2). |
+| `memories_add` | `project`, `text` | Store one note on that project (M3). |
+| `memories_search` | `project`, `query` | That project's notes whose text contains the query, newest first (M3). |
 
 `agent_id` is `source:id` (for example `claude:` plus the 8-character session id) or a bare session id. A bare id is sent with source `emit`. Pass your own id. The tool emits one event. It does not update anyone else and it does not write a project.
 
@@ -131,11 +138,9 @@ args = ["-m", "cli_avatars_mcp"]
 
 `--claude-config` and `--grok-config` point the same merge at another file. That is how the tests avoid the real home directory.
 
-## What this phase does not do
+## What M1 and M2 do not do
 
-- No project create, update, or delete tool.
-- No `kv` write or delete.
-- No requirements edit from a client.
+- No project delete tool.
 - No memory tools.
 - No HTTP, SSE, or other listener.
 - No fetch of `repo_url`, and no read of `path` or `key_files`.
@@ -143,22 +148,31 @@ args = ["-m", "cli_avatars_mcp"]
 
 ## M2 — writes
 
-Add tools that write through the same lock and the same validators:
+Shipped. Each tool takes `directory_lock` on `projects/` once, reads the stored record, and writes it through `validate_project`:
 
-- Save a project: slug, name, path, repo url, branch, status, requirements, key files, linked topics.
-- Replace requirements text.
-- Set and delete one key-value.
+| Tool | Writes | Rejects |
+|------|--------|---------|
+| `project_save` | The whole record except `kv`, which keeps its stored values. `status` defaults to `idea`. | A bad slug, an unknown status, a name over 80 or requirements over 16000 characters, and every field rule in the project record table. |
+| `requirements_set` | `requirements`. Newlines stay. Other control characters are removed. | Text over 16000 characters or not a string. |
+| `kv_set` | One `kv` entry. Control characters are removed. | A bad key, a value over 2000 characters or not a string, a 65th key. |
+| `kv_delete` | Removes one `kv` entry. | A bad key. An absent key is `missing`. |
 
-Still no shell, no fetch, and no opening of paths. Values stay data.
+Errors use the M1 shape: `EventRejected` with `schema` for bad input, `missing` for an unknown project, `lock` when the store stays busy. A rejected call writes nothing.
+
+Still no shell, no fetch, and no opening of paths. Values stay data. `tests/test_mcp_m2.py` covers the round trips, the validators, control characters, and stored paths and URLs that are not opened or fetched.
 
 ## M3 — memories
 
-Add a local memory store next to the projects, in the same data directory:
+Shipped. Notes live in `memories/<slug>.json` next to `projects/`, one list per project (`id`, `ts`, `text`). Each call takes `directory_lock` on `projects/` once, checks the project, then reads and writes the notes under that same lock. Code: `cli_avatars_mcp/memories.py`.
 
-- `memories_add(project, text)` stores one sanitised note on that project.
-- `memories_search(project, query)` returns notes whose text contains the query.
+| Tool | Does | Rejects |
+|------|------|---------|
+| `memories_add` | Stores one note. Newlines stay. Other control characters are removed. Returns the note with its `id`. | Empty text, text over 2000 characters or not a string, a 257th note on the project. |
+| `memories_search` | Case-insensitive substring match on that project's notes. Newest first, at most 20. | An empty query, a query over 200 characters or not a string. |
 
-Search is a local string match. It does not call a model, and it does not send the notes anywhere. Memory text is untrusted data, same as a topic summary.
+An unknown project is `missing`, bad input is `schema`, a busy store is `lock`. A rejected call writes nothing. A note file that does not parse is `schema` and is not overwritten.
+
+Search is a local string match. It does not call a model, and it does not send the notes anywhere. Memory text is untrusted data, same as a topic summary: a path in a note is not opened, a URL is not fetched, and shell text is not run. `tests/test_mcp_m3.py` covers the round trip, hit and miss, control characters, unknown projects, oversize input, and notes that hold paths, URLs, and shell text.
 
 ## Tests
 
@@ -166,4 +180,4 @@ Search is a local string match. It does not call a model, and it does not send t
 python -m unittest discover -s tests
 ```
 
-`tests/test_mcp.py` calls the tool functions on a temporary directory. The stdio smoke test starts `python -m cli_avatars_mcp` and is skipped when the `mcp` package is not installed.
+`tests/test_mcp.py`, `tests/test_mcp_m2.py`, and `tests/test_mcp_m3.py` call the tool functions on a temporary directory. The stdio smoke test starts `python -m cli_avatars_mcp` and is skipped when the `mcp` package is not installed.

@@ -29,7 +29,11 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `cli_avatars_emit.py` | `python -m cli_avatars_emit` — state, say, inbox, hooks installer |
 | `claude_chat_hooks.py` | Merge chat hooks into Claude `settings.json` |
 | `hooks/claude_chat_hook.py` | Stdlib Claude Code hook (chat context + idle) |
-| `cli_avatars_mcp/` | Local stdio MCP server (`server`, `tools`, `install`, `projects`) |
+| `cli_avatars_mcp/` | Local stdio MCP server (`server`, `tools`, `install`, `projects`, `memories`) |
+| `harness.py` | Read-only view of Claude agent and hook specs (CHAT-HARNESS-READ); never runs a hook |
+| `cli_avatars/redaction.py` | Shared secret redactor for hook commands and board text |
+| `board/`, `registry/` | Task cards (model, `LocalStore`) and the registry: full API, narrow `AgentApi`, policy, rate limits |
+| `building/layouts/` | AG-3 room layouts (`compact.json` tiling 4, `tower.json` tiling 16) drawn by the Dungeon tab |
 | `bots/` | Grok Bot roster and pull-only status (`roster`, `status`, `status_source`, `service`). Files live in the data dir, not in git. |
 | `tools/gen_ponmi.py`, `tools/gen_meowatar_gifs.py`, `tools/gen_subskin_placeholders.py` | Offline sprite / GIF generators (not imported at runtime) |
 
