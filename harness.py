@@ -13,44 +13,23 @@ a file, never runs a hook command and never starts a CLI. A missing folder
 gives an empty list. A file it cannot parse, a symlink (also a symlinked
 ``.claude`` or ``agents`` folder) or a file over 256 KiB is skipped with a
 warning record; nothing is raised to the caller. Token-like strings in hook
-commands are replaced with ``[redacted]``: key, token, secret and auth
-headers or variables (quoted or not), ``--token``/``--password``/``-p``
-values, the password of ``curl -u``/``--user`` and of ``user:pass@`` URLs,
-JWTs and common API key shapes. ``-p`` is always hidden, so ``mkdir -p dir``
-shows ``-p [redacted]``.
+commands are replaced with ``[redacted]`` by ``cli_avatars.redaction.redact``
+(shared with the board model; see that module for the shapes).
 """
 
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+from cli_avatars.redaction import REDACTED, redact  # noqa: F401  (re-exported)
 
 USER = "user"
 PROJECT = "project"
 LOCAL = "local"
 MAX_READ_BYTES = 256 * 1024
-REDACTED = "[redacted]"
-_SECRET_AFTER = re.compile(
-    r"((?:\b(?:[A-Za-z0-9]+-)*(?:api-?key|key|token|secret|auth|authorization|password)\s*:\s*"
-    r"(?:(?:Bearer|Basic|Token|Digest)\s+)?"
-    r"|\bBearer\s+|--?(?:token|api[-_]?key|secret|password|auth)[= ]\s*"
-    r"|\b[A-Za-z0-9_]*(?:TOKEN|KEY|SECRET|PASSWORD|PASSWD)[A-Za-z0-9_]*="
-    r"|(?<!\S)(?:-u|--user)[= ]?\s*['\"]?[^\s'\":]*:"
-    r"|(?<!\S)-p[= ]?\s*))"
-    r"(\"[^\"]*\"|'[^']*'|[^\s'\"]+)",
-    re.IGNORECASE,
-)
-_URL_PASSWORD = re.compile(r"(\b[a-z][a-z0-9+.-]*://[^\s/:@'\"]*:)[^\s/@'\"]+(?=@)", re.IGNORECASE)
-_SECRET_SHAPE = re.compile(
-    r"\b(?:gh[opsur]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}"
-    r"|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|glpat-[A-Za-z0-9_-]{16,}"
-    r"|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*)"
-)
-
-
 @dataclass(frozen=True)
 class AgentSpec:
     """One Claude Code subagent definition."""
@@ -103,14 +82,8 @@ def _warn(warnings: Optional[list], path: Path, reason: str) -> None:
         warnings.append(HarnessWarning(path, reason))
 
 
-def redact(command: str) -> str:
-    """The command with token-like values replaced by ``[redacted]``."""
-    def hide(m: re.Match) -> str:
-        quote = m.group(2)[0] if m.group(2)[0] in "\"'" else ""
-        return m.group(1) + quote + REDACTED + quote
-
-    command = _URL_PASSWORD.sub(lambda m: m.group(1) + REDACTED, command)
-    return _SECRET_SHAPE.sub(REDACTED, _SECRET_AFTER.sub(hide, command))
+def _seconds(value: object) -> Optional[float]:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _read_text(path: Path, warnings: Optional[list]) -> Optional[str]:
@@ -285,7 +258,7 @@ def _hooks_in(path: Path, scope: str, warnings: Optional[list]) -> list[HookSpec
                     matcher=matcher,
                     type=entry.get("type", ""),
                     command=redact(command) if isinstance(command, str) else "",
-                    timeout=float(timeout) if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) else None,
+                    timeout=_seconds(timeout),
                     source_path=path,
                     scope=scope,
                 ))

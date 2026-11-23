@@ -30,6 +30,7 @@ hiddenimports = [
     "cli_avatars_emit",
     "decisions",
     "events",
+    "harness",
     "hud",
     "inbox",
     "meetings",

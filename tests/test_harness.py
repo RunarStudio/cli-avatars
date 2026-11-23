@@ -6,7 +6,7 @@ path is read. Run: python -m unittest discover -s tests
 
 import json
 import os
-import subprocess
+import subprocess  # noqa: TID251  # patched to prove the reader starts nothing
 import sys
 import tempfile
 import unittest
