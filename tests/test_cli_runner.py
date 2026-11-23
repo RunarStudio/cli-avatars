@@ -1,6 +1,9 @@
 """Security tests for the room-chat CLI runner.
 
-A temporary Python script stands in for Claude. No real CLI is started.
+A temporary program stands in for Claude. No real CLI is started.
+On Windows that program is an x64 executable: CreateProcess cannot run
+the shebang script, and a copied python.exe exits on the fixed ``-p``
+before any startup hook runs. See ``tests/fake_cli_host.py``.
 The tests do not import tkinter or Pillow.
 
 Run: python -m unittest tests.test_cli_runner
@@ -21,8 +24,17 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 REPO = Path(__file__).resolve().parent.parent
+TESTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(TESTS))
 
+from fake_cli_host import (  # noqa: E402
+    DirectoryLinkError,
+    FakeCliUnsupported,
+    install_fake_cli,
+    link_directory,
+    write_cmd_shim,
+)
 from cli_avatars.runner.cli_runner import (  # noqa: E402
     DEFAULT_STDERR_CAP_BYTES,
     DEFAULT_STDOUT_CAP_BYTES,
@@ -41,87 +53,6 @@ from cli_avatars.runner.cli_runner import (  # noqa: E402
     stop_all,
     validate_working_dir,
 )
-
-FAKE_CLI = """\
-#!/usr/bin/env python3
-import json
-import os
-import subprocess
-import sys
-import time
-from pathlib import Path
-
-ROOT = Path.cwd()
-mode = (ROOT / "fake-cli-mode.txt").read_text(encoding="utf-8").strip()
-
-
-def record() -> None:
-    payload = {
-        "argv": sys.argv,
-        "cwd": os.getcwd(),
-        "env_names": sorted(os.environ),
-        "stdin": sys.stdin.read(),
-    }
-    (ROOT / "fake-cli-record.json").write_text(
-        json.dumps(payload),
-        encoding="utf-8",
-    )
-    sys.stdout.write('{"type":"result","ok":true}\\n')
-    sys.stdout.flush()
-
-
-if mode == "record":
-    record()
-elif mode == "sleep":
-    (ROOT / "parent.pid").write_text(str(os.getpid()), encoding="utf-8")
-    time.sleep(60)
-elif mode == "flood":
-    line = b"x" * 200 + b"\\n"
-    for _ in range(100000):
-        sys.stdout.buffer.write(line)
-        sys.stdout.buffer.flush()
-    time.sleep(60)
-elif mode == "flood-err":
-    line = b"e" * 200 + b"\\n"
-    for _ in range(100000):
-        sys.stderr.buffer.write(line)
-        sys.stderr.buffer.flush()
-    time.sleep(60)
-elif mode == "stderr-secret":
-    sys.stderr.write("token=super-secret-value api_key=abcdefghi sk-secretvalue\\n")
-    sys.stdout.write("ok\\n")
-    sys.stdout.flush()
-elif mode == "child":
-    code = (
-        "import os,time,pathlib; "
-        "pathlib.Path('child.pid').write_text(str(os.getpid()), encoding='utf-8'); "
-        "time.sleep(60)"
-    )
-    subprocess.Popen([sys.executable, "-c", code], cwd=str(ROOT))
-    deadline = time.time() + 5
-    while time.time() < deadline and not (ROOT / "child.pid").exists():
-        time.sleep(0.02)
-    (ROOT / "parent.pid").write_text(str(os.getpid()), encoding="utf-8")
-    (ROOT / "ready").write_text("1", encoding="utf-8")
-    time.sleep(60)
-elif mode == "orphan":
-    sys.stdout.write('{"type":"assistant"}\\n')
-    sys.stdout.flush()
-    code = (
-        "import os,time,pathlib; "
-        "pathlib.Path('child.pid').write_text(str(os.getpid()), encoding='utf-8'); "
-        "pathlib.Path('ready').write_text('1', encoding='utf-8'); "
-        "time.sleep(60)"
-    )
-    subprocess.Popen([sys.executable, "-c", code], cwd=str(ROOT))
-    deadline = time.time() + 5
-    while time.time() < deadline and not (ROOT / "ready").exists():
-        time.sleep(0.02)
-    (ROOT / "parent.pid").write_text(str(os.getpid()), encoding="utf-8")
-else:
-    sys.stderr.write("bad mode\\n")
-    sys.exit(2)
-"""
 
 PROMPT = "hello 'world' & echo pwned | cat %PATH% $(id) `whoami`\nline two"
 SESSION = "01234567-89ab-cdef-0123-456789abcdef"
@@ -199,12 +130,13 @@ class RunnerTest(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.work = self.root / "project"
         self.work.mkdir()
-        self.script = self.root / "fake-claude"
-        self.script.write_text(FAKE_CLI, encoding="utf-8", newline="\n")
-        self.script.chmod(0o755)
+        self.runs = []
+        try:
+            self.script = install_fake_cli(self.root)
+        except FakeCliUnsupported as exc:
+            self.skipTest(str(exc))
         resolved = resolve_binary("claude", finder=lambda _name: str(self.script))
         self.binary = confirm_binary(resolved)
-        self.runs = []
 
     def tearDown(self) -> None:
         for run in self.runs:
@@ -456,7 +388,10 @@ class RunnerTest(unittest.TestCase):
     def test_symlink_to_a_project_uses_the_real_folder(self) -> None:
         self._mode("record")
         link = self.root / "linked"
-        link.symlink_to(self.work, target_is_directory=True)
+        try:
+            link_directory(link, self.work)
+        except DirectoryLinkError as exc:
+            self.skipTest("directory symlink and junction both failed: " + str(exc))
         run = self._start(working_dir=link, prompt="through the link")
         self.assertEqual(run.wait(timeout=5).outcome, "ok")
         self.assertEqual(Path(self._record()["cwd"]).resolve(), self.work.resolve())
@@ -614,8 +549,7 @@ class RunnerTest(unittest.TestCase):
 
     def test_cmd_shim_still_keeps_text_off_argv(self) -> None:
         shim = self.root / "claude.cmd"
-        shim.write_text(FAKE_CLI, encoding="utf-8", newline="\n")
-        shim.chmod(0o755)
+        write_cmd_shim(shim, self.script)
         resolved = resolve_binary("claude", finder=lambda _name: str(shim))
         self.assertTrue(resolved.shim)
         pinned = confirm_binary(resolved)
@@ -774,7 +708,10 @@ class RunnerTest(unittest.TestCase):
         real = self.root / "private-etc"
         (real / "inner").mkdir(parents=True)
         alias = self.root / "etc-alias"
-        alias.symlink_to(real, target_is_directory=True)
+        try:
+            link_directory(alias, real)
+        except DirectoryLinkError as exc:
+            self.skipTest("directory symlink and junction both failed: " + str(exc))
         with patch.object(cli_runner, "_POSIX_SYSTEM_DIRS", (str(alias),)):
             for sample in (alias, real, real / "inner"):
                 with self.assertRaises(CliRejected):
