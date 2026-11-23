@@ -11,6 +11,9 @@ requires-python = ">=3.10"
 [project.scripts]
 cli-avatars-emit = "cli_avatars_emit:main"
 
+[project.optional-dependencies]
+dev = ["ruff>=0.9"]
+
 [tool.setuptools]
 py-modules = [
     "bundle_paths",

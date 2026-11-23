@@ -218,16 +218,22 @@ class TestStore(unittest.TestCase):
             store, _changed = migrate_chat(empty_store(), ChatBox(8, 9, 900, 600))
             store = remember_layout(store, _sig(4), default_layout((12, 16, 800, 500), zoom=3))
             self.assertTrue(save_store(path, store))
-            mode = stat.S_IMODE(path.stat().st_mode)
-            self.assertEqual(mode & 0o077, 0)
+            _assert_private(self, path)
+            if os.name != "nt":
+                self.assertFalse(os.access(path, os.X_OK))
             loaded = load_store(path)
             self.assertEqual(loaded.layouts[_sig(4)].zoom, 3)
             self.assertEqual(loaded.chat, ChatBox(8, 9, 900, 600))
             link = Path(name) / "link.json"
-            link.symlink_to(path)
-            self.assertFalse(save_store(link, empty_store()))
-            self.assertEqual(load_store(link).layouts, {})
-            self.assertIn(_sig(4), load_store(path).layouts)
+            try:
+                link.symlink_to(path)
+            except OSError:
+                if os.name != "nt":
+                    raise
+            else:
+                self.assertFalse(save_store(link, empty_store()))
+                self.assertEqual(load_store(link).layouts, {})
+                self.assertIn(_sig(4), load_store(path).layouts)
 
     def test_oversize_file_is_ignored(self):
         with tempfile.TemporaryDirectory() as name:
@@ -357,13 +363,28 @@ class TestDungeonWidgets(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
+def _assert_private(test: unittest.TestCase, path: Path) -> None:
+    """POSIX mode on Linux. The Windows DACL when the store already sets one.
+
+    ``st_mode`` group bits stay set on Windows, so they are not the check there.
+    """
+    try:
+        from test_events import assert_private_to_current_user
+    except ImportError:
+        from tests.test_events import assert_private_to_current_user
+
+    assert_private_to_current_user(test, path)
+
+
 class TestOwnerBit(unittest.TestCase):
     def test_directory_mode_is_private(self):
         with tempfile.TemporaryDirectory() as name:
             path = Path(name) / "nested" / "dungeon_window.json"
             self.assertTrue(save_store(path, empty_store()))
-            self.assertEqual(stat.S_IMODE(path.parent.stat().st_mode) & 0o077, 0)
-            self.assertFalse(os.access(path, os.X_OK))
+            _assert_private(self, path.parent)
+            _assert_private(self, path)
+            if os.name != "nt":
+                self.assertFalse(os.access(path, os.X_OK))
 
 
 if __name__ == "__main__":

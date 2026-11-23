@@ -226,6 +226,9 @@ def _overlay_windows() -> None:
             assert not board.legacy
             assert len(board.slots()) == 2
             assert all(slot.window is not root for slot in board.slots())
+            titles = [slot.window.title() for slot in board.slots()]
+            assert titles == ["CLI Avatars overlay 0", "CLI Avatars overlay 1"], titles
+            assert all("Dungeon" not in title for title in titles)
             both = board.targets(380, 40, 40, 40)
             assert {item[0] for item in both} == {"m1", "m2"}
             board.show([])
@@ -257,8 +260,24 @@ def _overlay_windows() -> None:
             assert board.legacy
             assert board.layout is None
             assert board.targets(10, 10, 40, 40) is None
+            assert board._legacy[0].title() == "CLI Avatars overlay 0"
     finally:
         root.destroy()
+
+
+class TestOverlayTitle(unittest.TestCase):
+    def test_overlay_titles_stay_off_the_dungeon_and_out_of_alt_tab(self):
+        from cli_avatars.desktop.chrome import OVERLAY_TITLE, _WS_EX_TOOLWINDOW, overlay_title
+        from cli_avatars.desktop.windows import is_our_window
+
+        self.assertEqual(overlay_title(0), "CLI Avatars overlay 0")
+        self.assertEqual(overlay_title(1), "CLI Avatars overlay 1")
+        self.assertNotIn("Dungeon", overlay_title(1))
+        self.assertEqual(_WS_EX_TOOLWINDOW, 0x00000080)
+        self.assertTrue(is_our_window("Dungeon", "Dungeon"))
+        self.assertTrue(is_our_window(OVERLAY_TITLE, "Dungeon"))
+        self.assertTrue(is_our_window(overlay_title(2), "Dungeon"))
+        self.assertFalse(is_our_window("Notepad", "Dungeon"))
 
 
 class TestOverlayWindows(unittest.TestCase):

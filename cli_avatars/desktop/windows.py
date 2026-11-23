@@ -7,7 +7,20 @@ or a missing pywinctl, returns None so the caller keeps the previous snapshot.
 
 import perchas
 from cli_avatars.desktop.capabilities import HAS_W32, HAS_WINCTL, pwc, w32
+from cli_avatars.desktop.chrome import OVERLAY_TITLE
 from cli_avatars.tuning import FLOOR_MARGIN, PERCH_MIN_LEN, PERCH_MIN_Y
+
+
+def is_our_window(title: str, own_title: str) -> bool:
+    """True for the Dungeon and for overlay windows.
+
+    The pywinctl fallback matches titles. Win32 skips our process instead.
+    Overlay titles start with ``OVERLAY_TITLE`` and do not contain "Dungeon".
+    """
+    text = title or ""
+    if own_title and own_title in text:
+        return True
+    return text == OVERLAY_TITLE or text.startswith(OVERLAY_TITLE + " ")
 
 
 def terrain_from_windows(wins: list, screen: tuple) -> tuple:
@@ -47,7 +60,7 @@ def _scan_pwc(own_title):
             try:
                 if not w.isVisible or not (w.title or "").strip():
                     continue
-                if own_title in (w.title or ""):
+                if is_our_window(w.title or "", own_title):
                     continue
                 r = w.rect
                 x1 = getattr(r, "left", 0)

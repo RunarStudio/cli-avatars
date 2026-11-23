@@ -184,11 +184,21 @@ class OverlayBoard:
                 slot.monitor = monitor
             self._place(slot.window, slot.canvas, monitor)
 
+    def _overlay_index(self, monitor) -> int:
+        """Place of this monitor when the layout is sorted by origin, then id."""
+        layout = self.layout
+        monitors = list(getattr(layout, "monitors", []) or []) if layout is not None else []
+        ordered = sorted(monitors, key=lambda item: (int(item.rect[0]), int(item.rect[1]), str(item.id)))
+        for index, item in enumerate(ordered):
+            if item.id == monitor.id:
+                return index
+        return 0
+
     def _open(self, monitor) -> _Slot:
         import tkinter as tk
 
         win = tk.Toplevel(self.root)
-        self._chrome(win)
+        self._chrome(win, self._overlay_index(monitor))
         left, top, right, bottom = (int(v) for v in monitor.rect)
         canvas = tk.Canvas(
             win, width=max(1, right - left), height=max(1, bottom - top),
@@ -204,18 +214,18 @@ class OverlayBoard:
         if self._legacy is not None:
             return self._legacy
         win = tk.Toplevel(self.root)
-        self._chrome(win)
+        self._chrome(win, 0)
         canvas = tk.Canvas(win, bg=CHROMA_KEY, highlightthickness=0, bd=0)
         canvas.pack(fill="both", expand=True)
         self._bind(canvas, win)
         self._legacy = (win, canvas)
         return self._legacy
 
-    def _chrome(self, win) -> None:
-        from cli_avatars.desktop.chrome import detach_overlay
+    def _chrome(self, win, index: int) -> None:
+        from cli_avatars.desktop.chrome import detach_overlay, mark_toolwindow, overlay_title
 
         win.overrideredirect(True)
-        win.title("Dungeon")
+        win.title(overlay_title(index))
         _attr(win, "-topmost", True)
         _attr(win, "-alpha", TUNING.overlay_alpha)
         try:
@@ -224,6 +234,7 @@ class OverlayBoard:
             pass
         _attr(win, "-transparentcolor", CHROMA_KEY)
         detach_overlay(win)
+        mark_toolwindow(win)
 
     def _bind(self, canvas, window) -> None:
         app = self.app
@@ -250,6 +261,10 @@ class OverlayBoard:
         window.geometry(f"{width}x{height}+{left}+{top}")
         try:
             canvas.config(width=width, height=height)
+            from cli_avatars.desktop.chrome import mark_toolwindow, overlay_title
+
+            window.title(overlay_title(self._overlay_index(monitor)))
+            mark_toolwindow(window)
         except tk.TclError:
             pass
 
