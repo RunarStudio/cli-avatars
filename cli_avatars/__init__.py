@@ -1,7 +1,8 @@
 """CLI Avatars package.
 
-``import cli_avatars`` loads this file only. Feature code lives in
-subpackages. The agent tree is ``cli_avatars.model.tree`` (CHAT-TREE).
+Feature modules land here as ``overlay.py`` is split. See
+``docs/architecture.md``. Importing this package starts nothing and
+imports nothing heavy. The agent tree is ``cli_avatars.model.tree``.
 """
 
 VERSION = "0.4"

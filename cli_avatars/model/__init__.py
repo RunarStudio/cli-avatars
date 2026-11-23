@@ -1,34 +1,5 @@
-"""Pure models. The agent tree is defined in ``tree``.
+"""Pure data. No Tk.
 
-Importing this package loads that tree and nothing from Tk.
+``agent`` holds status names. The agent tree is ``tree`` (CHAT-TREE).
+Import that module directly so this package stays light.
 """
-
-from cli_avatars.model.tree import (
-    COUNT_KEYS,
-    KINDS,
-    STATE_SEVERITY,
-    NullSpecSource,
-    SessionView,
-    SpecNode,
-    SpecSource,
-    Tree,
-    adapt_sessions,
-    build_tree,
-    counts_for_hud,
-    node_id,
-)
-
-__all__ = [
-    "COUNT_KEYS",
-    "KINDS",
-    "STATE_SEVERITY",
-    "NullSpecSource",
-    "SessionView",
-    "SpecNode",
-    "SpecSource",
-    "Tree",
-    "adapt_sessions",
-    "build_tree",
-    "counts_for_hud",
-    "node_id",
-]
