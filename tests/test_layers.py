@@ -143,6 +143,14 @@ class TestLayers(unittest.TestCase):
         self.assertIn("cli_avatars.tuning", names)
         self.assertIn("cli_avatars.physics.spring", names)
         self.assertIn("cli_avatars.effects.burst", names)
+        for name in (
+            "cli_avatars.world.avatar",
+            "cli_avatars.world.scanner",
+            "cli_avatars.world.terrain",
+            "cli_avatars.desktop.capabilities",
+            "cli_avatars.desktop.windows",
+        ):
+            self.assertIn(name, names)
 
     def test_no_tkinter_below_app(self):
         problems = []
@@ -292,6 +300,46 @@ class TestLayers(unittest.TestCase):
         for name, lineno in visitor.tuning_names:
             problems.append(f"overlay.py:{lineno} imports {name}")
         self.assertEqual(problems, [])
+
+    def test_split3_modules_stay_in_their_layers(self):
+        problems = []
+        for path, module, visitor in _parsed():
+            world = _under(module, "world")
+            desktop = _under(module, "desktop")
+            if not world and not desktop:
+                continue
+            for name, lineno, _where in visitor.imports:
+                root = name.split(".")[0]
+                if root == "tkinter" or name.startswith("tkinter."):
+                    problems.append(f"{module}:{lineno} imports {name}")
+                if world and (root in DESKTOP_MODULES or name.startswith("win32.")):
+                    problems.append(f"{module}:{lineno} imports {name}")
+                if world and (name == "cli_avatars.app" or name.startswith("cli_avatars.app.")):
+                    problems.append(f"{module}:{lineno} imports {name}")
+                if desktop and (
+                    name == "cli_avatars.world" or name.startswith("cli_avatars.world.")
+                    or name == "cli_avatars.app" or name.startswith("cli_avatars.app.")
+                ):
+                    problems.append(f"{module}:{lineno} imports {name}")
+                if name == "PIL.ImageTk" or name.endswith(".ImageTk"):
+                    problems.append(f"{module}:{lineno} imports ImageTk")
+        self.assertEqual(problems, [])
+
+    def test_shim_imports_capabilities_before_tkinter(self):
+        overlay = ROOT / "overlay.py"
+        tree = ast.parse(overlay.read_text(encoding="utf-8"), filename=str(overlay))
+        order = []
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                order.extend(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                order.append(node.module or "")
+        capabilities = order.index("cli_avatars.desktop.capabilities")
+        tkinter = order.index("tkinter")
+        self.assertLess(capabilities, tkinter)
+        self.assertIn("cli_avatars.world.avatar", order)
+        self.assertIn("cli_avatars.world.scanner", order)
+        self.assertIn("cli_avatars.world.terrain", order)
 
     def test_top_level_modules_do_not_import_the_package(self):
         problems = []

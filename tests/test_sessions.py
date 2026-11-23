@@ -428,8 +428,10 @@ class TestGrokBuildSource(unittest.TestCase):
         sources = default_sources()
         self.assertEqual([type(src) for src in sources], [ClaudeJsonlSource, GrokBuildSource])
         self.assertEqual([src.name for src in sources], ["claude", "grok"])
-        overlay = Path(__file__).resolve().parent.parent / "overlay.py"
-        text = overlay.read_text(encoding="utf-8")
+        import runpy
+        root = Path(__file__).resolve().parent.parent
+        app_source = runpy.run_path(str(root / "tests" / "_source.py"))["app_source"]
+        text = app_source()
         self.assertIn("default_sources()", text)
         self.assertIn("source=info.source", text)
         self.assertIn("subagent_for(", text)

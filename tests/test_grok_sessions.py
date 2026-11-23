@@ -273,7 +273,9 @@ class TestGrokBuildSource(unittest.TestCase):
         text = Path(sessions.__file__).read_text(encoding="utf-8")
         self.assertIn("chat_history.jsonl", text)
         self.assertIn("_NEVER_READ", text)
-        overlay = (REPO / "overlay.py").read_text(encoding="utf-8")
+        import runpy
+        app_source = runpy.run_path(str(REPO / "tests" / "_source.py"))["app_source"]
+        overlay = app_source()
         self.assertIn("grok_skin_id", overlay)
         self.assertIn('ai.source == "grok"', overlay)
         self.assertIn("TODO(Caine art)", overlay)

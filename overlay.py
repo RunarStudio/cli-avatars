@@ -28,6 +28,9 @@ Controls:
     ESC                   → quit
 """
 
+# DPI awareness runs at import, before tkinter and before any tk.Tk().
+from cli_avatars.desktop.capabilities import HAS_PIL, HAS_W32, HAS_WINCTL
+
 import ctypes
 import logging
 import re
@@ -42,14 +45,7 @@ from types import SimpleNamespace
 from typing import Optional
 from pathlib import Path
 from sessions import (
-    ClaudeJsonlSource,
-    CompositeSource,
-    GROK_SKIN_SENTINEL,
     SessionInfo,
-    default_sources,
-    grok_appearance,
-    grok_skin_id,
-    merge_id,
     subagent_for,
 )
 from hud import hud_status_lines, status_row_style
@@ -61,21 +57,14 @@ from rooms import (
     fade_image,
     idle_thumbnail,
     load_config,
-    project_folder,
     rooms_from_config,
     save_rooms_pref,
     skin_base,
     warn_icon,
 )
 from events import (
-    EventBus,
     EventRejected,
-    EventSource,
-    PollingSource,
-    StateEvent,
-    agent_key,
     app_data_dir,
-    merge_with_events,
 )
 from decisions import (
     decisions_caption,
@@ -112,32 +101,16 @@ from bundle_paths import asset_path
 from cli_avatars import VERSION
 from cli_avatars.paths import CONFIG_PATH, images_dir
 
-try:
-    import pywinctl as pwc
-    HAS_WINCTL = True
-except ImportError:
-    HAS_WINCTL = False
-    print("[WARN] pywinctl not installed — window terrain disabled.")
-    print("       Install: pip install pywinctl")
+if HAS_PIL:
+    try:
+        from PIL import Image, ImageDraw, ImageTk
+    except ImportError:
+        HAS_PIL = False
+        print("[WARN] Pillow not installed — using fallback rectangles.")
+        print("       Install: pip install pillow")
 
-# Window perches (WINDOW-PERCHES-PLAN.md): real frames via DWM, visible top
-# edges only. DPI awareness must be set before tk.Tk() is created.
-try:
-    import win32 as w32
+if HAS_W32:
     import perchas
-    HAS_W32 = True
-    print(f"[INFO] DPI mode: {w32.set_dpi_aware()}")
-except Exception as _w32_err:
-    HAS_W32 = False
-    print(f"[WARN] win32 perches unavailable ({_w32_err}) — falling back to pywinctl.")
-
-try:
-    from PIL import Image, ImageTk, ImageDraw
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
-    print("[WARN] Pillow not installed — using fallback rectangles.")
-    print("       Install: pip install pillow")
 
 from cli_avatars.effects.burst import BurstEffect, Particle
 from cli_avatars.effects.glitch import GlitchFlash
@@ -172,22 +145,12 @@ from cli_avatars.sprites.registry import (
     subagent_sprite_mode,
 )
 from cli_avatars.tuning import (
-    AVATAR_H,
-    AVATAR_W,
-    BODY_COLORS,
     CHROMA_KEY,
     FLOOR_LINE_COLOR,
-    FLOOR_MARGIN,
-    PERCH_MIN_LEN,
-    PERCH_MIN_Y,
-    REAL_SESSION_SKINS,
     SPRING_SPAN as _SPRING_SPAN,
     SPRITES_DIR,
     THROW_SCALE,
     TUNING,
-    WALL_CLIMB_CHANCE,
-    WALL_CLIMB_SPEED,
-    WALL_MARGIN,
 )
 
 if HAS_SPRITES:
@@ -214,545 +177,11 @@ OVERLAY_ALPHA = TUNING.overlay_alpha
 TEST_SUBAGENTS = TUNING.test_subagents
 AVATAR_SCALE = TUNING.avatar_scale
 
-
-# ═══════════════════════════════════════════════════════════════
-#  AVATAR ENTITY
-# ═══════════════════════════════════════════════════════════════
-
-class Avatar:
-    def __init__(self, agent: AgentInfo, sw, sh, color_idx,
-                 registry: Optional["SpriteRegistry"] = None,
-                 spring_mode: bool = False):
-        self.agent      = agent
-        self.sw, self.sh = sw, sh
-        self.color      = BODY_COLORS[color_idx % len(BODY_COLORS)]
-        self.registry   = registry
-        self.spring_mode = spring_mode   # True → skip walk AI, driven by spring
-        self.aw, self.ah = self._sprite_size()
-        self.x          = float(random.randint(60, sw-100))
-        self.y          = float(random.randint(30, 200))
-        self.vx         = 0.0 if spring_mode else random.choice([-TUNING.walk_speed, TUNING.walk_speed])
-        self.vy         = 0.0
-        self.dir        = 1
-        self.on_ground  = False
-        self.perch_hwnd = None   # window the avatar stands on (rides it when it moves)
-        self.frame      = 0
-        self.ftick      = 0
-        self.idle_t     = 0
-        self.spr_id     = None
-        self.lbl_id     = None
-        self._photo     = None
-        self._spr_mode  = "none"
-        self._prev_status    = agent.status
-        self._burst_requested = False
-        # Per-instance chaos multipliers (normal avatars = 1.0, subagents get randomized)
-        self.anim_speed_mult  = 1.0
-        self._spring_k_mult   = 1.0
-        self._spring_damp_v   = TUNING.spring_damp
-        # Wall climb state
-        self._wall_climb: Optional[tuple] = None
-        # Float-away state (triggered when subagent idle too long)
-        self.last_active     = time.time()
-        self._floating_away  = False
-        self._float_frames   = 0
-        # Main-avatar disappear state (5 min inactivity)
-        self._vanishing      = False
-        self._vanish_frames  = 0
-        # Set when task finishes and subagent moves to lingering list
-        self._task_done_at: Optional[float] = None
-        self._meet_lock = False
-        # Closing subchat: play the dying row, then this avatar is removed.
-        self._dying = False
-        self._dying_at: Optional[float] = None
-        self._dying_pose: Optional[dict] = None
-
-    def _sprite_size(self):
-        if self.registry:
-            w, h = self.registry.get_render_size(self.agent.skin)
-            if w > 0 and h > 0:
-                return w, h
-        return AVATAR_W, AVATAR_H
-
-    def _foot_pad(self):
-        """Empty rows under the sprite's feet (sprite_loader measures them per sheet)."""
-        if self.registry and hasattr(self.registry, "get_foot_pad"):
-            return self.registry.get_foot_pad(self.agent.skin, self._anim_status)
-        return 0
-
-    @property
-    def _anim_status(self) -> str:
-        if getattr(self, "_dying", False):
-            return "dying"
-        if self.agent.status in (S.IDLE, S.BLOCKED) and (abs(self.vx) > 0.1 or self._wall_climb is not None):
-            return S.BUSY
-        return self.agent.status
-
-    @staticmethod
-    def _wall_top_dir(wx, wy1, floors):
-        """+1 if a perch starts at this wall's top (left side), -1 if it ends there (right side), else 0."""
-        for (fx1, fy, fx2, _) in floors:
-            if abs(fy - wy1) <= 2:
-                if abs(fx1 - wx) <= 2: return 1
-                if abs(fx2 - wx) <= 2: return -1
-        return 0
-
-    def update(self, floors, walls=(), floor_hwnds=(), steer=None):
-        # Dying plays in place. No gravity, no leash, no walk.
-        if getattr(self, "_dying", False):
-            return
-        self.aw, self.ah = self._sprite_size()
-        fh = self.ah - self._foot_pad()   # feet height: physics uses this, drawing uses ah
-        last_fh = getattr(self, "_last_fh", fh)
-        if self.on_ground and fh != last_fh:
-            self.y -= fh - last_fh        # animation changed: keep the feet on the floor
-        self._last_fh = fh
-
-        # A meeting steer replaces wander and wall climbing. Gravity and the
-        # perch/floor catch below stay as they are, so leaving a perch is a fall.
-        locked = steer is not None and steer.lock
-        if locked and self._wall_climb is not None:
-            self._wall_climb = None
-            self._climb_dir = 0
-
-        # Wall climbing overrides normal gravity + walk when active
-        if self._wall_climb is not None and not self.spring_mode and not locked:
-            wx, wy1, wy2 = self._wall_climb
-            # Wall with a perch on top: climb until the feet reach it, then step on
-            # Remember the direction once seen, so one scan without the perch can't cancel the climb
-            top_dir = self._wall_top_dir(wx, wy1, floors) or getattr(self, "_climb_dir", 0)
-            self._climb_dir = top_dir
-            target  = wy1 - fh if top_dir else wy1
-            near_x = abs((self.x + self.aw / 2) - wx) < WALL_MARGIN + 6
-            in_y   = self.y < wy2 and self.y + fh >= wy1
-            if top_dir and near_x and self.y <= target + 1:
-                self._wall_climb, self._climb_dir = None, 0
-                self.y   = float(target)
-                self.vy  = 0.0
-                self.dir = top_dir
-                self.vx  = TUNING.walk_speed * top_dir
-                self.x   = float(wx + 4) if top_dir > 0 else float(wx - self.aw - 4)
-            elif near_x and in_y and self.y > target:
-                self.on_ground, self.perch_hwnd = False, None   # climbing: not riding a window
-                self.vy = -WALL_CLIMB_SPEED
-                self.vx  = 0.0
-                self.x   = float(wx - self.aw // 2)   # stay glued to wall x
-                self.y  += self.vy
-                self.ftick += 1
-                thresh = max(1, int((TUNING.overlay_fps // 6) / self.anim_speed_mult))
-                if self.ftick >= thresh:
-                    self.ftick = 0; self.frame += 1
-                curr = self.agent.status
-                if self._prev_status in (S.BUSY, S.THINKING) and curr in (S.IDLE, S.DONE):
-                    self._burst_requested = True
-                self._prev_status = curr
-                return
-            elif self._wall_climb is not None:
-                # Reached a covered top or fell off wall — kick off horizontally
-                self._wall_climb, self._climb_dir = None, 0
-                self.vx = TUNING.walk_speed * self.dir
-                self.vy = TUNING.jump_vel * 0.3
-
-        if locked:
-            # This frame, not the next one. Wander stores vx for the following frame.
-            self.vx = float(steer.vx)
-            if steer.facing:
-                self.dir = 1 if steer.facing > 0 else -1
-            self._meet_lock = True
-
-        # Fly children hover. Ground children, and every orchestrator, still fall.
-        if not (self.spring_mode and child_flight_mode(self) == "fly"):
-            self.vy += TUNING.gravity
-        nx = self.x + self.vx
-        ny = self.y + self.vy
-
-        all_floors = floors + [(0, self.sh-2, self.sw, self.sh)]
-        self.on_ground = False
-        self.perch_hwnd = None
-        for i, (fx1, fy, fx2, _) in enumerate(all_floors):
-            if fx1 <= nx + self.aw/2 <= fx2:
-                if self.y + fh <= fy <= ny + fh:
-                    ny, self.vy, self.on_ground = fy - fh, 0.0, True
-                    self.perch_hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
-                    break
-
-        if not self.spring_mode and not locked:
-            if self._meet_lock:
-                self._meet_lock = False
-                self.idle_t = 0
-            # Normal walk AI
-            if self.agent.status == S.THINKING and self.on_ground and random.random() < 0.04:
-                self.vy = TUNING.jump_vel * 0.5
-
-            self.idle_t -= 1
-            if self.idle_t <= 0:
-                if self.vx != 0 and random.random() < 0.015:
-                    self.vx = 0.0; self.idle_t = random.randint(30,90)
-                elif self.vx == 0:
-                    self.dir = random.choice([-1,1])
-                    self.vx  = TUNING.walk_speed * self.dir
-
-            if self.vx != 0:
-                self.vx = TUNING.walk_speed * (2.0 if self.agent.status==S.BUSY else 1.0) * self.dir
-
-            # Wall latch check — only for walking avatars, not while airborne far
-            if self._wall_climb is None and walls:
-                cx = self.x + self.aw / 2
-                for (wx, wy1, wy2) in walls:
-                    if abs(cx - wx) < WALL_MARGIN and wy1 <= self.y + fh and self.y <= wy2:
-                        if random.random() < WALL_CLIMB_CHANCE:
-                            self._wall_climb = (wx, wy1, wy2)
-                            break
-
-        if nx < 0:
-            nx, self.vx, self.dir = 0.0, abs(self.vx), 1
-        elif nx > self.sw - self.aw:
-            nx, self.vx, self.dir = float(self.sw-self.aw), -abs(self.vx), -1
-
-        self.x, self.y = nx, ny
-
-        self.ftick += 1
-        thresh = max(1, int((TUNING.overlay_fps // (8 if self._anim_status == S.BUSY else 4)) / self.anim_speed_mult))
-        if self.ftick >= thresh:
-            self.ftick = 0; self.frame += 1
-
-        curr = self.agent.status
-        if self._prev_status in (S.BUSY,S.THINKING) and curr in (S.IDLE,S.DONE):
-            self._burst_requested = True
-        self._prev_status = curr
-
-    def draw(self, canvas):
-        px, py = int(self.x), int(self.y)
-        if getattr(self, "_dying", False):
-            pose = getattr(self, "_dying_pose", None) or {}
-            frame = pose.get("frame", 0)
-            if pose.get("pop"):
-                py -= 6
-            elif isinstance(frame, int) and frame > 0:
-                py += frame * 2
-        sc     = STATUS_COLOR.get(self.agent.status, "#aaaaaa")
-
-        mirror = self.dir < 0
-        photo = None
-        if self.registry:
-            # TODO(Caine art): load the configured Grok hue the first time it draws.
-            if hasattr(self.registry, "ensure_hue_variant"):
-                self.registry.ensure_hue_variant(self.agent.skin)
-            photo = self.registry.get_photo(
-                self.agent.skin, self._anim_status, self.frame, mirror=mirror)
-        if photo is None:
-            photo = make_photo(self.color, self.agent.status, self.frame, mirror=mirror)
-
-        if photo:
-            if self._spr_mode == "rect" and self.spr_id:
-                canvas.delete(self.spr_id); self.spr_id = None
-            self._spr_mode = "image"
-            self._photo = photo
-            if self.spr_id:
-                canvas.coords(self.spr_id, px, py)
-                canvas.itemconfig(self.spr_id, image=self._photo)
-            else:
-                self.spr_id = canvas.create_image(px, py, image=self._photo, anchor="nw")
-        else:
-            if self._spr_mode == "image" and self.spr_id:
-                canvas.delete(self.spr_id); self.spr_id = None
-            self._spr_mode = "rect"
-            dash = (4,2) if (self.agent.is_demo or self.spring_mode) else ()
-            if self.spr_id:
-                canvas.coords(self.spr_id, px,py,px+self.aw,py+self.ah)
-                canvas.itemconfig(self.spr_id, fill=self.color, outline=sc, dash=dash)
-            else:
-                self.spr_id = canvas.create_rectangle(
-                    px,py,px+self.aw,py+self.ah,
-                    fill=self.color, outline=sc, width=2, dash=dash)
-
-        # Label
-        if self.spring_mode:
-            label = self.agent.name
-        else:
-            pfx   = "[D] " if self.agent.is_demo else ""
-            parts = [f"{pfx}{self.agent.name}", self.agent.status]
-            if self.agent.tool:
-                parts.append(f"→{self.agent.tool[:10]}")
-            if self.agent.subagents > 0:
-                parts.append(f"⚡{self.agent.subagents}")
-            label = "\n".join(parts)
-
-        lx = px + self.aw//2
-        ly = py - 14
-        if self.lbl_id:
-            canvas.coords(self.lbl_id, lx, ly)
-            canvas.itemconfig(self.lbl_id, text=label)
-        else:
-            self.lbl_id = canvas.create_text(
-                lx, ly, text=label,
-                font=("Courier", 7, "bold"),
-                fill="#7799cc" if (self.agent.is_demo or self.spring_mode) else "white",
-                justify="center")
-
-    def cleanup(self, canvas):
-        for iid in [self.spr_id, self.lbl_id]:
-            if iid: canvas.delete(iid)
-
-
-# ═══════════════════════════════════════════════════════════════
-#  SESSION SCANNER
-# ═══════════════════════════════════════════════════════════════
-
-class SessionScanner:
-    CLAUDE_DIR = ClaudeJsonlSource.DEFAULT_DIR
-
-    def __init__(self, sources=None, event_port: Optional[int] = None, listen: bool = True):
-        self._agents: dict[str,AgentInfo] = {}
-        self._lock    = threading.Lock()
-        self._tick    = 0
-        self._skin_idx = 0   # cycles through REAL_SESSION_SKINS for new sessions
-        # Built-in sources. Claude is retargeted each scan so CLAUDE_DIR stays live.
-        # Grok runs beside it (see default_sources) when its sessions folder exists.
-        self._claude_source: Optional[ClaudeJsonlSource] = None
-        if sources is None:
-            sources = default_sources()
-            self._claude_source = next(
-                (src for src in sources if isinstance(src, ClaudeJsonlSource)),
-                None,
-            )
-        # Poll results and UDP events both feed the bus. With no UDP events,
-        # merge_with_events returns the polled list unchanged.
-        self.bus = EventBus()
-        self.bubbles = BubbleBoard()
-        self.bus.subscribe(self._on_bus_event)
-        self.bus.subscribe(self.bubbles.on_event)
-        # F4: chat between two avatars plans a walk. Bubbles stay on this bus too.
-        self.meetings = MeetingBoard()
-        self.bus.subscribe(self.meetings.on_event)
-        self._events: Optional[EventSource] = None
-        self._source = PollingSource(self.bus, CompositeSource(sources))
-        if listen:
-            try:
-                self._events = EventSource(self.bus, port=event_port)
-                print(f"[INFO] Events: 127.0.0.1:{self._events.port}")
-            except Exception as exc:
-                print(f"[WARN] Event listener not started ({exc}). Polling still works.")
-                self._events = None
-
-    def get_agents(self):
-        with self._lock: return dict(self._agents)
-
-    def loop(self):
-        while True: self._scan(); time.sleep(TUNING.session_scan_rate)
-
-    def _on_bus_event(self, event):
-        """Apply a UDP state immediately. Poll publishes are ignored here."""
-        if not isinstance(event, StateEvent) or event.origin != "udp":
-            return
-        aid = agent_key(event.source, event.session_id)
-        with self._lock:
-            agent = self._agents.get(aid)
-            if agent is None or agent.is_demo:
-                return
-            if event.ts < agent.last_seen:
-                return
-            agent.status = event.state
-            agent.last_seen = event.ts
-            agent.source = event.source
-
-    def _apply_event_rows(self, found: dict):
-        if self._events is None:
-            return
-        for info in self._events.scan():
-            key = merge_id(info)
-            agent = found.get(key)
-            if agent is None or agent.is_demo:
-                continue
-            if info.last_seen >= agent.last_seen:
-                agent.status = info.status
-                agent.last_seen = info.last_seen
-                if info.source:
-                    agent.source = info.source
-
-    def _scan(self):
-        self._tick += 1
-        if self._claude_source is not None:
-            self._claude_source.directory = self.CLAUDE_DIR
-        found: dict[str, AgentInfo] = {}
-        infos = self._source.scan()
-        if self._events is not None:
-            infos = merge_with_events(infos, self._events.scan())
-
-        for info in infos:
-            found[info.agent_id] = AgentInfo(
-                agent_id=info.agent_id,
-                name=info.name,
-                status=info.status, tool=info.tool, subagents=info.subagents,
-                last_seen=info.last_seen,
-                skin=info.skin, is_demo=info.is_demo,
-                workspace_hash=info.workspace_hash, pid=info.pid,
-                source=info.source, project=info.project,
-                parent_id=info.parent_id, failed=info.failed)
-
-        # No real sessions → single idle demo avatar (hue assigned at spawn)
-        if not found:
-            found["demo"] = AgentInfo(
-                agent_id="demo", name="Caine",
-                status=S.IDLE, skin="amongo",
-                subagents=TUNING.test_subagents, is_demo=True,
-                source="")
-
-        self._match_pids(found)
-
-        # Drop Claude sessions with no live process — avoids ghost avatars.
-        # Grok has no pid match here; staleness already drops closed sessions.
-        # When nothing has a pid (no Claude process), every session stays.
-        if any(ai.pid for ai in found.values()):
-            found = {
-                aid: ai for aid, ai in found.items()
-                if ai.is_demo or ai.pid or ai.source == "grok"
-            }
-
-        with self._lock:
-            self._apply_event_rows(found)
-            for aid, new_a in found.items():
-                old = self._agents.get(aid)
-                if old and not old.is_demo and not new_a.is_demo:
-                    new_a.skin = old.skin   # preserve existing skin across scans
-                    if old.pid:
-                        new_a.pid = old.pid
-                    if not new_a.project and old.project:
-                        new_a.project = old.project
-                elif not new_a.is_demo and new_a.skin == "__new__":
-                    new_a.skin = REAL_SESSION_SKINS[self._skin_idx % len(REAL_SESSION_SKINS)]
-                    self._skin_idx += 1
-                elif not new_a.is_demo and new_a.skin == GROK_SKIN_SENTINEL:
-                    # TODO(Caine art): hue stand-in until the Grok sheet exists.
-                    base, hue = grok_appearance(getattr(self, "_grok_config", None))
-                    new_a.skin = grok_skin_id(base, hue)
-            self._agents = found
-
-    def _match_pids(self, found: dict):
-        import re
-        hash_of = lambda p: re.sub(r'[^a-zA-Z0-9]', '-', str(p).lower())
-        try:
-            import psutil
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cwd']):
-                try:
-                    name = (proc.info['name'] or '').lower()
-                    cmdline = ' '.join(proc.info['cmdline'] or []).lower()
-                    if 'node' not in name and 'claude' not in name:
-                        continue
-                    if 'claude' not in cmdline:
-                        continue
-                    cwd = proc.info['cwd']
-                    if not cwd:
-                        continue
-                    h = hash_of(cwd)
-                    folder = project_folder(cwd)
-                    for ai in found.values():
-                        if ai.workspace_hash and ai.workspace_hash.lower() == h:
-                            ai.pid = proc.info['pid']  # all sessions in same workspace share pid
-                            if folder and not ai.project:
-                                ai.project = folder
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-        except Exception:
-            pass
-
-
-# ═══════════════════════════════════════════════════════════════
-#  WINDOW TERRAIN
-# ═══════════════════════════════════════════════════════════════
-
-class WindowTerrain:
-    def __init__(self, own_title, screen=None):
-        self._floors: list[tuple] = []
-        self._walls:  list[tuple] = []
-        self._lock   = threading.Lock()
-        self._own    = own_title
-        self._screen = screen     # (left, top, right, bottom) of the overlay
-        self._floor_hwnds: list[int] = []          # window of each floor (win32 path)
-        self._win_pos: dict[int, tuple] = {}       # hwnd -> (left, top)
-
-    def _scan(self):
-        if HAS_W32 and self._screen:
-            self._scan_w32()
-        else:
-            self._scan_pwc()
-
-    def _scan_w32(self):
-        """Perches = visible pieces of non-maximized window tops (perchas.py)."""
-        try:
-            wins = w32.list_windows()      # skips minimized, cloaked, our own process
-            perches = perchas.build_perches(wins, self._screen, min_len=PERCH_MIN_LEN)
-            kept   = [p for p in perches if p.y >= PERCH_MIN_Y]
-            floors = [(p.x1, p.y, p.x2, p.y + FLOOR_MARGIN) for p in kept]
-            hwnds  = [p.hwnd for p in kept]
-            walls  = perchas.build_walls(wins, self._screen, min_len=PERCH_MIN_LEN)
-            pos    = {w.hwnd: (w.rect[0], w.rect[1]) for w in wins if not w.maximized}
-        except Exception as e:
-            print(f"[WARN] Terrain (win32): {e}")
-            return
-        with self._lock:
-            self._floors      = floors
-            self._walls       = walls
-            self._floor_hwnds = hwnds
-            self._win_pos     = pos
-
-    def get_snapshot(self):
-        """(floors, walls, floor_hwnds, window positions), all from the same scan."""
-        with self._lock:
-            return (list(self._floors), list(self._walls),
-                    list(self._floor_hwnds), dict(self._win_pos))
-
-    def get_floors(self):
-        with self._lock: return list(self._floors)
-
-    def get_walls(self):
-        with self._lock: return list(self._walls)
-
-    def loop(self):
-        n, times = 0, []
-        while True:
-            t0 = time.perf_counter()
-            self._scan()
-            n += 1
-            if 20 < n <= 40:               # skip startup (sprite loading), then log once
-                times.append((time.perf_counter() - t0) * 1000)
-                if n == 40:
-                    times.sort()
-                    print(f"[INFO] Terrain scan: median {times[10]:.2f} ms, min {times[0]:.2f}, "
-                          f"max {times[-1]:.2f} ({'win32' if HAS_W32 else 'pywinctl'}), "
-                          f"every {TUNING.window_scan_rate}s")
-            time.sleep(TUNING.window_scan_rate)
-
-    def _scan_pwc(self):
-        """Old path (pywinctl): includes shadows, ignores z-order. Fallback only."""
-        if not HAS_WINCTL: return
-        candidates = []   # (width, x1, y1, x2, y2)
-        try:
-            for w in pwc.getAllWindows():
-                try:
-                    if not w.isVisible or not (w.title or "").strip(): continue
-                    if self._own in (w.title or ""): continue
-                    r  = w.rect
-                    x1 = getattr(r, "left",   0)
-                    y1 = getattr(r, "top",    0)
-                    x2 = getattr(r, "right",  x1 + 50)
-                    y2 = getattr(r, "bottom", y1 + 50)
-                    if x2 - x1 < 80 or y1 < 5: continue
-                    candidates.append((x2 - x1, x1, y1, x2, y2))
-                except Exception: pass
-        except Exception as e: print(f"[WARN] Terrain: {e}")
-
-        # Keep only the 10 widest windows as floors
-        candidates.sort(reverse=True)
-        floors = []
-        walls  = []
-        for (w_px, x1, y1, x2, y2) in candidates[:10]:
-            floors.append((x1, y1, x2, y1 + FLOOR_MARGIN))
-            walls.append((x1, y1, y2))   # left edge
-            walls.append((x2, y1, y2))   # right edge
-
-        with self._lock:
-            self._floors = floors
-            self._walls  = walls
+# Avatar, SessionScanner, and WindowTerrain live in cli_avatars.world.
+# Re-exported so `from overlay import Avatar` and the spring checks still work.
+from cli_avatars.world.avatar import Avatar
+from cli_avatars.world.scanner import SessionScanner
+from cli_avatars.world.terrain import WindowTerrain
 
 
 def _alpha_stipple(alpha: float) -> str:
