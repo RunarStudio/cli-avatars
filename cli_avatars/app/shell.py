@@ -37,6 +37,7 @@ from cli_avatars.app.rooms_panel import RoomsPanel
 from cli_avatars.app.skin_picker import PICK, PICK_ANIMS, PICK_FRAME_MS, SkinPicker
 from cli_avatars.app.subagents import SubagentController
 from cli_avatars.app.tick import TickLoop
+from cli_avatars.desktop.capabilities import desktop_escape_available
 from cli_avatars.desktop.focus import focus_linked_console
 from cli_avatars.desktop.settings import desktop_settings
 from cli_avatars.desktop.tray import setup_tray
@@ -144,6 +145,7 @@ class OverlayApp:
         self.config_screen = ConfigScreen(self)
         self.tick_loop = TickLoop(self)
 
+        self.desktop_escape = desktop_escape_available()
         self.dungeon = DungeonWindow(self)
         self.dungeon.build()
         self.overlays = OverlayBoard(self)

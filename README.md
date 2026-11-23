@@ -51,7 +51,7 @@ pip install -r requirements.txt
 python overlay.py
 ```
 
-Right-click on screen → **Quit**, or press **ESC**.
+Close the Dungeon window to quit. ESC closes a dock or cancels a drag.
 
 ---
 
@@ -91,12 +91,14 @@ After the copy, the script runs:
 
 | Action | Result |
 |--------|--------|
-| Left-click avatar | Open that avatar's topic in the chat window |
-| Drag avatar | Move it. A short click does not |
-| Right-click avatar | Focus that agent's terminal window |
-| Right-click empty area | Open context menu (Skins / Config / Status / Quit) |
-| Drag HUD panel | Reposition the status box |
-| ESC | Quit |
+| Left-click avatar | Open that avatar's topic in the chat dock |
+| Drag avatar | On Windows, drag past the Dungeon edge to the desktop and release to throw. On Linux and macOS the avatar stays inside |
+| Right-click avatar | Focus that agent's console. On Windows a desktop avatar also offers Go home |
+| Right-click empty area | Does nothing. It does not quit |
+| Door | Windows toolbar and tray. Open: a blocked or error agent may leave, and returns when that clears. Closed: leave only by dragging. Hidden on Linux and macOS |
+| Call home | Windows toolbar and tray. Every desktop avatar walks back |
+| Close the window | Quit |
+| ESC | Close the focused dock, or cancel a drag. It does not quit |
 
 ---
 

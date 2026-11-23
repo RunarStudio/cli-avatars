@@ -80,6 +80,9 @@ class OverlayBoard:
 
     def sync(self, monitors, settings) -> None:
         """Create, move, or destroy overlays so they match ``monitors``."""
+        if not getattr(self.app, "desktop_escape", True):
+            self._enter_legacy()
+            return
         self.cross = bool(settings.cross_monitors)
         chosen = active_monitors(monitors, settings.overlay_monitors)
         if not chosen:
@@ -104,6 +107,9 @@ class OverlayBoard:
         """Withdraw every overlay that no sprite touches, including the anchor."""
         import tkinter as tk
 
+        if not getattr(self.app, "desktop_escape", True):
+            self._hide_legacy()
+            return
         if self.legacy:
             window = self._legacy[0] if self._legacy is not None else None
             if window is None:
@@ -159,6 +165,11 @@ class OverlayBoard:
         if sw < 1 or sh < 1:
             return
         window, canvas = self._ensure_legacy()
+        if not getattr(self.app, "desktop_escape", True):
+            self._hide_legacy()
+            self.app.canvas = canvas
+            self.canvas = canvas
+            return
         window.geometry(f"{sw}x{sh}+0+0")
         try:
             canvas.config(width=sw, height=sh)
@@ -276,6 +287,20 @@ class OverlayBoard:
             mark_toolwindow(window)
         except tk.TclError:
             pass
+
+    def _hide_legacy(self) -> None:
+        """Keep the canvas for draws, and never map the overlay."""
+        import tkinter as tk
+
+        if self._legacy is None:
+            return
+        window, canvas = self._legacy
+        try:
+            window.geometry("1x1+0+0")
+            canvas.config(width=1, height=1)
+            window.withdraw()
+        except tk.TclError:
+            return
 
     def _close_legacy(self) -> None:
         if self._legacy is None:

@@ -111,10 +111,11 @@ def _toolbar(view, root) -> None:
     app._rooms_btn.pack(side="left", padx=4, pady=4)
     app._chat_btn = _btn(bar, text="Chat", command=app._toggle_chat)
     app._chat_btn.pack(side="left", padx=4, pady=4)
-    view._door_btn = _btn(bar, text="Door: open", command=lambda: _toggle_door(app))
-    view._door_btn.pack(side="left", padx=4, pady=4)
-    view._home_btn = _btn(bar, text="Call home", command=lambda: _call_home(app))
-    view._home_btn.pack(side="left", padx=4, pady=4)
+    if getattr(app, "desktop_escape", True):
+        view._door_btn = _btn(bar, text="Door: open", command=lambda: _toggle_door(app))
+        view._door_btn.pack(side="left", padx=4, pady=4)
+        view._home_btn = _btn(bar, text="Call home", command=lambda: _call_home(app))
+        view._home_btn.pack(side="left", padx=4, pady=4)
     menu = tk.Menu(bar, tearoff=0, bg=_BAR, fg=_INK)
     menu.add_command(label="Quit", command=app._quit)
     tk.Menubutton(
