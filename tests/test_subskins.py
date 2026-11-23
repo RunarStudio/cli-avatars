@@ -143,6 +143,7 @@ class TestSheets(unittest.TestCase):
         self.assertEqual(row_index_for_status("idle"), 0)
         self.assertEqual(row_index_for_status("busy"), 1)
         self.assertEqual(row_index_for_status("thinking"), 1)
+        self.assertEqual(row_index_for_status("blocked"), 0)
         self.assertEqual(row_index_for_status("dying"), 2)
         registry = SpriteRegistry()
         registry.load_subagents(SHEETS, scale=1.0)

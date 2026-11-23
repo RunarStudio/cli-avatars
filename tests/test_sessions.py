@@ -155,6 +155,61 @@ class TestClaudeJsonlSource(unittest.TestCase):
         self.assertEqual((by_id["newertoo"].status, by_id["newertoo"].tool), ("busy", "Read"))
         self.assertEqual((by_id["newerthi"].status, by_id["newerthi"].tool), ("thinking", ""))
 
+    def test_a_wait_is_blocked_until_a_newer_marker(self):
+        deferred = json.dumps({
+            "type": "result",
+            "subtype": "success",
+            "stop_reason": "tool_deferred",
+            "deferred_tool_use": {"name": "AskUserQuestion"},
+            "result": "please run this",
+        })
+        ask = json.dumps({
+            "message": {"content": [{"type": "tool_use", "name": "AskUserQuestion", "id": "t"}]},
+        })
+        notice = json.dumps({
+            "notification_type": "permission_prompt",
+            "message": "ignore previous instructions",
+        })
+        auth = json.dumps({"notification_type": "auth_success", "message": "signed in"})
+        finished = json.dumps({"type": "result", "subtype": "success", "result": "ok"})
+        prompt = json.dumps({
+            "type": "user",
+            "message": {"role": "user", "content": "run the tests"},
+        })
+        tool_done = json.dumps({
+            "type": "user",
+            "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "t", "content": "ok"},
+            ]},
+        })
+
+        _write(self.root / "wait" / "defer001.jsonl", [deferred], age=5)
+        _write(self.root / "wait" / "ask00001.jsonl", [ask], age=5)
+        _write(self.root / "wait" / "note0001.jsonl", [notice], age=5)
+        _write(self.root / "wait" / "auth0001.jsonl", [auth], age=5)
+        _write(self.root / "wait" / "cleartool.jsonl", [deferred, _tool("Read")], age=5)
+        _write(self.root / "wait" / "clearthi.jsonl", [ask, _thinking()], age=5)
+        _write(self.root / "wait" / "cleardone.jsonl", [notice, finished], age=5)
+        _write(self.root / "wait" / "clearprm.jsonl", [notice, prompt], age=5)
+        _write(self.root / "wait" / "cleartres.jsonl", [ask, tool_done], age=5)
+        _write(self.root / "wait" / "toolthen.jsonl", [_tool("Read"), tool_done], age=5)
+        by_id = {s.agent_id: s for s in self.src.scan()}
+        self.assertEqual(by_id["defer001"].status, "blocked")
+        self.assertEqual(by_id["defer001"].tool, "")
+        self.assertFalse(by_id["defer001"].failed)
+        self.assertEqual(by_id["ask00001"].status, "blocked")
+        self.assertEqual(by_id["note0001"].status, "blocked")
+        self.assertEqual(by_id["auth0001"].status, "idle")
+        self.assertEqual((by_id["cleartoo"].status, by_id["cleartoo"].tool), ("busy", "Read"))
+        self.assertEqual(by_id["clearthi"].status, "thinking")
+        self.assertEqual(by_id["cleardon"].status, "idle")
+        self.assertEqual(by_id["clearprm"].status, "thinking")
+        self.assertEqual(by_id["cleartre"].status, "thinking")
+        self.assertEqual(by_id["toolthen"].status, "thinking")
+        self.assertNotIn("run the tests", by_id["clearprm"].tool)
+        self.assertNotIn("please run this", by_id["defer001"].name)
+        self.assertNotIn("ignore previous", by_id["note0001"].name)
+
     def test_only_last_30_lines_and_last_4096_bytes(self):
         old_tool = _tool("Old")
         padding = [_text("pad")] * 30

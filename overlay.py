@@ -101,7 +101,14 @@ from routing import (
 )
 from subskins import assign_subagent_skin, dying_pose
 from chat_window import ChatWindow
-from bubbles import BubbleBoard, integer_scale, render_bubble
+from bubbles import (
+    BLOCKED_AMBER,
+    BubbleBoard,
+    blocked_indicator,
+    integer_scale,
+    place_blocked_mark,
+    render_bubble,
+)
 from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
 from portal import PortalPlayer, portal_top_left, render_portal
 from bundle_paths import asset_path
@@ -496,6 +503,7 @@ class S:
     THINKING = "thinking"
     BUSY     = "busy"
     SUBAGENT = "subagent"
+    BLOCKED  = "blocked"
     ERROR    = "error"
     DONE     = "done"
 
@@ -504,6 +512,7 @@ STATUS_COLOR = {
     S.THINKING: "#ffdd44",
     S.BUSY:     "#ff8844",
     S.SUBAGENT: "#aa44ff",
+    S.BLOCKED:  BLOCKED_AMBER,
     S.ERROR:    "#ff4444",
     S.DONE:     "#44aaff",
 }
@@ -570,6 +579,9 @@ def make_photo(body_hex, status, frame, mirror=False):
     if status == S.ERROR:
         dr.line([8,12,20,24], fill=(255,60,60,200), width=2)
         dr.line([20,12,8,24], fill=(255,60,60,200), width=2)
+    if status == S.BLOCKED:
+        dr.rectangle([27, 0, 30, 4], fill=(32, 24, 8, 255))
+        dr.point((28, 6), fill=(32, 24, 8, 255))
     if mirror:
         flip = getattr(getattr(Image, "Transpose", Image), "FLIP_LEFT_RIGHT")
         img = img.transpose(flip)
@@ -1635,7 +1647,7 @@ class OverlayApp:
                 sub_list.append(sv)
 
             # Refresh last_active while parent is working
-            if agent.status in (S.BUSY, S.THINKING):
+            if agent.status in (S.BUSY, S.THINKING, S.BLOCKED):
                 for sv in sub_list:
                     sv.last_active = time.time()
 
@@ -1738,6 +1750,7 @@ class OverlayApp:
         self._draw_portal(floors, floor_hwnds)
         self._draw_talk_bubbles()
         self._draw_decision_bubbles()
+        self._draw_blocked_marks()
         self._update_hud_win(agents)
         try:
             self._update_rooms_win()
@@ -1751,7 +1764,7 @@ class OverlayApp:
 
     def _refresh_activity(self, av: "Avatar") -> None:
         """Bump last_active from status and the session timestamp. Idempotent."""
-        if av.agent.status in (S.BUSY, S.THINKING):
+        if av.agent.status in (S.BUSY, S.THINKING, S.BLOCKED):
             av.last_active = time.time()
         if not av.agent.is_demo:
             if not getattr(av, "_seeded", False):
@@ -2369,6 +2382,43 @@ class OverlayApp:
             self._decision_photo_key = key
         for _agent_id, x, y, _w, _h in placed:
             self.canvas.create_image(x, y, image=photo, anchor="nw", tags="decision_bubble")
+
+    def _draw_blocked_marks(self):
+        """Amber '!' above an avatar whose state is blocked.
+
+        The badge is a separate canvas image. It does not change the
+        sprite cell (orchestrators stay 40×40, subagents 32×32).
+        """
+        self.canvas.delete("blocked_mark")
+        if not HAS_PIL:
+            return
+        scale = integer_scale(AVATAR_SCALE)
+        boxes: list[tuple] = []
+
+        def take(av: Avatar) -> None:
+            if getattr(av.agent, "status", "") != S.BLOCKED:
+                return
+            boxes.append((av.x, av.y, av.aw, av.ah))
+
+        for av in self.avatars.values():
+            take(av)
+        for subs in self.sub_avatars.values():
+            for sv in subs:
+                take(sv)
+        for sv in getattr(self, "_lingering_subs", ()):
+            take(sv)
+        if not boxes:
+            return
+        key = ("blocked", scale)
+        photo = self._blocked_photo if getattr(self, "_blocked_photo_key", None) == key else None
+        if photo is None:
+            image = blocked_indicator(scale)
+            photo = ImageTk.PhotoImage(image)
+            self._blocked_photo = photo
+            self._blocked_photo_key = key
+        for box in boxes:
+            x, y, _w, _h = place_blocked_mark(box, scale)
+            self.canvas.create_image(x, y, image=photo, anchor="nw", tags="blocked_mark")
 
     def _paint_hud_rows(self, rows):
         """One label per status line. Grok uses its own color and mark."""

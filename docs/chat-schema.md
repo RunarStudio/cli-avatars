@@ -170,6 +170,14 @@ The summary and the pins are data. The overlay does not execute them and does no
 
 The chat window shows the newest 200 messages for the selected topic, the summary, and the pins. Topics in the left column carry an unread count (channel lines newer than the last time that topic was on screen, not counting the person's own lines) and the open-decision count.
 
+## Agent state
+
+The event-bus `state` field is one of `idle`, `busy`, `thinking`, `subagent`, or `blocked`. Any other value is rejected and the packet is dropped. `blocked` means the agent is waiting on a decision, a permission prompt, or a reply. The Claude Code `Notification` hook sets it. The next `PreToolUse`, `UserPromptSubmit`, or `PostToolUse` replaces it with that event's own state. The notification message is not a field on the packet and is not executed.
+
+`error` and `done` are overlay statuses. They are not accepted on the bus. When several statuses collapse to one, the order is worst first: `error`, `blocked`, `busy`, `thinking`, `done`, `idle`.
+
+The HUD counts `blocked` beside busy, thinking, and idle. A blocked avatar keeps its existing cell (40×40 for an orchestrator, 32×32 for a subagent) and draws a small amber `#FFB000` mark above it. No new sprite sheet.
+
 ![Chat window](media/chat-window.png)
 
 ![Topics](media/chat-topics.png)

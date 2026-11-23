@@ -103,6 +103,7 @@ ANIM_ROW: dict[str, int] = {
     "subagent": 4,   # jump animation = subagent active
     "done":     3,   # stand animation = done/cooldown
     "error":    3,   # stand animation fallback (add row 5 for custom error anim)
+    "blocked":  2,   # sit, same wait pose as thinking; the amber mark tells them apart
 }
 
 # A cell is "blank" if the sum of all alpha pixel values is below this threshold.

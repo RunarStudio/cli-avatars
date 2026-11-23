@@ -66,7 +66,7 @@ Phase 1 has no MCP tool that writes a project or a key-value. Tests and a later 
 | `topic_show` | `slug` | The compact context `topic show` already returns: summary, pins, last messages, `needs_summary`. |
 | `decisions_list` | `open_only` | Decisions. `open_only` true drops answered rows. Default is false. |
 | `kv_get` | `project`, `key` | One value from that project's `kv`. |
-| `status_set` | `agent_id`, `state`, `note?` | One state event for that id. `state` is `idle`, `busy`, `thinking`, or `subagent`. |
+| `status_set` | `agent_id`, `state`, `note?` | One state event for that id. `state` is `idle`, `busy`, `thinking`, `subagent`, or `blocked`. |
 | `say` | `topic`, `text` | One channel message as `emit:mcp`. Text is capped at 240 characters, same as other chat notes. |
 
 `agent_id` is `source:id` (for example `claude:` plus the 8-character session id) or a bare session id. A bare id is sent with source `emit`. Pass your own id. The tool emits one event. It does not update anyone else and it does not write a project.

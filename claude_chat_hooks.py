@@ -32,7 +32,36 @@ OUTPUT_CAP = 2000
 HOOK_SETTINGS_TIMEOUT = 10
 
 # Events this installer owns. Other events in settings.json are left alone.
-HOOK_EVENTS = ("SessionStart", "UserPromptSubmit", "Stop")
+# PreToolUse, PostToolUse, and Notification also emit avatar state.
+HOOK_EVENTS = (
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop",
+    "PreToolUse",
+    "PostToolUse",
+    "Notification",
+)
+
+# Notification types that mean the agent is waiting on a person.
+# Auth, quota, and completion notices are not a blocked state.
+WAIT_NOTIFICATIONS = (
+    "permission_prompt",
+    "idle_prompt",
+    "elicitation_dialog",
+    "elicitation_url_dialog",
+    "agent_needs_input",
+)
+NOTIFICATION_MATCHER = "|".join(WAIT_NOTIFICATIONS)
+_WAIT_NOTIFICATIONS = frozenset(WAIT_NOTIFICATIONS)
+
+# State each hook already means. These replace ``blocked``.
+# Tool start is busy, tool end and a new prompt are thinking, turn end is idle.
+_HOOK_STATE = {
+    "PreToolUse": "busy",
+    "PostToolUse": "thinking",
+    "UserPromptSubmit": "thinking",
+    "Stop": "idle",
+}
 
 # stdin is a small JSON object. A larger blob is ignored.
 MAX_STDIN_BYTES = 256 * 1024
@@ -203,7 +232,30 @@ _EVENT_ALIAS = {
     "session_end": "SessionEnd",
     "subagent_start": "SubagentStart",
     "subagent_stop": "SubagentStop",
+    "pre_tool_use": "PreToolUse",
+    "post_tool_use": "PostToolUse",
+    "notification": "Notification",
 }
+
+
+def state_for_hook(event: object, notification_type: object = None) -> str | None:
+    """Avatar state for one Claude Code hook event.
+
+    ``Notification`` (a permission prompt or a wait for input) is
+    ``blocked``. ``PreToolUse``, ``UserPromptSubmit``, and ``PostToolUse``
+    replace that with the state those events already mean. A Notification
+    whose ``notification_type`` is present and is not a wait (auth, quota,
+    completion) does not change state. The notification message is not read.
+    """
+    if not isinstance(event, str):
+        return None
+    if event == "Notification":
+        if not isinstance(notification_type, str) or not notification_type.strip():
+            return "blocked"
+        if notification_type.strip() in _WAIT_NOTIFICATIONS:
+            return "blocked"
+        return None
+    return _HOOK_STATE.get(event)
 
 
 def hook_payload_source(payload: object) -> str:
@@ -393,16 +445,34 @@ def context_block(directory: Path, agent_id: str, topic_id: str) -> str:
     return cap_context(_format_context(topic_id, shown, unread))
 
 
-def _emit_idle(directory: Path, agent_id: str, port: int, source: str = "claude") -> None:
-    import cli_avatars_emit
+def _emit_state(
+    directory: Path,
+    agent_id: str,
+    port: int,
+    state: str,
+    source: str = "claude",
+) -> None:
+    """One state packet. A failure is ignored so the hook still exits 0.
 
-    cli_avatars_emit.cmd_state(SimpleNamespace(
-        data_dir=str(directory),
-        source=source,
-        id=agent_id,
-        state="idle",
-        port=port,
-    ))
+    The packet is the allowlisted state only. Hook payload text is not copied.
+    """
+    import cli_avatars_emit
+    from events import EventRejected
+
+    try:
+        cli_avatars_emit.cmd_state(SimpleNamespace(
+            data_dir=str(directory),
+            source=source,
+            id=agent_id,
+            state=state,
+            port=port,
+        ))
+    except (EventRejected, OSError):
+        return
+
+
+def _emit_idle(directory: Path, agent_id: str, port: int, source: str = "claude") -> None:
+    _emit_state(directory, agent_id, port, "idle", source)
 
 
 def _post_note(
@@ -445,10 +515,7 @@ def handle_stop(
     """
     from events import DISPLAY_NOTE_LIMIT, EventRejected, sanitize_text
 
-    try:
-        _emit_idle(directory, agent_id, port, source)
-    except (EventRejected, OSError):
-        pass
+    _emit_idle(directory, agent_id, port, source)
     if payload.get("stop_hook_active") is True:
         return
     if not auto_notes_enabled(config_path):
@@ -482,8 +549,6 @@ def handle_payload(
         return ""
     topic_id = topic_slug(payload.get("cwd"))
     store_id = _store_id(source, agent_id)
-    if event in _CONTEXT_EVENTS:
-        return context_block(directory, store_id, topic_id)
     if event == "Stop":
         handle_stop(
             directory,
@@ -494,6 +559,14 @@ def handle_payload(
             port=port,
             source=source,
         )
+        return ""
+    # Notification sets blocked. The next tool or prompt event clears it.
+    # The notification message is not printed and not stored.
+    state = state_for_hook(event, payload.get("notification_type"))
+    if state:
+        _emit_state(directory, agent_id, port, state, source)
+    if event in _CONTEXT_EVENTS:
+        return context_block(directory, store_id, topic_id)
     return ""
 
 
@@ -558,7 +631,7 @@ def _retarget(groups: list, command: str) -> bool:
 
 
 def merge_install(settings: dict, command: str) -> dict:
-    """Add this hook to the three events. Existing keys and other hooks stay.
+    """Add this hook to the chat and state events. Existing keys and other hooks stay.
 
     A second run updates the command in place and does not add another copy.
     """
@@ -581,7 +654,10 @@ def merge_install(settings: dict, command: str) -> dict:
             raise SettingsRejected("hooks")
         if _retarget(groups, command):
             continue
-        groups.append({"hooks": [dict(handler)]})
+        group = {"hooks": [dict(handler)]}
+        if event == "Notification":
+            group["matcher"] = NOTIFICATION_MATCHER
+        groups.append(group)
     return data
 
 
