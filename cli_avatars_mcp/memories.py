@@ -20,6 +20,7 @@ from events import (
     _restrict_to_user,
     directory_lock,
     sanitize_text,
+    write_all,
 )
 
 from cli_avatars_mcp.projects import (
@@ -154,7 +155,7 @@ def _write(path: Path, notes: list[dict[str, object]]) -> None:
         raise EventRejected("schema")
     fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
-        os.write(fd, payload)
+        write_all(fd, payload)
     finally:
         os.close(fd)
     os.replace(tmp, path)

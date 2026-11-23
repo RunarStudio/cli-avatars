@@ -350,6 +350,13 @@ def _restricted_key(path: Path) -> str:
         return os.path.normcase(str(path))
 
 
+def write_all(fd: int, data: bytes) -> None:
+    """``os.write`` until every byte is written; a short write is not an error."""
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view):]
+
+
 def _restrict_to_user(path: Path) -> None:
     """Best-effort: only the current user can read this path (once per path per process).
 

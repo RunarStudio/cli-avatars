@@ -25,6 +25,7 @@ from events import (
     directory_lock,
     ensure_private_dir,
     sanitize_text,
+    write_all,
 )
 from topics import clean_branch, valid_topic_id
 
@@ -451,7 +452,7 @@ def _write_one(root: Path, record: Mapping[str, object]) -> None:
         raise EventRejected("schema")
     fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
-        os.write(fd, payload)
+        write_all(fd, payload)
     finally:
         os.close(fd)
     os.replace(tmp, path)
