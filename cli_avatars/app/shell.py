@@ -85,13 +85,11 @@ class OverlayApp:
         self._bot_vars = []
         try:
             from chat_window import install_bot_redactor
-
             install_bot_redactor()
         except Exception:
             print("[WARN] Bot status redaction did not install")
         try:
             from bots.service import BotService
-
             self.bots = BotService()
             self.bots.start()
         except Exception:
