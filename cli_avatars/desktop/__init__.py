@@ -1,1 +1,4 @@
-"""Desktop probes and the window list. The only package that imports win32 or pywinctl."""
+"""Desktop probes, the window list, console focus, and the tray icon.
+
+The only package that imports win32, perchas, pywinctl, or pystray.
+"""

@@ -72,3 +72,14 @@ def _scan_pwc(own_title):
         walls.append((x1, y1, y2))   # left edge
         walls.append((x2, y1, y2))   # right edge
     return floors, walls, [], {}
+
+
+def window_moves(prev, cur):
+    """(dx, dy) for windows that moved. Empty when win32 perches are off.
+
+    The overlay used to call ``perchas.window_moves`` directly. ``app`` is
+    not allowed to import ``perchas``, so the tick asks here instead.
+    """
+    if not HAS_W32:
+        return {}
+    return perchas.window_moves(prev, cur)
