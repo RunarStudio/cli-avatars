@@ -226,3 +226,11 @@ def paint_rooms(canvas) -> bool:
         painter = RoomsPainter()
         canvas._rooms_painter = painter
     return painter.paint(canvas)
+
+
+def rooms_scale(canvas) -> int:
+    """Scale the rooms are drawn at on this canvas, or 0 when the diamond floor shows."""
+    painter = getattr(canvas, "_rooms_painter", None)
+    if painter is None or painter._item is None or painter._photo is None:
+        return 0
+    return int(painter._scale)

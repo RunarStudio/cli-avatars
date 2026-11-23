@@ -585,7 +585,7 @@ Product features only (see Scope). Team process items remain on the board elsewh
   - [ ] [BLDG][feat] BLDG.3 @agents: Web Building view: canvas renderer of the same scene JSON, additive lights, live over SSE. (M)
 - [x] [BLDG][docs] AG-1 @agents: Room layout and state→kit map (Spidey PR #23). Port pending: PORT-AG1.
 - [ ] [ART][art] AG-2 @agents: Five sprites: counts wall plaque, 4 small state halos, +n badge, avatar rows for error and blocked. (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
-- [ ] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format. The Dungeon floor pane now draws compact.json with the kit (structure only: no state lights, plaque counts or badges yet). (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
+- [ ] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format. The Dungeon floor pane now draws compact.json with the kit (structure only: no state lights, plaque counts or badges yet). On the rooms floor an avatar's visible body fits 40·s px (subagent markers 32·s), s = rooms scale; the desktop size is unchanged. (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
 - [ ] [ART][docs] AG-4 @agents: Sprites/dungeon_kit/manifest.json: anchor, footprint, category and light flag for each piece. (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
 
 ### 🗂️ Task backend and memory map
