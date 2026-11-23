@@ -73,7 +73,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | WS | 1 | 1 |
 | DOCS | 6 | 16 (subtasks 0/9) |
 | TAURI | 0 | 4 |
-| BOARD | 1 | 2 (subtasks 0/10) |
+| BOARD | 1 | 2 (subtasks 2/10) |
 | WEB | 0 | 1 (subtasks 0/4) |
 | BLDG | 1 | 3 (subtasks 0/3) |
 | BOOTCHECK | 1 | 0 |
@@ -420,8 +420,8 @@ Grok Bot cloud assistants in the Topics dock, grouped by topic, with pull-only s
   - `python -m cli_avatars_mcp install` is a dry-run. `--apply` backs up, then merges the Claude user config and `~/.grok/config.toml`. `uninstall` removes only that registration. Nothing in a tool argument is executed.
   - Docs: `docs/mcp.md`.
 
-- [ ] [MCP][feat] MCP-M2 @agents: Project, requirements, and key-value writes <!-- id: MCP-M2 -->
-- [ ] [MCP][feat] MCP-M3 @agents: Local memories add and search <!-- id: MCP-M3 -->
+- [ ] [MCP][feat] MCP-M2 @agents: Project, requirements, and key-value writes (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) <!-- id: MCP-M2 -->
+- [ ] [MCP][feat] MCP-M3 @agents: Local memories add and search (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) <!-- id: MCP-M3 -->
 
 ## 🔵 v0.5 — Tauri Port
 
@@ -448,7 +448,7 @@ One short sentence above an orchestrator. The words come from structured events.
 
 Product features only (see Scope). Team process items remain on the board elsewhere.
 
-- [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
+- [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit, which must also reject absolute paths (drive letters, `/home/`, `/Users/`, UNC) like the BOARD.1 redactor and the harness path scrub. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
 - [ ] [SRC][feat] NOTIFY.2 @agents: Machine id in the data dir; agents addressed as agent@machine; the git store relays notes for other machines on their next Sync. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
 
 ---
@@ -527,7 +527,7 @@ Product features only (see Scope). Team process items remain on the board elsewh
   - [ ] [DOCS][chore] SYNC-COPY.4 @pixel: after the batch 2 ports. (S)
 - [ ] [DOCS][chore] PORT-AG @pixel: Recurring: one run per merged Agents PR. Opus review as untrusted data (never run its scripts; check secrets, paths, network/process code, shell=True, prompts in argv, CLI starts without user action, license, PNG size/palette, JSON vs BLDG-SCHEMA), port branch off dev, Windows test, PR to dev. Ports that add process launching, network listeners or git push/pull wait for a manual merge.
   - [x] [DOCS][chore] PORT-AG1 @pixel: Review and port AG-1 (Spidey PR #23) into docs/building/. (S) (daily 2026-11-23)
-  - [ ] [DOCS][chore] PORT-AG2 @pixel: Review and port AG-2..AG-4 assets and data. (S)
+  - [ ] [DOCS][chore] PORT-AG2 @pixel: Review and port AG-2..AG-4 assets and data. (S) (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
 - [ ] [DOCS][decision] MIGRATE-REPO: Move Agents' workspace from Spidey assets/dungeon-kit to a new private repo. Daniel decides when and where.
   - [ ] [DOCS][chore] MIGRATE-REPO.1 @pixel: Once the repo exists and Agents has access: copy cli-avatars/, update AGENTS_BRIEF.md, the PORT and SYNC paths and the loop routine; leave a pointer in the old folder. (S)
 - [ ] [DOCS][decision] JUANJO-ACCESS: Read access to JuanjoAvila/Edificio-de-IAs-beta (or a zip) and a license line from Juanjo. Ideas only until then.
@@ -540,7 +540,7 @@ Product features only (see Scope). Team process items remain on the board elsewh
 
 ### 💬 Chat tree and sending
 
-- [ ] [CHAT][feat] CHAT-HARNESS-READ @agents: Read agent specs from each harness (Claude Code user and project agents, hooks config; Grok harness) read-only, as data. New module harness.py, with tests. (M)
+- [ ] [CHAT][feat] CHAT-HARNESS-READ @agents: Read agent specs from each harness (Claude Code user and project agents, hooks config; Grok harness) read-only, as data. New module harness.py, with tests. (M) (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
 - [x] [CHAT][feat] CHAT-TREE @pixel: Recursive tree project → orchestrator → agents → subagents at any depth, built from live sessions, with a pluggable spec source that CHAT-HARNESS-READ fills; stable node ids; one API for rooms, Building and web. (M) (daily 2026-11-23)
 - [x] [CHAT][feat] CHAT-BLOCKED @pixel: New 'blocked' agent state (waiting on a decision, permission or reply), emitted on the bus and shown in the HUD and rooms. (S) (daily 2026-11-23)
 - [ ] [CHAT][feat] CHAT-COUNTS @agents: Counts of orchestrators, agents, subagents, conversations and open topics per project and in total, from CHAT-TREE. (S)
@@ -562,7 +562,7 @@ Product features only (see Scope). Team process items remain on the board elsewh
 ### 📋 Board (no Slack)
 
 - [ ] [BOARD][feat] BOARD: Local task board of cards linked to topics. No Slack.
-  - [ ] [BOARD][feat] BOARD.1 @agents: board/ package, Card model and LocalStore in the per-user data dir (owner-only ACL, directory lock, atomic writes), tests. Optional `pr` field: GitHub URL Daniel tags on the card only; read that tagged PR when implemented — no automatic forge/CI fetch. (M)
+  - [x] [BOARD][feat] BOARD.1 @agents: board/ package, Card model and LocalStore in the per-user data dir (owner-only ACL, directory lock, atomic writes), tests. Optional `pr` field: GitHub URL Daniel tags on the card only; read that tagged PR when implemented — no automatic forge/CI fetch. (M) (wip/integrate-27: Spidey #27 @ dbc7374 plus Opus fixes — event-append rollback mapped to `EventRejected('io')`, shared top-level `redaction.py`, 64 KiB + 1 line dropped, AWS secret and password-prose redaction)
   - [ ] [BOARD][feat] BOARD.3 @agents: cli-avatars-emit board add|list|show|move|assign, and MCP tools board_list, card_get, card_add, card_move. (M)
   - [ ] [BOARD][feat] BOARD.4 @agents: Board tab in ChatWindow: columns, filter by topic and project, move a card (after SPLIT.4). (M)
 - [ ] [SRC][feat] NOTIFY: Grok and Claude on this machine get board, inbox and decision news.
@@ -584,9 +584,9 @@ Product features only (see Scope). Team process items remain on the board elsewh
   - [ ] [BLDG][feat] BLDG.2 @agents: Tk Building window (a Toplevel): 2x integer scale, cached room bitmaps with lights prebaked by Pillow, avatars redrawn on top (after SPLIT.4). (L)
   - [ ] [BLDG][feat] BLDG.3 @agents: Web Building view: canvas renderer of the same scene JSON, additive lights, live over SSE. (M)
 - [x] [BLDG][docs] AG-1 @agents: Room layout and state→kit map (Spidey PR #23). Port pending: PORT-AG1.
-- [ ] [ART][art] AG-2 @agents: Five sprites: counts wall plaque, 4 small state halos, +n badge, avatar rows for error and blocked.
-- [ ] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format.
-- [ ] [ART][docs] AG-4 @agents: Sprites/dungeon_kit/manifest.json: anchor, footprint, category and light flag for each piece.
+- [ ] [ART][art] AG-2 @agents: Five sprites: counts wall plaque, 4 small state halos, +n badge, avatar rows for error and blocked. (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
+- [ ] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format. The Dungeon floor pane now draws compact.json with the kit (structure only: no state lights, plaque counts or badges yet). (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
+- [ ] [ART][docs] AG-4 @agents: Sprites/dungeon_kit/manifest.json: anchor, footprint, category and light flag for each piece. (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check)
 
 ### 🗂️ Task backend and memory map
 
@@ -594,8 +594,8 @@ See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md)
 
 - [x] [BOARD][decision] TASKBACK-DEC: Daniel approved every recommended default A–M in section 6 of docs/task-backend-and-memory-map.md (2026-11-23).
 - [ ] [BOARD][feat] TASKBACK: One registry owns tasks (board cards), topics and chats; AIs only change status and progress through a narrow Agent API; chat dock calls one CLI or the topic orchestrator.
-  - [ ] [BOARD][chore] TASKBACK.1 @pixel: Port BOARD.1 (board/model.py, board/store.py, tests) from Spidey PR #27 via PORT-AG; amend docs/board.md with `progress`, `status_note`, kinds `progress`/`status`, optional `via`. Done when the ported and new board tests pass and bad progress/via values are rejected. (S)
-  - [ ] [BOARD][feat] TASKBACK.2 @pixel: `registry/` package: full API, AgentApi, policy (agent transitions, ownership, rate limits), lock order. Security-critical. Done when tests prove agents cannot create (switch off), delete, retitle, reassign, reach `done` or touch cards they do not own, and two processes serialise on one card. (after TASKBACK.1) (M)
+  - [x] [BOARD][chore] TASKBACK.1 @pixel: Port BOARD.1 (board/model.py, board/store.py, tests) from Spidey PR #27 via PORT-AG; amend docs/board.md with `progress`, `status_note`, kinds `progress`/`status`, optional `via`. Done when the ported and new board tests pass and bad progress/via values are rejected. (S) (wip/integrate-27, on the dbc7374 board)
+  - [ ] [BOARD][feat] TASKBACK.2 @pixel: `registry/` package: full API, AgentApi, policy (agent transitions, ownership, rate limits), lock order. Security-critical. Done when tests prove agents cannot create (switch off), delete, retitle, reassign, reach `done` or touch cards they do not own, and two processes serialise on one card. (after TASKBACK.1) (M) (wip/integrate-27, rebased onto the dbc7374 board; tick after the Windows check)
   - [ ] [BOARD][feat] TASKBACK.3 @agents: MCP tools task_list, task_get, task_status, task_progress, task_check, topic_state; emit `task status|progress|check`; task_propose behind `registry.agents_may_create`. Replaces the MCP half of BOARD.3. Done when every tool is tested, calls AgentApi only, and docs/mcp.md lists them. (after TASKBACK.2 and the MCP-M2 port) (M)
   - [ ] [BOARD][feat] TASKBACK.4 @agents: Repoint emit, MCP say, the hook note and chat send to the registry; agent updates show as one `emit:registry` thread line; folds in NOTIFY.1 (open cards with progress in the hook context, 2,000 chars). Done when existing tests stay green and a progress call shows one line. (after TASKBACK.2) (S)
   - [ ] [BOARD][feat] TASKBACK.5 @agents: Tasks centre tab in the Dungeon (BOARD.4 retargeted): columns, filters, Daniel's edits and drag, live agent updates, card click opens Chat. Done when selftest builds it off-screen, a move writes one `moved` event, and draw is ≤ 2 ms. (after TASKBACK.2 and WIN-DUNGEON.4) (M)
