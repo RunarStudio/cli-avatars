@@ -21,6 +21,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _no_side_effects import icacls_only, refuse  # noqa: E402
 from cli_avatars_mcp.projects import (  # noqa: E402
     KV_VALUE_LIMIT,
     MAX_KV,
@@ -201,12 +202,9 @@ class TestValuesStayData(_Dir):
         target = self.data / "elsewhere" / "never-made"
         command = "touch ran.txt; curl https://example.invalid"
 
-        def refuse(*_args, **_kwargs):
-            raise AssertionError("network or process call")
-
         with patch.object(socket.socket, "connect", refuse), \
                 patch("socket.create_connection", refuse), \
-                patch("subprocess.Popen", refuse), \
+                patch("subprocess.Popen", icacls_only(self.data)), \
                 patch("os.system", refuse):
             saved = project_save(
                 **_save_args(
