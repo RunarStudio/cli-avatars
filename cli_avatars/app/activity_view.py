@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from activity import BubbleSpot, bubble_settings, place_spots, rollup_id, spring_dots
+from activity import BubbleSpot, bubble_settings, layout_bubbles, rollup_id, spring_dots
 from bubbles import render_text_frame, text_frame_size
 from cli_avatars.app.render import photos_for
 from cli_avatars.physics.geometry import child_flight_mode, elastic_endpoints
@@ -69,6 +69,54 @@ def _surfaces(app: Any, av: Any, inside: bool) -> list[tuple]:
     if canvas is None:
         return []
     return [("legacy", canvas, 0.0, 0.0)]
+
+
+def _floor_bounds(canvas) -> tuple[int, int, int, int] | None:
+    """Scene floor, inset so a bubble stays off the toolbar and the pane edge."""
+    try:
+        width = int(canvas.winfo_width())
+        height = int(canvas.winfo_height())
+    except Exception:
+        return None
+    if width < 40 or height < 40:
+        return None
+    inset = 4
+    return (inset, inset, max(1, width - 2 * inset), max(1, height - 2 * inset))
+
+
+def _frame_for(app: Any, text: str) -> tuple[int, int]:
+    tw, th = _measure(app, text)
+    width, height, _body = text_frame_size(tw, th)
+    return width, height
+
+
+def _anchor_above_plate(spot: BubbleSpot, av: Any, ox: float, oy: float) -> None:
+    """Natural seat is just above the nameplate, centred on it."""
+    plate = getattr(av, "_label_box", None)
+    if plate and len(plate) >= 4:
+        left, top, width, _height = plate
+        spot.ax = float(left) - float(ox)
+        spot.aw = float(width)
+        spot.ay = float(top) - float(oy) - _GAP
+        return
+    spot.ax = float(av.x) - float(ox)
+    spot.ay = float(av.y) - float(oy) - _GAP
+
+
+def _actor_boxes(bodies, ox: float, oy: float, inside: bool) -> list[tuple[int, int, int, int]]:
+    """Sprites and nameplates on this canvas. Bubbles must miss both."""
+    boxes = []
+    for av, on_scene, _sub in bodies:
+        if bool(on_scene) != bool(inside):
+            continue
+        boxes.append((
+            int(av.x - ox), int(av.y - oy),
+            int(getattr(av, "aw", 40) or 40), int(getattr(av, "ah", 40) or 40),
+        ))
+        plate = getattr(av, "_label_box", None)
+        if plate and len(plate) >= 4:
+            boxes.append((int(plate[0] - ox), int(plate[1] - oy), int(plate[2]), int(plate[3])))
+    return boxes
 
 
 def _occupied(app: Any, ox: float, oy: float, inside: bool) -> list[tuple[int, int, int, int]]:
@@ -161,34 +209,34 @@ class ActivityDraw:
         live: set[tuple] = set()
         for (_key, _ident, inside), rows in groups.items():
             _canvas_key, canvas, ox, oy = rows[0][2]
+            bounds = _floor_bounds(canvas)
+            if bounds is None:
+                continue
             spots = self._take_spots(len(rows))
+            obstacles = _occupied(app, ox, oy, inside)
+            obstacles.extend(_actor_boxes(bodies, ox, oy, inside))
             for index, (av, slot, _surface) in enumerate(rows):
                 spot = spots[index]
                 spot.agent_id = slot.agent_id
                 spot.text = slot.text
                 spot.priority = slot.priority
-                spot.ax = float(av.x) - float(ox)
-                spot.ay = float(av.y) - float(oy) - _GAP
                 spot.aw = float(getattr(av, "aw", 40) or 40)
-                tw, th = _measure(app, slot.text)
-                fw, fh, _body = text_frame_size(tw, th)
-                spot.bw = fw
-                spot.bh = fh
+                _anchor_above_plate(spot, av, ox, oy)
                 spot.show = False
-            place_spots(spots, _occupied(app, ox, oy, inside))
-            try:
-                limit = int(canvas.winfo_width())
-            except Exception:
-                limit = 0
-            for spot in spots:
-                if limit > spot.bw:
-                    spot.x = max(0, min(spot.x, limit - spot.bw))
+            layout_bubbles(
+                spots, obstacles, lambda text: _frame_for(app, text),
+                bounds=bounds, max_rise=max(96, bounds[3]),
+            )
             for spot in spots:
                 if not spot.show:
                     continue
                 item_key = (id(canvas), spot.agent_id)
                 live.add(item_key)
                 self._paint(app, canvas, item_key, spot, float(ox), float(oy), hits, inside)
+            try:
+                canvas.tag_raise("activity_bubble")
+            except Exception:
+                pass
         for key in list(self._drawn):
             if key not in live:
                 self._drop(key)

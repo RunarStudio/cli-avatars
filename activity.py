@@ -697,13 +697,129 @@ def _hits(box: tuple[int, int, int, int], other: tuple[int, int, int, int], gap:
     )
 
 
+class Plate:
+    """One nameplate. ``dx, dy`` is the nudge that clears an overlap."""
+
+    __slots__ = ("agent_id", "x", "y", "w", "h", "dx", "dy")
+
+    def __init__(self) -> None:
+        self.agent_id = ""
+        self.x = 0
+        self.y = 0
+        self.w = 0
+        self.h = 0
+        self.dx = 0
+        self.dy = 0
+
+    def box(self) -> tuple[int, int, int, int]:
+        return (self.x + self.dx, self.y + self.dy, self.w, self.h)
+
+
+def clip_line(text: str, chars: int) -> str:
+    """Keep ``chars`` of ``text``, ending in an ellipsis when it is shorter."""
+    if chars >= len(text):
+        return text
+    if chars <= 1:
+        return "…"
+    short = text[: chars - 1].rstrip()
+    return (short or text[: chars - 1]) + "…"
+
+
+def plate_box(x: float, y: float, aw: float, width: int, height: int) -> tuple[int, int, int, int]:
+    """Nameplate whose bottom edge sits 4 px above the sprite top.
+
+    The anchor is the sprite's top centre. Width and height are already measured.
+    """
+    cx = int(round(float(x) + float(aw) / 2.0))
+    bottom = int(round(float(y))) - 4
+    left = cx - int(width) // 2
+    top = bottom - int(height)
+    return (left, top, int(width), int(height))
+
+
+def _inside(x: int, y: int, w: int, h: int, bounds: tuple[int, int, int, int] | None) -> bool:
+    if bounds is None:
+        return True
+    bx, by, bw, bh = bounds
+    return x >= bx and y >= by and x + w <= bx + bw and y + h <= by + bh
+
+
+def _clamp_origin(
+    x: int, y: int, w: int, h: int, bounds: tuple[int, int, int, int] | None,
+) -> tuple[int, int] | None:
+    if bounds is None:
+        return (x, y)
+    bx, by, bw, bh = bounds
+    if w > bw or h > bh or w <= 0 or h <= 0:
+        return None
+    if x < bx:
+        x = bx
+    elif x + w > bx + bw:
+        x = bx + bw - w
+    if y < by:
+        y = by
+    elif y + h > by + bh:
+        y = by + bh - h
+    return (x, y)
+
+
+def _shifts(limit: int, step: int) -> list[tuple[int, int]]:
+    """Vertical moves first, then the same rows shifted sideways."""
+    verts = [0]
+    rise = step
+    while rise <= limit:
+        verts.append(-rise)
+        verts.append(rise)
+        rise += step
+    ordered = [(0, dy) for dy in verts]
+    shift = step
+    while shift <= limit:
+        for dx in (-shift, shift):
+            ordered.extend((dx, dy) for dy in verts)
+        shift += step
+    return ordered
+
+
+def _seat(
+    x0: int,
+    y0: int,
+    w: int,
+    h: int,
+    taken: Sequence[tuple[int, int, int, int]],
+    bounds: tuple[int, int, int, int] | None,
+    gap: int,
+    max_rise: int,
+) -> tuple[int, int] | None:
+    """First free slot. ``None`` when every tried place collides or leaves the floor."""
+    step = max(1, gap + 2)
+    seen: set[tuple[int, int]] = set()
+    for dx, dy in _shifts(max(0, max_rise), step):
+        moved = _clamp_origin(x0 + dx, y0 + dy, w, h, bounds)
+        if moved is None or moved in seen:
+            continue
+        seen.add(moved)
+        x, y = moved
+        if not _inside(x, y, w, h, bounds):
+            continue
+        rect = (x, y, w, h)
+        if any(_hits(rect, box, gap) for box in taken):
+            continue
+        return (x, y)
+    return None
+
+
 def place_spots(
     spots: Sequence[BubbleSpot],
     occupied: Sequence[tuple[int, int, int, int]],
     gap: int = 4,
     max_rise: int = 96,
+    bounds: tuple[int, int, int, int] | None = None,
 ) -> None:
-    """Write ``x, y, show`` on each spot. A lower-priority overlap steps up, then hides."""
+    """Write ``x, y, show``. Overlaps step up, then sideways. A miss stays hidden.
+
+    ``bounds`` is the floor ``(x, y, w, h)``. A bubble that would cross it slides
+    back inside and is kept only when that slide is still free.
+    """
     order = sorted(range(len(spots)), key=lambda index: (-spots[index].priority, spots[index].agent_id))
     taken = list(occupied)
     for index in order:
@@ -711,19 +827,116 @@ def place_spots(
         spot.show = False
         if spot.bw <= 0 or spot.bh <= 0:
             continue
-        x = int(round(spot.ax + spot.aw / 2.0 - spot.bw / 2.0))
-        y = int(round(spot.ay)) - spot.bh
-        rise = 0
-        step = gap + 2
-        while rise <= max_rise and any(_hits((x, y, spot.bw, spot.bh), box, gap) for box in taken):
-            y -= step
-            rise += step
-        if rise > max_rise:
+        x0 = int(round(spot.ax + spot.aw / 2.0 - spot.bw / 2.0))
+        y0 = int(round(spot.ay)) - spot.bh
+        found = _seat(x0, y0, spot.bw, spot.bh, taken, bounds, gap, max_rise)
+        if found is None:
             continue
-        spot.x = x
-        spot.y = y
+        spot.x, spot.y = found
         spot.show = True
-        taken.append((x, y, spot.bw, spot.bh))
+        taken.append((spot.x, spot.y, spot.bw, spot.bh))
+
+
+def layout_bubbles(
+    spots: Sequence[BubbleSpot],
+    occupied: Sequence[tuple[int, int, int, int]],
+    size_of,
+    bounds: tuple[int, int, int, int] | None = None,
+    gap: int = 4,
+    max_rise: int = 96,
+) -> None:
+    """Place every bubble. Shorten with an ellipsis only after the full line cannot sit anywhere."""
+    full = [spot.text for spot in spots]
+    for spot, text in zip(spots, full, strict=False):
+        spot.text = text
+        bw, bh = size_of(text)
+        spot.bw, spot.bh = int(bw), int(bh)
+    place_spots(spots, occupied, gap=gap, max_rise=max_rise, bounds=bounds)
+    taken = list(occupied)
+    for spot in spots:
+        if spot.show:
+            taken.append((spot.x, spot.y, spot.bw, spot.bh))
+    for spot, text in zip(spots, full, strict=False):
+        if spot.show or not text:
+            continue
+        placed = False
+        for chars in range(len(text) - 1, 0, -1):
+            trial = clip_line(text, chars)
+            bw, bh = size_of(trial)
+            found = _seat(
+                int(round(spot.ax + spot.aw / 2.0 - bw / 2.0)),
+                int(round(spot.ay)) - int(bh),
+                int(bw), int(bh), taken, bounds, gap, max_rise,
+            )
+            if found is None:
+                continue
+            spot.text = trial
+            spot.bw, spot.bh = int(bw), int(bh)
+            spot.x, spot.y = found
+            spot.show = True
+            taken.append((spot.x, spot.y, spot.bw, spot.bh))
+            placed = True
+            break
+        if not placed:
+            spot.text = text
+            spot.show = False
+
+
+def nudge_plates(
+    plates: Sequence[Plate],
+    bounds: tuple[int, int, int, int] | None = None,
+    gap: int = 4,
+    max_shift: int = 160,
+    occupied: Sequence[tuple[int, int, int, int]] = (),
+) -> None:
+    """Slide overlapping nameplates sideways, then up or down. Writes ``dx, dy``.
+
+    ``occupied`` is extra boxes (sprites) a plate must also miss.
+    """
+    step = max(1, gap + 2)
+    taken: list[tuple[int, int, int, int]] = [tuple(box) for box in occupied]
+    ordered = sorted(plates, key=lambda plate: (plate.y, plate.x, plate.agent_id))
+    for plate in ordered:
+        plate.dx = 0
+        plate.dy = 0
+        if plate.w <= 0 or plate.h <= 0:
+            continue
+        found = _seat(plate.x, plate.y, plate.w, plate.h, taken, bounds, gap, max_shift)
+        # Prefer a sideways nudge over a vertical one when both are free.
+        if found is not None and found != (plate.x, plate.y):
+            side = _seat_axis(plate, taken, bounds, gap, max_shift, step, horizontal=True)
+            if side is not None:
+                found = side
+        if found is None:
+            taken.append(plate.box())
+            continue
+        plate.dx = found[0] - plate.x
+        plate.dy = found[1] - plate.y
+        taken.append(plate.box())
+
+
+def _seat_axis(
+    plate: Plate,
+    taken: Sequence[tuple[int, int, int, int]],
+    bounds: tuple[int, int, int, int] | None,
+    gap: int,
+    limit: int,
+    step: int,
+    horizontal: bool,
+) -> tuple[int, int] | None:
+    shift = step
+    while shift <= limit:
+        deltas = ((-shift, 0), (shift, 0)) if horizontal else ((0, -shift), (0, shift))
+        for dx, dy in deltas:
+            moved = _clamp_origin(plate.x + dx, plate.y + dy, plate.w, plate.h, bounds)
+            if moved is None or not _inside(moved[0], moved[1], plate.w, plate.h, bounds):
+                continue
+            rect = (moved[0], moved[1], plate.w, plate.h)
+            if any(_hits(rect, box, gap) for box in taken):
+                continue
+            return moved
+        shift += step
+    return None
 
 
 def activity_demo_enabled() -> bool:
