@@ -1,9 +1,8 @@
 """One topmost overlay per monitor. Avatars stay in virtual px.
 
 Every overlay is a ``Toplevel``. The Tk root is the Dungeon, and withdrawing
-or minimizing it must not take the overlays with it. An extra overlay with
-no sprite on it is withdrawn. The anchor (primary) stays mapped: empty
-anchors are withdrawn in WIN-DUNGEON.5.
+or minimizing it must not take the overlays with it. An overlay with no
+sprite on it is withdrawn, including the anchor and the single legacy window.
 
 ``desktop.overlay_monitors: "primary"``, and a machine with no monitor list,
 keep a single screen-sized overlay. Linux takes that path.
@@ -102,18 +101,28 @@ class OverlayBoard:
         self.lift_overlays()
 
     def show(self, boxes) -> None:
-        """Withdraw extra overlays that no sprite touches. The anchor stays up."""
-        if self.legacy:
-            return
+        """Withdraw every overlay that no sprite touches, including the anchor."""
         import tkinter as tk
 
+        if self.legacy:
+            window = self._legacy[0] if self._legacy is not None else None
+            if window is None:
+                return
+            try:
+                if boxes:
+                    window.deiconify()
+                else:
+                    window.withdraw()
+            except tk.TclError:
+                pass
+            return
         occupied = set()
         for box in boxes:
             rect = (box[0], box[1], box[0] + box[2], box[1] + box[3])
-            for slot in self._extras.values():
+            for slot in self.slots():
                 if _intersects(rect, slot.monitor.rect):
                     occupied.add(slot.key)
-        for slot in self._extras.values():
+        for slot in self.slots():
             try:
                 if slot.key in occupied:
                     slot.window.deiconify()
@@ -370,7 +379,7 @@ def apply_monitor_changes(app) -> None:
 
 def refresh_overlay_visibility(app) -> None:
     board = getattr(app, "overlays", None)
-    if board is None or board.legacy:
+    if board is None:
         return
     boxes = [(av.x, av.y, av.aw, av.ah) for av in _bodies(app)]
     board.show(boxes)

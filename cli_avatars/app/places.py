@@ -1,0 +1,429 @@
+"""Inside and desktop actors. Drag across the Dungeon edge, and remember it.
+
+New agents start inside, on a ring in the empty floor. Dragging past the
+client edge hands the same sprite to an overlay. Releasing it on the Dungeon,
+where no other window covers the pointer, brings it back. The crossing
+animation, the door button, and Call home are WIN-DUNGEON.6: this step
+applies the two states in the same gesture. A hot-unplug still parks on a
+remaining monitor. It does not send anyone inside.
+"""
+
+from __future__ import annotations
+
+import time
+
+from cli_avatars.app.dungeon_map import (
+    canvas_from_scene,
+    client_rect_v,
+    drop_on_dungeon,
+    past_edge,
+    ring_spot,
+    virtual_from_canvas,
+)
+from cli_avatars.app.overlays import bind_avatar
+from cli_avatars.app.place_store import (
+    empty_file,
+    forget,
+    load_file,
+    prune,
+    remember,
+    save_file,
+)
+from cli_avatars.app.render import canvas_photos
+from cli_avatars.desktop.chrome import frame_hwnd
+from cli_avatars.desktop.windows import occlusion_covers
+from cli_avatars.model.place import DESKTOP, INSIDE, Place, arrive, drag_out, drop, new_actor, portal_done
+from cli_avatars.sprites.registry import REGISTRY
+from cli_avatars.world.avatar import Avatar
+from cli_avatars.world.monitors import monitor_at
+
+_CHILD = ("#7eb6ff", "#ffd36e", "#9dff8a", "#ff8ec8", "#d2a6ff", "#ffb070", "#7dffe0", "#e8e8e8")
+_CHILD_SIZE = 32
+
+
+def places_path():
+    """``ui/avatar_places.json`` under the per-user data dir."""
+    from events import app_data_dir
+
+    return app_data_dir() / "ui" / "avatar_places.json"
+
+
+class PlaceBook:
+    """Places for one shell. The file stores desktop actors only."""
+
+    def __init__(self, app, path=None):
+        self.app = app
+        if getattr(app, "_inside", None) is None:
+            app._inside = {}
+        self._path = path
+        if path is None and not getattr(getattr(app, "dungeon", None), "_offscreen", False):
+            try:
+                self._path = places_path()
+            except OSError:
+                self._path = None
+        self._file = load_file(self._path, time.time()) if self._path else empty_file()
+        self._actors: dict[str, Place] = {}
+        self._applied: set[str] = set()
+        self._job = None
+        self._dirty = False
+
+    def attach(self) -> None:
+        scene = self._scene()
+        if scene is None:
+            return
+        app = self.app
+        scene.bind("<ButtonPress-1>", app._on_scene_press)
+        scene.bind("<B1-Motion>", app._on_scene_drag)
+        scene.bind("<ButtonRelease-1>", app._on_scene_release)
+        scene.bind("<Double-Button-1>", app._on_scene_double)
+        scene.bind("<Button-3>", app._on_scene_right)
+
+    def reconcile(self, agents) -> None:
+        """New ids start inside, unless a saved monitor is still plugged in."""
+        now = time.time()
+        self._file = prune(self._file, set(agents), now)
+        for aid in list(self._actors):
+            if aid not in agents:
+                self._drop_actor(aid)
+        for aid, agent in agents.items():
+            actor = self._actors.get(aid)
+            if actor is None:
+                spot = self._file.spots.get(aid)
+                if spot is not None and self._monitor_ok(spot.monitor):
+                    actor = Place(aid, DESKTOP, "drag", None)
+                else:
+                    actor = new_actor(aid)
+                self._actors[aid] = actor
+            if actor.where == INSIDE:
+                self._ensure_inside(agent)
+            else:
+                held = self.app._inside.pop(aid, None)
+                if held is not None and aid not in self.app.avatars:
+                    held.agent = agent
+                    self.app.avatars[aid] = held
+                    bind_avatar(self.app, held)
+                elif aid in self.app.avatars:
+                    self.app.avatars[aid].agent = agent
+
+    def desktop_ids(self) -> set[str]:
+        return {aid for aid, actor in self._actors.items() if actor.where == DESKTOP}
+
+    def inside_ids(self) -> set[str]:
+        return {aid for aid, actor in self._actors.items() if actor.where == INSIDE}
+
+    def claim_desktop(self, av) -> None:
+        """Put a restored actor on its saved x and that monitor's ground, once."""
+        aid = av.agent.agent_id
+        if aid in self._applied:
+            return
+        self._applied.add(aid)
+        spot = self._file.spots.get(aid)
+        if spot is None:
+            return
+        point = self._on_ground(spot, av)
+        if point is None:
+            return
+        av.x, av.y = point
+        av.vx = av.vy = 0.0
+        av.on_ground = True
+
+    def hit(self, x: float, y: float):
+        found = None
+        for av in self.app._inside.values():
+            if av.x <= x <= av.x + av.aw and av.y <= y <= av.y + av.ah:
+                found = av
+        return found
+
+    def past_client(self, vx: float, vy: float) -> bool:
+        try:
+            return past_edge(vx, vy, self._client())
+        except Exception:
+            return False
+
+    def lands(self, vx: float, vy: float) -> bool:
+        """True when a release on this point would come back inside."""
+        try:
+            rect = self._client()
+            hwnd = frame_hwnd(self.app.root)
+        except Exception:
+            return False
+        dungeon_z, covers = occlusion_covers(hwnd)
+        return drop_on_dungeon(vx, vy, rect, covers, dungeon_z)
+
+    def handoff(self, av, pointer_x: float, pointer_y: float) -> bool:
+        """The pointer left the client. The sprite continues on the overlay."""
+        aid = av.agent.agent_id
+        actor = self._actors.get(aid)
+        if actor is None:
+            return False
+        stepped = portal_done(drag_out(actor))
+        if stepped.where != DESKTOP:
+            return False
+        scene = self._scene()
+        origin = (0.0, 0.0)
+        if scene is not None:
+            try:
+                origin = (scene.winfo_rootx(), scene.winfo_rooty())
+            except Exception:
+                origin = (0.0, 0.0)
+            av.cleanup(scene)
+        vx, vy = virtual_from_canvas(av.x, av.y, origin)
+        av.x, av.y = vx, vy
+        av.vx = av.vy = 0.0
+        av.spr_id = None
+        av.lbl_id = None
+        av._draw_sig = None
+        self.app._inside.pop(aid, None)
+        self.app.avatars[aid] = av
+        bind_avatar(self.app, av)
+        self._actors[aid] = stepped
+        self._applied.add(aid)
+        self.app._drag_av = av
+        self.app._drag_off = (pointer_x - av.x, pointer_y - av.y)
+        self.app._drag_prev = (pointer_x, pointer_y)
+        self._show_avatar(av)
+        self._remember_avatar(av)
+        self._schedule()
+        return True
+
+    def bring_in(self, av) -> bool:
+        """Drop on the Dungeon. Overlay children go away without the dying row."""
+        aid = av.agent.agent_id
+        actor = self._actors.get(aid)
+        if actor is None:
+            return False
+        home = arrive(drop(actor, True))
+        if home.where != INSIDE:
+            return False
+        canvas = getattr(self.app, "canvas", None)
+        av.cleanup(canvas)
+        for child in self.app.sub_avatars.pop(aid, []):
+            child.cleanup(canvas)
+        av._board = None
+        av.monitor_layout = None
+        av._inks = {}
+        av.spr_id = None
+        av.lbl_id = None
+        av._draw_sig = None
+        av.vx = av.vy = 0.0
+        self.app.avatars.pop(aid, None)
+        meetings = getattr(getattr(self.app, "scanner", None), "meetings", None)
+        if meetings is not None:
+            meetings.release(aid)
+        self.app._inside[aid] = av
+        self._actors[aid] = home
+        self._applied.discard(aid)
+        self._file = forget(self._file, aid)
+        self._schedule()
+        return True
+
+    def draw_inside(self) -> None:
+        scene = self._scene()
+        if scene is None:
+            return
+        try:
+            scene.delete("inside-sub")
+        except Exception:
+            return
+        dragging = getattr(self.app, "_drag_av", None)
+        ids = sorted(aid for aid, actor in self._actors.items() if actor.where == INSIDE)
+        spots = self._spot_centers(len(ids))
+        photos = canvas_photos(self.app)
+        for index, aid in enumerate(ids):
+            av = self.app._inside.get(aid)
+            if av is None:
+                continue
+            if av is not dragging:
+                cx, cy = spots[index]
+                av.x = cx - av.aw / 2.0
+                av.y = cy - av.ah / 2.0
+                av.vx = av.vy = 0.0
+            av.monitor_layout = None
+            av._board = None
+            try:
+                av.draw(scene, photos)
+            except Exception:
+                pass
+            self._draw_children(scene, av)
+        try:
+            scene.tag_lower("floor")
+        except Exception:
+            return
+
+    def note_positions(self) -> None:
+        """Remember desktop feet. Inside actors are not written."""
+        layout = self._layout()
+        if layout is None:
+            return
+        changed = False
+        now = time.time()
+        for aid, av in list(self.app.avatars.items()):
+            actor = self._actors.get(aid)
+            if actor is None or actor.where != DESKTOP:
+                continue
+            try:
+                feet_x = av.x + av.aw / 2.0
+                feet_y = av.y + av.ah - av._foot_pad()
+                ident = monitor_at(layout, feet_x, feet_y)
+                if ident is None:
+                    continue
+                x = int(round(av.x))
+                y = int(round(av.y))
+            except Exception:
+                continue
+            prev = self._file.spots.get(aid)
+            if prev is not None and prev.monitor == ident and prev.x == x and prev.y == y:
+                continue
+            updated = remember(self._file, aid, ident, x, y, now)
+            if updated is self._file:
+                continue
+            self._file = updated
+            changed = True
+        if changed:
+            self._schedule()
+
+    def save_now(self) -> bool:
+        self._dirty = False
+        if self._path is None:
+            return False
+        return save_file(self._path, self._file)
+
+    def _ensure_inside(self, agent) -> None:
+        aid = agent.agent_id
+        av = self.app._inside.get(aid)
+        if av is None:
+            av = Avatar(agent, 800, 600, getattr(self.app, "_cidx", 0), REGISTRY)
+            self.app._cidx = getattr(self.app, "_cidx", 0) + 1
+            av.vx = av.vy = 0.0
+            self.app._inside[aid] = av
+        av.agent = agent
+        av.monitor_layout = None
+        av._board = None
+
+    def _drop_actor(self, aid: str) -> None:
+        self._actors.pop(aid, None)
+        self._applied.discard(aid)
+        self._file = forget(self._file, aid)
+        inside = self.app._inside.pop(aid, None)
+        scene = self._scene()
+        if inside is not None and scene is not None:
+            inside.cleanup(scene)
+        self._schedule()
+
+    def _show_avatar(self, av) -> None:
+        board = getattr(self.app, "overlays", None)
+        if board is not None:
+            board.show([(av.x, av.y, av.aw, av.ah)])
+        canvas = getattr(self.app, "canvas", None)
+        if canvas is None:
+            return
+        try:
+            av.draw(canvas, canvas_photos(self.app))
+        except Exception:
+            return
+
+    def _remember_avatar(self, av) -> None:
+        layout = self._layout()
+        if layout is None:
+            return
+        try:
+            feet_x = av.x + av.aw / 2.0
+            feet_y = av.y + av.ah - av._foot_pad()
+            ident = monitor_at(layout, feet_x, feet_y)
+        except Exception:
+            return
+        if ident is None:
+            return
+        self._file = remember(
+            self._file, av.agent.agent_id, ident, int(round(av.x)), int(round(av.y)), time.time(),
+        )
+
+    def _on_ground(self, spot, av):
+        layout = self._layout()
+        if layout is None:
+            return None
+        monitor = layout.monitor(spot.monitor)
+        if monitor is None:
+            return None
+        feet = av.ah - av._foot_pad()
+        left, _top, right, ground = monitor.work
+        width = av.aw
+        x = min(max(float(spot.x), float(left)), max(float(left), float(right) - width))
+        return (x, float(ground - feet))
+
+    def _monitor_ok(self, ident: str) -> bool:
+        layout = self._layout()
+        monitors = getattr(layout, "monitors", None) or ()
+        return any(getattr(item, "id", None) == ident for item in monitors)
+
+    def _spot_centers(self, count: int) -> list[tuple[float, float]]:
+        scene = self._scene()
+        width, height = 800, 600
+        if scene is not None:
+            try:
+                width = int(scene.winfo_width())
+                height = int(scene.winfo_height())
+            except Exception:
+                width, height = 800, 600
+        if width < 2:
+            width = 800
+        if height < 2:
+            height = 600
+        dungeon = getattr(self.app, "dungeon", None)
+        zoom = getattr(dungeon, "_zoom", 1)
+        pan = getattr(dungeon, "_pan", (0, 0))
+        centers = []
+        for index in range(count):
+            sx, sy = ring_spot(index, count)
+            dx, dy = canvas_from_scene(sx, sy, zoom, pan)
+            centers.append((width / 2.0 + dx, height / 2.0 + dy))
+        return centers
+
+    def _draw_children(self, scene, av) -> None:
+        count = getattr(av.agent, "subagents", 0)
+        if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+            return
+        count = min(count, 8)
+        for index in range(count):
+            left = av.x + av.aw + 6 + index * (_CHILD_SIZE + 4)
+            top = av.y + av.ah - _CHILD_SIZE
+            try:
+                scene.create_rectangle(
+                    left, top, left + _CHILD_SIZE, top + _CHILD_SIZE,
+                    fill=_CHILD[index], outline=_CHILD[index], tags=("inside-sub",),
+                )
+            except Exception:
+                return
+
+    def _client(self):
+        root = self.app.root
+        return client_rect_v(
+            root.winfo_rootx(), root.winfo_rooty(), root.winfo_width(), root.winfo_height(),
+        )
+
+    def _scene(self):
+        dungeon = getattr(self.app, "dungeon", None)
+        if dungeon is None:
+            return None
+        return getattr(dungeon, "scene", None)
+
+    def _layout(self):
+        board = getattr(self.app, "overlays", None)
+        if board is None or getattr(board, "legacy", True):
+            return None
+        return getattr(board, "layout", None)
+
+    def _schedule(self) -> None:
+        self._dirty = True
+        root = getattr(self.app, "root", None)
+        if self._path is None or root is None or self._job is not None:
+            return
+        try:
+            self._job = root.after(1000, self._flush)
+        except Exception:
+            self.save_now()
+
+    def _flush(self) -> None:
+        self._job = None
+        if self._dirty:
+            self.save_now()

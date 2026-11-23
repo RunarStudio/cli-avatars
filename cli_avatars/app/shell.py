@@ -27,6 +27,7 @@ from cli_avatars.app.dungeon_window import DungeonWindow
 from cli_avatars.app.hud_window import HudWindow
 from cli_avatars.app.input import InputController
 from cli_avatars.app.overlays import OverlayBoard, read_monitors
+from cli_avatars.app.places import PlaceBook
 from cli_avatars.app.pool import PoolController
 from cli_avatars.app.portal_view import PortalView, _draw_portal
 from cli_avatars.app.render import RenderController
@@ -103,6 +104,7 @@ class OverlayApp:
         self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
         self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict = {}
+        self._inside: dict = {}
         self.sub_avatars: dict = {}   # parent_id → [sub Avatar, …]
         self._lingering_subs: list = []         # task-done subs waiting to float away
         self._dying_subs: list = []             # closing subchat, dying row then gone
@@ -159,6 +161,9 @@ class OverlayApp:
                 pass
             self.dungeon.place([])
 
+        self.places = PlaceBook(self)
+        self.places.attach()
+
         threading.Thread(target=self.scanner.loop, daemon=True).start()
         threading.Thread(target=self.terrain.loop, daemon=True).start()
 
@@ -177,6 +182,12 @@ class OverlayApp:
         self.tick_loop.step()
 
     def _quit(self):
+        places = getattr(self, "places", None)
+        if places is not None:
+            try:
+                places.save_now()
+            except Exception:
+                pass
         dungeon = getattr(self, "dungeon", None)
         if dungeon is not None:
             try:
@@ -378,6 +389,21 @@ class OverlayApp:
 
     def _on_right_click(self, event):
         return self._ctrl("pointer", InputController).on_right_click(event)
+
+    def _on_scene_press(self, event):
+        return self._ctrl("pointer", InputController).on_scene_press(event)
+
+    def _on_scene_drag(self, event):
+        return self._ctrl("pointer", InputController).on_scene_drag(event)
+
+    def _on_scene_release(self, event):
+        return self._ctrl("pointer", InputController).on_scene_release(event)
+
+    def _on_scene_double(self, event):
+        return self._ctrl("pointer", InputController).on_scene_double(event)
+
+    def _on_scene_right(self, event):
+        return self._ctrl("pointer", InputController).on_scene_right(event)
 
     def _focus_linked_console(self, pid):
         return focus_linked_console(pid)

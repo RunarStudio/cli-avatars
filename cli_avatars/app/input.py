@@ -80,12 +80,11 @@ class InputController:
         app._press_av = None
         dragged = app._drag_av
         if kind == "drag" and dragged is not None:
-            dx = x - app._drag_prev[0]
-            dy = y - app._drag_prev[1]
-            max_v = TUNING.walk_speed * 3
-            dragged.vx = max(-max_v, min(dx * THROW_SCALE, max_v))
-            dragged.vy = max(-max_v, min(dy * THROW_SCALE, max_v))
-            app._drag_av = None
+            book = getattr(app, "places", None)
+            if book is not None and book.lands(x, y) and book.bring_in(dragged):
+                app._drag_av = None
+                return
+            self._throw(dragged, x, y)
             return
         app._drag_av = None
         if kind == "click" and av is not None:
@@ -110,3 +109,86 @@ class InputController:
                 app._focus_linked_console(av.agent.pid)
                 return
         # Empty space does not quit. Quit is the window button, the tray, or the menu.
+
+    def on_scene_press(self, event: object) -> None:
+        app = self.app
+        book = getattr(app, "places", None)
+        app._press_inside = book.hit(event.x, event.y) if book is not None else None
+        app._press_av = None
+        app._gesture.press(event.x, event.y)
+        app._drag_av = None
+
+    def on_scene_drag(self, event: object) -> None:
+        app = self.app
+        book = getattr(app, "places", None)
+        if book is None:
+            return
+        dragged = app._drag_av
+        if dragged is not None and dragged in app.avatars.values():
+            x, y = event.x_root, event.y_root
+            nx, ny = self._clamp(dragged, x - app._drag_off[0], y - app._drag_off[1])
+            dragged.x = float(nx)
+            dragged.y = float(ny)
+            app._drag_prev = (x, y)
+            board = getattr(app, "overlays", None)
+            if board is not None:
+                board.show([(dragged.x, dragged.y, dragged.aw, dragged.ah)])
+            return
+        av = getattr(app, "_press_inside", None)
+        inside = getattr(app, "_inside", {})
+        if av is None or av not in inside.values():
+            app._gesture.move(event.x, event.y)
+            return
+        if not app._gesture.move(event.x, event.y):
+            return
+        if app._drag_av is None:
+            app._drag_av = av
+            app._drag_off = (event.x - av.x, event.y - av.y)
+            app._drag_prev = (event.x_root, event.y_root)
+        av.x = event.x - app._drag_off[0]
+        av.y = event.y - app._drag_off[1]
+        if book.past_client(event.x_root, event.y_root):
+            book.handoff(av, event.x_root, event.y_root)
+
+    def on_scene_release(self, event: object) -> None:
+        app = self.app
+        kind = app._gesture.release()
+        inside = getattr(app, "_press_inside", None)
+        app._press_inside = None
+        dragged = app._drag_av
+        book = getattr(app, "places", None)
+        if kind == "drag" and dragged is not None and dragged in app.avatars.values():
+            x, y = event.x_root, event.y_root
+            if book is not None and book.lands(x, y) and book.bring_in(dragged):
+                app._drag_av = None
+                return
+            self._throw(dragged, x, y)
+            return
+        app._drag_av = None
+        if kind == "click" and inside is not None:
+            app._open_chat_for_avatar(inside)
+
+    def on_scene_double(self, event: object) -> None:
+        app = self.app
+        app._drag_av = None
+        book = getattr(app, "places", None)
+        av = book.hit(event.x, event.y) if book is not None else None
+        if av is not None:
+            app._focus_linked_console(av.agent.pid)
+
+    def on_scene_right(self, event: object) -> None:
+        app = self.app
+        book = getattr(app, "places", None)
+        av = book.hit(event.x, event.y) if book is not None else None
+        if av is not None:
+            app._focus_linked_console(av.agent.pid)
+        # Empty space does not quit.
+
+    def _throw(self, dragged, x: float, y: float) -> None:
+        app = self.app
+        dx = x - app._drag_prev[0]
+        dy = y - app._drag_prev[1]
+        max_v = TUNING.walk_speed * 3
+        dragged.vx = max(-max_v, min(dx * THROW_SCALE, max_v))
+        dragged.vy = max(-max_v, min(dy * THROW_SCALE, max_v))
+        app._drag_av = None

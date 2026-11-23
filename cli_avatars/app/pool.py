@@ -91,17 +91,26 @@ def _meeting_stage(self, floors, floor_hwnds) -> Stage:
 
 def sync(self, frame: object) -> None:
     agents = frame.agents
-    for aid in self.avatars.keys() - agents.keys():
+    book = getattr(self, "places", None)
+    if book is not None:
+        book.reconcile(agents)
+    desktop = None if book is None else book.desktop_ids()
+    wanted = set(agents) if desktop is None else set(agents) & desktop
+    for aid in list(self.avatars.keys() - wanted):
         self.scanner.meetings.release(aid)
-        self.avatars.pop(aid).cleanup(self.canvas)
+        gone = self.avatars.pop(aid, None)
+        if gone is not None:
+            gone.cleanup(self.canvas)
         for sv in self.sub_avatars.pop(aid, []):
             sv.cleanup(self.canvas)
 
-    for aid in agents.keys() - self.avatars.keys():
+    for aid in wanted - self.avatars.keys():
         agent = agents[aid]
         self.avatars[aid] = Avatar(agent, self.sw, self.sh, self._cidx, REGISTRY)
         bind_avatar(self, self.avatars[aid])
         self._cidx += 1
+        if book is not None:
+            book.claim_desktop(self.avatars[aid])
 
 
 def ride(self, frame: object) -> None:
@@ -194,6 +203,11 @@ def step_avatars(self, frame: object) -> None:
         for sv in self.sub_avatars.pop(aid, []):
             self._begin_dying(sv)
             self._dying_subs.append(sv)
+
+    book = getattr(self, "places", None)
+    if book is not None:
+        book.draw_inside()
+        book.note_positions()
 
 
 class PoolController:

@@ -112,9 +112,15 @@ class DungeonWindow:
     def on_escape(self, _event=None):
         """Cancel a drag, or close the dock that has focus. Does not quit."""
         app = self.app
-        if getattr(app, "_drag_av", None) is not None or getattr(app, "_press_av", None) is not None:
+        dragging = (
+            getattr(app, "_drag_av", None) is not None
+            or getattr(app, "_press_av", None) is not None
+            or getattr(app, "_press_inside", None) is not None
+        )
+        if dragging:
             app._drag_av = None
             app._press_av = None
+            app._press_inside = None
             gesture = getattr(app, "_gesture", None)
             if gesture is not None:
                 gesture.release()

@@ -117,11 +117,17 @@ class SubagentController:
             sub_list = app.sub_avatars.setdefault(aid, [])
             parent_av = app.avatars.get(aid)
             if parent_av is None:
-                # The parent avatar already left. Finish the children that
-                # are still here, and do not spawn replacements.
+                # Inside parents have no overlay avatar. Their children are
+                # marks on the scene, so a leftover overlay child is removed
+                # without the dying row. A parent that actually left still dies.
+                book = getattr(app, "places", None)
+                home = book is not None and aid in book.inside_ids()
                 for sv in sub_list:
-                    self._begin_dying(sv)
-                    app._dying_subs.append(sv)
+                    if home:
+                        sv.cleanup(app.canvas)
+                    else:
+                        self._begin_dying(sv)
+                        app._dying_subs.append(sv)
                 sub_list.clear()
                 continue
 

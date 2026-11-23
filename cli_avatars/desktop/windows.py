@@ -23,6 +23,30 @@ def is_our_window(title: str, own_title: str) -> bool:
     return text == OVERLAY_TITLE or text.startswith(OVERLAY_TITLE + " ")
 
 
+def occlusion_covers(hwnd: int) -> tuple[int, list]:
+    """``(dungeon_z, covers)`` for a drop. Covers are windows in front of ``hwnd``.
+
+    Tool windows are already absent, so our overlays do not hide the Dungeon
+    from this check. Off Windows the list is empty and a point on the client
+    counts as home.
+    """
+    if not HAS_W32 or not hwnd:
+        return (0, [])
+    try:
+        wins = w32.list_windows(skip_own_process=False)
+    except Exception:
+        return (0, [])
+    mine = None
+    for win in wins:
+        if int(win.hwnd) == int(hwnd):
+            mine = win
+            break
+    if mine is None:
+        return (0, [])
+    covers = [(int(win.z), win.rect) for win in wins if win.hwnd != mine.hwnd and int(win.z) < int(mine.z)]
+    return (int(mine.z), covers)
+
+
 def terrain_from_windows(wins: list, screen: tuple) -> tuple:
     """Perches = visible pieces of non-maximized window tops (perchas.py)."""
     built = perchas.build_perches(wins, screen, min_len=PERCH_MIN_LEN)

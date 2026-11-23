@@ -44,6 +44,16 @@ def use_dark_titlebar(widget) -> None:
         return
 
 
+def frame_hwnd(widget) -> int:
+    """Top-level hwnd, or 0 when this platform has none."""
+    if sys.platform != "win32":
+        return 0
+    try:
+        return _top_hwnd(widget)
+    except Exception:
+        return 0
+
+
 def mark_toolwindow(widget) -> None:
     """Set ``WS_EX_TOOLWINDOW`` on the top-level overlay. Ignored off Windows.
 
