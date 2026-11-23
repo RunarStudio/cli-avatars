@@ -15,7 +15,9 @@ Rules (AGENTS.md 3 and 4, docs/room-chat.md, docs/architecture.md 6.1):
 - Argv is a fixed list. ``shell=False``. The prompt and the context
   header never enter argv or the environment.
 - One process per ``(room_id, cli)``. Timeout, output caps, and
-  ``Stop`` kill the process tree.
+  ``Stop`` kill the process tree. On Windows the tree lives in a Job
+  Object; on POSIX the child's process group is killed before its pid
+  is reaped.
 
 ``TODO(SpiderHost)``: the flags and the env allowlist are not checked
 against a live ``claude --help``. Tests must not start Claude.
@@ -88,6 +90,17 @@ ENV_ALLOWLIST = (
     "LOGNAME",
 )
 _ENV_BLOCK = ("TOKEN", "SECRET", "PASSWORD", "KEY", "CREDENTIAL")
+
+# Win32 Job Object. The numeric values are the SDK constants; the ctypes
+# calls that use them are imported only on Windows, inside the helpers.
+JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+JobObjectExtendedLimitInformation = 9
+
+# A stuck stdin pipe must not pin the run for the whole prompt timeout.
+_STDIN_WRITE_TIMEOUT_S = 30.0
+# After wait(), reader threads are joined for this long and then abandoned.
+# A blocked read must not keep the room marked running.
+_READER_JOIN_TIMEOUT_S = 2.0
 
 DEFAULT_TIMEOUT_S = 600
 MAX_TIMEOUT_S = 15 * 60
@@ -276,8 +289,17 @@ class RunResult:
     room_id: str
 
 
+DoneCallback = Callable[[RunResult], None]
+
+
 class RoomProcess:
-    """One running prompt. ``stop`` kills the process tree."""
+    """One running prompt. ``stop`` kills the process tree.
+
+    ``on_stdout_line`` and ``on_done`` run on the runner's threads, not
+    on Tk. ROOM-CHAT.4 must marshal both with ``after()`` and return
+    without touching Tk or calling ``wait``. ``on_stdout_line`` does not
+    run once ``on_done`` has been entered.
+    """
 
     def __init__(
         self,
@@ -290,6 +312,7 @@ class RoomProcess:
         stdout_cap: int,
         stderr_cap: int,
         on_stdout_line: StdoutCallback | None,
+        on_done: DoneCallback | None = None,
     ) -> None:
         self._proc = proc
         self._key = key
@@ -299,13 +322,20 @@ class RoomProcess:
         self._stdout_cap = stdout_cap
         self._stderr_cap = stderr_cap
         self._on_stdout_line = on_stdout_line
+        self._on_done = on_done
         self._lock = threading.Lock()
+        # Held across a stdout callback and across the done callback, so a
+        # line cannot start after done has been entered.
+        self._callback_lock = threading.Lock()
+        self._callbacks_sealed = False
         self._outcome: str | None = None
         self._stdout_bytes = 0
         self._stderr = b""
         self._result: RunResult | None = None
         self._finished = threading.Event()
         self._released = False
+        self._stdin_thread: threading.Thread | None = None
+        self._started = time.monotonic()
 
     def is_running(self) -> bool:
         return not self._finished.is_set()
@@ -336,29 +366,59 @@ class RoomProcess:
         self,
         payload: bytes,
     ) -> None:
-        threading.Thread(
+        self._stdin_thread = threading.Thread(
             target=self._write_stdin,
             args=(payload,),
             name="cli-runner-stdin",
             daemon=True,
-        ).start()
+        )
+        self._stdin_thread.start()
         threading.Thread(
             target=self._supervise,
             name="cli-runner-supervise",
             daemon=True,
         ).start()
 
+    def _stdin_budget_s(self) -> float:
+        return min(float(self._timeout_s), _STDIN_WRITE_TIMEOUT_S)
+
     def _write_stdin(self, payload: bytes) -> None:
+        """Write the prompt, then close stdin.
+
+        The write gives up at ``_stdin_budget_s`` so a child that never
+        reads cannot block this thread for the whole prompt timeout.
+        """
         stream = self._proc.stdin
         if stream is None:
             return
+        deadline = self._started + self._stdin_budget_s()
         view = memoryview(payload)
+        fd = -1
+        try:
+            fd = stream.fileno()
+        except (OSError, ValueError, AttributeError):
+            fd = -1
+        if fd >= 0:
+            try:
+                os.set_blocking(fd, False)
+            except (OSError, AttributeError):
+                pass
         try:
             while view:
+                if time.monotonic() >= deadline:
+                    self._set_outcome(OUTCOME_ERROR)
+                    _signal_tree(self._proc)
+                    break
                 try:
                     written = stream.write(view)
+                except BlockingIOError:
+                    _pause_for_stdin(fd, deadline)
+                    continue
                 except (BrokenPipeError, OSError, ValueError):
                     break
+                if written is None:
+                    _pause_for_stdin(fd, deadline)
+                    continue
                 if not written:
                     break
                 view = view[written:]
@@ -381,12 +441,21 @@ class RoomProcess:
         )
         stdout_thread.start()
         stderr_thread.start()
-        deadline = time.monotonic() + self._timeout_s
+        process_deadline = self._started + self._timeout_s
         try:
-            while self._proc.poll() is None:
+            writer = self._stdin_thread
+            if writer is not None:
+                writer.join(timeout=self._stdin_budget_s())
+                if writer.is_alive():
+                    self._set_outcome(OUTCOME_ERROR)
+                    _close_stdin(self._proc)
+                    _signal_tree(self._proc)
+            # Do not poll() here on POSIX: poll reaps, and the pid must
+            # still be ours when the leftover process group is killed.
+            while _child_running(self._proc):
                 if self._outcome is not None:
                     _signal_tree(self._proc)
-                elif time.monotonic() >= deadline:
+                elif time.monotonic() >= process_deadline:
                     self._set_outcome(OUTCOME_TIMEOUT)
                     _signal_tree(self._proc)
                 time.sleep(0.02)
@@ -394,15 +463,18 @@ class RoomProcess:
             self._set_outcome(OUTCOME_ERROR)
             _signal_tree(self._proc)
         finally:
-            if self._proc.poll() is None:
-                _signal_tree(self._proc)
-                try:
-                    self._proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    pass
-            stdout_thread.join(timeout=2)
-            stderr_thread.join(timeout=2)
-            self._finish()
+            try:
+                _reap_tree(self._proc)
+                _close_stdin(self._proc)
+                writer = self._stdin_thread
+                if writer is not None:
+                    writer.join(timeout=_READER_JOIN_TIMEOUT_S)
+                # wait() already returned inside _reap_tree. Join the readers
+                # with a timeout so a stuck read cannot hold the room open.
+                stdout_thread.join(timeout=_READER_JOIN_TIMEOUT_S)
+                stderr_thread.join(timeout=_READER_JOIN_TIMEOUT_S)
+            finally:
+                self._finish()
 
     def _pump_stdout(self) -> None:
         stream = self._proc.stdout
@@ -476,10 +548,19 @@ class RoomProcess:
         if raw.endswith(b"\r"):
             raw = raw[:-1]
         text = raw.decode("utf-8", errors="replace")
-        try:
-            callback(text)
-        except Exception:
-            _log.info("stdout callback failed for room=%s cli=%s", self._room_id, self._cli)
+        # The lock is held for the whole callback. _finish seals and runs
+        # on_done under the same lock, so a line cannot start after done.
+        with self._callback_lock:
+            if self._callbacks_sealed:
+                return
+            try:
+                callback(text)
+            except Exception:
+                _log.info(
+                    "stdout callback failed for room=%s cli=%s",
+                    self._room_id,
+                    self._cli,
+                )
 
     def _finish(self) -> None:
         with self._lock:
@@ -495,7 +576,7 @@ class RoomProcess:
         else:
             code = self._proc.returncode
         text = redact_secrets(stderr.decode("utf-8", errors="replace"))
-        self._result = RunResult(
+        result = RunResult(
             outcome=outcome,
             returncode=code,
             stderr=text,
@@ -503,10 +584,23 @@ class RoomProcess:
             cli=self._cli,
             room_id=self._room_id,
         )
+        self._result = result
         with _RUNS_LOCK:
             if _RUNS.get(self._key) is self:
                 del _RUNS[self._key]
         _log.info("room=%s cli=%s outcome=%s", self._room_id, self._cli, outcome)
+        done = self._on_done
+        with self._callback_lock:
+            self._callbacks_sealed = True
+            if done is not None:
+                try:
+                    done(result)
+                except Exception:
+                    _log.info(
+                        "done callback failed for room=%s cli=%s",
+                        self._room_id,
+                        self._cli,
+                    )
         self._finished.set()
 
 
@@ -659,6 +753,19 @@ def minimal_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
     return cleaned
 
 
+def _child_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Allowlisted env for the child, plus one Windows-only safety flag.
+
+    ``NoDefaultCurrentDirectoryInExePath`` stops Windows from resolving
+    an executable name out of the room folder (the process cwd).
+    TODO(SpiderHost): confirm a real Claude still starts with this set.
+    """
+    env = minimal_env(source)
+    if sys.platform == "win32":
+        env["NoDefaultCurrentDirectoryInExePath"] = "1"
+    return env
+
+
 def redact_secrets(text: str) -> str:
     """Mask token-shaped snippets before stderr leaves the runner."""
     if not text:
@@ -762,6 +869,7 @@ def start(
     permission_mode: str = DEFAULT_PERMISSION_MODE,
     session_id: str | None = None,
     on_stdout_line: StdoutCallback | None = None,
+    on_done: DoneCallback | None = None,
     timeout_s: float = DEFAULT_TIMEOUT_S,
     stdout_cap_bytes: int = DEFAULT_STDOUT_CAP_BYTES,
     stderr_cap_bytes: int = DEFAULT_STDERR_CAP_BYTES,
@@ -771,7 +879,11 @@ def start(
     The prompt and the context header are written to stdin and the pipe
     is closed. They are not placed in argv or the environment. Stdout is
     delivered to ``on_stdout_line`` as raw text lines (no JSON parsing).
-    The callback runs on the reader thread.
+    ``on_done`` is called once, with the ``RunResult``, after those lines
+    and before ``wait`` returns. Neither callback runs on the Tk thread:
+    ROOM-CHAT.4 must marshal both with ``after()`` and must not touch Tk,
+    or call ``wait``, from inside them. ``on_stdout_line`` does not run
+    after ``on_done`` has been entered.
 
     A second call for the same room and CLI, while the first is running,
     raises ``CliRejected`` and starts nothing.
@@ -784,13 +896,15 @@ def start(
         raise CliRejected("binary was not confirmed for this cli")
     if on_stdout_line is not None and not callable(on_stdout_line):
         raise CliRejected("stdout callback is not callable")
+    if on_done is not None and not callable(on_done):
+        raise CliRejected("done callback is not callable")
     _check_limits(timeout_s, stdout_cap_bytes, stderr_cap_bytes)
     room = _require_room_id(room_id)
     mode = permission_mode
     _pinned_binary(binary)
     validate_working_dir(working_dir)
     build_argv(binary.path, mode, session_id)
-    env = minimal_env()
+    env = _child_env()
     payload = build_stdin_payload(prompt, topic_title, open_cards)
     key = (room, key_cli)
     with _RUNS_LOCK:
@@ -813,6 +927,7 @@ def start(
             stdout_cap=int(stdout_cap_bytes),
             stderr_cap=int(stderr_cap_bytes),
             on_stdout_line=on_stdout_line,
+            on_done=on_done,
         )
         _RUNS[key] = room_proc
     room_proc._begin(payload)
@@ -979,46 +1094,383 @@ def _popen(
         "stderr": subprocess.PIPE,
         "bufsize": 0,
     }
-    if os.name == "nt":
+    if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
-    return subprocess.Popen(**kwargs)  # type: ignore[arg-type]
+    proc = subprocess.Popen(**kwargs)  # type: ignore[arg-type]
+    proc._cli_signal_lock = threading.RLock()  # type: ignore[attr-defined]
+    if sys.platform == "win32":
+        # Popen cannot create the process suspended (CREATE_SUSPENDED would
+        # also suspend before the stdio pipes are wired the way Popen
+        # needs). Assign the job on the next line. There is a tiny race: a
+        # grandchild the child spawns before AssignProcessToJobObject
+        # returns is not in the job. Stop still falls back to taskkill /T.
+        _assign_job_object(proc)
+    else:
+        _remember_group(proc)
+    return proc
 
 
 def _signal_tree(proc: subprocess.Popen[bytes]) -> None:
-    """Kill ``proc`` and its children. Never signals this process's group."""
+    """Kill ``proc`` and its children. Never signals this process's group.
+
+    A reaped pid is never signalled: after ``wait`` the number can belong
+    to an unrelated process. On POSIX the process group is killed only
+    when this child was its leader and the group id is still that child's.
+    On Windows the job is terminated, which kills the tree even if the
+    parent has already exited; ``taskkill`` runs only if the job did not.
+    """
+    lock = getattr(proc, "_cli_signal_lock", None)
+    if lock is None:
+        _signal_tree_locked(proc)
+        return
+    with lock:
+        _signal_tree_locked(proc)
+
+
+def _signal_tree_locked(proc: subprocess.Popen[bytes]) -> None:
     pid = proc.pid
     if not isinstance(pid, int) or pid <= 1:
         return
     # Once reaped, the pid (and a group with that id) may belong to an
-    # unrelated process, so nothing is signalled by number.
-    if proc.poll() is not None:
+    # unrelated process, so nothing is signalled by number. The Windows
+    # job handle is not a pid: terminating it still kills orphans.
+    if proc.returncode is not None:
+        if sys.platform == "win32":
+            _terminate_job(proc)
         return
-    if os.name == "nt":
-        _taskkill_tree(pid)
+    if sys.platform == "win32":
+        if not _terminate_job(proc):
+            _taskkill_tree(pid)
     else:
-        _killpg_if_leader(pid)
+        _kill_remaining_group(proc)
+    if proc.returncode is not None:
+        return
     try:
         proc.kill()
     except OSError:
         pass
 
 
-def _killpg_if_leader(pid: int) -> None:
+def _remember_group(proc: subprocess.Popen[bytes]) -> None:
+    """Record the group id if this unreaped child is its leader.
+
+    Later kills compare against this id. A child that was not the leader,
+    or whose group id has changed, is not group-killed.
+    """
+    if sys.platform == "win32":
+        return
+    pid = proc.pid
+    if not isinstance(pid, int) or pid <= 1 or pid == os.getpgrp():
+        return
     try:
         pgid = os.getpgid(pid)
     except OSError:
         return
     if pgid != pid or pgid <= 1 or pgid == os.getpgrp():
         return
+    proc._cli_pgid = pgid  # type: ignore[attr-defined]
+
+
+def _kill_remaining_group(proc: subprocess.Popen[bytes]) -> None:
+    """SIGKILL the child's process group if it is still the one we started.
+
+    No-op on Windows (the job object owns the tree) and no-op once the
+    child has been reaped. ``getpgid`` is only called while the pid is
+    still our unreaped child, so it cannot name a reused pid.
+    """
+    if sys.platform == "win32":
+        return
+    if proc.returncode is not None:
+        return
+    pid = proc.pid
+    if not isinstance(pid, int) or pid <= 1 or pid == os.getpgrp():
+        return
+    recorded = getattr(proc, "_cli_pgid", None)
     try:
-        os.killpg(pgid, signal.SIGKILL)
+        current = os.getpgid(pid)
+    except OSError:
+        return
+    if current != pid or current <= 1 or current == os.getpgrp():
+        return
+    # Spawn recorded the leader's group. If that id is no longer current,
+    # the group is not ours and must not be signalled.
+    if isinstance(recorded, int) and current != recorded:
+        return
+    try:
+        os.killpg(current, signal.SIGKILL)
     except OSError:
         pass
 
 
+def _reap_tree(proc: subprocess.Popen[bytes]) -> None:
+    """Kill leftover children, then reap ``proc``.
+
+    The group or job is signalled before ``poll``/``wait`` so a POSIX pid
+    is never signalled after it has been reaped. On Windows, terminating
+    the job still reaches children after the parent has exited.
+    """
+    lock = getattr(proc, "_cli_signal_lock", None)
+
+    def body() -> None:
+        if proc.returncode is None:
+            _kill_remaining_group(proc)
+        if sys.platform == "win32":
+            _terminate_job(proc)
+        if proc.poll() is None:
+            _signal_tree(proc)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+
+    if lock is None:
+        body()
+        return
+    with lock:
+        body()
+
+
+def _close_stdin(proc: subprocess.Popen[bytes]) -> None:
+    stream = getattr(proc, "stdin", None)
+    if stream is None:
+        return
+    try:
+        stream.close()
+    except OSError:
+        pass
+
+
+def _pause_for_stdin(fd: int, deadline: float) -> None:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return
+    slice_s = min(remaining, 0.2)
+    # select() does not wait on a Windows pipe. Sleep instead; the
+    # supervisor also joins the writer with the same budget.
+    if fd < 0 or sys.platform == "win32":
+        time.sleep(slice_s)
+        return
+    import select
+
+    try:
+        select.select([], [fd], [], slice_s)
+    except (OSError, ValueError):
+        time.sleep(min(slice_s, 0.05))
+
+
+def _child_running(proc: subprocess.Popen[bytes]) -> bool:
+    """True while the child has not exited.
+
+    On POSIX this does not reap. ``poll`` reaps, and the pid must still
+    be ours when a leftover process group is killed.
+    """
+    if proc.returncode is not None:
+        return False
+    if sys.platform == "win32":
+        # The job handle, not the pid, kills orphans, so recording the
+        # parent's exit here is safe.
+        return proc.poll() is None
+    return _posix_child_state(proc) == "running"
+
+
+def _posix_child_state(proc: subprocess.Popen[bytes]) -> str:
+    """Return ``running``, ``exited``, or ``reaped``.
+
+    Does not signal and does not reap. A reaped pid is not looked up:
+    the number may already have been reused.
+    """
+    if proc.returncode is not None:
+        return "reaped"
+    pid = proc.pid
+    if not isinstance(pid, int) or pid <= 0:
+        return "reaped"
+    waitid = getattr(os, "waitid", None)
+    wnowait = getattr(os, "WNOWAIT", 0)
+    if (
+        waitid is not None
+        and wnowait
+        and hasattr(os, "P_PID")
+        and hasattr(os, "WEXITED")
+        and hasattr(os, "WNOHANG")
+    ):
+        try:
+            info = waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | wnowait)
+        except ChildProcessError:
+            return "reaped"
+        except OSError:
+            return "running"
+        return "running" if info is None else "exited"
+    state = _procfs_state(pid)
+    if state == "Z":
+        return "exited"
+    return "running"
+
+
+def _procfs_state(pid: int) -> str | None:
+    """Process state from ``/proc``, or None when it cannot be read.
+
+    Only called for a child this process has not reaped, so the pid
+    cannot have been reused yet.
+    """
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    tail = text.rsplit(")", 1)[-1].split()
+    if not tail:
+        return None
+    return tail[0]
+
+
+_JOB_EXTENDED_LIMIT_TYPE = None
+
+
+def _job_extended_limit_type():
+    """The ``JOBOBJECT_EXTENDED_LIMIT_INFORMATION`` ctypes structure.
+
+    Built on first use so importing this module does not import ctypes.
+    The layout follows the SDK (pointer-sized fields) on 32-bit and 64-bit.
+    """
+    global _JOB_EXTENDED_LIMIT_TYPE
+    if _JOB_EXTENDED_LIMIT_TYPE is not None:
+        return _JOB_EXTENDED_LIMIT_TYPE
+    import ctypes
+
+    class IO_COUNTERS(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_ulonglong),
+            ("WriteOperationCount", ctypes.c_ulonglong),
+            ("OtherOperationCount", ctypes.c_ulonglong),
+            ("ReadTransferCount", ctypes.c_ulonglong),
+            ("WriteTransferCount", ctypes.c_ulonglong),
+            ("OtherTransferCount", ctypes.c_ulonglong),
+        ]
+
+    class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", ctypes.c_uint32),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", ctypes.c_uint32),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", ctypes.c_uint32),
+            ("SchedulingClass", ctypes.c_uint32),
+        ]
+
+    class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+            ("IoInfo", IO_COUNTERS),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    _JOB_EXTENDED_LIMIT_TYPE = JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+    return _JOB_EXTENDED_LIMIT_TYPE
+
+
+def _kernel32():
+    """``kernel32`` with the job-object calls. Import ctypes only here."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateJobObjectW.argtypes = (ctypes.c_void_p, wintypes.LPCWSTR)
+    kernel.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel.SetInformationJobObject.argtypes = (
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+    )
+    kernel.SetInformationJobObject.restype = wintypes.BOOL
+    kernel.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+    kernel.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel.TerminateJobObject.argtypes = (wintypes.HANDLE, wintypes.UINT)
+    kernel.TerminateJobObject.restype = wintypes.BOOL
+    kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel.CloseHandle.restype = wintypes.BOOL
+    return kernel
+
+
+def _assign_job_object(proc: subprocess.Popen[bytes]) -> None:
+    """Put ``proc`` in a kill-on-close job. No-op unless ``sys.platform == 'win32'``.
+
+    ``Popen`` cannot start the process suspended, so this runs immediately
+    after it returns. See ``_popen`` for the tiny race that leaves.
+    """
+    if sys.platform != "win32":
+        return
+    handle = getattr(proc, "_handle", None)
+    if not handle:
+        return
+    kernel = _kernel32()
+    job = kernel.CreateJobObjectW(None, None)
+    if not job:
+        return
+    import ctypes
+
+    info = _job_extended_limit_type()()
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    configured = kernel.SetInformationJobObject(
+        job,
+        JobObjectExtendedLimitInformation,
+        ctypes.addressof(info),
+        ctypes.sizeof(info),
+    )
+    assigned = bool(configured) and bool(kernel.AssignProcessToJobObject(job, handle))
+    if not assigned:
+        try:
+            kernel.CloseHandle(job)
+        except OSError:
+            pass
+        return
+    proc._cli_job = job  # type: ignore[attr-defined]
+
+
+def _terminate_job(proc: subprocess.Popen[bytes]) -> bool:
+    """Terminate and close the job.
+
+    True means the job took the tree (or already did), so ``taskkill``
+    must not run. False means there was no job or ``TerminateJobObject``
+    failed and the caller should fall back to ``taskkill``.
+    """
+    if sys.platform != "win32":
+        return False
+    if getattr(proc, "_cli_job_closed", False):
+        return True
+    job = getattr(proc, "_cli_job", None)
+    if not job:
+        return False
+    proc._cli_job = None  # type: ignore[attr-defined]
+    kernel = _kernel32()
+    try:
+        ok = bool(kernel.TerminateJobObject(job, 1))
+    except OSError:
+        ok = False
+    try:
+        kernel.CloseHandle(job)
+    except OSError:
+        pass
+    if ok:
+        proc._cli_job_closed = True  # type: ignore[attr-defined]
+    return ok
+
+
 def _taskkill_tree(pid: int) -> None:
+    """Fallback tree kill when the Windows job could not be terminated.
+
+    The executable is the absolute ``System32\\taskkill.exe``. A bare
+    ``taskkill`` would be looked up in the current directory first.
+    """
+    if sys.platform != "win32":
+        return
     if pid <= 1:
         return
     pid_text = str(pid)
