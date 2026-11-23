@@ -126,6 +126,17 @@ def _parsed():
     return found
 
 
+def _import_order(path: Path) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    order = []
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            order.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            order.append(node.module or "")
+    return order
+
+
 def _under(module: str, folder: str) -> bool:
     return module == f"cli_avatars.{folder}" or module.startswith(f"cli_avatars.{folder}.")
 
@@ -149,6 +160,22 @@ class TestLayers(unittest.TestCase):
             "cli_avatars.world.terrain",
             "cli_avatars.desktop.capabilities",
             "cli_avatars.desktop.windows",
+            "cli_avatars.desktop.focus",
+            "cli_avatars.desktop.tray",
+            "cli_avatars.app.shell",
+            "cli_avatars.app.tick",
+            "cli_avatars.app.pool",
+            "cli_avatars.app.subagents",
+            "cli_avatars.app.render",
+            "cli_avatars.app.bubbles_view",
+            "cli_avatars.app.portal_view",
+            "cli_avatars.app.input",
+            "cli_avatars.app.hud_window",
+            "cli_avatars.app.rooms_panel",
+            "cli_avatars.app.chat",
+            "cli_avatars.app.skin_picker",
+            "cli_avatars.app.config_screen",
+            "cli_avatars.app.main",
         ):
             self.assertIn(name, names)
 
@@ -327,19 +354,41 @@ class TestLayers(unittest.TestCase):
 
     def test_shim_imports_capabilities_before_tkinter(self):
         overlay = ROOT / "overlay.py"
-        tree = ast.parse(overlay.read_text(encoding="utf-8"), filename=str(overlay))
-        order = []
-        for node in tree.body:
-            if isinstance(node, ast.Import):
-                order.extend(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.level == 0:
-                order.append(node.module or "")
+        order = _import_order(overlay)
         capabilities = order.index("cli_avatars.desktop.capabilities")
-        tkinter = order.index("tkinter")
-        self.assertLess(capabilities, tkinter)
+        app_main = order.index("cli_avatars.app.main")
+        self.assertLess(capabilities, app_main)
+        self.assertNotIn("tkinter", order)
         self.assertIn("cli_avatars.world.avatar", order)
-        self.assertIn("cli_avatars.world.scanner", order)
-        self.assertIn("cli_avatars.world.terrain", order)
+        self.assertLess(len(overlay.read_text(encoding="utf-8").splitlines()), 60)
+
+        shell = PACKAGE / "app" / "shell.py"
+        shell_order = _import_order(shell)
+        shell_caps = shell_order.index("cli_avatars.desktop.capabilities")
+        shell_tk = shell_order.index("tkinter")
+        self.assertLess(shell_caps, shell_tk)
+        self.assertIn("cli_avatars.world.scanner", shell_order)
+        self.assertIn("cli_avatars.world.terrain", shell_order)
+
+    def test_tkinter_only_in_app(self):
+        problems = []
+        for path, module, visitor in _parsed():
+            if _under(module, "app"):
+                continue
+            for name, lineno, _where in visitor.imports:
+                root = name.split(".")[0]
+                if root == "tkinter" or name.startswith("tkinter."):
+                    problems.append(f"{path.relative_to(ROOT)}:{lineno} imports {name}")
+        self.assertEqual(problems, [])
+
+    def test_controller_files_stay_short(self):
+        app = PACKAGE / "app"
+        too_long = []
+        for path in sorted(app.glob("*.py")):
+            count = len(path.read_text(encoding="utf-8").splitlines())
+            if count > 500:
+                too_long.append(f"{path.name} {count}")
+        self.assertEqual(too_long, [])
 
     def test_top_level_modules_do_not_import_the_package(self):
         problems = []

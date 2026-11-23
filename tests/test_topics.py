@@ -534,14 +534,16 @@ class TestPreviewAndBoundary(unittest.TestCase):
             "openai", "anthropic", "urllib",
         ):
             self.assertNotIn(name, text)
-        overlay = Path(__file__).resolve().parent.parent.joinpath("overlay.py").read_text(encoding="utf-8")
-        window = Path(__file__).resolve().parent.parent.joinpath("chat_window.py").read_text(encoding="utf-8")
+        root = Path(__file__).resolve().parent.parent
+        hud = (root / "cli_avatars" / "app" / "hud_window.py").read_text(encoding="utf-8")
+        rooms = (root / "cli_avatars" / "app" / "rooms_panel.py").read_text(encoding="utf-8")
+        window = (root / "chat_window.py").read_text(encoding="utf-8")
         self.assertIn("latest_per_topic(", window)
         self.assertIn('text="Pin"', window)
         self.assertIn('text="Unpin"', window)
         self.assertIn("pin_answered(", window)
-        self.assertIn("build_rooms(", overlay)
-        self.assertIn('text="Rooms"', overlay)
+        self.assertIn("build_rooms(", rooms)
+        self.assertIn('text="Rooms"', hud)
 
 
 def topics_path() -> Path:

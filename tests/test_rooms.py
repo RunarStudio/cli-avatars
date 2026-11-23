@@ -289,15 +289,18 @@ class TestPreview(unittest.TestCase):
 
 class TestOverlayWiring(unittest.TestCase):
     def test_hud_button_sits_with_skins_and_config(self):
-        text = Path(__file__).resolve().parent.parent.joinpath("overlay.py").read_text(encoding="utf-8")
-        skins = text.index('text="Skins"')
-        config = text.index('text="Config"')
-        rooms_btn = text.index('text="Rooms"')
+        root = Path(__file__).resolve().parent.parent
+        hud = (root / "cli_avatars" / "app" / "hud_window.py").read_text(encoding="utf-8")
+        rooms = (root / "cli_avatars" / "app" / "rooms_panel.py").read_text(encoding="utf-8")
+        pool = (root / "cli_avatars" / "app" / "pool.py").read_text(encoding="utf-8")
+        skins = hud.index('text="Skins"')
+        config = hud.index('text="Config"')
+        rooms_btn = hud.index('text="Rooms"')
         self.assertLess(skins, config)
         self.assertLess(config, rooms_btn)
-        self.assertIn("build_rooms(", text)
-        self.assertIn("save_rooms_pref", text)
-        self.assertIn("av.draw(self.canvas)", text)
+        self.assertIn("build_rooms(", rooms)
+        self.assertIn("save_rooms_pref", rooms)
+        self.assertIn("av.draw(self.canvas)", pool)
 
 
 if __name__ == "__main__":

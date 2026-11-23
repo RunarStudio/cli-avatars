@@ -51,7 +51,7 @@ class _Body:
 
 class TestTuning(unittest.TestCase):
     def test_apply_writes_tuning_fields(self):
-        tree = ast.parse((ROOT / "overlay.py").read_text(encoding="utf-8"))
+        tree = ast.parse((ROOT / "cli_avatars" / "app" / "config_screen.py").read_text(encoding="utf-8"))
         apply = next(fn for fn in _functions(tree) if fn.name == "_apply_all")
         fields, globals_ = _tuning_fields(apply)
         self.assertEqual(globals_, [])

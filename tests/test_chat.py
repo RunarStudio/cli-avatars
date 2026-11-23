@@ -502,12 +502,15 @@ class TestModuleBoundary(unittest.TestCase):
             self.assertNotIn(name, text)
 
     def test_hud_button_sits_next_to_rooms_and_has_a_send_box(self):
-        overlay = Path(__file__).resolve().parent.parent.joinpath("overlay.py").read_text(encoding="utf-8")
-        rooms_btn = overlay.index('text="Rooms"')
-        chat_btn = overlay.index('text="Chat"')
+        root = Path(__file__).resolve().parent.parent
+        hud = (root / "cli_avatars" / "app" / "hud_window.py").read_text(encoding="utf-8")
+        chat = (root / "cli_avatars" / "app" / "chat.py").read_text(encoding="utf-8")
+        bubbles_src = (root / "cli_avatars" / "app" / "bubbles_view.py").read_text(encoding="utf-8")
+        rooms_btn = hud.index('text="Rooms"')
+        chat_btn = hud.index('text="Chat"')
         self.assertLess(rooms_btn, chat_btn)
-        self.assertIn("ChatWindow(", overlay)
-        text = Path(__file__).resolve().parent.parent.joinpath("chat_window.py").read_text(encoding="utf-8")
+        self.assertIn("ChatWindow(", chat)
+        text = (root / "chat_window.py").read_text(encoding="utf-8")
         self.assertIn("ChannelTail(", text)
         self.assertIn("filter_lines(", text)
         self.assertIn("ScrollFollow(", text)
@@ -518,7 +521,7 @@ class TestModuleBoundary(unittest.TestCase):
         self.assertNotIn("subprocess", text)
         self.assertNotIn("os.system", text)
         self.assertNotIn("socket.", text)
-        bubbles = overlay.split("def _draw_talk_bubbles", 1)[1].split("def _update_hud_win", 1)[0]
+        bubbles = bubbles_src.split("def _draw_talk_bubbles", 1)[1].split("\ndef ", 1)[0]
         self.assertNotIn("note", bubbles)
         self.assertNotIn("line.note", bubbles)
 

@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import overlay  # noqa: E402
+from cli_avatars.app.subagents import SubagentController  # noqa: E402
 from overlay import (  # noqa: E402
     FLY_BOB,
     GRAVITY,
@@ -71,8 +72,8 @@ def _center_dist(parent: Avatar, child: Avatar) -> float:
 
 class SpringChildTests(unittest.TestCase):
     def test_tick_spawns_spring_children_and_steps_the_spring(self):
-        tick = inspect.getsource(OverlayApp._tick)
-        drive = inspect.getsource(OverlayApp._drive_subagent)
+        tick = inspect.getsource(SubagentController.step)
+        drive = inspect.getsource(SubagentController._drive_subagent)
         self.assertIn("spring_mode=True", tick)
         self.assertIn("_drive_subagent", tick)
         self.assertIn("_apply_spring", drive)
@@ -350,7 +351,7 @@ class SpringChildTests(unittest.TestCase):
         self.assertGreater(ground.y, parent.y)
 
     def test_spawn_picks_a_skin_once(self):
-        tick = inspect.getsource(OverlayApp._tick)
+        tick = inspect.getsource(SubagentController.step)
         self.assertEqual(tick.count("assign_subagent_skin("), 1)
         self.assertIn("_sub_mode", tick)
         spawn, _, later = tick.partition("assign_subagent_skin(")
