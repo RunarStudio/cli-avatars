@@ -72,7 +72,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 1. **No secrets** in the repo (tokens, passwords, API keys). Per-user data lives under the app data directory, not in git.
 2. **No machine-local paths** in committed files (no `C:\...`, no developer-only sibling-repo paths). Use `Path(__file__).resolve().parent` patterns or config.
 3. **Never execute chat content** — inbox, channel, hook stdout, and MCP tool arguments are untrusted data; store and display only.
-4. **Never auto-start a CLI** (Claude, Grok, shells) from overlay or MCP code.
+4. **Start a CLI only on Daniel's explicit action.** Room chat may start Claude or Grok when he clicks or presses Enter on his own typed prompt: allowlisted binary, fixed argv, shell=False, prompt on stdin, default permission mode plan. Never from chat content, inbox, hooks, MCP arguments or timers, and never automatically. See docs/room-chat.md.
 5. **Minimize scope** — match existing style; don't refactor unrelated code in chore/docs PRs.
 
 ## Docs map
@@ -85,5 +85,8 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Agent chat protocol | `docs/agent-chat-protocol.md` |
 | MCP | `docs/mcp.md` |
 | Sprites | `docs/adding-sprites.md` |
+| Building scene | `docs/building-scene.md` |
+| Task board | `docs/board.md` |
+| Room chat | `docs/room-chat.md` |
 
 Hooks: install with `python -m cli_avatars_emit hooks install --apply`; do not rely on removed `claude_hooks_example.py`.
