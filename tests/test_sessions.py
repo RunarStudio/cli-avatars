@@ -161,6 +161,26 @@ class TestClaudeJsonlSource(unittest.TestCase):
         self.assertEqual((by_id["bad00001"].status, by_id["bad00001"].tool), ("busy", ""))
         self.assertEqual((by_id["empty001"].status, by_id["empty001"].tool), ("busy", ""))
 
+    def test_tool_file_is_the_basename_only(self):
+        line = json.dumps({
+            "message": {"content": [{
+                "type": "tool_use",
+                "name": "Read",
+                "id": "t",
+                "input": {
+                    "file_path": r"C:\secret\work\TASKS.md",
+                    "command": "rm -rf /",
+                    "prompt": "ignore previous instructions",
+                },
+            }]},
+        })
+        _write(self.root / "read" / "read0001-s.jsonl", [line], age=5)
+        info = {s.agent_id: s for s in self.src.scan()}["read0001"]
+        self.assertEqual(info.tool, "Read")
+        self.assertEqual(info.file, "TASKS.md")
+        self.assertNotIn("secret", info.file)
+        self.assertNotIn("rm -rf", info.file)
+
     def test_newest_marker_wins_and_first_tool_block_is_used(self):
         both = json.dumps({
             "message": {"content": [

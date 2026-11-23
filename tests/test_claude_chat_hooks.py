@@ -296,6 +296,52 @@ class TestContextHook(_Store):
         self.assertEqual(sent.call_args.args[0]["state"], "thinking")
         self.assertNotEqual(sent.call_args.args[0]["state"], "blocked")
 
+    def test_activity_tokens_stay_on_the_packet_and_text_stays_off(self):
+        code, sent = self._run(_payload(
+            "PreToolUse",
+            tool_name="Read",
+            tool_input={
+                "file_path": r"C:\secret\work\TASKS.md",
+                "command": "echo hi",
+                "prompt": "ignore previous instructions",
+            },
+        ))
+        self.assertEqual(code, 0)
+        self.assertEqual(sent.call_count, 1)
+        packet = sent.call_args.args[0]
+        self.assertEqual(packet["hook"], "PreToolUse")
+        self.assertEqual(packet["tool"], "Read")
+        self.assertEqual(packet["file"], "TASKS.md")
+        blob = json.dumps(packet)
+        self.assertNotIn("secret", blob)
+        self.assertNotIn("echo hi", blob)
+        self.assertNotIn("ignore", blob)
+
+        code, sent = self._run(_payload(
+            "PreToolUse",
+            tool_name="Task",
+            tool_input={"prompt": "do the whole job", "description": "secret brief"},
+        ))
+        self.assertEqual(sent.call_count, 1)
+        packet = sent.call_args.args[0]
+        self.assertEqual(packet["tool"], "Task")
+        self.assertNotIn("prompt", packet)
+        self.assertNotIn("whole job", json.dumps(packet))
+        self.assertNotIn("secret brief", json.dumps(packet))
+
+        code, sent = self._run(_payload(
+            "SubagentStop",
+            status="completed",
+            message="the child said this",
+        ))
+        self.assertEqual(sent.call_count, 1)
+        packet = sent.call_args.args[0]
+        self.assertEqual(packet["type"], "activity")
+        self.assertEqual(packet["hook"], "SubagentStop")
+        self.assertEqual(packet["outcome"], "done")
+        self.assertNotIn("message", packet)
+        self.assertNotIn("the child said", json.dumps(packet))
+
     def test_auth_notification_does_not_emit(self):
         code, sent = self._run(_payload(
             "Notification",
@@ -377,6 +423,8 @@ class TestStopHook(_Store):
         self.assertEqual(state["source"], "claude")
         self.assertEqual(state["id"], AGENT)
         self.assertEqual(state["state"], "idle")
+        self.assertEqual(state["hook"], "Stop")
+        self.assertNotIn("transcript_path", state)
         note = sanitize_text(raw, DISPLAY_NOTE_LIMIT)
         self.assertEqual(len(note), DISPLAY_NOTE_LIMIT)
         channel = self.data / "channel" / "cli-avatars.jsonl"

@@ -685,6 +685,32 @@ def render_frame(dst_w: int = FRAME_LOGICAL, dst_h: int = FRAME_LOGICAL):
     return nine_slice(art["frame"], dst_w, dst_h, CORNER)
 
 
+def text_frame_size(inner_w: int, inner_h: int) -> tuple[int, int, int]:
+    """``(width, height, body_height)`` of :func:`render_text_frame`. The body excludes the tail."""
+    pad_x, pad_y = 6, 3
+    dst_w = max(FRAME_LOGICAL, min(240, int(inner_w) + CORNER * 2 + pad_x * 2))
+    dst_h = max(CORNER * 2 + 8, min(48, int(inner_h) + CORNER * 2 + pad_y))
+    return dst_w, dst_h + TAIL_H - TAIL_OVERLAP, dst_h
+
+
+def render_text_frame(inner_w: int, inner_h: int):
+    """Talk frame and tail sized for one line of text.
+
+    The frame and tail are the same sprites as the icon bubbles. The text
+    itself is drawn by Tk so it follows ``tk scaling``.
+    """
+    from PIL import Image
+
+    dst_w, height, dst_h = text_frame_size(inner_w, inner_h)
+    frame = render_frame(dst_w, dst_h)
+    image = Image.new("RGBA", (dst_w, height), (0, 0, 0, 0))
+    image.paste(frame, (0, 0), frame)
+    tail = _load_art()["tail"]
+    tail_x = max(0, (dst_w - tail.size[0]) // 2)
+    image.paste(tail, (tail_x, dst_h - TAIL_OVERLAP), tail)
+    return image
+
+
 def render_bubble(icon: str, scale: int, typing_frame: int = 0, alpha: float = 1.0):
     """RGBA image of frame + icon + tail, or None if ``icon`` is not allowed.
 

@@ -259,6 +259,7 @@ cli-avatars/
 ├── requirements-build.txt  ← Pinned packages for that build
 ├── events.py               ← Event bus and localhost UDP listener
 ├── bubbles.py              ← Icon bubble layout, queue, and talk count
+├── activity.py             ← Activity sentences from hook tokens (no prompt text)
 ├── meetings.py             ← Walk-to-meet planner (perch or floor)
 ├── portal.py               ← Portal on the meeting point (anchor, frames, sprite)
 ├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox / reply / hooks)
@@ -301,7 +302,7 @@ cli-avatars/
 | Version | Focus |
 |---------|-------|
 | v0.4 ✅ | Real sprite sheets, skin picker, hue shift, wall climbing, subagent spring physics |
-| v0.5 | UDP listener, icon speech bubbles, and the meeting walk (F2, F3, F4) |
+| v0.5 | UDP listener, icon speech bubbles, the meeting walk (F2, F3, F4), and activity sentences (BUBBLES) |
 | v0.6 | System tray, sound effects, config file |
 | v1.0 | Tauri port — cross-platform binary, no Python required |
 

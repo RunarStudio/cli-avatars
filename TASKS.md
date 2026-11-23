@@ -65,7 +65,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | CHAT | 7 | 8 (subtasks 3/13) |
 | SRC | 6 | 4 (subtasks 0/3) |
 | MCP | 1 | 3 |
-| OVL | 19 | 8 (subtasks 2/3) |
+| OVL | 22 | 8 (subtasks 2/3) |
 | ART | 7 | 6 (subtasks 4/9) |
 | BUILD | 1 | 2 (subtasks 0/1) |
 | WS | 1 | 1 |
@@ -75,7 +75,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | WEB | 0 | 1 (subtasks 0/4) |
 | BLDG | 1 | 3 (subtasks 0/3) |
 | BOOTCHECK | 1 | 0 |
-| **Total** | 51 | 58 |
+| **Total** | 54 | 58 |
 
 ## Boot check
 
@@ -408,6 +408,14 @@ Local startup checks during the first two seconds. The Dungeon stays responsive.
 - [ ] [TAURI][feat] TAURI-UPDATE: Auto-update mechanism
 
 ---
+
+## BUBBLES
+
+One short sentence above an orchestrator. The words come from structured events. A prompt, a command, a full path, and a person's message are not shown. Icon bubbles stay icon-only.
+
+- [x] [OVL][feat] BUBBLES.1: Local templates from state, tool name, file basename, subagent count, and task id. `redact_secrets` and `sanitize_text` run first. Lines cap at 32 characters. Subagent events roll up to the parent session (first 8 characters).
+- [x] [OVL][feat] BUBBLES.2: Hold about 4 s, one new line per avatar per 3 s, Stop hides at once, overlap steps up or hides. The same sentence follows the avatar in the Dungeon and on the desktop overlay. Overlay bubbles are in the click-through hit test. Optional dots on the spring line.
+- [x] [OVL][feat] BUBBLES.3: Settings dock and tray toggle. `bubbles.activity` defaults on, `bubbles.subagents` defaults off, `bubbles.duration_s` is 1–12 and defaults to 4, `bubbles.spring_dots` defaults on.
 
 ## Out of scope (Daniel 2026-11-23)
 

@@ -14,6 +14,7 @@ import threading
 import tkinter as tk
 from typing import Optional
 
+from activity import bubble_settings
 from bundle_paths import asset_path
 from cli_avatars.app.bootcheck import start_bootcheck
 from cli_avatars.app.bubbles_view import (
@@ -70,6 +71,7 @@ class OverlayApp:
         self._config_path = CONFIG_PATH
         self.config = load_config(self._config_path)
         self.desktop = desktop_settings(self.config)
+        self.bubbles_cfg = bubble_settings(self.config)
         self._subskin_rng = random.Random()
         self._rooms_shown = rooms_from_config(self.config)
         self._rooms_win = None

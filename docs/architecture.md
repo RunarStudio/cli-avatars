@@ -86,7 +86,7 @@ One call per frame at `OVERLAY_FPS` via `root.after`. Order matters; keep it.
 8. Lingering subagents (float away 30 s after task done).
 9. Dying subagents (`_release_finished_dying`).
 10. Bursts and glitches.
-11. Portal, talk bubbles, decision bubbles.
+11. Portal, talk bubbles, decision bubbles, and activity sentences.
 12. HUD, rooms panel, chat panel refresh (each guarded by `try/except` + logging).
 13. Schedule the next tick.
 

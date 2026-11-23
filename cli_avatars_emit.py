@@ -98,19 +98,50 @@ def _log_note(directory: Path, note: str) -> None:
     logger.info("local-only text: %s", note.replace("\r", " ").replace("\n", "\\n"))
 
 
+_ACTIVITY_KEYS = ("hook", "tool", "file", "task", "kind", "outcome")
+
+
+def _activity_packet(base: dict, fields: object) -> dict:
+    """Copy allowlisted activity tokens onto a packet. Free text is not copied."""
+    if not isinstance(fields, dict):
+        return base
+    packet = dict(base)
+    for key in _ACTIVITY_KEYS:
+        value = fields.get(key)
+        if isinstance(value, str) and value:
+            packet[key] = value
+    count = fields.get("count")
+    if isinstance(count, int) and not isinstance(count, bool) and count > 0:
+        packet["count"] = count
+    return packet
+
+
 def cmd_state(args: argparse.Namespace) -> int:
     directory = _data_dir(args.data_dir)
     token = load_or_create_token(directory)
-    packet = {
+    packet = _activity_packet({
         "type": "state",
         "token": token,
         "source": args.source,
         "id": args.id,
         "state": args.state,
-    }
+    }, getattr(args, "activity", None))
     parse_packet(packet, token)
     send_packet(packet, args.port)
     return 0
+
+
+def emit_activity(directory: Path, source: str, agent_id: str, port: int, fields: dict) -> None:
+    """One activity datagram. ``fields`` is the safe token dict from ``activity_fields``."""
+    token = load_or_create_token(directory)
+    packet = _activity_packet({
+        "type": "activity",
+        "token": token,
+        "source": source,
+        "id": agent_id,
+    }, fields)
+    parse_packet(packet, token)
+    send_packet(packet, port)
 
 
 def cmd_say(args: argparse.Namespace) -> int:
