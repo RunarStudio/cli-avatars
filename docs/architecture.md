@@ -404,6 +404,15 @@ Rules for every step:
 Where new feature code goes after SPLIT.4. Agents: put code here, keep the
 layer rules in section 3.
 
+Where to add features: the controllers are in place. Do not grow
+`overlay.py`. ROOM-CHAT.4 (chat pane, target picker, Both) and BOARD.4
+(board tab) extend `cli_avatars/app/chat.py`; that module is the only
+caller of `cli_runner`, from a button or Enter, never from the tick.
+BLDG.2 adds `cli_avatars/app/building_window.py` and uses
+`render.PhotoCache`. CLICK-THROUGH puts the Win32 bits in
+`cli_avatars/desktop/` and wires them from `app/shell.py` after the root
+exists (see also `app/input.py`), not from the tick.
+
 | Feature | Task | Location | Layer | Notes |
 |---------|------|----------|-------|-------|
 | CLI runner | ROOM-CHAT.2 | `cli_avatars/runner/cli_runner.py` | below `app`, beside `world` | **Only** module that starts a process. See 6.1 |
