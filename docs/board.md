@@ -18,7 +18,7 @@ One JSON object per card.
 | `assignee` | Optional. An agent id (`inbox.valid_agent_id`), `agent@machine`, or `daniel`. |
 | `column` | `todo`, `doing`, `review`, `done`, `blocked`. |
 | `labels` | At most 8. Each `^[a-z0-9][a-z0-9_-]{0,31}$`. |
-| `pr` | Optional. `https://github.com/<owner>/<repo>/pull/<n>` only. Any other host, scheme, or userinfo is rejected. Not fetched. |
+| `pr` | Optional. `https://github.com/<owner>/<repo>/pull/<n>` only. Any other host, scheme, or userinfo is rejected. **In scope:** Daniel tags a URL here; the app may read that tagged PR only when implemented. **Out of scope (see `README.md` / `TASKS.md` § Scope):** automatic forge, Bitbucket, CI, or review ingestion. |
 | `checklist` | At most 20 `{text, done}`. `text` sanitised, at most 240. |
 | `created`, `updated` | ISO 8601 UTC with `Z`. |
 | `history` | Newest 200 events (below). The full list is in `events.jsonl`. |
@@ -74,6 +74,8 @@ Same helpers as topics and inbox: `ensure_private_dir` (owner-only, `0700`/`0600
 
 ### GitStore
 
+> **Scope (Daniel 2026-11-23):** Git-backed board sync (`BOARD.2`) is out of product scope until Scope changes. This section remains a design reference only. Automatic PR/Bitbucket/CI/review dashboards (Watchtower-style) are not in scope.
+
 In a git working tree, under `.cli-avatars/board/` with the same layout:
 
 ```text
@@ -112,6 +114,8 @@ One JSON file per card. When two versions of a card meet, the newer `updated` wi
 Detection is a file check only. It does not start git. `board.git_repo` is a local path, so `config.json` with that key set must not be committed. `board.machine` names this machine for `agent@machine`.
 
 ## Git policy
+
+> **Scope:** No automatic ingestion of forge PR metadata, Bitbucket, or CI status. The git steps below apply only if GitStore is implemented; they are user-triggered Sync, not background PR polling.
 
 - Every change is committed locally at once: `git add -- <paths>` then `git commit -m "board: <kind> <card-id>"`.
 - Pull and push happen only on an explicit Sync: the Sync button, or `board sync`. No timer, no hook, no chat message triggers one.

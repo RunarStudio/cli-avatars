@@ -424,7 +424,7 @@ exists (see also `app/input.py`), not from the tick.
 | `blocked` state | CHAT-BLOCKED | see 6.2 | model + core | |
 | Building scene | BLDG.1 | `cli_avatars/building/scene.py` | pure | Tree + BLDG-SCHEMA layout → scene JSON shared by Tk and web |
 | Building window | BLDG.2 | `cli_avatars/app/building_window.py` | app | A `Toplevel`; uses `render.PhotoCache` |
-| Board | BOARD.1–.3 | `cli_avatars/board/{card,local_store,git_store}.py` | pure + store | No Tk. Git calls go through `cli_runner` with a fixed argv; pull/push only on explicit Sync |
+| Board | BOARD.1–.3 | `cli_avatars/board/{card,local_store,git_store}.py` | pure + store | No Tk. **Scope (Daniel 2026-11-23):** `git_store` / forge PR–CI ingestion is out of product scope (`TASKS.md` § Out of scope); local store + tagged-PR read only. If GitStore ships later, git argv goes through `cli_runner`; pull/push only on explicit Sync |
 | Board tab | BOARD.4 | `chat_window.py` tab, wired from `app/chat.py` | app | |
 | Web view | WEB.* | `cli_avatars/web/` | beside `app`, never imported by it | Reads the tree and scene JSON. Listener binds to loopback unless LAN opt-in |
 | Click-through, poses, interactions, sounds | CLICK-THROUGH, POSE-MAP, AVATAR-INTERACT, SOUNDS | `desktop/` (Win32 bits), `world/avatar.py` (pose), `app/` (wiring) | | |
@@ -435,7 +435,9 @@ Security-critical. Owned by `@pixel`. Matches AGENTS.md rule 4 as updated
 by ROOM-CHAT.0 (a CLI starts only on Daniel's explicit action).
 
 - One module, `cli_avatars/runner/cli_runner.py`, holds every `subprocess`
-  call that starts a CLI or git. `tests/test_layers.py` fails if any other
+  call that starts a CLI or git (board Sync only when in scope — not automatic
+  PR/Bitbucket/CI/review fetch; see `README.md` / `TASKS.md` § Scope).
+  `tests/test_layers.py` fails if any other
   file under `cli_avatars/` imports `subprocess`, `os.system`, `os.exec*`,
   `os.spawn*` or `asyncio.create_subprocess_*`. The existing
   `events._run_icacls` (fixed `icacls` argv for ACLs) is the one listed
