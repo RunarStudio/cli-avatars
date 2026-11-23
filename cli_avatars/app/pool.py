@@ -157,6 +157,9 @@ def step_avatars(self, frame: object) -> None:
     walls = frame.walls
     floor_hwnds = frame.floor_hwnds
     steers = frame.steers
+    book = getattr(self, "places", None)
+    if book is not None:
+        book.tick(agents, time.time())
     vanished_aids = []
     for aid, av in self.avatars.items():
         av.agent = agents[aid]
@@ -179,8 +182,8 @@ def step_avatars(self, frame: object) -> None:
                 vanished_aids.append(aid)
             continue
 
-        # Trigger vanish after 5 min idle (demo avatars excluded)
-        if not av.agent.is_demo and time.time() - av.last_active > 300:
+        # Idle on the desktop walks home. Vanish remains when there is no place book.
+        if book is None and not av.agent.is_demo and time.time() - av.last_active > 300:
             av._vanishing    = True
             av._vanish_frames = 0
             av.vx = random.uniform(-0.4, 0.4)
@@ -204,7 +207,6 @@ def step_avatars(self, frame: object) -> None:
             self._begin_dying(sv)
             self._dying_subs.append(sv)
 
-    book = getattr(self, "places", None)
     if book is not None:
         book.draw_inside()
         book.note_positions()

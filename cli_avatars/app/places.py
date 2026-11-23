@@ -2,10 +2,9 @@
 
 New agents start inside, on a ring in the empty floor. Dragging past the
 client edge hands the same sprite to an overlay. Releasing it on the Dungeon,
-where no other window covers the pointer, brings it back. The crossing
-animation, the door button, and Call home are WIN-DUNGEON.6: this step
-applies the two states in the same gesture. A hot-unplug still parks on a
-remaining monitor. It does not send anyone inside.
+where no other window covers the pointer, starts the walk home. The door,
+Call home, and the idle walk live here too. A hot-unplug still parks on a
+remaining monitor. It does not send anyone inside. Wander does not.
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ from cli_avatars.app.place_store import (
 from cli_avatars.app.render import canvas_photos
 from cli_avatars.desktop.chrome import frame_hwnd
 from cli_avatars.desktop.windows import occlusion_covers
-from cli_avatars.model.place import DESKTOP, INSIDE, Place, arrive, drag_out, drop, new_actor, portal_done
+from cli_avatars.model.place import DESKTOP, INSIDE, RETURNING, Place, drag_out, new_actor, portal_done
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.world.avatar import Avatar
 from cli_avatars.world.monitors import monitor_at
@@ -64,6 +63,12 @@ class PlaceBook:
         self._file = load_file(self._path, time.time()) if self._path else empty_file()
         self._actors: dict[str, Place] = {}
         self._applied: set[str] = set()
+        self._cross: dict = {}
+        self._desktop_since: dict[str, float] = {}
+        self._arch_until = 0.0
+        self._portals: list = []
+        self._door_images: dict = {}
+        self._now = 0.0
         self._job = None
         self._dirty = False
 
@@ -178,6 +183,9 @@ class PlaceBook:
         bind_avatar(self.app, av)
         self._actors[aid] = stepped
         self._applied.add(aid)
+        from cli_avatars.app.crossing import note_drag
+
+        note_drag(self, aid, time.time(), pointer_x, pointer_y)
         self.app._drag_av = av
         self.app._drag_off = (pointer_x - av.x, pointer_y - av.y)
         self.app._drag_prev = (pointer_x, pointer_y)
@@ -187,35 +195,56 @@ class PlaceBook:
         return True
 
     def bring_in(self, av) -> bool:
-        """Drop on the Dungeon. Overlay children go away without the dying row."""
-        aid = av.agent.agent_id
-        actor = self._actors.get(aid)
-        if actor is None:
-            return False
-        home = arrive(drop(actor, True))
-        if home.where != INSIDE:
-            return False
-        canvas = getattr(self.app, "canvas", None)
-        av.cleanup(canvas)
-        for child in self.app.sub_avatars.pop(aid, []):
-            child.cleanup(canvas)
-        av._board = None
-        av.monitor_layout = None
-        av._inks = {}
-        av.spr_id = None
-        av.lbl_id = None
-        av._draw_sig = None
-        av.vx = av.vy = 0.0
-        self.app.avatars.pop(aid, None)
-        meetings = getattr(getattr(self.app, "scanner", None), "meetings", None)
-        if meetings is not None:
-            meetings.release(aid)
-        self.app._inside[aid] = av
-        self._actors[aid] = home
-        self._applied.discard(aid)
-        self._file = forget(self._file, aid)
-        self._schedule()
-        return True
+        """Drop on the Dungeon. The walk home from the door finishes within 1.2 s."""
+        from cli_avatars.app.crossing import start_return
+
+        return start_return(self, av.agent.agent_id, "drop", time.time())
+
+    def tick(self, agents, now: float | None = None) -> None:
+        """Door rules, idle walk-home, and crossings. Not wander."""
+        from cli_avatars.app.crossing import advance
+
+        self._now = time.time() if now is None else float(now)
+        advance(self, agents, self._now)
+
+    def door(self) -> str:
+        from cli_avatars.app.dungeon_geom import dungeon_prefs
+
+        return dungeon_prefs(getattr(self.app, "config", {})).door
+
+    def toggle_door(self) -> str:
+        """Flip the door and remember it in config when that file already exists."""
+        from cli_avatars.app.dungeon_geom import config_with_door
+        from cli_avatars.app.dungeon_store import save_door
+
+        nxt = "closed" if self.door() == "open" else "open"
+        self.app.config = config_with_door(getattr(self.app, "config", {}), nxt)
+        path = getattr(self.app, "_config_path", None)
+        offscreen = getattr(getattr(self.app, "dungeon", None), "_offscreen", False)
+        if path is not None and not offscreen:
+            save_door(path, nxt)
+        button = getattr(getattr(self.app, "dungeon", None), "_door_btn", None)
+        if button is not None:
+            try:
+                button.config(text=f"Door: {nxt}")
+            except Exception:
+                pass
+        return nxt
+
+    def call_everyone(self) -> None:
+        from cli_avatars.app.crossing import call_everyone
+
+        call_everyone(self)
+
+    def go_home(self, aid: str) -> bool:
+        from cli_avatars.app.crossing import go_home
+
+        return go_home(self, aid)
+
+    def children_ready(self, aid: str, now: float | None = None) -> int:
+        from cli_avatars.app.crossing import children_ready
+
+        return children_ready(self, aid, time.time() if now is None else float(now))
 
     def draw_inside(self) -> None:
         scene = self._scene()
@@ -225,26 +254,26 @@ class PlaceBook:
             scene.delete("inside-sub")
         except Exception:
             return
+        now = self._now or time.time()
+        from cli_avatars.app.crossing import paint_marks
+        from cli_avatars.app.dungeon_door import paint_door
+        from cli_avatars.model.crossing import arch_visible
+
+        zoom = getattr(getattr(self.app, "dungeon", None), "_zoom", 1)
+        paint_door(scene, arch_visible(self.door(), now, self._arch_until), zoom, self._door_images)
+        paint_marks(self, now)
         dragging = getattr(self.app, "_drag_av", None)
-        ids = sorted(aid for aid, actor in self._actors.items() if actor.where == INSIDE)
-        spots = self._spot_centers(len(ids))
+        settled = sorted(
+            aid for aid, actor in self._actors.items()
+            if actor.where == INSIDE and aid not in self._cross
+        )
+        spots = self._spot_centers(len(settled))
         photos = canvas_photos(self.app)
-        for index, aid in enumerate(ids):
-            av = self.app._inside.get(aid)
-            if av is None:
-                continue
-            if av is not dragging:
-                cx, cy = spots[index]
-                av.x = cx - av.aw / 2.0
-                av.y = cy - av.ah / 2.0
-                av.vx = av.vy = 0.0
-            av.monitor_layout = None
-            av._board = None
-            try:
-                av.draw(scene, photos)
-            except Exception:
-                pass
-            self._draw_children(scene, av)
+        for index, aid in enumerate(settled):
+            self._paint_inside(scene, aid, spots[index], photos, dragging, now, posed=False)
+        for aid in list(self._cross):
+            if self._actors.get(aid) is not None and self._actors[aid].where in (INSIDE, RETURNING):
+                self._paint_inside(scene, aid, (0.0, 0.0), photos, dragging, now, posed=True)
         try:
             scene.tag_lower("floor")
         except Exception:
@@ -378,6 +407,31 @@ class PlaceBook:
             dx, dy = canvas_from_scene(sx, sy, zoom, pan)
             centers.append((width / 2.0 + dx, height / 2.0 + dy))
         return centers
+
+    def _paint_inside(self, scene, aid, spot, photos, dragging, now, posed: bool) -> None:
+        from cli_avatars.app.crossing import pose
+
+        av = self.app._inside.get(aid)
+        if av is None:
+            return
+        av.monitor_layout = None
+        av._board = None
+        shown = pose(self, aid, now) if posed else None
+        if shown is not None:
+            av.x, av.y = shown.x, shown.y
+            av.vx = av.vy = 0.0
+            if shown.hide:
+                self._draw_children(scene, av)
+                return
+        elif av is not dragging:
+            av.x = spot[0] - av.aw / 2.0
+            av.y = spot[1] - av.ah / 2.0
+            av.vx = av.vy = 0.0
+        try:
+            av.draw(scene, photos)
+        except Exception:
+            pass
+        self._draw_children(scene, av)
 
     def _draw_children(self, scene, av) -> None:
         count = getattr(av.agent, "subagents", 0)

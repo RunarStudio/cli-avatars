@@ -163,6 +163,10 @@ class OverlayApp:
 
         self.places = PlaceBook(self)
         self.places.attach()
+        try:
+            self.dungeon._door_btn.config(text=f"Door: {self.places.door()}")
+        except Exception:
+            pass
 
         threading.Thread(target=self.scanner.loop, daemon=True).start()
         threading.Thread(target=self.terrain.loop, daemon=True).start()
@@ -389,6 +393,21 @@ class OverlayApp:
 
     def _on_right_click(self, event):
         return self._ctrl("pointer", InputController).on_right_click(event)
+
+    def _door_label(self, _item=None) -> str:
+        book = getattr(self, "places", None)
+        door = book.door() if book is not None and hasattr(book, "door") else "open"
+        return f"Door: {door}"
+
+    def _toggle_door(self) -> None:
+        book = getattr(self, "places", None)
+        if book is not None:
+            book.toggle_door()
+
+    def _call_home(self) -> None:
+        book = getattr(self, "places", None)
+        if book is not None:
+            book.call_everyone()
 
     def _on_scene_press(self, event):
         return self._ctrl("pointer", InputController).on_scene_press(event)

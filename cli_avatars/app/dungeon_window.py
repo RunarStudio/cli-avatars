@@ -2,7 +2,7 @@
 
 Overlays stay separate top-level windows. Closing this window quits.
 Escape closes the focused dock or cancels a drag. It does not quit.
-The door control is WIN-DUNGEON.6 and is not built here.
+The door control is a toolbar button. It is not a separate window.
 """
 
 from __future__ import annotations

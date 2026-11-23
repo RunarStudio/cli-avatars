@@ -153,10 +153,22 @@ def save_store(path: Path | str, store: Store) -> bool:
     return True
 
 
+def save_door(path: Path | str, door: str) -> bool:
+    """Set ``dungeon.door`` when a JSON config file already exists."""
+    from cli_avatars.app.dungeon_geom import config_with_door
+
+    value = "closed" if door == "closed" else "open"
+    return _save_dungeon(path, lambda parsed: config_with_door(parsed, value))
+
+
 def save_topmost(path: Path | str, topmost: bool) -> bool:
     """Set ``dungeon.topmost`` when a JSON config file already exists."""
     from cli_avatars.app.dungeon_geom import config_with_topmost
 
+    return _save_dungeon(path, lambda parsed: config_with_topmost(parsed, topmost))
+
+
+def _save_dungeon(path: Path | str, edit) -> bool:
     target = Path(path)
     if target.is_symlink() or not target.is_file():
         return False
@@ -166,7 +178,7 @@ def save_topmost(path: Path | str, topmost: bool) -> bool:
         return False
     if not isinstance(parsed, dict):
         return False
-    updated = config_with_topmost(parsed, topmost)
+    updated = edit(parsed)
     if updated.get("dungeon") == parsed.get("dungeon"):
         return True
     raw = (json.dumps(updated, indent=2) + "\n").encode("utf-8")

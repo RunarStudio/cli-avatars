@@ -122,3 +122,23 @@ def feet_point(x: float, y: float, width: float, height: float) -> tuple[float, 
 
 def body_from_feet(vx: float, vy: float, width: float, height: float) -> tuple[float, float]:
     return (vx - width / 2.0, vy - height)
+
+
+def door_anchor(width: float, height: float) -> tuple[float, float]:
+    """Doorway on the empty floor: bottom centre, inset by the kit door height."""
+    return (float(width) / 2.0, max(0.0, float(height) - 72.0))
+
+
+def border_outside(rect: Sequence[float], x: float, y: float, margin: float = 12.0) -> tuple[float, float]:
+    """A point just outside ``rect``, on the edge nearest ``(x, y)``."""
+    left, top, right, bottom = (float(v) for v in rect)
+    cx = min(max(float(x), left), right)
+    cy = min(max(float(y), top), bottom)
+    gap = float(margin)
+    edges = (
+        (cx - left, (left - gap, cy)),
+        (right - cx, (right + gap, cy)),
+        (cy - top, (cx, top - gap)),
+        (bottom - cy, (cx, bottom + gap)),
+    )
+    return min(edges, key=lambda item: item[0])[1]

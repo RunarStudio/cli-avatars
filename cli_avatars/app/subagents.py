@@ -151,6 +151,9 @@ class SubagentController:
 
             # Spawn new subagent avatars near parent (respecting manual dismissals)
             effective_target = max(0, agent.subagents - dismissed)
+            book = getattr(app, "places", None)
+            if book is not None:
+                effective_target = min(effective_target, book.children_ready(aid))
             while len(sub_list) < effective_target:
                 px = (parent_av.x if parent_av else app.sw/2) + random.randint(-80,80)
                 py = (parent_av.y if parent_av else 100)

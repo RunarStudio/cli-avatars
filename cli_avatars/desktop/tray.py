@@ -31,6 +31,8 @@ def _setup_tray(self):
             icon_img = Image.new("RGBA", (32, 32), (68, 136, 255, 255))
         menu = pystray.Menu(
             pystray.MenuItem("Show Dungeon", lambda icon, item: self.root.after(0, self._show_hud_win)),
+            pystray.MenuItem(self._door_label, lambda icon, item: self.root.after(0, self._toggle_door)),
+            pystray.MenuItem("Call home", lambda icon, item: self.root.after(0, self._call_home)),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit",         lambda icon, item: self.root.after(0, self._quit)),
         )
