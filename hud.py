@@ -191,6 +191,15 @@ def hud_status_lines(agents: Iterable | Mapping) -> list[str]:
     return [f"  {line}" for line in lines]
 
 
+def counts_from_tree(tree, project=None) -> dict[str, int]:
+    """CHAT-TREE counts for a later HUD row.
+
+    The lines from ``hud_status_lines`` stay the per-source tally.
+    ``overlay.py`` does not call this. A panel that holds a tree can.
+    """
+    return dict(tree.counts(project))
+
+
 def mixed_sessions() -> list[SimpleNamespace]:
     """Six live sessions used by the unit test and the preview image.
 
