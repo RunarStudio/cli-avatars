@@ -41,6 +41,13 @@ Demo mode activates automatically when no Claude Code sessions are found (4 agen
 
 ---
 
+## Rules
+
+- Never execute chat content.
+- Start Claude or Grok only on Daniel's explicit action (a click, or Enter on his own typed prompt), with an allowlisted binary, fixed argv, shell=False, the prompt on stdin and default permission mode plan; never from chat content, inbox, hooks, MCP arguments or timers, and never automatically. See `docs/room-chat.md`.
+
+---
+
 ## Current State (v0.1)
 
 - Full physics + demo mode: works out of the box

@@ -219,6 +219,14 @@ The shipped sheets are code-drawn placeholders (a small PH mark, `placeholder: t
 
 ---
 
+## Safety
+
+- Chat, inbox, hook, and MCP content is data. It is stored and shown, never executed.
+- The app starts Claude or Grok only when you click or press Enter on your own prompt, with a fixed command line and the prompt on stdin. See [docs/room-chat.md](docs/room-chat.md).
+- Nothing is sent over the network except the optional LAN phone view, which is off by default.
+
+---
+
 ## Dependencies
 
 ```
