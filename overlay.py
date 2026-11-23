@@ -38,8 +38,6 @@ import threading
 import time
 import math
 import random
-import traceback
-from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Optional
 from pathlib import Path
@@ -87,7 +85,6 @@ from decisions import (
     place_open_decisions,
 )
 from topics import (
-    STATUS_COLOR,
     group_by_project,
     source_stamp,
     status_label,
@@ -102,7 +99,6 @@ from routing import (
 from subskins import assign_subagent_skin, dying_pose
 from chat_window import ChatWindow
 from bubbles import (
-    BLOCKED_AMBER,
     BubbleBoard,
     blocked_indicator,
     integer_scale,
@@ -113,7 +109,8 @@ from meetings import AvatarPose, MeetingBoard, PerchSpan, Stage, child_follow
 from portal import PortalPlayer, portal_top_left, render_portal
 from bundle_paths import asset_path
 
-VERSION = "0.4"
+from cli_avatars import VERSION
+from cli_avatars.paths import CONFIG_PATH, images_dir
 
 try:
     import pywinctl as pwc
@@ -142,580 +139,80 @@ except ImportError:
     print("[WARN] Pillow not installed — using fallback rectangles.")
     print("       Install: pip install pillow")
 
-try:
-    from sprite_loader import SpriteRegistry, hue_rotate_image
-    HAS_SPRITES = True
-except Exception as _sprite_err:
-    HAS_SPRITES = False
-    print(f"[WARN] sprite_loader failed ({type(_sprite_err).__name__}: {_sprite_err}) -- using procedural sprites only.")
-
-
-# ═══════════════════════════════════════════════════════════════
-#  CONFIG
-# ═══════════════════════════════════════════════════════════════
-
-OVERLAY_FPS       = 20
-WINDOW_SCAN_RATE  = 0.25   # s between window scans (one scan ≈ 1–2 ms)
-SESSION_SCAN_RATE = 2.0
-GRAVITY           = 0.55
-WALK_SPEED        = 1.8
-JUMP_VEL          = -10.0
-AVATAR_W          = 32
-AVATAR_H          = 32
-FLOOR_MARGIN      = 2
-PERCH_MIN_LEN     = 40    # px: shorter visible pieces of a window top are dropped
-PERCH_MIN_Y       = 40    # px: perches higher than this would put the avatar's head off screen
-CHROMA_KEY        = "#010101"
-
-SPRING_REST   = 80    # px rest length of elastic line
-SPRING_K      = 0.04  # spring stiffness
-SPRING_DAMP   = 0.94  # velocity damping for spring avatars
-# px. A fly child bobs around a point this far above the parent's head.
-FLY_BOB       = 3.0
-# px/frame. The hang from the constants above stays under this, so a
-# fast move or a drag reels the child in instead of flinging it.
-SPRING_MAX_SPEED = 12.0
-# px. A child stays inside this circle around the parent's center.
-# config.json subagent.leash_px overrides it when that value is a positive number.
-SUBAGENT_LEASH_MAX = SPRING_REST * 3
-_SPRING_SPAN = 1.0e6  # px; a larger separation must not overflow the impulse
-THROW_SCALE   = 0.4   # fraction of mouse delta → throw velocity on drag release
-
-FLOOR_LINE_ALPHA = 0.0    # 0.0=off, 1.0=solid — floor platform line visibility
-FLOOR_LINE_COLOR = "#44aaff"
-OVERLAY_ALPHA    = 1.0    # window alpha: 0.1–1.0
-
-WALL_MARGIN       = 6     # px proximity to latch onto a wall
-WALL_CLIMB_SPEED  = 1.4   # px/frame upward climb velocity
-WALL_CLIMB_CHANCE = 0.4   # probability of climbing vs passing through on contact
-
-TEST_SUBAGENTS = 0    # set > 0 to spawn fake subagents on demo avatar for testing
-AVATAR_SCALE   = 2.5  # global sprite scale multiplier — 2.0 = double size (0.5 steps)
-
-BODY_COLORS = [
-    "#4488ff", "#ff6644", "#44cc88", "#dd44cc",
-    "#ffaa22", "#22ccff", "#ff4488", "#88ff44",
-]
-
-SPRITES_DIR = asset_path("Sprites")
-
-# Skin cycling order for real sessions (index 0 = first real session)
-REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru",
-                      "ember_mage", "forest_scout", "frost_wanderer"]
-
-
-# ═══════════════════════════════════════════════════════════════
-#  CAINE STICK-FIGURE SPRITE SHEET GENERATOR
-# ═══════════════════════════════════════════════════════════════
-
-def _extract_bubble_sheet(path: Path) -> None:
-    """
-    Build bubble.png — 192×240 px, 48×48 cells, 4 cols × 5 rows —
-    by extracting and remapping frames from Images/char_Bubble.png.
-
-    Source: ../Images/char_Bubble.png — 336×144 px, 7 cols × 3 rows, 48×48 cells.
-      Row 0 (down):  walk1, walk2/idle, walk3, type1, type2, read1, read2
-      Row 1 (up):    same sequence, back-facing
-      Row 2 (right): same sequence, side-facing
-
-    Target row → source (col, row) mapping:
-      0 idle:  (1,0), (0,0), (1,0), (2,0)  — front neutral sway
-      1 walk:  (0,2), (1,2), (2,2), (1,2)  — right walk cycle
-      2 sit:   (3,0), (4,0), (3,0), (4,0)  — front type1/type2
-      3 stand: (5,0), (6,0), (5,0), (6,0)  — front read1/read2
-      4 jump:  (3,2), (1,2), (4,2), (2,2)  — right active frames
-    """
-    if not HAS_PIL:
-        print("[sprites] Pillow required to extract bubble.png")
-        return
-
-    src_path = Path(__file__).parent.parent / "Images" / "char_Bubble.png"
-    if not src_path.exists():
-        print(f"[sprites] WARN: source not found at {src_path} — skipping bubble.png")
-        return
-
-    FW, FH = 48, 48
-    src = Image.open(str(src_path)).convert("RGBA")
-
-    def crop(col, row):
-        return src.crop((col * FW, row * FH, (col + 1) * FW, (row + 1) * FH))
-
-    # (src_col, src_row) per target frame, row-major
-    mapping = [
-        # target row 0 — idle: front neutral sway
-        [(1, 0), (0, 0), (1, 0), (2, 0)],
-        # target row 1 — walk: right-facing walk cycle
-        [(0, 2), (1, 2), (2, 2), (1, 2)],
-        # target row 2 — sit/think: front type frames
-        [(3, 0), (4, 0), (3, 0), (4, 0)],
-        # target row 3 — stand/done: front read frames
-        [(5, 0), (6, 0), (5, 0), (6, 0)],
-        # target row 4 — jump/subagent: right active frames
-        [(3, 2), (1, 2), (4, 2), (2, 2)],
-    ]
-
-    out = Image.new("RGBA", (FW * 4, FH * 5), (0, 0, 0, 0))
-    for tgt_row, frames in enumerate(mapping):
-        for tgt_col, (sc, sr) in enumerate(frames):
-            out.paste(crop(sc, sr), (tgt_col * FW, tgt_row * FH))
-
-    out.save(str(path))
-    print(f"[sprites] extracted bubble.png from char_Bubble.png ({out.width}x{out.height} px, 48x48 cells)")
-
-
-def _extract_caine_sheet(path: Path) -> None:
-    """
-    Build caine.png — 192×240 px, 48×48 cells, 4 cols × 5 rows —
-    by extracting and remapping frames from Images/char_caine.png.
-
-    Source: ../Images/char_caine.png — 336×144 px, 7 cols × 3 rows, 48×48 cells.
-      Row 0 (down/front): walk1, walk2/idle, walk3, type1, type2, read1, read2
-      Row 1 (up/back):    same sequence
-      Row 2 (right/side): same sequence
-
-    Target row → source (col, row) mapping:
-      0 idle:  (1,0),(0,0),(1,0),(2,0)  — front neutral sway
-      1 walk:  (0,2),(1,2),(2,2),(1,2)  — right-facing walk cycle
-      2 sit:   (3,0),(4,0),(3,0),(4,0)  — front type1/type2 loop
-      3 stand: (5,0),(6,0),(5,0),(6,0)  — front read1/read2 loop
-      4 jump:  (3,2),(1,2),(4,2),(2,2)  — right active frames
-    """
-    if not HAS_PIL:
-        print("[sprites] Pillow required to extract caine.png")
-        return
-
-    src_path = Path(__file__).parent.parent / "Images" / "char_caine.png"
-    if not src_path.exists():
-        print(f"[sprites] WARN: source not found at {src_path} — skipping caine.png")
-        return
-
-    FW, FH = 48, 48
-    src = Image.open(str(src_path)).convert("RGBA")
-
-    def crop(col, row):
-        return src.crop((col * FW, row * FH, (col + 1) * FW, (row + 1) * FH))
-
-    mapping = [
-        [(1, 0), (0, 0), (1, 0), (2, 0)],   # idle — front neutral sway
-        [(0, 2), (1, 2), (2, 2), (1, 2)],   # walk — right-facing cycle
-        [(3, 0), (4, 0), (3, 0), (4, 0)],   # sit  — front type loop
-        [(5, 0), (6, 0), (5, 0), (6, 0)],   # stand — front read loop
-        [(3, 2), (1, 2), (4, 2), (2, 2)],   # jump — right active frames
-    ]
-
-    out = Image.new("RGBA", (FW * 4, FH * 5), (0, 0, 0, 0))
-    for tgt_row, frames in enumerate(mapping):
-        for tgt_col, (sc, sr) in enumerate(frames):
-            out.paste(crop(sc, sr), (tgt_col * FW, tgt_row * FH))
-
-    out.save(str(path))
-    print(f"[sprites] extracted caine.png from char_caine.png ({out.width}x{out.height} px, 48x48 cells)")
-
-
-def _extract_amongo_sheet(path: Path) -> None:
-    """
-    Build amongo.png — 160×200 px, 40×40 cells, 4 cols × 5 rows —
-    by extracting and remapping frames from Images/Amongo Cat.png.
-
-    Source: ../Images/Amongo Cat.png — 360×280 px, 9 cols × 7 rows, 40×40 cells.
-      Row 0: idle  (cols 0–3 non-empty)
-      Row 1: walk  (cols 0–3 non-empty)
-      Row 2: sit   (col 0 only)
-      Row 3: stand (col 0 only)
-      Row 4: jump  (col 0 only)
-      Row 5: sleep (col 0 only)
-      Row 6: spawn/despawn effect — skipped
-
-    Target row → source (col, row) mapping:
-      0 idle:  (0,0),(1,0),(2,0),(3,0)  — full 4-frame idle cycle
-      1 walk:  (0,1),(1,1),(2,1),(3,1)  — full 4-frame walk cycle
-      2 sit:   (0,2)                    — single sit frame, rest transparent
-      3 stand: (0,3),(0,0)              — stand + idle alternating
-      4 jump:  (0,4),(1,1),(0,4),(3,1)  — jump alternating with walk for bounce
-    """
-    if not HAS_PIL:
-        print("[sprites] Pillow required to extract amongo.png")
-        return
-
-    src_path = Path(__file__).parent.parent / "Images" / "Amongo Cat.png"
-    if not src_path.exists():
-        print(f"[sprites] WARN: source not found at {src_path} — skipping amongo.png")
-        return
-
-    FW, FH = 40, 40
-    src = Image.open(str(src_path)).convert("RGBA")
-
-    def crop(col, row):
-        return src.crop((col * FW, row * FH, (col + 1) * FW, (row + 1) * FH))
-
-    mapping = [
-        # target row 0 — idle: full 4-frame cycle
-        [(0, 0), (1, 0), (2, 0), (3, 0)],
-        # target row 1 — walk: full 4-frame cycle
-        [(0, 1), (1, 1), (2, 1), (3, 1)],
-        # target row 2 — sit/think: single sit frame (loader loops it)
-        [(0, 2)],
-        # target row 3 — stand/done: stand + idle alternating
-        [(0, 3), (0, 0)],
-        # target row 4 — jump/subagent: jump frame alternating with walk for bounce
-        [(0, 4), (1, 1), (0, 4), (3, 1)],
-    ]
-
-    out = Image.new("RGBA", (FW * 4, FH * 5), (0, 0, 0, 0))
-    for tgt_row, frames in enumerate(mapping):
-        for tgt_col, (sc, sr) in enumerate(frames):
-            out.paste(crop(sc, sr), (tgt_col * FW, tgt_row * FH))
-
-    out.save(str(path))
-    print(f"[sprites] extracted amongo.png from Amongo Cat.png ({out.width}x{out.height} px, 40x40 cells)")
-
-
-# ═══════════════════════════════════════════════════════════════
-#  SPRITE REGISTRY
-# ═══════════════════════════════════════════════════════════════
-
-REGISTRY: Optional["SpriteRegistry"] = SpriteRegistry() if HAS_SPRITES else None
-
-
-def _load_sprites(registry: "SpriteRegistry") -> None:
-    """Extract sprite sheets from source art if missing, then load all sheets."""
-    bubble_path = SPRITES_DIR / "bubble.png"
-    if not bubble_path.exists():
-        _extract_bubble_sheet(bubble_path)
-
-    caine_path = SPRITES_DIR / "caine.png"
-    if not caine_path.exists():
-        _extract_caine_sheet(caine_path)
-
-    amongo_path = SPRITES_DIR / "amongo.png"
-    if not amongo_path.exists():
-        _extract_amongo_sheet(amongo_path)
-
-    sheets = [
-        ("bubble",   "bubble.png",       48, 48),
-        ("caine",    "caine.png",        48, 48),
-        ("meowatar", "meowatar.png",     60, 50),
-        ("amongo",   "amongo.png",       40, 40),
-        ("bunnylot", "BunnyLot.png",     40, 56),
-        ("michimaru","Michimaru.png",    40, 51),
-        ("ember_mage",     "ember_mage.png",     50, 50),
-        ("forest_scout",   "forest_scout.png",   50, 50),
-        ("frost_wanderer", "frost_wanderer.png", 50, 50),
-    ]
-    for name, fname, fw, fh in sheets:
-        path = SPRITES_DIR / fname
-        if path.exists():
-            try:
-                registry.load(name, str(path), frame_w=fw, frame_h=fh, scale=AVATAR_SCALE)
-                print(f"[sprites] loaded {name} ({fw}x{fh})")
-            except Exception as e:
-                print(f"[sprites] could not load {fname}: {e}")
-        else:
-            print(f"[sprites] not found: {path}")
-
-    sub_dir = SPRITES_DIR / "subagents"
-    if sub_dir.is_dir() and hasattr(registry, "load_subagents"):
-        registry.load_subagents(sub_dir, scale=AVATAR_SCALE)
-
-
-def _is_subagent_sheet(name: str) -> bool:
-    if REGISTRY is None or not hasattr(REGISTRY, "is_subagent_skin"):
-        return False
-    return bool(REGISTRY.is_subagent_skin(name))
-
-
-def subagent_sprite_mode(skin: str) -> str:
-    """Fly or ground for a loaded subagent sheet. Anything else is ground."""
-    if REGISTRY is not None and hasattr(REGISTRY, "skin_mode"):
-        mode = REGISTRY.skin_mode(skin)
-        if mode in ("fly", "ground"):
-            return mode
-    return "ground"
-
-
-def _startup_report(registry) -> None:
-    """Print a boxed summary of sprite load state to the console."""
-    sep = "-" * 60
-    print(f"\n{sep}")
-    print("  AI Overlay -- Sprite Load Report")
-    print(sep)
-    print(f"  HAS_PIL      : {HAS_PIL}")
-    print(f"  HAS_SPRITES  : {HAS_SPRITES}")
-    if HAS_SPRITES:
-        try:
-            from sprite_loader import HAS_NUMPY as _sn
-            print(f"  HAS_NUMPY    : {_sn}  {'(hue rotation available)' if _sn else '(install numpy for hue shifts)'}")
-        except Exception:
-            pass
-    print(f"  REGISTRY     : {'OK' if registry else 'None (sprites disabled)'}")
-    print(f"  SPRITES_DIR  : {SPRITES_DIR}")
-    print(f"  Dir exists   : {SPRITES_DIR.exists()}")
-
-    expected = [
-        ("caine",     "caine_stick.png",  32, 32),
-        ("meowatar",  "meowatar.png",     60, 50),
-        ("amongo",    "Amongo Cat.png",   60, 56),
-        ("bunnylot",  "BunnyLot.png",     40, 56),
-        ("michimaru", "Michimaru.png",    40, 51),
-    ]
-
-    # Attempt each load independently to surface the exact error
-    print("  Load diagnostics:")
-    for name, fname, fw, fh in expected:
-        p = SPRITES_DIR / fname
-        if not p.exists():
-            print(f"    [{name}]  MISSING  {p}")
-            continue
-        if not HAS_SPRITES:
-            print(f"    [{name}]  SKIP (HAS_SPRITES=False)")
-            continue
-        try:
-            from sprite_loader import SpriteSheet
-            sheet = SpriteSheet(str(p), fw, fh, 1.0)
-            frames = [sheet.get_frame_count(r) for r in range(sheet.rows)]
-            print(f"    [{name}]  OK  {sheet.image.width}x{sheet.image.height}px "
-                  f"cell={fw}x{fh}  rows={sheet.rows}  frames={frames}")
-        except Exception as e:
-            tb = traceback.format_exc().strip().splitlines()
-            print(f"    [{name}]  FAILED: {type(e).__name__}: {e}")
-            for line in tb[-4:]:
-                print(f"              {line}")
-
-    if registry:
-        sheets = registry.list_sheets()
-        print(f"  Registry sheets: {len(sheets)}")
-        for name in sheets:
-            sheet = registry._sheets.get(name)
-            if sheet:
-                rows = "  ".join(
-                    f"r{r}={sheet.get_frame_count(r)}f" for r in range(sheet.rows)
-                )
-                print(f"    [{name}]  {sheet.cell_w}x{sheet.cell_h}  {rows}")
-    print(sep + "\n")
-
-
-# ═══════════════════════════════════════════════════════════════
-#  AGENT STATE
-# ═══════════════════════════════════════════════════════════════
-
-class S:
-    IDLE     = "idle"
-    THINKING = "thinking"
-    BUSY     = "busy"
-    SUBAGENT = "subagent"
-    BLOCKED  = "blocked"
-    ERROR    = "error"
-    DONE     = "done"
-
-STATUS_COLOR = {
-    S.IDLE:     "#44ff88",
-    S.THINKING: "#ffdd44",
-    S.BUSY:     "#ff8844",
-    S.SUBAGENT: "#aa44ff",
-    S.BLOCKED:  BLOCKED_AMBER,
-    S.ERROR:    "#ff4444",
-    S.DONE:     "#44aaff",
-}
-
-@dataclass
-class AgentInfo:
-    agent_id:       str
-    name:           str
-    status:         str   = S.IDLE
-    tool:           str   = ""
-    subagents:      int   = 0
-    last_seen:      float = field(default_factory=time.time)
-    skin:           str   = "meowatar"
-    is_demo:        bool  = False
-    workspace_hash: str   = ""
-    pid:            int   = 0
-    source:         str   = ""
-    project:        str   = ""
-    parent_id:      Optional[str] = None
-    failed:         bool  = False
-
-
-# ═══════════════════════════════════════════════════════════════
-#  PROCEDURAL PIXEL SPRITE — fallback
-# ═══════════════════════════════════════════════════════════════
-
-_WALK_A = [
-    "..HHH...", ".HHHHH..", ".HHHHH..", "..HHH...",
-    ".BBBBBB.", "BBBBBBB.", ".L..LL..", "..L.LL..",
-]
-_WALK_B = [
-    "..HHH...", ".HHHHH..", ".HHHHH..", "..HHH...",
-    ".BBBBBB.", "BBBBBBB.", ".LL.L...", ".LL..L..",
-]
-
-def _parse_sprite(rows, body_rgba, skin_rgba=(255,200,150,255), dark_rgba=(40,40,40,255)):
-    scale = 4
-    img = Image.new("RGBA", (8*scale, 8*scale), (0,0,0,0))
-    dr  = ImageDraw.Draw(img)
-    for ri, row in enumerate(rows):
-        for ci, ch in enumerate(row):
-            if ch == ".":
-                continue
-            color = {"H":skin_rgba,"B":body_rgba,"L":body_rgba,"D":dark_rgba}.get(ch,body_rgba)
-            x0,y0 = ci*scale, ri*scale
-            dr.rectangle([x0,y0,x0+scale-1,y0+scale-1], fill=color)
-    return img
-
-def make_photo(body_hex, status, frame, mirror=False):
-    if not HAS_PIL:
-        return None
-    br,bg,bb = tuple(int(body_hex.lstrip("#")[i:i+2],16) for i in (0,2,4))
-    body_rgba = (br,bg,bb,255)
-    rows = _WALK_A if frame%2==0 else _WALK_B
-    img  = _parse_sprite(rows, body_rgba)
-    dr   = ImageDraw.Draw(img)
-    sc = STATUS_COLOR.get(status,"#888888")
-    sr,sg,sb = tuple(int(sc.lstrip("#")[i:i+2],16) for i in (0,2,4))
-    dr.ellipse([25,1,31,7], fill=(sr,sg,sb,255))
-    if status == S.THINKING:
-        oy = int(2 + math.sin(frame*0.8)*1.5)
-        for i in range(3):
-            dr.rectangle([i*4+8,oy,i*4+9,oy+1], fill=(255,255,100,200))
-    if status == S.ERROR:
-        dr.line([8,12,20,24], fill=(255,60,60,200), width=2)
-        dr.line([20,12,8,24], fill=(255,60,60,200), width=2)
-    if status == S.BLOCKED:
-        dr.rectangle([27, 0, 30, 4], fill=(32, 24, 8, 255))
-        dr.point((28, 6), fill=(32, 24, 8, 255))
-    if mirror:
-        flip = getattr(getattr(Image, "Transpose", Image), "FLIP_LEFT_RIGHT")
-        img = img.transpose(flip)
-    return ImageTk.PhotoImage(img)
-
-
-# ═══════════════════════════════════════════════════════════════
-#  PARTICLE BURST EFFECT
-# ═══════════════════════════════════════════════════════════════
-
-@dataclass
-class Particle:
-    x: float; y: float; vx: float; vy: float
-    color: str; life: int; max_life: int
-    canvas_id: Optional[int] = None
-
-class BurstEffect:
-    N = 14; LIFE = 50
-
-    def __init__(self, cx, cy, color, extra_colors=None, n=None, life=None, speed_max=4.0):
-        base_palette = [color, "#ffffff", "#ffdd44", "#88ffcc", "#ff88cc", "#aaddff"]
-        if extra_colors:
-            base_palette = list(extra_colors) + [color, "#ffffff"]
-        n    = n    or self.N
-        life = life or self.LIFE
-        self.particles = []
-        for i in range(n):
-            ang   = (i / n) * 2 * math.pi + random.uniform(-0.3, 0.3)
-            speed = random.uniform(1.5, speed_max)
-            self.particles.append(Particle(
-                x=cx, y=cy,
-                vx=math.cos(ang)*speed, vy=math.sin(ang)*speed - 2.5,
-                color=random.choice(base_palette),
-                life=life, max_life=life,
-            ))
-
-    def tick(self, canvas):
-        alive = False
-        for p in self.particles:
-            if p.life <= 0:
-                if p.canvas_id: canvas.delete(p.canvas_id); p.canvas_id = None
-                continue
-            alive = True
-            p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= 1
-            r  = max(1, int(5*p.life/p.max_life))
-            x0,y0 = int(p.x)-r, int(p.y)-r
-            x1,y1 = int(p.x)+r, int(p.y)+r
-            if p.canvas_id:
-                canvas.coords(p.canvas_id, x0,y0,x1,y1)
-            else:
-                p.canvas_id = canvas.create_oval(x0,y0,x1,y1, fill=p.color, outline="", tags="burst")
-        return alive
-
-    def cleanup(self, canvas):
-        for p in self.particles:
-            if p.canvas_id: canvas.delete(p.canvas_id)
-
-
-class GlitchFlash:
-    LIFE = 10
-    GRID = 12
-    SHARED       = ["#aaaaaa", "#00ffee", "#ff6666"]
-    PINK_PALETTE = ["#ff44aa", "#ff00ff", "#ff88cc", "#dd0066", "#ffaadd", "#cc00ff"] + SHARED
-    DARK_PALETTE = ["#111111", "#000000", "#1a0a1a", "#0d000d", "#220011", "#0a0a0a"] + SHARED
-
-    def __init__(self, canvas, ax, ay, aw, ah, pink: bool):
-        self.canvas  = canvas
-        self.life    = self.LIFE
-        self.palette = self.PINK_PALETTE if pink else self.DARK_PALETTE
-        self._items: list[int] = []
-        # 20% inset so the matrix sits inside the avatar bounds
-        inset_x = aw * 0.10;  inset_y = ah * 0.10
-        self.mx  = ax + inset_x;  self.my = ay + inset_y
-        self.mw  = aw * 0.80;     self.mh = ah * 0.80
-        self._cw = self.mw / self.GRID
-        self._ch = self.mh / self.GRID
-        self._draw_cells()
-
-    def _draw_cells(self):
-        for _ in range(random.randint(6, 11)):
-            col  = random.randint(0, self.GRID - 1)
-            row  = random.randint(0, self.GRID - 1)
-            span = random.randint(1, min(3, self.GRID - col))
-            x0   = self.mx + col  * self._cw
-            y0   = self.my + row  * self._ch
-            item = self.canvas.create_rectangle(
-                x0, y0, x0 + span * self._cw, y0 + self._ch,
-                fill=random.choice(self.palette), outline="", width=0)
-            self._items.append(item)
-
-    def tick(self) -> bool:
-        for item in self._items:
-            self.canvas.delete(item)
-        self._items.clear()
-        self.life -= 1
-        if self.life <= 0:
-            return False
-        self._draw_cells()
-        return True
-
-
-def _sample_sprite_colors(registry, skin: str, n=3) -> list[str]:
-    """Sample n visually distinct colors from a sprite's idle frame."""
-    if not (registry and HAS_PIL):
-        return []
-    try:
-        with registry._lock:
-            sheet = registry._sheets.get(skin)
-        if not sheet or not sheet._frames or not sheet._frames[0]:
-            return []
-        frame = sheet._frames[0][0]
-        small = frame.resize((16, 16)).convert("RGBA")
-        pixels = [
-            (r, g, b) for r, g, b, a in small.getdata()
-            if a > 128 and (r + g + b) > 30
-        ]
-        if not pixels:
-            return []
-        # Bucket into thirds of hue to get spread; pick brightest from each
-        import colorsys
-        buckets: list[list] = [[], [], []]
-        for r, g, b in pixels:
-            h, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
-            if s > 0.15:
-                buckets[int(h * 3) % 3].append((v, r, g, b))
-        colors = []
-        for bucket in buckets:
-            if bucket:
-                bucket.sort(reverse=True)
-                _, r, g, b = bucket[0]
-                colors.append(f"#{r:02x}{g:02x}{b:02x}")
-        return colors[:n] if colors else []
-    except Exception:
-        return []
+from cli_avatars.effects.burst import BurstEffect, Particle
+from cli_avatars.effects.glitch import GlitchFlash
+from cli_avatars.model.agent import AGENT_STATUS_COLOR as STATUS_COLOR, AgentInfo, S
+from cli_avatars.physics.geometry import child_flight_mode, elastic_endpoints
+from cli_avatars.physics.leash import constrain_leash, leash_px_from_config
+from cli_avatars.physics.spring import (
+    apply_fly_spring,
+    apply_spring,
+    clamp_span as _clamp_span,
+    clamp_speed as _clamp_speed,
+    spring_frame as _spring_frame,
+)
+from cli_avatars.sprites.extract import (
+    _extract_amongo_sheet,
+    _extract_bubble_sheet,
+    _extract_caine_sheet,
+)
+from cli_avatars.sprites.palette import sample_sprite_colors as _sample_sprite_colors
+from cli_avatars.sprites.procedural import (
+    _WALK_A,
+    _WALK_B,
+    _parse_sprite,
+    make_photo,
+)
+from cli_avatars.sprites.registry import (
+    HAS_SPRITES,
+    REGISTRY,
+    is_subagent_sheet as _is_subagent_sheet,
+    load_sprites as _load_sprites,
+    startup_report as _startup_report,
+    subagent_sprite_mode,
+)
+from cli_avatars.tuning import (
+    AVATAR_H,
+    AVATAR_W,
+    BODY_COLORS,
+    CHROMA_KEY,
+    FLOOR_LINE_COLOR,
+    FLOOR_MARGIN,
+    PERCH_MIN_LEN,
+    PERCH_MIN_Y,
+    REAL_SESSION_SKINS,
+    SPRING_SPAN as _SPRING_SPAN,
+    SPRITES_DIR,
+    THROW_SCALE,
+    TUNING,
+    WALL_CLIMB_CHANCE,
+    WALL_CLIMB_SPEED,
+    WALL_MARGIN,
+)
+
+if HAS_SPRITES:
+    from sprite_loader import hue_rotate_image
+else:
+    hue_rotate_image = None
+
+# Copies of the defaults for imports that read these names.
+# Config Apply writes TUNING. Movers read TUNING at call time.
+OVERLAY_FPS = TUNING.overlay_fps
+WINDOW_SCAN_RATE = TUNING.window_scan_rate
+SESSION_SCAN_RATE = TUNING.session_scan_rate
+GRAVITY = TUNING.gravity
+WALK_SPEED = TUNING.walk_speed
+JUMP_VEL = TUNING.jump_vel
+SPRING_REST = TUNING.spring_rest
+SPRING_K = TUNING.spring_k
+SPRING_DAMP = TUNING.spring_damp
+FLY_BOB = TUNING.fly_bob
+SPRING_MAX_SPEED = TUNING.spring_max_speed
+SUBAGENT_LEASH_MAX = TUNING.subagent_leash_max
+FLOOR_LINE_ALPHA = TUNING.floor_line_alpha
+OVERLAY_ALPHA = TUNING.overlay_alpha
+TEST_SUBAGENTS = TUNING.test_subagents
+AVATAR_SCALE = TUNING.avatar_scale
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -734,7 +231,7 @@ class Avatar:
         self.aw, self.ah = self._sprite_size()
         self.x          = float(random.randint(60, sw-100))
         self.y          = float(random.randint(30, 200))
-        self.vx         = 0.0 if spring_mode else random.choice([-WALK_SPEED, WALK_SPEED])
+        self.vx         = 0.0 if spring_mode else random.choice([-TUNING.walk_speed, TUNING.walk_speed])
         self.vy         = 0.0
         self.dir        = 1
         self.on_ground  = False
@@ -751,7 +248,7 @@ class Avatar:
         # Per-instance chaos multipliers (normal avatars = 1.0, subagents get randomized)
         self.anim_speed_mult  = 1.0
         self._spring_k_mult   = 1.0
-        self._spring_damp_v   = SPRING_DAMP
+        self._spring_damp_v   = TUNING.spring_damp
         # Wall climb state
         self._wall_climb: Optional[tuple] = None
         # Float-away state (triggered when subagent idle too long)
@@ -832,7 +329,7 @@ class Avatar:
                 self.y   = float(target)
                 self.vy  = 0.0
                 self.dir = top_dir
-                self.vx  = WALK_SPEED * top_dir
+                self.vx  = TUNING.walk_speed * top_dir
                 self.x   = float(wx + 4) if top_dir > 0 else float(wx - self.aw - 4)
             elif near_x and in_y and self.y > target:
                 self.on_ground, self.perch_hwnd = False, None   # climbing: not riding a window
@@ -841,7 +338,7 @@ class Avatar:
                 self.x   = float(wx - self.aw // 2)   # stay glued to wall x
                 self.y  += self.vy
                 self.ftick += 1
-                thresh = max(1, int((OVERLAY_FPS // 6) / self.anim_speed_mult))
+                thresh = max(1, int((TUNING.overlay_fps // 6) / self.anim_speed_mult))
                 if self.ftick >= thresh:
                     self.ftick = 0; self.frame += 1
                 curr = self.agent.status
@@ -852,8 +349,8 @@ class Avatar:
             elif self._wall_climb is not None:
                 # Reached a covered top or fell off wall — kick off horizontally
                 self._wall_climb, self._climb_dir = None, 0
-                self.vx = WALK_SPEED * self.dir
-                self.vy = JUMP_VEL * 0.3
+                self.vx = TUNING.walk_speed * self.dir
+                self.vy = TUNING.jump_vel * 0.3
 
         if locked:
             # This frame, not the next one. Wander stores vx for the following frame.
@@ -864,7 +361,7 @@ class Avatar:
 
         # Fly children hover. Ground children, and every orchestrator, still fall.
         if not (self.spring_mode and child_flight_mode(self) == "fly"):
-            self.vy += GRAVITY
+            self.vy += TUNING.gravity
         nx = self.x + self.vx
         ny = self.y + self.vy
 
@@ -884,7 +381,7 @@ class Avatar:
                 self.idle_t = 0
             # Normal walk AI
             if self.agent.status == S.THINKING and self.on_ground and random.random() < 0.04:
-                self.vy = JUMP_VEL * 0.5
+                self.vy = TUNING.jump_vel * 0.5
 
             self.idle_t -= 1
             if self.idle_t <= 0:
@@ -892,10 +389,10 @@ class Avatar:
                     self.vx = 0.0; self.idle_t = random.randint(30,90)
                 elif self.vx == 0:
                     self.dir = random.choice([-1,1])
-                    self.vx  = WALK_SPEED * self.dir
+                    self.vx  = TUNING.walk_speed * self.dir
 
             if self.vx != 0:
-                self.vx = WALK_SPEED * (2.0 if self.agent.status==S.BUSY else 1.0) * self.dir
+                self.vx = TUNING.walk_speed * (2.0 if self.agent.status==S.BUSY else 1.0) * self.dir
 
             # Wall latch check — only for walking avatars, not while airborne far
             if self._wall_climb is None and walls:
@@ -914,7 +411,7 @@ class Avatar:
         self.x, self.y = nx, ny
 
         self.ftick += 1
-        thresh = max(1, int((OVERLAY_FPS // (8 if self._anim_status == S.BUSY else 4)) / self.anim_speed_mult))
+        thresh = max(1, int((TUNING.overlay_fps // (8 if self._anim_status == S.BUSY else 4)) / self.anim_speed_mult))
         if self.ftick >= thresh:
             self.ftick = 0; self.frame += 1
 
@@ -1041,7 +538,7 @@ class SessionScanner:
         with self._lock: return dict(self._agents)
 
     def loop(self):
-        while True: self._scan(); time.sleep(SESSION_SCAN_RATE)
+        while True: self._scan(); time.sleep(TUNING.session_scan_rate)
 
     def _on_bus_event(self, event):
         """Apply a UDP state immediately. Poll publishes are ignored here."""
@@ -1097,7 +594,7 @@ class SessionScanner:
             found["demo"] = AgentInfo(
                 agent_id="demo", name="Caine",
                 status=S.IDLE, skin="amongo",
-                subagents=TEST_SUBAGENTS, is_demo=True,
+                subagents=TUNING.test_subagents, is_demo=True,
                 source="")
 
         self._match_pids(found)
@@ -1222,8 +719,8 @@ class WindowTerrain:
                     times.sort()
                     print(f"[INFO] Terrain scan: median {times[10]:.2f} ms, min {times[0]:.2f}, "
                           f"max {times[-1]:.2f} ({'win32' if HAS_W32 else 'pywinctl'}), "
-                          f"every {WINDOW_SCAN_RATE}s")
-            time.sleep(WINDOW_SCAN_RATE)
+                          f"every {TUNING.window_scan_rate}s")
+            time.sleep(TUNING.window_scan_rate)
 
     def _scan_pwc(self):
         """Old path (pywinctl): includes shadows, ignores z-order. Fallback only."""
@@ -1282,80 +779,6 @@ def _hud_status_text(agents) -> tuple[list[tuple[str,str]], bool]:
     return [status_row_style(line, waiting=waiting) for line in lines], waiting
 
 
-def _spring_frame(dt: float) -> float:
-    """Frame scale for one spring step. A tick passes 1.
-
-    ``SPRING_K`` and ``SPRING_DAMP`` are per frame, matching ``OVERLAY_FPS``.
-    A longer dt does not multiply the impulse. A non-finite dt applies nothing.
-    """
-    if isinstance(dt, bool) or not isinstance(dt, (int, float)):
-        return 0.0
-    if not math.isfinite(dt) or dt <= 0.0:
-        return 0.0
-    if dt >= 1.0:
-        return 1.0
-    return float(dt)
-
-
-def _clamp_span(delta: float) -> float:
-    if delta > _SPRING_SPAN:
-        return _SPRING_SPAN
-    if delta < -_SPRING_SPAN:
-        return -_SPRING_SPAN
-    return delta
-
-
-def leash_px_from_config(config) -> float:
-    """Leash radius in px. ``subagent.leash_px`` wins when it is a positive number."""
-    default = float(SUBAGENT_LEASH_MAX)
-    if not isinstance(config, dict):
-        return default
-    block = config.get("subagent")
-    if not isinstance(block, dict):
-        return default
-    raw = block.get("leash_px")
-    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-        return default
-    if not math.isfinite(raw) or raw <= 0:
-        return default
-    return float(raw)
-
-
-def child_flight_mode(avatar) -> str:
-    """``fly`` when this child was spawned with a fly sheet. Otherwise ground.
-
-    An explicit ``_sub_mode`` wins, including in tests that have no registry.
-    Orchestrators are not given one, so they stay ground and keep gravity.
-    """
-    mode = getattr(avatar, "_sub_mode", None)
-    if mode in ("fly", "ground"):
-        return mode
-    skin = getattr(getattr(avatar, "agent", None), "skin", "")
-    return subagent_sprite_mode(str(skin or ""))
-
-
-def elastic_endpoints(parent, child, mode: str) -> tuple[float, float, float, float]:
-    """Spring line ends. Fly starts at the head and runs upward to the child."""
-    x1 = child.x + child.aw / 2.0
-    y1 = child.y + child.ah / 2.0
-    x0 = parent.x + parent.aw / 2.0
-    if mode == "fly":
-        y0 = float(parent.y)
-    else:
-        y0 = parent.y + parent.ah / 2.0
-    return x0, y0, x1, y1
-
-
-def _clamp_speed(vx: float, vy: float, cap: float) -> tuple[float, float]:
-    if not math.isfinite(vx) or not math.isfinite(vy) or not math.isfinite(cap) or cap <= 0.0:
-        return 0.0, 0.0
-    speed = math.hypot(vx, vy)
-    if not math.isfinite(speed) or speed <= cap or speed == 0.0:
-        return vx, vy
-    scale = cap / speed
-    return vx * scale, vy * scale
-
-
 # ═══════════════════════════════════════════════════════════════
 #  OVERLAY APP
 # ═══════════════════════════════════════════════════════════════
@@ -1364,7 +787,7 @@ class OverlayApp:
     TITLE = "AI Agent Overlay"
 
     def __init__(self):
-        self._config_path = Path(__file__).resolve().parent / "config.json"
+        self._config_path = CONFIG_PATH
         self.config = load_config(self._config_path)
         self._subskin_rng = random.Random()
         self._rooms_shown = rooms_from_config(self.config)
@@ -1386,7 +809,7 @@ class OverlayApp:
         self.root.title(self.TITLE)
         _ico = asset_path("Caine_Icon.ico")
         if not _ico.exists():
-            _ico = Path(__file__).parent.parent / "Images" / "Caine_Icon.ico"
+            _ico = images_dir() / "Caine_Icon.ico"
         if _ico.exists():
             try: self.root.wm_iconbitmap(str(_ico))
             except Exception: pass
@@ -1397,7 +820,7 @@ class OverlayApp:
         self.root.geometry(f"{sw}x{sh}+0+0")
         self.root.overrideredirect(True)
         self.root.wm_attributes("-topmost", True)
-        self.root.wm_attributes("-alpha", OVERLAY_ALPHA)
+        self.root.wm_attributes("-alpha", TUNING.overlay_alpha)
         self.root.config(bg=CHROMA_KEY)
         self.root.wm_attributes("-transparentcolor", CHROMA_KEY)
 
@@ -1498,7 +921,7 @@ class OverlayApp:
             self.scanner.meetings.release(self._drag_av.agent.agent_id)
         try:
             steers = self.scanner.meetings.step(
-                self._meeting_stage(floors, floor_hwnds), time.time(), WALK_SPEED,
+                self._meeting_stage(floors, floor_hwnds), time.time(), TUNING.walk_speed,
             )
         except Exception:
             logging.getLogger("cli_avatars.meetings").exception("meeting step failed")
@@ -1539,7 +962,7 @@ class OverlayApp:
                 if av.y > self.sh + 80:
                     av.x = float(random.randint(0, max(1, self.sw - av.aw)))
                     av.y = float(self.sh - av.ah - 10)
-                    av.vx = random.choice([-WALK_SPEED, WALK_SPEED])
+                    av.vx = random.choice([-TUNING.walk_speed, TUNING.walk_speed])
                     av.vy = 0.0
             av.draw(self.canvas)
 
@@ -1553,8 +976,8 @@ class OverlayApp:
         # ── Subagent avatars ─────────────────────────────────────────
         self.canvas.delete("elastic")   # clear all elastic lines
         self.canvas.delete("floor_line")
-        if FLOOR_LINE_ALPHA > 0:
-            stpl = _alpha_stipple(FLOOR_LINE_ALPHA)
+        if TUNING.floor_line_alpha > 0:
+            stpl = _alpha_stipple(TUNING.floor_line_alpha)
             for (fx1, fy, fx2, _) in floors:
                 # Inset 16px from each end so floor doesn't touch wall corners
                 self.canvas.create_line(fx1 + 16, fy, fx2 - 16, fy,
@@ -1567,7 +990,7 @@ class OverlayApp:
                                         stipple=stpl, tags="floor_line")
 
         for aid, agent in agents.items():
-            if (agent.is_demo and TEST_SUBAGENTS == 0) or agent.subagents <= 0:
+            if (agent.is_demo and TUNING.test_subagents == 0) or agent.subagents <= 0:
                 for sv in self.sub_avatars.pop(aid, []):
                     self._begin_dying(sv)
                     self._dying_subs.append(sv)
@@ -1760,7 +1183,7 @@ class OverlayApp:
             self._update_chat_win()
         except Exception:
             logging.getLogger("cli_avatars.chat").exception("chat panel failed")
-        self.root.after(1000 // OVERLAY_FPS, self._tick)
+        self.root.after(1000 // TUNING.overlay_fps, self._tick)
 
     def _refresh_activity(self, av: "Avatar") -> None:
         """Bump last_active from status and the session timestamp. Idempotent."""
@@ -1894,98 +1317,18 @@ class OverlayApp:
             return
         sv.spring_mode = False
         sv._spring_k_mult = 1.0
-        sv._spring_damp_v = SPRING_DAMP
+        sv._spring_damp_v = TUNING.spring_damp
         if abs(sv.vx) < 0.1:
             sv.dir = 1 if sv.dir >= 0 else -1
-            sv.vx = WALK_SPEED * sv.dir
+            sv.vx = TUNING.walk_speed * sv.dir
 
     def _apply_spring(self, sv: Avatar, parent_av: Avatar, dt: float = 1.0) -> None:
-        """Pull a subagent toward its parent. One call is one frame at dt=1.
-
-        Ground children hang under the parent: the line is slack inside
-        ``SPRING_REST`` and Hooke's law outside it, then ``SPRING_DAMP``.
-        Fly children are pulled to a point ``SPRING_REST`` above the head
-        and bob a few pixels. Speed is capped so a parent that jumps across
-        the screen, or a huge dt, cannot produce NaN or a fling.
-        """
-        if child_flight_mode(sv) == "fly":
-            self._apply_fly_spring(sv, parent_av, dt)
-            return
-        if not math.isfinite(sv.vx) or not math.isfinite(sv.vy):
-            sv.vx = 0.0
-            sv.vy = 0.0
-        scale = _spring_frame(dt)
-        if scale <= 0.0:
-            return
-        px = parent_av.x + parent_av.aw / 2
-        py = parent_av.y + parent_av.ah / 2
-        sx = sv.x + sv.aw / 2
-        sy = sv.y + sv.ah / 2
-        if not all(math.isfinite(v) for v in (px, py, sx, sy)):
-            return
-        dx = _clamp_span(px - sx)
-        dy = _clamp_span(py - sy)
-        dist = math.hypot(dx, dy)
-        k_mult = sv._spring_k_mult
-        if not math.isfinite(k_mult):
-            k_mult = 1.0
-        if dist > SPRING_REST and dist > 0.0:
-            force = (dist - SPRING_REST) * SPRING_K * k_mult * scale
-            if math.isfinite(force):
-                sv.vx += (dx / dist) * force
-                sv.vy += (dy / dist) * force
-        damp = sv._spring_damp_v
-        if not math.isfinite(damp) or damp < 0.0:
-            damp = SPRING_DAMP
-        sv.vx *= damp ** scale
-        sv.vy *= damp ** scale
-        sv.vx, sv.vy = _clamp_speed(sv.vx, sv.vy, SPRING_MAX_SPEED)
+        """One frame of the ground or fly spring."""
+        apply_spring(sv, parent_av, dt, child_flight_mode(sv))
 
     def _apply_fly_spring(self, sv: Avatar, parent_av: Avatar, dt: float = 1.0) -> None:
         """Hold a fly child on the point above the parent's head."""
-        if not math.isfinite(sv.vx) or not math.isfinite(sv.vy):
-            sv.vx = 0.0
-            sv.vy = 0.0
-        scale = _spring_frame(dt)
-        if scale <= 0.0:
-            return
-        phase = getattr(sv, "_fly_phase", 0.0)
-        if isinstance(phase, bool) or not isinstance(phase, (int, float)) or not math.isfinite(phase):
-            phase = 0.0
-        sv._fly_phase = phase + 1.0
-        # The bob is painted on after the spring, then taken off next frame,
-        # so it does not feed back into the hover and grow.
-        prev_bob = getattr(sv, "_fly_bob", 0.0)
-        if isinstance(prev_bob, bool) or not isinstance(prev_bob, (int, float)) or not math.isfinite(prev_bob):
-            prev_bob = 0.0
-        sv.y -= prev_bob
-        sv._fly_bob = 0.0
-        tx = parent_av.x + parent_av.aw / 2.0
-        ty = parent_av.y - SPRING_REST
-        sx = sv.x + sv.aw / 2.0
-        sy = sv.y + sv.ah / 2.0
-        if not all(math.isfinite(v) for v in (tx, ty, sx, sy)):
-            return
-        dx = _clamp_span(tx - sx)
-        dy = _clamp_span(ty - sy)
-        dist = math.hypot(dx, dy)
-        k_mult = sv._spring_k_mult
-        if not math.isfinite(k_mult):
-            k_mult = 1.0
-        if dist > 0.0 and math.isfinite(dist):
-            force = dist * SPRING_K * k_mult * scale
-            if math.isfinite(force):
-                sv.vx += (dx / dist) * force
-                sv.vy += (dy / dist) * force
-        damp = sv._spring_damp_v
-        if not math.isfinite(damp) or damp < 0.0:
-            damp = SPRING_DAMP
-        sv.vx *= damp ** scale
-        sv.vy *= damp ** scale
-        sv.vx, sv.vy = _clamp_speed(sv.vx, sv.vy, SPRING_MAX_SPEED)
-        bob = math.sin(sv._fly_phase * 0.16) * FLY_BOB
-        sv.y += bob
-        sv._fly_bob = bob
+        apply_fly_spring(sv, parent_av, dt)
 
     def _subagent_skin_pool(self) -> list[str]:
         if REGISTRY is not None and hasattr(REGISTRY, "subagent_ids"):
@@ -1996,56 +1339,8 @@ class OverlayApp:
         return leash_px_from_config(getattr(self, "config", None))
 
     def _constrain_leash(self, sv: Avatar, parent_av: Avatar) -> None:
-        """Keep a child inside the leash circle around the parent's center.
-
-        The child is placed on the circle when it is outside, not on the
-        parent. Outward speed is removed so the next frame does not step
-        out and snap back. A walking child also turns around at the
-        left and right edges. A dying child is left where it is.
-        """
-        if getattr(sv, "_dying", False):
-            return
-        leash = self._leash_px()
-        if not math.isfinite(leash) or leash <= 0:
-            return
-        px = parent_av.x + parent_av.aw / 2.0
-        py = parent_av.y + parent_av.ah / 2.0
-        sx = sv.x + sv.aw / 2.0
-        sy = sv.y + sv.ah / 2.0
-        if not all(math.isfinite(v) for v in (px, py, sx, sy, sv.vx, sv.vy)):
-            if not math.isfinite(sv.vx):
-                sv.vx = 0.0
-            if not math.isfinite(sv.vy):
-                sv.vy = 0.0
-            return
-        dx = _clamp_span(sx - px)
-        dy = _clamp_span(sy - py)
-        dist = math.hypot(dx, dy)
-        if dist > leash and dist > 0.0:
-            scale = leash / dist
-            sv.x += (px + dx * scale) - sx
-            sv.y += (py + dy * scale) - sy
-            ux, uy = dx / dist, dy / dist
-            outward = sv.vx * ux + sv.vy * uy
-            if math.isfinite(outward) and outward > 0.0:
-                sv.vx -= ux * outward
-                sv.vy -= uy * outward
-        if sv.spring_mode:
-            return
-        # Pace inside the horizontal leash instead of grinding on the edge.
-        cx = sv.x + sv.aw / 2.0
-        if cx >= px + leash - 0.05:
-            over = cx - (px + leash)
-            if over > 0.0:
-                sv.x -= over
-            sv.vx = -WALK_SPEED if sv.vx == 0.0 else -abs(sv.vx)
-            sv.dir = -1
-        elif cx <= px - leash + 0.05:
-            over = (px - leash) - cx
-            if over > 0.0:
-                sv.x += over
-            sv.vx = WALK_SPEED if sv.vx == 0.0 else abs(sv.vx)
-            sv.dir = 1
+        """Keep a child inside the leash circle around the parent's center."""
+        constrain_leash(sv, parent_av, self._leash_px())
 
     def _draw_elastic(self, parent_av: Avatar, sv: Avatar, shrink: float = 1.0):
         """Draw a purple zigzag spring line between parent and subagent.
@@ -2128,7 +1423,7 @@ class OverlayApp:
             import pystray
             caine_path = asset_path("Caine_Icon.png")
             if not caine_path.exists():
-                caine_path = Path(__file__).parent.parent / "Images" / "Caine_Icon.png"
+                caine_path = images_dir() / "Caine_Icon.png"
             if caine_path.exists():
                 icon_img = Image.open(str(caine_path)).convert("RGBA").resize((32, 32), Image.NEAREST)
             else:
@@ -2295,7 +1590,7 @@ class OverlayApp:
             return
         if view is None:
             return
-        scale = integer_scale(AVATAR_SCALE)
+        scale = integer_scale(TUNING.avatar_scale)
         key = (view.phase, view.index, scale)
         photo = self._portal_cache.get(key)
         if photo is None:
@@ -2313,7 +1608,7 @@ class OverlayApp:
         self.canvas.delete("talk_bubble")
         if not HAS_PIL:
             return
-        scale = integer_scale(AVATAR_SCALE)
+        scale = integer_scale(TUNING.avatar_scale)
         boxes = {
             aid: (av.x, av.y, av.aw, av.ah)
             for aid, av in self.avatars.items()
@@ -2353,7 +1648,7 @@ class OverlayApp:
         self.canvas.delete("decision_bubble")
         if not HAS_PIL:
             return
-        scale = integer_scale(AVATAR_SCALE)
+        scale = integer_scale(TUNING.avatar_scale)
         boxes = {
             aid: (av.x, av.y, av.aw, av.ah)
             for aid, av in self.avatars.items()
@@ -2392,7 +1687,7 @@ class OverlayApp:
         self.canvas.delete("blocked_mark")
         if not HAS_PIL:
             return
-        scale = integer_scale(AVATAR_SCALE)
+        scale = integer_scale(TUNING.avatar_scale)
         boxes: list[tuple] = []
 
         def take(av: Avatar) -> None:
@@ -2983,7 +2278,7 @@ class OverlayApp:
         if kind == "drag" and dragged is not None:
             dx = event.x - self._drag_prev[0]
             dy = event.y - self._drag_prev[1]
-            max_v = WALK_SPEED * 3
+            max_v = TUNING.walk_speed * 3
             dragged.vx = max(-max_v, min(dx * THROW_SCALE, max_v))
             dragged.vy = max(-max_v, min(dy * THROW_SCALE, max_v))
             self._drag_av = None
@@ -3277,16 +2572,15 @@ class OverlayApp:
                  showvalue=False, bg=P["panel"], troughcolor=P["slot"], highlightthickness=0,
                  activebackground=P["select"], command=lambda v: refresh()).pack(fill="x", pady=(2, 10))
 
-        sc_lbl = label(right, f"Scale {AVATAR_SCALE:.1f}×"); sc_lbl.pack(fill="x")
+        sc_lbl = label(right, f"Scale {TUNING.avatar_scale:.1f}×"); sc_lbl.pack(fill="x")
         def _on_scale(val):
-            global AVATAR_SCALE
-            AVATAR_SCALE = round(float(val) * 2) / 2
-            sc_lbl.config(text=f"SCALE {AVATAR_SCALE:.1f}×")
-            if REGISTRY: REGISTRY.reload_all(AVATAR_SCALE)
+            TUNING.avatar_scale = round(float(val) * 2) / 2
+            sc_lbl.config(text=f"SCALE {TUNING.avatar_scale:.1f}×")
+            if REGISTRY: REGISTRY.reload_all(TUNING.avatar_scale)
             cache.clear()
         sc = tk.Scale(right, from_=0.5, to=4.0, resolution=0.5, orient="horizontal", showvalue=False,
                       bg=P["panel"], troughcolor=P["slot"], highlightthickness=0, command=_on_scale)
-        sc.set(AVATAR_SCALE); sc.pack(fill="x", pady=(2, 12))
+        sc.set(TUNING.avatar_scale); sc.pack(fill="x", pady=(2, 12))
 
         apply_btn = tk.Label(right, text="APPLY SKIN", font=("Consolas", 13, "bold"), bg=P["select"],
                              fg=P["night"], pady=8, cursor="hand2")
@@ -3452,12 +2746,12 @@ class OverlayApp:
         tp = tab(" Physics ")
         tk.Label(tp, text="", bg=BG).pack(pady=4)
 
-        v_grav  = tk.DoubleVar(win, GRAVITY)
-        v_walk  = tk.DoubleVar(win, WALK_SPEED)
-        v_jump  = tk.DoubleVar(win, JUMP_VEL)
-        v_srest = tk.IntVar(win,    SPRING_REST)
-        v_sk    = tk.DoubleVar(win, SPRING_K)
-        v_sd    = tk.DoubleVar(win, SPRING_DAMP)
+        v_grav  = tk.DoubleVar(win, TUNING.gravity)
+        v_walk  = tk.DoubleVar(win, TUNING.walk_speed)
+        v_jump  = tk.DoubleVar(win, TUNING.jump_vel)
+        v_srest = tk.IntVar(win,    TUNING.spring_rest)
+        v_sk    = tk.DoubleVar(win, TUNING.spring_k)
+        v_sd    = tk.DoubleVar(win, TUNING.spring_damp)
 
         row(tp, "Gravity",        lambda p: slider(p, v_grav, 0.1, 1.5))
         row(tp, "Walk speed",     lambda p: slider(p, v_walk, 0.5, 4.0))
@@ -3470,15 +2764,14 @@ class OverlayApp:
         td = tab(" Display ")
         tk.Label(td, text="", bg=BG).pack(pady=4)
 
-        v_scale = tk.DoubleVar(win, AVATAR_SCALE)
-        v_fps   = tk.StringVar(win, str(OVERLAY_FPS))
+        v_scale = tk.DoubleVar(win, TUNING.avatar_scale)
+        v_fps   = tk.StringVar(win, str(TUNING.overlay_fps))
 
         def _on_scale_cfg(val):
-            global AVATAR_SCALE
-            AVATAR_SCALE = round(float(val) * 2) / 2
-            v_scale.set(AVATAR_SCALE)
+            TUNING.avatar_scale = round(float(val) * 2) / 2
+            v_scale.set(TUNING.avatar_scale)
             if REGISTRY:
-                REGISTRY.reload_all(AVATAR_SCALE)
+                REGISTRY.reload_all(TUNING.avatar_scale)
 
         def scale_widget(parent):
             tk.Scale(parent, variable=v_scale, from_=0.5, to=4.0, resolution=0.5,
@@ -3497,17 +2790,15 @@ class OverlayApp:
         row(td, "Avatar scale",  scale_widget)
         row(td, "Overlay FPS",   fps_widget)
 
-        v_flalpha = tk.DoubleVar(win, FLOOR_LINE_ALPHA)
-        v_walpha  = tk.DoubleVar(win, OVERLAY_ALPHA)
+        v_flalpha = tk.DoubleVar(win, TUNING.floor_line_alpha)
+        v_walpha  = tk.DoubleVar(win, TUNING.overlay_alpha)
 
         def _on_floor_alpha(val):
-            global FLOOR_LINE_ALPHA
-            FLOOR_LINE_ALPHA = float(val)
+            TUNING.floor_line_alpha = float(val)
 
         def _on_win_alpha(val):
-            global OVERLAY_ALPHA
-            OVERLAY_ALPHA = float(val)
-            self.root.wm_attributes("-alpha", OVERLAY_ALPHA)
+            TUNING.overlay_alpha = float(val)
+            self.root.wm_attributes("-alpha", TUNING.overlay_alpha)
 
         row(td, "Floor line opacity",
             lambda p: tk.Scale(p, variable=v_flalpha, from_=0.0, to=1.0, resolution=0.05,
@@ -3537,9 +2828,9 @@ class OverlayApp:
         tb = tab(" Behavior ")
         tk.Label(tb, text="", bg=BG).pack(pady=4)
 
-        v_sscan  = tk.DoubleVar(win, SESSION_SCAN_RATE)
-        v_wscan  = tk.DoubleVar(win, WINDOW_SCAN_RATE)
-        v_tsub   = tk.IntVar(win,   TEST_SUBAGENTS)
+        v_sscan  = tk.DoubleVar(win, TUNING.session_scan_rate)
+        v_wscan  = tk.DoubleVar(win, TUNING.window_scan_rate)
+        v_tsub   = tk.IntVar(win,   TUNING.test_subagents)
         v_idlelo = tk.IntVar(win,   30)
         v_idlehi = tk.IntVar(win,   90)
 
@@ -3553,19 +2844,16 @@ class OverlayApp:
         tk.Frame(win, bg="#223366", height=1).pack(fill="x", padx=10, pady=4)
 
         def _apply_all():
-            global GRAVITY, WALK_SPEED, JUMP_VEL, SPRING_REST
-            global SPRING_K, SPRING_DAMP, OVERLAY_FPS
-            global SESSION_SCAN_RATE, WINDOW_SCAN_RATE, TEST_SUBAGENTS
-            GRAVITY           = v_grav.get()
-            WALK_SPEED        = v_walk.get()
-            JUMP_VEL          = v_jump.get()
-            SPRING_REST       = v_srest.get()
-            SPRING_K          = v_sk.get()
-            SPRING_DAMP       = v_sd.get()
-            OVERLAY_FPS       = int(v_fps.get())
-            SESSION_SCAN_RATE = v_sscan.get()
-            WINDOW_SCAN_RATE  = v_wscan.get()
-            TEST_SUBAGENTS    = v_tsub.get()
+            TUNING.gravity = v_grav.get()
+            TUNING.walk_speed = v_walk.get()
+            TUNING.jump_vel = v_jump.get()
+            TUNING.spring_rest = v_srest.get()
+            TUNING.spring_k = v_sk.get()
+            TUNING.spring_damp = v_sd.get()
+            TUNING.overlay_fps = int(v_fps.get())
+            TUNING.session_scan_rate = v_sscan.get()
+            TUNING.window_scan_rate = v_wscan.get()
+            TUNING.test_subagents = v_tsub.get()
             apply_btn.config(text="✓ Applied!", fg="#44ff88")
             win.after(1200, lambda: apply_btn.config(text="Apply", fg=FG))
 
@@ -3575,7 +2863,7 @@ class OverlayApp:
         apply_btn.pack(pady=6)
 
     def run(self):
-        print(f"[AI Overlay v0.4] {self.sw}x{self.sh} @ {OVERLAY_FPS}fps")
+        print(f"[AI Overlay v0.4] {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
         print("[AI Overlay] Drag HUD | R-Click avatar=terminal | R-Click empty=quit | ESC=quit")
         self.root.mainloop()
 
