@@ -442,7 +442,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 - [ ] [ART][art] CAINE-SKIN: Caine draws the skin sheet.
   - Each subagent sheet needs idle, working, and dying rows (4 frames each). Dying plays when the subchat closes.
 - [ ] [OVL][feat] PORTAL-V2 @agents: Portal ring 2px plus a particle burst (Daniel 21/11) (after SPLIT.4). (M)
-- [ ] [BUILD][fix] FLAKY-TEST @pixel: Fix the flaky test.
+- [x] [BUILD][fix] FLAKY-TEST @pixel: Fix the flaky test. (daily 2026-11-23)
 - [x] [DOCS][docs] AGENTS-MD: Add `AGENTS.md`. (chore/cleanup-agents-md)
 - [x] [WS][decision] TERMINAL-P4: Replaced by ROOM-CHAT (Daniel 23/11).
 - [ ] [WS][feat] PROJECTS-P5 @agents: Projects by status, workspace phase 5 (after MCP-M2 and CHAT-TREE). (L)
@@ -451,11 +451,11 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 - [x] [DOCS][chore] CLEAN-HOOKS-EXAMPLE: Drop `claude_hooks_example.py`. (chore/cleanup-agents-md)
 - [x] [DOCS][chore] CLEAN-ART-SCRIPTS: Move `gen_ponmi.py` and `gen_meowatar_gifs.py` to `tools/`. (chore/cleanup-agents-md)
 - [x] [DOCS][decision] SPLIT-OVERLAY: Yes, modular and optimized (Daniel 21/11). Work is SPLIT.1–.5.
-  - [ ] [DOCS][docs] SPLIT.1 @pixel: Design doc docs/architecture.md: nested package map, import rules, overlay.py shim plan. (M)
-  - [ ] [OVL][chore] SPLIT.2 @pixel: Extract sheet loaders, spring/leash physics and effects from overlay.py. (M)
-  - [ ] [OVL][chore] SPLIT.3 @pixel: Extract Avatar, SessionScanner and WindowTerrain. (M)
-  - [ ] [OVL][chore] SPLIT.4 @pixel: Split OverlayApp into render, input, HUD/menu, chat/topics, portal and subagent controllers. (L)
-  - [ ] [BUILD][chore] SPLIT.5 @pixel: Optimize the tick loop (PhotoImage cache, dirty redraw), type hints, ruff, fix pyproject py-modules and spec hidden imports. (M)
+  - [x] [DOCS][docs] SPLIT.1 @pixel: Design doc docs/architecture.md: nested package map, import rules, overlay.py shim plan. (M) (daily 2026-11-23)
+  - [x] [OVL][chore] SPLIT.2 @pixel: Extract sheet loaders, spring/leash physics and effects from overlay.py. (M) (daily 2026-11-23)
+  - [x] [OVL][chore] SPLIT.3 @pixel: Extract Avatar, SessionScanner and WindowTerrain. (M) (daily 2026-11-23)
+  - [x] [OVL][chore] SPLIT.4 @pixel: Split OverlayApp into render, input, HUD/menu, chat/topics, portal and subagent controllers. (L) (daily 2026-11-23)
+  - [x] [BUILD][chore] SPLIT.5 @pixel: Optimize the tick loop (PhotoImage cache, dirty redraw), type hints, ruff, fix pyproject py-modules and spec hidden imports. (M) (daily 2026-11-23)
 - [ ] [SRC][decision] GROK-LOGIN: Daniel runs `grok login`.
 
 ### 🧭 Workstream 70/30 — organization (23/11/2026)
@@ -467,7 +467,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
   - [ ] [DOCS][chore] SYNC-COPY.3 @pixel: after SPLIT.5. (S)
   - [ ] [DOCS][chore] SYNC-COPY.4 @pixel: after the batch 2 ports. (S)
 - [ ] [DOCS][chore] PORT-AG @pixel: Recurring: one run per merged Agents PR. Opus review as untrusted data (never run its scripts; check secrets, paths, network/process code, shell=True, prompts in argv, CLI starts without user action, license, PNG size/palette, JSON vs BLDG-SCHEMA), port branch off dev, Windows test, PR to dev. Ports that add process launching, network listeners or git push/pull wait for a manual merge.
-  - [ ] [DOCS][chore] PORT-AG1 @pixel: Review and port AG-1 (Spidey PR #23) into docs/building/. (S)
+  - [x] [DOCS][chore] PORT-AG1 @pixel: Review and port AG-1 (Spidey PR #23) into docs/building/. (S) (daily 2026-11-23)
   - [ ] [DOCS][chore] PORT-AG2 @pixel: Review and port AG-2..AG-4 assets and data. (S)
 - [ ] [DOCS][decision] MIGRATE-REPO: Move Agents' workspace from Spidey assets/dungeon-kit to a new private repo. Daniel decides when and where.
   - [ ] [DOCS][chore] MIGRATE-REPO.1 @pixel: Once the repo exists and Agents has access: copy cli-avatars/, update AGENTS_BRIEF.md, the PORT and SYNC paths and the loop routine; leave a pointer in the old folder. (S)
@@ -476,14 +476,14 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 ### 📐 Specs
 
-- [ ] [BLDG][docs] BLDG-SCHEMA @pixel: docs/building-scene.md: the scene and layout JSON schema that Agents' layouts and BLDG.1 share. (S)
-- [ ] [DOCS][docs] BOARD-SPEC @pixel: docs/board.md: card schema, local and git stores, auto-detect, notify flow, web API and threat model. (S)
+- [x] [BLDG][docs] BLDG-SCHEMA @pixel: docs/building-scene.md: the scene and layout JSON schema that Agents' layouts and BLDG.1 share. (S) (daily 2026-11-23)
+- [x] [DOCS][docs] BOARD-SPEC @pixel: docs/board.md: card schema, local and git stores, auto-detect, notify flow, web API and threat model. (S) (daily 2026-11-23)
 
 ### 💬 Chat tree and sending
 
 - [ ] [CHAT][feat] CHAT-HARNESS-READ @agents: Read agent specs from each harness (Claude Code user and project agents, hooks config; Grok harness) read-only, as data. New module harness.py, with tests. (M)
-- [ ] [CHAT][feat] CHAT-TREE @pixel: Recursive tree project → orchestrator → agents → subagents at any depth, built from live sessions, with a pluggable spec source that CHAT-HARNESS-READ fills; stable node ids; one API for rooms, Building and web. (M)
-- [ ] [CHAT][feat] CHAT-BLOCKED @pixel: New 'blocked' agent state (waiting on a decision, permission or reply), emitted on the bus and shown in the HUD and rooms. (S)
+- [x] [CHAT][feat] CHAT-TREE @pixel: Recursive tree project → orchestrator → agents → subagents at any depth, built from live sessions, with a pluggable spec source that CHAT-HARNESS-READ fills; stable node ids; one API for rooms, Building and web. (M) (daily 2026-11-23)
+- [x] [CHAT][feat] CHAT-BLOCKED @pixel: New 'blocked' agent state (waiting on a decision, permission or reply), emitted on the bus and shown in the HUD and rooms. (S) (daily 2026-11-23)
 - [ ] [CHAT][feat] CHAT-COUNTS @agents: Counts of orchestrators, agents, subagents, conversations and open topics per project and in total, from CHAT-TREE. (S)
 - [ ] [CHAT][feat] CHAT-SEND-CLAUDE @agents: MVP1: send to a live Claude Code session through its inbox, delivered by the hook or MCP; explicit click or Enter only (after CLAUDE-HOOK-INSTALL). (M)
 - [ ] [CHAT][feat] CHAT-SEND-GROK @agents: MVP2: the same for Grok sessions. Blocked by GROK-LOGIN. (M)
@@ -491,9 +491,9 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 ### 🗨️ Room chat (replaces TERMINAL-P4)
 
 - [ ] [CHAT][feat] ROOM-CHAT: One orchestrator chat per room/topic. Clicking an avatar or room opens it; it starts Claude Code and/or Grok CLI only on Daniel's explicit action, and everything is logged to the topic and board.
-  - [ ] [DOCS][docs] ROOM-CHAT.0 @pixel: docs/room-chat.md spec and threat model; update the CLI rule in AGENTS.md, CLAUDE.md and README. (S)
+  - [x] [DOCS][docs] ROOM-CHAT.0 @pixel: docs/room-chat.md spec and threat model; update the CLI rule in AGENTS.md, CLAUDE.md and README. (S) (daily 2026-11-23)
   - [ ] [CHAT][feat] ROOM-CHAT.1 @agents: Room model: topic, participants (claude, grok), working dir picked by Daniel and stored only in the per-user data dir. (S)
-  - [ ] [CHAT][feat] ROOM-CHAT.2 @pixel: cli_runner: allowlisted binaries, fixed argv, shell=False, prompt on stdin, cwd = room dir, one process per room, timeout, Stop, output cap; fake-CLI tests. Security-critical. (M)
+  - [x] [CHAT][feat] ROOM-CHAT.2 @pixel: cli_runner: allowlisted binaries, fixed argv, shell=False, prompt on stdin, cwd = room dir, one process per room, timeout, Stop, output cap; fake-CLI tests. Security-critical. (M) (daily 2026-11-23)
   - [ ] [CHAT][feat] ROOM-CHAT.3 @agents: Parse stream-json into sanitised topic messages and a board log entry per prompt; nothing executed. (M)
   - [ ] [CHAT][feat] ROOM-CHAT.4 @agents: Chat pane opened by clicking an avatar or room; target picker Claude / Grok / Both; Enter sends the typed prompt (after SPLIT.4). (M)
   - [ ] [CHAT][feat] ROOM-CHAT.5 @agents: 'Both' sends one prompt to both CLIs, shown in two separate tagged lanes. (S)
@@ -530,5 +530,18 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 - [ ] [ART][art] AG-2 @agents: Five sprites: counts wall plaque, 4 small state halos, +n badge, avatar rows for error and blocked.
 - [ ] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format.
 - [ ] [ART][docs] AG-4 @agents: Sprites/dungeon_kit/manifest.json: anchor, footprint, category and light flag for each piece.
+
+### Windowed dungeon
+
+See [`docs/windowed-dungeon.md`](docs/windowed-dungeon.md).
+
+- [ ] [OVL][feat] WIN-DUNGEON.1 @pixel: `desktop/monitors.py` and pure `world/monitors.py` (5.1); signature. (S)
+- [ ] [OVL][feat] WIN-DUNGEON.2 @pixel: One overlay per monitor (5.2–5.5); avatars in virtual px; terrain over all monitors; drag clamp to the monitor union; hot-plug polling. Dungeon not yet involved. (M)
+- [ ] [OVL][feat] WIN-DUNGEON.3 @pixel: Dungeon root window (3.1–3.3): framed, resizable, pin, close = quit, ESC change, tray items; docks for Topics, Chat (with pop out), Settings, Skins; status bar replaces the HUD; geometry per signature in the data dir. Scene area shows an empty dungeon floor. (M)
+- [ ] [BLDG][feat] WIN-DUNGEON.4 @agents: Scene in the Dungeon: `building_view.py` renders BLDG.1 scene JSON with zoom auto and pan; inside actors at their spots; click opens the chat dock, double-click focuses the console. (M)
+- [ ] [OVL][feat] WIN-DUNGEON.5 @pixel: `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. (M)
+- [ ] [OVL][feat] WIN-DUNGEON.6 @agents: Escape and return animations (4.2): door, arch swap, portal at the border, size hand-off, child stagger; roam rules; `idle_return_s`; Call home. (S)
+- [ ] [OVL][feat] WIN-DUNGEON.7 @pixel: Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. (S)
+- Door: when open, blocked/error agents may escape; when closed, drag only. All-roam is the last, low-priority step. Defaults A close=quit, C chat docked + pop-out, D all monitors, E idle 5 min -> walk home.
 
 - [x] [DOCS][docs] TASKS-EPICS: tag TASKS.md with epics and workflow types
