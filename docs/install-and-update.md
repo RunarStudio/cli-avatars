@@ -47,7 +47,7 @@ The buttons stay disabled, with the reason beside the Settings button and as the
 
 An installed build keeps a clone at `%LOCALAPPDATA%\cli-avatars\src`. The first update clones `https://github.com/RunarStudio/cli-avatars.git` on branch `dev`. `config.json` may set `update.repo_url` to another `https://github.com/<owner>/<repo>.git` URL. A URL with a username, a token, or a non-https scheme is rejected and git is not started. `update.channel`, when present, must be `dev`.
 
-Update runs only these commands, each as an argument list with `shell` false and a timeout. Combined output is appended to `update.log` in the data directory. Userinfo in an https URL is stripped from that log.
+Update runs only these commands, each as an argument list with `shell` false and a timeout. On Windows no console window opens for any of them, the restart helper included. Combined output is appended to `update.log` in the data directory. Userinfo in an https URL is stripped from that log.
 
 1. `git fetch origin dev`
 2. Compare `origin/dev` with the installed commit (`version.json`, else the bundled stamp).

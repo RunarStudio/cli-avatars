@@ -84,6 +84,7 @@ def run_fixed(
             stderr=subprocess.STDOUT,
             env=None if env is None else dict(env),
             check=False,
+            **_windowless(hide=True),
         )
         code = int(completed.returncode)
         raw = completed.stdout or b""
@@ -116,12 +117,25 @@ def spawn_detached(argv: Sequence[str], *, cwd: Path | None) -> None:
         "close_fds": True,
     }
     if sys.platform == "win32":
-        flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        kwargs["creationflags"] = flags
+        kwargs.update(_windowless(hide=False))
+        kwargs["creationflags"] |= subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
     subprocess.Popen(**kwargs)
+
+
+def _windowless(*, hide: bool) -> dict:
+    """Windows kwargs: a console child gets a hidden console; ``hide`` also hides its first window."""
+    if sys.platform != "win32":
+        return {}
+    # Not DETACHED_PROCESS: Windows then ignores CREATE_NO_WINDOW and a console grandchild opens a window.
+    kwargs: dict = {"creationflags": subprocess.CREATE_NO_WINDOW}
+    if hide:
+        info = subprocess.STARTUPINFO()
+        info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        info.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = info
+    return kwargs
 
 
 def _clip(text: str, limit: int) -> str:
