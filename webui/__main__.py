@@ -30,10 +30,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.demo:
         import tempfile
 
-        from webui.demo import seed
+        from webui import live
+        from webui.demo import roster, seed
 
         directory = Path(tempfile.mkdtemp(prefix="cli-avatars-demo-"))
         seed(directory)
+        live.set_roster(roster)
     token = auth.rotate_token(directory) if args.new_token else auth.load_token(directory)
     httpd = server.make_server(directory, settings.bind, settings.port)
     link = config.phone_link(settings, token)

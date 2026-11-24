@@ -63,10 +63,10 @@ class SceneTests(unittest.TestCase):
         self.assertEqual(len(forge["poly"]), 4)
         x, y, w, h = forge["box"]
         self.assertTrue(0 <= x and 0 <= y and x + w <= scene["map"]["w"] and y + h <= scene["map"]["h"])
-        skins = {a["room"]: a["skin"] for a in scene["avatars"]}
-        self.assertEqual(skins["moon-forge"], "caine")
-        self.assertEqual(skins["glass-orchard"], "michimaru")
-        self.assertIn("caine", scene["sprites"])
+        skins = {a["room"]: a["sprite"] for a in scene["avatars"]}
+        self.assertEqual(skins["moon-forge"], "orchestrator")
+        self.assertEqual(skins["glass-orchard"], "grok")
+        self.assertIn("orchestrator", scene["sprites"])
 
     def test_map_png_matches_scene(self):
         scene = build_scene(self.dir)
@@ -329,7 +329,7 @@ class DemoTests(unittest.TestCase):
             demo_seed(Path(tmp))
             scene = build_scene(Path(tmp))
             self.assertEqual(len(scene["rooms"]), 4)
-            self.assertEqual(len(scene["avatars"]), 3)
+            self.assertEqual(len(scene["avatars"]), 4)
             from webui.scene import cards
 
             self.assertEqual({c["column"] for c in cards(Path(tmp))}, {"todo", "doing", "review", "blocked", "done"})

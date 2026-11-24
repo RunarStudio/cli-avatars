@@ -5,11 +5,12 @@ Starting it here is Daniel's click; ``start_from_config`` restarts it with the a
 
 from __future__ import annotations
 
+import time
 import tkinter as tk
 from dataclasses import replace
 
 from events import app_data_dir
-from webui import auth, config, qr, server
+from webui import auth, config, live, qr, server
 
 _BG, _FG, _SEL, _DIM, _BAD = "#0d0d1a", "#aaccff", "#223366", "#9a98b8", "#ff8866"
 _FONT = ("Courier", 9)
@@ -26,12 +27,23 @@ def start(app, settings: config.WebSettings) -> str:
         app._phone_server, _thread = server.start(app_data_dir(), settings.bind, settings.port)
     except (OSError, ValueError) as exc:
         return f"Could not serve on {settings.bind}:{settings.port}: {exc}"
+    live.set_roster(lambda _lay, _now: dungeon_roster(app))
     return ""
 
 
 def stop(app) -> None:
+    live.set_roster(None)
     server.stop(getattr(app, "_phone_server", None))
     app._phone_server = None
+
+
+def dungeon_roster(app, stale: float = 2.0) -> list[dict] | None:
+    """The Dungeon's last roster snapshot; None when it is older than ``stale`` seconds (window hidden)."""
+    hall = getattr(getattr(app, "places", None), "_hall", None)
+    snap = getattr(hall, "snapshot", None)
+    if snap is None or time.monotonic() - snap[0] > stale:
+        return None
+    return snap[1]
 
 
 def start_from_config(app) -> None:

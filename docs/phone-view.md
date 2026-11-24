@@ -34,14 +34,16 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 |-------|------|
 | `/pair?t=<token>` | Checks the token and sets the pairing cookie, then redirects to `/`. |
 | `/` and `/static/app.js`, `/static/app.css` | The page. Vanilla JS, no build step. |
-| `/api/scene` | Rooms with their floor outline and box in map pixels, one avatar per session room, task id to room. |
+| `/api/scene` | Rooms with their floor outline and box in map pixels, every avatar (you, sessions, bots, subagents, the Apothecary's roamers) with feet, facing and walk, task id to room. |
 | `/api/board`, `/api/cards/<id>` | Open cards of every board, busiest column first, each with its room. |
 | `/api/chat/<topic>?tail=N` | The room's last messages (default 30, at most 200). |
 | `/api/map.png` | The Dungeon map, composed from the kit exactly as the Dungeon window draws it. |
-| `/api/sprite/<skin>.png` | Idle frames of a known avatar sheet. |
-| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes. |
+| `/api/sprite/<look>.png` | Idle and walk rows of a roster look (`user`, `orchestrator`, `grok`, `grok-<hue>`, `subagent`), cut as the Dungeon cuts them. |
+| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move. |
 
 A task lives in the room of its topic (a session room opened from the Dungeon); a task without one lives in the Apothecary.
+
+The avatars are the Dungeon's own: while the Dungeon window runs, the page shows where each one stands and walks (you, every session, bot and subagent, the roamers in the Apothecary). With the Dungeon hidden or `python -m webui` alone, you stand in the Apothecary and one avatar wanders each session room.
 
 ## Security
 

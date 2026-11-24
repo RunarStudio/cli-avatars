@@ -8,11 +8,12 @@ it wanders on that floor and changes room only through the doors (``room_floor``
 
 from __future__ import annotations
 
+import time
 import zlib
 from contextlib import contextmanager
 from dataclasses import replace
 
-from cli_avatars.app.av_roster import GROK, USER_ID, bot_hues, kind_of, look_for, roster_frame
+from cli_avatars.app.av_roster import GROK, USER_ID, base_hue, bot_hues, kind_of, look_for, roster_frame
 from cli_avatars.app.needs_walk import Walker, beside, needing, read_rooms, stroll
 from cli_avatars.app.room_fit import fit_inside
 from cli_avatars.app.room_floor import Plan, along, length, wander
@@ -26,6 +27,25 @@ STEP = 44
 STROLL = 12
 USER_ROOM = "Apothecary"
 FEET_UP = 0.08
+SNAPSHOT_S = 0.2
+
+
+def roster_rows(feet: dict, inside: dict, rooms: dict, hues: dict, walking: set) -> list[dict]:
+    """PHONE.2: each avatar's feet in layout tiles, room and look, for the phone map. Plain data."""
+    out = []
+    for aid, spot in feet.items():
+        av = inside.get(aid)
+        agent = getattr(av, "agent", None)
+        if aid != USER_ID and agent is None:
+            continue
+        kind = "user" if aid == USER_ID else kind_of(agent)
+        row = {"id": aid, "kind": kind, "name": "You" if aid == USER_ID else str(getattr(agent, "name", "") or ""),
+               "room": rooms.get(aid), "feet": (float(spot[0]), float(spot[1])),
+               "face": -1 if getattr(av, "dir", 1) < 0 else 1, "walk": aid in walking}
+        if kind == GROK:
+            row["hue"] = hues.get(aid, base_hue(aid))
+        out.append(row)
+    return out
 
 
 class RosterPhotos:
@@ -93,6 +113,7 @@ class Hall:
         self._feet: dict[str, tuple[float, float]] = {}
         self._sent: dict[str, str] = {}
         self._now = 0.0
+        self.snapshot: tuple[float, list[dict]] | None = None
 
     def plan(self) -> Plan | None:
         """Rooms of the painted layout, or None while the plain floor shows."""
@@ -213,7 +234,20 @@ class Hall:
                 continue
             av.frame, av.dir = int(now * 5), face
             moved[aid] = self._spot(feet, av)
+        self._publish(plan)
         return moved
+
+    def _publish(self, plan: Plan) -> None:
+        """At most five times a second: who stands where, for the phone view's thread to read."""
+        stamp = time.monotonic()
+        last = self.snapshot
+        if last is not None and stamp - last[0] < SNAPSHOT_S:
+            return
+        before = {row["id"]: row["feet"] for row in last[1]} if last is not None else {}
+        feet = dict(self._feet)
+        walking = {aid for aid, spot in feet.items() if before.get(aid) not in (None, spot)}
+        rooms = {aid: plan.room_at(*spot) for aid, spot in feet.items()}
+        self.snapshot = (stamp, roster_rows(feet, self.book.app._inside, rooms, self.hues, walking))
 
     def _where(self, plan: Plan, aid: str, now: float) -> tuple[tuple[float, float], int]:
         trip = self._trips.get(aid)

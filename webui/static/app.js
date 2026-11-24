@@ -6,7 +6,7 @@ const canvas = $("map");
 const ctx = canvas.getContext("2d");
 const LABELS = { todo: "TODO", doing: "DOING", review: "REVIEW", done: "DONE", blocked: "BLOCKED" };
 const state = { scene: null, cards: [], sel: null, room: null, map: null, mapKey: "", sprites: {},
-  view: { x: 0, y: 0, s: 1 }, anim: null, fitted: false, chatKey: "", glow: 0 };
+  view: { x: 0, y: 0, s: 1 }, anim: null, fitted: false, chatKey: "", glow: 0, walkers: new Map() };
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -167,6 +167,7 @@ function frame(now) {
     drawAvatars(now);
     ctx.restore();
     drawLabels();
+    drawNames();
   }
   requestAnimationFrame(frame);
 }
@@ -189,18 +190,75 @@ function drawGlow(now) {
   ctx.restore();
 }
 
+// avatars glide from their last position to the newest one over one SSE tick
+const TICK = 260;
+function setAvatars(list, now) {
+  const next = new Map();
+  for (const a of list) {
+    const was = state.walkers.get(a.id);
+    const from = was ? place(was, now) : a.at;
+    next.set(a.id, { a, from, to: a.at, t0: now });
+  }
+  state.walkers = next;
+}
+
+function place(w, now) {
+  const k = Math.min(1, (now - w.t0) / TICK);
+  return [w.from[0] + (w.to[0] - w.from[0]) * k, w.from[1] + (w.to[1] - w.from[1]) * k];
+}
+
 function drawAvatars(now) {
-  for (const a of state.scene.avatars) {
-    const sheet = state.sprites[a.skin], meta = state.scene.sprites[a.skin];
-    const [x, y] = a.at;
-    ctx.fillStyle = "rgba(0,0,0,.35)";
+  const shown = [...state.walkers.values()].map((w) => ({ w, at: place(w, now) })).sort((p, q) => p.at[1] - q.at[1]);
+  for (const { w, at } of shown) {
+    const a = w.a, sheet = state.sprites[a.sprite], meta = state.scene.sprites[a.sprite];
+    const [x, y] = at;
+    ctx.fillStyle = "rgba(0,0,0,.38)";
     ctx.beginPath();
-    ctx.ellipse(x, y, 12, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y, a.kind === "subagent" ? 8 : 11, 4, 0, 0, Math.PI * 2);
     ctx.fill();
     if (!sheet || !meta) continue;
-    const f = Math.floor(now / 160) % meta.frames;
-    ctx.drawImage(sheet, f * meta.w, 0, meta.w, meta.h, Math.round(x - meta.w / 2), Math.round(y - meta.h + 4), meta.w, meta.h);
+    const walking = a.walk || Math.hypot(w.to[0] - at[0], w.to[1] - at[1]) > 0.3;
+    const f = Math.floor((now + hashNum(a.id) * 37) / (walking ? 110 : 190)) % meta.frames;
+    const top = Math.round(y - meta.h * (1 - meta.feet));
+    ctx.save();
+    ctx.translate(Math.round(x), 0);
+    if (a.face < 0) ctx.scale(-1, 1);
+    ctx.drawImage(sheet, f * meta.w, walking ? meta.h : 0, meta.w, meta.h, -Math.round(meta.w / 2), top, meta.w, meta.h);
+    ctx.restore();
+    if (a.kind === "user") {
+      ctx.strokeStyle = "rgba(255,210,122,.75)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 13, 5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
+}
+
+function drawNames() {
+  const v = state.view;
+  if (v.s < 1.7) return;
+  ctx.font = `600 11px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  const now = performance.now();
+  for (const w of state.walkers.values()) {
+    const meta = state.scene.sprites[w.a.sprite];
+    if (!meta || !w.a.name) continue;
+    const [x, y] = place(w, now);
+    const sx = v.x + x * v.s, sy = v.y + (y - meta.h * (1 - meta.feet)) * v.s - 3;
+    const tw = ctx.measureText(w.a.name).width + 8;
+    ctx.fillStyle = "rgba(12,8,18,.72)";
+    ctx.fillRect(Math.round(sx - tw / 2), Math.round(sy - 14), Math.round(tw), 14);
+    ctx.fillStyle = w.a.kind === "user" ? "#ffd27a" : "#e9dcbc";
+    ctx.fillText(w.a.name, Math.round(sx), Math.round(sy));
+  }
+}
+
+function hashNum(text) {
+  let h = 7;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+  return Math.abs(h) % 97;
 }
 
 function drawLabels() {
@@ -316,6 +374,7 @@ async function load() {
     for (const skin of Object.keys(scene.sprites)) {
       if (!state.sprites[skin]) state.sprites[skin] = await loadImage("/api/sprite/" + skin + ".png");
     }
+    setAvatars(scene.avatars, performance.now());
   }
   if (!state.fitted && scene.map) { state.view = wholeMap(); state.fitted = true; }
   if (state.room && !scene.rooms.some((r) => r.name === state.room)) state.room = null;
@@ -339,6 +398,14 @@ function live() {
   src.addEventListener("change", () => {
     clearTimeout(pending);
     pending = setTimeout(() => load().catch(() => {}), 150);
+  });
+  src.addEventListener("avatars", (e) => {
+    if (!state.scene) return;
+    let data;
+    try { data = JSON.parse(e.data); } catch (_e) { return; }
+    const fresh = data.avatars.filter((a) => !state.scene.sprites[a.sprite]);
+    if (fresh.length) { clearTimeout(pending); pending = setTimeout(() => load().catch(() => {}), 150); }
+    setAvatars(data.avatars, performance.now());
   });
 }
 

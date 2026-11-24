@@ -21,6 +21,9 @@ TASKS = (
     (None, "Sweep the Apothecary stairs", "todo", None, ""),
     ("glass-orchard", "Prune the crystal vines", "done", None, "vines grow back slower when pruned at dusk"),
 )
+ROAMERS = ({"id": "claude:quill", "kind": "orchestrator", "name": "Quill"},
+           {"id": "bot:night-owl", "kind": "grok", "name": "Night owl"},
+           {"id": "claude:quill/sub", "kind": "subagent", "name": "Quill helper"})
 CHAT = {
     "moon-forge": (("user", "Gate status?"), ("claude", "Hinges are oiled. The runes on the left leaf are faint."),
                    ("claude", "Re-cutting rune 3 of 7 now."), ("user", "Keep the old pattern."),
@@ -29,6 +32,13 @@ CHAT = {
                       ("user", "Leave the pear, note it."), ("grok", "Noted on the card. Ready for review.")),
     "ember-ledger": (("claude", "Ledger page 4 does not add up."), ("claude", "Blocked: need the coal count."),),
 }
+
+
+def roster(lay: dict | None, now: float) -> list[dict]:
+    """The demo's avatars: one per room, you, and three made-up roamers in the Apothecary."""
+    from webui.live import fallback
+
+    return fallback(lay, now, ROAMERS)
 
 
 def seed(directory: Path | str) -> dict[str, str]:

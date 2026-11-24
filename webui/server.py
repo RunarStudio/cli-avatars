@@ -29,8 +29,9 @@ MAX_BODY = 16 * 1024
 MAX_STREAMS = 8
 DEFAULT_TAIL, MAX_TAIL = 30, 200
 KEEPALIVE = 15.0
+AVATAR_TICK = 0.25
 _BAD_PATH = re.compile(r"\.\.|%2e|%2f|%5c|\\|//", re.IGNORECASE)
-_SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24})\.png$")
+_SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; "
                                "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -163,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"topic": topic, "messages": messages})
 
     def _events(self) -> None:
-        """Server-sent events: ``change`` when the boards, rooms or chat change."""
+        """Server-sent events: ``change`` when the boards, rooms or chat change; ``avatars`` as they move."""
         if not self.server.streams.acquire(blocking=False):
             return self._error(503)
         self.close_connection = True
@@ -177,7 +178,17 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(b"retry: 3000\n\n")
             self.wfile.flush()
             last, quiet = scene.stamp(self.server.directory), time.monotonic()
-            while not self.server.stopping.wait(self.server.poll):
+            checked, sent = quiet, None
+            while not self.server.stopping.wait(min(self.server.poll, AVATAR_TICK)):
+                avatars = scene.avatars_now(self.server.directory)
+                if avatars is not None and avatars != sent:
+                    sent, quiet = avatars, time.monotonic()
+                    data = json.dumps({"avatars": avatars}, separators=(",", ":"))
+                    self.wfile.write(f"event: avatars\ndata: {data}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                if time.monotonic() - checked < self.server.poll:
+                    continue
+                checked = time.monotonic()
                 now = scene.stamp(self.server.directory)
                 if now != last:
                     last, quiet = now, time.monotonic()
