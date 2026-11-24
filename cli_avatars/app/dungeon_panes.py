@@ -169,6 +169,8 @@ def _toolbar(view, root) -> None:
     mark(app._rooms_btn, getattr(app, "_rooms_shown", True))
     mark(app._chat_btn, getattr(app, "_chat_shown", False))
     window = group(bar, WINDOW, side="right")
+    app._update_tool = control(window, "update", text="Update", command=lambda: _update(app))
+    _sync_update(app)
     view._pin = control(window, "pin", text="Pin", command=view.toggle_pin)
     menu = tk.Menu(bar, tearoff=0, bg=_BAR, fg=_INK)
     menu.add_command(label="Quit", command=app._quit)
@@ -232,6 +234,18 @@ def _body(view, root) -> None:
     view._sash_r.bind("<B1-Motion>", lambda e: view.drag_dock(view._right, e, 200, 720))
     repack(view)
     show_center(view, "dungeon")
+
+
+def _update(app) -> None:
+    from cli_avatars.app import update_ui
+
+    update_ui.start_update(app)
+
+
+def _sync_update(app) -> None:
+    from cli_avatars.app.update_ui import sync_update_tool
+
+    sync_update_tool(app)
 
 
 def _toggle_door(app) -> None:

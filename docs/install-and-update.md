@@ -2,6 +2,14 @@
 
 CLI Avatars installs per user on Windows and can rebuild itself from the `dev` branch. The installer does not need an administrator account. Updating uses the git credentials already on the machine. The app does not read those credentials, does not store tokens, and does not put them on a command line.
 
+## First install on your PC
+
+1. Install Python 3, git, PyInstaller (`python -m pip install -r requirements-build.txt`), and Inno Setup 6.6 or newer.
+2. Clone dev: `git clone --branch dev https://github.com/RunarStudio/cli-avatars.git`, then `python -m pip install -r requirements.txt` in it.
+3. Build the installer: `python tools/build_installer.py`.
+4. Run `dist\CLI-Avatars-Setup.exe` and start CLI Avatars from the Start menu.
+5. To get the latest dev later, press **Update** on the toolbar.
+
 ## Install
 
 `tools/build_installer.py` builds an onedir app with PyInstaller (`packaging/cli_avatars.spec`) and then compiles `packaging/installer.iss` with Inno Setup 6.6 or newer. The version string comes from `cli_avatars/__version__.py`. The build writes the current commit into `version.json` beside the executable and into `build_stamp.json` inside the bundle. A frozen boot check reads that `version.json` and shows the first 12 characters of the commit on the status line.
@@ -22,9 +30,9 @@ The portable onefile executables from `build.ps1` are unchanged.
 
 ## Update
 
-Settings, in the Dungeon dock, shows the version, the short commit, and the last time an update was checked. **Update app** is the same item in the tray menu. Progress is a line on the status bar. The button does not open a window.
+**Update** on the Dungeon toolbar, in the WINDOW group, starts the update. Settings, in the Dungeon dock, shows the version, the short commit, and the last time an update was checked. **Update app** in Settings and in the tray menu does the same. Progress is a line on the status bar. The button does not open a window.
 
-The button stays disabled, with the reason beside it, when `git` is not on `PATH` or when `python -m PyInstaller --version` fails. A source checkout shows "Running from source" because there is no install folder to swap.
+The buttons stay disabled, with the reason beside the Settings button and as the toolbar button's tooltip, when `git` is not on `PATH` or when `python -m PyInstaller --version` fails. A source checkout shows "Running from source" because there is no install folder to swap.
 
 An installed build keeps a clone at `%LOCALAPPDATA%\cli-avatars\src`. The first update clones `https://github.com/RunarStudio/cli-avatars.git` on branch `dev`. `config.json` may set `update.repo_url` to another `https://github.com/<owner>/<repo>.git` URL. A URL with a username, a token, or a non-https scheme is rejected and git is not started. `update.channel`, when present, must be `dev`.
 

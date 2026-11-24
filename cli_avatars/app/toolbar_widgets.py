@@ -95,7 +95,7 @@ def hint(widget, key: str) -> None:
     def show() -> None:
         root = widget.winfo_toplevel()
         label = _tip_label(root)
-        label.config(text=kit.tip(key, str(widget.cget("text"))))
+        label.config(text=getattr(widget, "_kit_reason", "") or kit.tip(key, str(widget.cget("text"))))
         label.update_idletasks()
         x = widget.winfo_rootx() - root.winfo_rootx()
         y = widget.winfo_rooty() - root.winfo_rooty() + widget.winfo_height() + 4
