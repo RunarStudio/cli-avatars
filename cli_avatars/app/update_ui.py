@@ -61,9 +61,25 @@ def apply_probe(app, toolchain) -> None:
     """Store the tool probe and refresh the dock if it is already open."""
     app._update_toolchain = toolchain
     app._update_block = block_reason(toolchain.reason, installed_dir() is not None)
+    sync_update_tool(app)
     refresh = getattr(app, "_refresh_update_panel", None)
     if refresh is not None:
         refresh()
+
+
+def sync_update_tool(app) -> None:
+    """Toolbar Update: enabled when the update may run, else disabled with the reason as tooltip."""
+    button = getattr(app, "_update_tool", None)
+    if button is None:
+        return
+    reason = getattr(app, "_update_block", "Checking git and PyInstaller")
+    if not reason and getattr(app, "_update_running", False):
+        reason = "Update: already running"
+    try:
+        button.config(state="disabled" if reason else "normal", cursor="" if reason else "hand2")
+    except tk.TclError:
+        return
+    button._kit_reason = reason
 
 
 def start_update(app) -> None:
@@ -187,6 +203,7 @@ def _set_status(app, text: str) -> None:
 
 
 def _set_button(app, enabled: bool) -> None:
+    sync_update_tool(app)
     button = getattr(app, "_update_button", None)
     if button is None:
         return
