@@ -100,8 +100,17 @@ class Handler(BaseHTTPRequestHandler):
 
     do_PUT = do_DELETE = do_PATCH = _refuse_body
 
+    def _stopped(self) -> bool:
+        """After ``stop`` a kept-alive phone gets 503 and a closed connection, not the old app's answers."""
+        if not self.server.stopping.is_set():
+            return False
+        self._send(503, b'{"error":503}', extra={"Connection": "close"})
+        return True
+
     def do_POST(self) -> None:
         """A write: writes on, paired, CSRF header, JSON body under the cap, under the rate limit."""
+        if self._stopped():
+            return
         if not self.server.writes():
             return self._refuse_body()
         self.close_connection = True
@@ -134,6 +143,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _write(self, path: str, body: dict) -> None:
         actions = self.server.actions
+        if path == "/api/update":
+            why = self.server.updater.start()
+            return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
         if path == "/api/sessions":
             if set(body) - {"kind", "cli", "topic"}:
                 return self._error(400)
@@ -153,6 +165,8 @@ class Handler(BaseHTTPRequestHandler):
         self._error(404)
 
     def do_GET(self) -> None:
+        if self._stopped():
+            return
         if len(self.path) > MAX_URL:
             self.close_connection = True
             return self._error(414)
@@ -208,6 +222,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(state)
         if path.startswith("/api/chat/"):
             return self._chat(path[len("/api/chat/"):], query)
+        if path == "/api/update":
+            return self._json(self.server.updater.status())
         if path == "/api/map.png":
             png = scene.map_png(directory)
             return self._send(200, png, "image/png", {"Cache-Control": "private, max-age=60"}) if png \
@@ -273,7 +289,8 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"topic": topic, "messages": messages, "running": topic in self.server.actions.running})
 
     def _events(self) -> None:
-        """Server-sent events: ``change`` when the boards, rooms or chat change; ``avatars`` as they move."""
+        """Server-sent events: ``change`` when the boards, rooms or chat change; ``avatars`` as they move;
+        ``update`` with the Update status on every progress line."""
         if not self.server.streams.acquire(blocking=False):
             return self._error(503)
         self.close_connection = True
@@ -288,7 +305,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
             last, quiet = scene.stamp(self.server.directory), time.monotonic()
             checked, sent = quiet, None
+            updater, update_seq = self.server.updater, self.server.updater.seq()
             while not self.server.stopping.wait(min(self.server.poll, AVATAR_TICK)):
+                if updater.seq() != update_seq:
+                    update_seq, quiet = updater.seq(), time.monotonic()
+                    data = json.dumps(updater.status(), separators=(",", ":"))
+                    self.wfile.write(f"event: update\ndata: {data}\n\n".encode("utf-8"))
+                    self.wfile.flush()
                 avatars = scene.avatars_now(self.server.directory)
                 if avatars is not None and avatars != sent:
                     sent, quiet = avatars, time.monotonic()
@@ -313,10 +336,29 @@ class Handler(BaseHTTPRequestHandler):
             self.server.streams.release()
 
 
+class NoUpdate:
+    """``python -m webui`` alone: Update runs from the app, so the phone shows why not."""
+
+    REASON = "Update runs in the Dungeon app. Start the app to update from here."
+
+    def seq(self) -> int:
+        return 0
+
+    def status(self) -> dict:
+        from cli_avatars.update.version import display_version
+
+        version, commit = display_version()
+        return {"version": version, "commit": commit, "channel": "dev", "last_checked": "", "enabled": False,
+                "reason": self.REASON, "running": False, "line": "", "phase": "", "note": ""}
+
+    def start(self) -> str:
+        return self.REASON
+
+
 class PhoneServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, directory: Path, poll: float, writes=None, actions=None) -> None:
+    def __init__(self, address, directory: Path, poll: float, writes=None, actions=None, updater=None) -> None:
         super().__init__(address, Handler)
         self.directory = Path(directory)
         self.poll = poll
@@ -324,6 +366,7 @@ class PhoneServer(ThreadingHTTPServer):
         self.stopping = threading.Event()
         self.writes = writes or (lambda: False)
         self.actions = actions or writes_actions(self.directory)
+        self.updater = updater or NoUpdate()
         self._limiter = RateLimiter(WRITE_BURST, WRITE_WINDOW)
 
     def allow_write(self) -> bool:
@@ -343,10 +386,11 @@ def writes_actions(directory: Path) -> writes.Actions:
 
 
 def make_server(directory: Path | str, host: str = "127.0.0.1", port: int = 0, poll: float = 1.0,
-                writes=None, actions=None) -> PhoneServer:
+                writes=None, actions=None, updater=None) -> PhoneServer:
     """A bound, not yet serving, server. ``host`` must be one IPv4 address, never the unspecified one.
 
-    ``writes`` is read on every write (the Settings toggle); ``actions`` defaults to the data folder's own.
+    ``writes`` is read on every write (the Settings toggle); ``actions`` defaults to the data folder's own;
+    ``updater`` is the app's Update (PHONE.4), else ``NoUpdate``.
     """
     try:
         addr = ipaddress.IPv4Address(host)
@@ -355,12 +399,12 @@ def make_server(directory: Path | str, host: str = "127.0.0.1", port: int = 0, p
     if addr.is_unspecified or addr.is_multicast:
         raise ValueError("never bind every interface")
     auth.load_token(directory)
-    return PhoneServer((str(addr), port), Path(directory), poll, writes, actions)
+    return PhoneServer((str(addr), port), Path(directory), poll, writes, actions, updater)
 
 
 def start(directory: Path | str, host: str, port: int, writes=None,
-          actions=None) -> tuple[PhoneServer, threading.Thread]:
-    httpd = make_server(directory, host, port, writes=writes, actions=actions)
+          actions=None, updater=None) -> tuple[PhoneServer, threading.Thread]:
+    httpd = make_server(directory, host, port, writes=writes, actions=actions, updater=updater)
     thread = threading.Thread(target=httpd.serve_forever, name="phone-view", daemon=True)
     thread.start()
     return httpd, thread

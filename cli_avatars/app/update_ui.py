@@ -1,6 +1,6 @@
 """Update app in the Settings dock and on the status bar.
 
-The button and the tray item call ``start_update``. Progress replaces the
+The button, the tray item and the phone (``PhoneUpdate``) call ``start_update``. Progress replaces the
 status-bar text. No extra window is created. A missing git or PyInstaller
 leaves the button disabled and names the reason.
 """
@@ -22,7 +22,7 @@ from cli_avatars.update.machine import (
 )
 from cli_avatars.update.proc import spawn_detached
 from cli_avatars.update.tools import block_reason
-from cli_avatars.update.version import display_version, frozen_install_dir, running_commit
+from cli_avatars.update.version import display_version, frozen_install_dir, running_commit, same_commit
 from events import app_data_dir
 
 _BG = "#0d0d1a"
@@ -31,6 +31,9 @@ _SEL = "#223366"
 _DIM = "#9a98b8"
 _BAD = "#ff8866"
 _OK = "#44ff88"
+
+
+SOURCE_REASON = "Running from source. Install CLI Avatars to update it."
 
 
 def installed_dir() -> Path | None:
@@ -82,24 +85,26 @@ def sync_update_tool(app) -> None:
     button._kit_reason = reason
 
 
-def start_update(app) -> None:
-    """Tray and Settings entry. Disabled reasons are shown on the status bar."""
+def start_update(app) -> str:
+    """Tray, Settings and phone entry. Returns why it did not start, also shown on the status bar."""
     if getattr(app, "_update_running", False):
         _set_status(app, "Update: already running")
-        return
+        return "Update: already running"
     reason = getattr(app, "_update_block", "Checking git and PyInstaller")
     if reason:
         _set_status(app, reason)
-        return
+        return reason
     install = installed_dir()
     toolchain = getattr(app, "_update_toolchain", None)
     if install is None or toolchain is None:
-        _set_status(app, "Running from source. Install CLI Avatars to update it.")
-        return
+        _set_status(app, SOURCE_REASON)
+        return SOURCE_REASON
     app._update_running = True
+    app._update_phase = ""
     _set_button(app, enabled=False)
     _set_status(app, "Update: checking dev")
     threading.Thread(target=_worker, args=(app, install, toolchain), name="cli-avatars-update", daemon=True).start()
+    return ""
 
 
 def _worker(app, install: Path, toolchain) -> None:
@@ -122,6 +127,8 @@ def _worker(app, install: Path, toolchain) -> None:
 
 def _finish(app, result: UpdateResult) -> None:
     app._update_running = False
+    app._update_phase = result.phase
+    app._update_note = result.message
     _set_status(app, _bar(result))
     refresh = getattr(app, "_refresh_update_panel", None)
     if refresh is not None:
@@ -193,6 +200,8 @@ def _bar(result: UpdateResult) -> str:
 
 
 def _set_status(app, text: str) -> None:
+    app._update_line = text
+    app._update_seq = getattr(app, "_update_seq", 0) + 1
     label = getattr(app, "_update_label", None)
     if label is None:
         return
@@ -227,3 +236,48 @@ def _runner():
     from cli_avatars.update.proc import run_fixed
 
     return run_fixed
+
+
+class PhoneUpdate:
+    """PHONE.4: the phone's Update row. ``start`` is the toolbar's ``start_update``, run on the Tk thread."""
+
+    def __init__(self, app, call=None) -> None:
+        self.app = app
+        self._call = call or (lambda fn: fn())
+
+    def seq(self) -> int:
+        """Bumps on every progress line and outcome; the SSE stream sends ``update`` when it moves."""
+        return getattr(self.app, "_update_seq", 0)
+
+    def status(self) -> dict:
+        """Version, short commit, last check, whether Update may run and why not, the latest line."""
+        app = self.app
+        install = installed_dir()
+        version, commit = display_version(install)
+        try:
+            state = read_state(app_data_dir())
+        except OSError:
+            state = {}
+        reason = getattr(app, "_update_block", "Checking git and PyInstaller")
+        running = bool(getattr(app, "_update_running", False))
+        phase = "running" if running else getattr(app, "_update_phase", "")
+        note = getattr(app, "_update_note", "")
+        line = getattr(app, "_update_line", "")
+        if phase == PHASE_STAGED and line != "Update: restarting":
+            phase, note = PHASE_FAILED, line.removeprefix("Update: ")
+        if not phase and state.get("phase") == PHASE_STAGED:
+            # a fresh launch after Update: the helper relaunched the new build or put the old one back
+            if same_commit(commit, state.get("upstream")):
+                phase, note = "updated", f"Updated to {commit}"
+            else:
+                phase, note = "rolled_back", f"The new build failed its boot check; back on {commit or 'the old build'}"
+        return {"version": version, "commit": commit, "channel": "dev", "last_checked": state.get("last_checked", ""),
+                "enabled": not reason and not running, "reason": reason, "running": running,
+                "line": line, "phase": phase, "note": note}
+
+    def start(self) -> str:
+        """``""`` when the update started, else why not (running, a missing tool, from source)."""
+        try:
+            return self._call(lambda: start_update(self.app)) or ""
+        except Exception:
+            return "The Dungeon did not answer. Try again."

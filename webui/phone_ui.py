@@ -25,9 +25,12 @@ def start(app, settings: config.WebSettings) -> str:
     calls = writes.TkCalls(getattr(app, "root", None))
     actions = writes.Actions(app_data_dir(), book=lambda: getattr(app, "places", None),
                              model=lambda: _session_model(app), call=calls, after_change=lambda: _refresh(app))
+    from cli_avatars.app.update_ui import PhoneUpdate
+
     try:
         app._phone_server, _thread = server.start(app_data_dir(), settings.bind, settings.port,
-                                                  writes=lambda: _settings(app).allow_writes, actions=actions)
+                                                  writes=lambda: _settings(app).allow_writes, actions=actions,
+                                                  updater=PhoneUpdate(app, calls))
     except (OSError, ValueError) as exc:
         calls.stop()
         return f"Could not serve on {settings.bind}:{settings.port}: {exc}"
