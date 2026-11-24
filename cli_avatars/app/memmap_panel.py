@@ -144,7 +144,8 @@ class MemmapPanel:
         row = tk.Frame(self.body, bg="#16162a")
         row.pack(fill="x", side="bottom", padx=4, pady=(2, 2))
         self.metric_labels = {}
-        for key, color in (("reads", mv.INK), ("dup", "#ffcf4a"), ("hot", "#ff6a6a"), ("never", mv.DIM)):
+        for key, color in (("reads", mv.INK), ("dup", "#ffcf4a"), ("hot", "#ff6a6a"), ("never", mv.DIM),
+                           ("tasks", "#44cc88")):
             cell = tk.Frame(row, bg="#16162a", cursor="hand2")
             cell.pack(side="left", expand=True, fill="x")
             value = tk.Label(cell, text="0", bg="#16162a", fg=color, font=("Courier", 10, "bold"), cursor="hand2")

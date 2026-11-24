@@ -202,14 +202,28 @@ def select_text(result, path: str, now: float) -> str:
 
 def metric_values(result) -> dict[str, str]:
     if result is None:
-        return {"reads": "0", "dup": "0", "hot": "0", "never": "—"}
+        return {"reads": "0", "dup": "0", "hot": "0", "never": "—", "tasks": "0"}
     m = result.metrics
     return {
         "reads": str(m.reads + m.auto),
         "dup": str(m.duplicates),
         "hot": str(len(m.hot_files)),
         "never": str(len(result.never_read)) if result.never_read else "—",
+        "tasks": tasks_value(result),
     }
+
+
+def tasks_value(result) -> str:
+    """How many cards have per-task counts (MEMMAP.5)."""
+    return str(sum(1 for _title, counts, _hot in result.tasks if counts is not None))
+
+
+def task_line(title: str, counts: tuple[int, int] | None, hot: bool) -> str:
+    """One card's line: reads and token estimate in its working time, or "no data"."""
+    if counts is None:
+        return f"no data · {title}"
+    reads, tokens = counts
+    return f"{reads} reads{' (> 2× median)' if hot else ''} · ~{short_tokens(tokens)} tok (est.) · {title}"
 
 
 def metric_lines(result, key: str) -> list[str]:
@@ -223,6 +237,8 @@ def metric_lines(result, key: str) -> list[str]:
         return [f"{path}  ~{short_tokens(t)}/read × {r}" for path, t, r in m.hot_files] or ["no hot large files"]
     if key == "never":
         return list(result.never_read) or ["none, or no live session in this project"]
+    if key == "tasks":
+        return [task_line(*row) for row in result.tasks] or ["no task with a topic"]
     lines = [f"{m.reads} reads + {m.auto} auto · ~{short_tokens(m.tokens_total)} tokens (est.)"]
     if m.heavy_auto_loads:
         lines.append(f"{len(m.heavy_auto_loads)} session start(s) over 8k tokens")

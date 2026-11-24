@@ -17,7 +17,7 @@ import time
 from typing import Callable
 
 from board.model import VIA, new_card
-from events import EventRejected
+from events import EventRejected, directory_lock
 from registry.facade import Registry
 from registry.limits import Limits
 from registry.policy import (
@@ -77,22 +77,31 @@ class AgentApi:
         return self._card(agent, card_id, edit)
 
     def topic_state(self, agent: str, topic: str, status: str) -> dict:
-        """``open`` <-> ``waiting_on_user`` on a topic that lists the agent (Decision F)."""
-        from topics import get_topic, set_topic, valid_topic_id
+        """``open`` <-> ``waiting_on_user`` on a topic that lists the agent (Decision F).
+
+        Read, check and write share one topics lock, so a concurrent change is never overwritten.
+        """
+        from topics import _existing_root, _read_one, _write_one, valid_topic_id
 
         agent = self._take(agent)
         if not valid_topic_id(topic):
             raise EventRejected("schema")
-        timeout = self._registry.timeout
-        entry = get_topic(self._registry.directory, topic, timeout=timeout)
-        if entry is None:
+        root = _existing_root(self._registry.directory)
+        if root is None:
             raise EventRejected("missing")
-        if agent not in (entry.get("members") or []):
-            raise EventRejected("not_owner")
-        check_topic_status(str(entry.get("status")), status)
-        if entry.get("status") == status:
+        with directory_lock(root, timeout=self._registry.timeout):
+            entry = _read_one(root, topic)
+            if entry is None:
+                raise EventRejected("missing")
+            if agent not in (entry.get("members") or []):
+                raise EventRejected("not_owner")
+            check_topic_status(str(entry.get("status")), status)
+            if entry.get("status") == status:
+                return entry
+            entry["status"] = status
+            entry["updated"] = self._clock()
+            _write_one(root, entry)
             return entry
-        return set_topic(self._registry.directory, topic, status=status, timeout=timeout)
 
     def task_propose(self, agent: str, project: str, title: str, topic: str) -> dict:
         """A new ``todo`` card labelled ``proposed`` in a topic the agent is in (Decision C)."""
