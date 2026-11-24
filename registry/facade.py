@@ -3,6 +3,7 @@
 Every write is read-validate-change-write inside the board lock (``LocalStore.update``).
 Lock order when a call touches more than one store: ``board/``, then ``topics/``, then
 ``channel/``; ``registry/`` (rate limits) is taken and released before any of them.
+``resources/`` (TM.1) is taken before ``topics/`` and never together with the board lock.
 There is no hard delete: ``task_archive`` adds the ``archived`` label and the file stays.
 """
 
@@ -17,6 +18,7 @@ from board.store import LocalStore
 from events import LOCK_TIMEOUT, EventRejected, app_data_dir
 from registry.policy import ARCHIVED_LABEL, check_progress
 from registry.thread import post_update
+from resources.store import ResourceStore
 
 _UNSET = object()
 
@@ -54,6 +56,7 @@ class Registry:
                  timeout: float = LOCK_TIMEOUT) -> None:
         self.directory = Path(directory) if directory is not None else app_data_dir()
         self.store = LocalStore(self.directory)
+        self.resources = ResourceStore(self.directory)
         self.agents_may_create = agents_may_create
         self.timeout = timeout
 
@@ -114,6 +117,26 @@ class Registry:
         from topics import set_topic
 
         return set_topic(self.directory, topic, title=title, status=status, project=project, timeout=self.timeout)
+
+    # Resources (TM.1): data only, never opened, fetched or run
+    def resource_get(self, resource_id: str) -> dict | None:
+        return self.resources.get(resource_id)
+
+    def resource_list(self, topic: str, card_id: str | None = None) -> list[dict]:
+        return self.resources.list(topic, card_id=card_id)
+
+    def resource_add(self, topic: str, kind: str, title: str, *, url: str | None = None, path: str | None = None,
+                     body: str | None = None, card_id: str | None = None) -> dict:
+        return self.resources.add(topic, kind, title, added_by=PERSON, url=url, path=path, body=body,
+                                  card_id=card_id, timeout=self.timeout)
+
+    def resource_edit(self, resource_id: str, *, title=_UNSET, url=_UNSET, path=_UNSET, body=_UNSET,
+                      card_id=_UNSET) -> dict:
+        changes = {k: v for k, v in (("title", title), ("url", url), ("path", path), ("body", body),
+                                     ("card_id", card_id)) if v is not _UNSET}
+        if not changes:
+            raise EventRejected("schema")
+        return self.resources.update(resource_id, lambda res: {**res, **changes}, timeout=self.timeout)
 
     # Chat (TASKBACK.4): emit say, MCP say, the hook note and the chat dock write here
     def say(self, sender: str, topic: str, text: str = "", *, icon: str = "speech", to: str | None = None) -> dict:

@@ -13,6 +13,7 @@ Message text is data. Nothing in this module executes it.
 from pathlib import Path
 
 from chat_window import ChatWindow
+from cli_avatars.app.toolbar_widgets import paint
 from events import app_data_dir
 from routing import config_with_window_box, focus_for, save_window_box
 
@@ -86,10 +87,7 @@ def _paint_chat_button(self) -> None:
             return
     except Exception:
         return
-    if self._chat_shown:
-        btn.config(bg="#334477", fg="white")
-    else:
-        btn.config(bg="#223366", fg="#aaccff")
+    paint(btn, self._chat_shown)
 
 
 def _toggle_chat(self) -> None:

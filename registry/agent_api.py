@@ -3,7 +3,8 @@
 An agent changes a card's column, progress, status note or one checklist tick, and a
 topic's status between ``open`` and ``waiting_on_user``. There is no call that deletes,
 retitles, re-bodies, relabels or reassigns. Creating is ``task_propose``, off unless
-``Registry.agents_may_create``.
+``Registry.agents_may_create``. In a topic that lists the agent, it may also add and edit
+resources (TM.1: links, relative file paths, notes); none is deleted, opened or fetched.
 
 The agent id is a claim (a stdio MCP server cannot prove its caller). The ownership rule
 limits what a wrong claim can touch, and every event records the claim and ``via``.
@@ -17,7 +18,7 @@ import time
 from typing import Callable
 
 from board.model import VIA, new_card
-from events import EventRejected
+from events import EventRejected, directory_lock
 from registry.facade import Registry
 from registry.limits import Limits
 from registry.policy import (
@@ -30,6 +31,7 @@ from registry.policy import (
     check_progress,
     check_topic_status,
     clean_note,
+    scrub_paths,
 )
 
 
@@ -77,22 +79,31 @@ class AgentApi:
         return self._card(agent, card_id, edit)
 
     def topic_state(self, agent: str, topic: str, status: str) -> dict:
-        """``open`` <-> ``waiting_on_user`` on a topic that lists the agent (Decision F)."""
-        from topics import get_topic, set_topic, valid_topic_id
+        """``open`` <-> ``waiting_on_user`` on a topic that lists the agent (Decision F).
+
+        Read, check and write share one topics lock, so a concurrent change is never overwritten.
+        """
+        from topics import _existing_root, _read_one, _write_one, valid_topic_id
 
         agent = self._take(agent)
         if not valid_topic_id(topic):
             raise EventRejected("schema")
-        timeout = self._registry.timeout
-        entry = get_topic(self._registry.directory, topic, timeout=timeout)
-        if entry is None:
+        root = _existing_root(self._registry.directory)
+        if root is None:
             raise EventRejected("missing")
-        if agent not in (entry.get("members") or []):
-            raise EventRejected("not_owner")
-        check_topic_status(str(entry.get("status")), status)
-        if entry.get("status") == status:
+        with directory_lock(root, timeout=self._registry.timeout):
+            entry = _read_one(root, topic)
+            if entry is None:
+                raise EventRejected("missing")
+            if agent not in (entry.get("members") or []):
+                raise EventRejected("not_owner")
+            check_topic_status(str(entry.get("status")), status)
+            if entry.get("status") == status:
+                return entry
+            entry["status"] = status
+            entry["updated"] = self._clock()
+            _write_one(root, entry)
             return entry
-        return set_topic(self._registry.directory, topic, status=status, timeout=timeout)
 
     def task_propose(self, agent: str, project: str, title: str, topic: str) -> dict:
         """A new ``todo`` card labelled ``proposed`` in a topic the agent is in (Decision C)."""
@@ -104,6 +115,44 @@ class AgentApi:
         if agent not in _members(self._registry.directory, card["topic"], self._registry.timeout):
             raise EventRejected("not_owner")
         return self._registry.store.put(card, actor=agent, timeout=self._registry.timeout, via=self.via)
+
+    def resource_add(self, agent: str, topic: str, kind: str, title: str, *, url: str | None = None,
+                     path: str | None = None, body: str | None = None, card_id: str | None = None) -> dict:
+        """A link, file path or note in a topic that lists the agent (TM.1)."""
+        from topics import get_topic, valid_topic_id
+
+        agent = self._take(agent)
+        registry = self._registry
+        if not valid_topic_id(topic):
+            raise EventRejected("schema")
+        if get_topic(registry.directory, topic, timeout=registry.timeout) is None:
+            raise EventRejected("missing")
+        if agent not in _members(registry.directory, topic, registry.timeout):
+            raise EventRejected("not_owner")
+        return registry.resources.add(topic, kind, self._text(title), added_by=agent, url=url, path=path,
+                                      body=self._text(body), card_id=card_id, timeout=registry.timeout)
+
+    def resource_edit(self, agent: str, resource_id: str, *, title: str | None = None, url: str | None = None,
+                      path: str | None = None, body: str | None = None, card_id: str | None = None) -> dict:
+        """Change the given fields of a resource in a topic that lists the agent; None leaves a field."""
+        agent = self._take(agent)
+        registry = self._registry
+        changes = {k: v for k, v in (("title", self._text(title)), ("url", url), ("path", path),
+                                     ("body", self._text(body)), ("card_id", card_id)) if v is not None}
+        if not changes:
+            raise EventRejected("schema")
+
+        def guarded(res):
+            if agent not in _members(registry.directory, res["topic_id"], registry.timeout):
+                raise EventRejected("not_owner")
+            return {**res, **changes}
+
+        return registry.resources.update(resource_id, guarded, timeout=registry.timeout)
+
+    @staticmethod
+    def _text(value: object) -> object:
+        """Agent text with absolute and home paths hashed (Decision K)."""
+        return scrub_paths(value) if isinstance(value, str) else value
 
     def _take(self, agent: object) -> str:
         agent = check_agent(agent)

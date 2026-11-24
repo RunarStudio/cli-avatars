@@ -28,6 +28,7 @@ from cli_avatars.app.dungeon_store import (
     save_topmost,
     with_chat,
 )
+from cli_avatars.app.toolbar_widgets import paint
 from cli_avatars.desktop.chrome import use_dark_titlebar
 from cli_avatars.desktop.monitors import monitor_signature
 from events import app_data_dir
@@ -67,7 +68,8 @@ class DungeonWindow:
             pass
         mount(self)
         if self._topmost:
-            self._pin.config(text="Pinned", fg="#ffcf4a")
+            self._pin.config(text="Pinned")
+            paint(self._pin, True)
         if offscreen:
             root.geometry("900x640+20000+20000")
             try:
@@ -129,6 +131,9 @@ class DungeonWindow:
         if focus is not None and _inside(focus, getattr(self, "_skins", None)) and self._center == "skins":
             self.show_center("dungeon")
             return "break"
+        if focus is not None and _inside(focus, getattr(self, "_tasks", None)) and self._center == "tasks":
+            self.show_center("dungeon")
+            return "break"
         if focus is not None and _inside(focus, getattr(self, "_right", None)):
             self.set_right(False)
             return "break"
@@ -154,7 +159,8 @@ class DungeonWindow:
             self.app.root.attributes("-topmost", self._topmost)
         except tk.TclError:
             pass
-        self._pin.config(fg="#ffcf4a" if self._topmost else "#aaccff", text="Pinned" if self._topmost else "Pin")
+        self._pin.config(text="Pinned" if self._topmost else "Pin")
+        paint(self._pin, self._topmost)
         path = getattr(self.app, "_config_path", None)
         if path is not None and not self._offscreen:
             save_topmost(path, self._topmost)
@@ -314,6 +320,17 @@ class DungeonWindow:
             self.app._build_picker_ui(self._skins)
         except Exception:
             self._picker_built = False
+
+    def _ensure_tasks(self) -> None:
+        panel = getattr(self.app, "_tasks_panel", None)
+        if panel is None:
+            from cli_avatars.app.tasks_panel import TasksPanel
+            from cli_avatars.app.tasks_view import selected_topic
+
+            panel = TasksPanel(self._tasks, self.app._chat_directory, lambda: selected_topic(self.app),
+                               shown=lambda: self._center == "tasks")
+            self.app._tasks_panel = panel
+        panel.refresh(force=True)
 
     def _ensure_settings(self) -> None:
         if self._settings_built:

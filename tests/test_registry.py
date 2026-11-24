@@ -65,7 +65,8 @@ class _Base(unittest.TestCase):
 class Surface(_Base):
     def test_agent_api_has_only_the_narrow_calls(self):
         public = {name for name in dir(AgentApi) if not name.startswith("_")}
-        self.assertEqual(public, {"task_status", "task_progress", "task_check", "topic_state", "task_propose"})
+        self.assertEqual(public, {"task_status", "task_progress", "task_check", "topic_state", "task_propose",
+                                  "resource_add", "resource_edit"})
         for name in ("task_create", "task_edit", "task_assign", "task_archive", "task_move", "delete", "change"):
             self.assertFalse(hasattr(self.api, name), name)
 
