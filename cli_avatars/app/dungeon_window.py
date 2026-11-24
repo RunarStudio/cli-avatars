@@ -28,6 +28,7 @@ from cli_avatars.app.dungeon_store import (
     save_topmost,
     with_chat,
 )
+from cli_avatars.app.toolbar_widgets import paint
 from cli_avatars.desktop.chrome import use_dark_titlebar
 from cli_avatars.desktop.monitors import monitor_signature
 from events import app_data_dir
@@ -67,7 +68,8 @@ class DungeonWindow:
             pass
         mount(self)
         if self._topmost:
-            self._pin.config(text="Pinned", fg="#ffcf4a")
+            self._pin.config(text="Pinned")
+            paint(self._pin, True)
         if offscreen:
             root.geometry("900x640+20000+20000")
             try:
@@ -157,7 +159,8 @@ class DungeonWindow:
             self.app.root.attributes("-topmost", self._topmost)
         except tk.TclError:
             pass
-        self._pin.config(fg="#ffcf4a" if self._topmost else "#aaccff", text="Pinned" if self._topmost else "Pin")
+        self._pin.config(text="Pinned" if self._topmost else "Pin")
+        paint(self._pin, self._topmost)
         path = getattr(self.app, "_config_path", None)
         if path is not None and not self._offscreen:
             save_topmost(path, self._topmost)

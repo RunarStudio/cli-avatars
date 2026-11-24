@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from cli_avatars.app.toolbar_kit import DESKTOP, PANEL, WINDOW
+from cli_avatars.app.toolbar_widgets import Tab, control, group, paint
+
 _BG = "#141018"
 _BAR = "#111018"
 _INK = "#e8e6f4"
@@ -11,6 +14,7 @@ _DIM = "#9a98b8"
 _SEL = "#223366"
 _FG = "#aaccff"
 _FLOOR = "#1a1422"
+_TABS = "#0c0a10"
 
 
 def install_fonts(root) -> None:
@@ -101,6 +105,8 @@ def show_center(view, name: str) -> None:
 
 
 def show_right(view) -> None:
+    mark(view._rtab_chat, view._right_tab == "chat")
+    mark(view._rtab_settings, view._right_tab == "settings")
     view._settings.pack_forget()
     view._pop_note.pack_forget()
     try:
@@ -136,30 +142,28 @@ def paint_floor(canvas) -> None:
 
 
 def mark(button, on: bool) -> None:
-    if button is not None:
-        button.config(bg="#334477" if on else _SEL, fg="white" if on else _FG)
+    paint(button, on)
 
 
 def _toolbar(view, root) -> None:
+    """Panel toggles and desktop actions on the left, window actions on the right."""
     bar = tk.Frame(root, bg=_BAR)
     bar.pack(fill="x")
-    view._pin = _btn(bar, text="Pin", command=view.toggle_pin)
-    view._pin.pack(side="left", padx=(8, 4), pady=4)
     app = view.app
-    app._rooms_btn = _btn(bar, text="Topics", command=app._toggle_rooms)
-    app._rooms_btn.pack(side="left", padx=4, pady=4)
-    app._chat_btn = _btn(bar, text="Chat", command=app._toggle_chat)
-    app._chat_btn.pack(side="left", padx=4, pady=4)
-    if getattr(app, "desktop_escape", True):
-        view._door_btn = _btn(bar, text="Door: open", command=lambda: _toggle_door(app))
-        view._door_btn.pack(side="left", padx=4, pady=4)
-        view._home_btn = _btn(bar, text="Call home", command=lambda: _call_home(app))
-        view._home_btn.pack(side="left", padx=4, pady=4)
+    panels = group(bar, PANEL)
+    app._rooms_btn = control(panels, "topics", text="Topics", command=app._toggle_rooms)
+    app._chat_btn = control(panels, "chat", text="Chat", command=app._toggle_chat)
+    mark(app._rooms_btn, getattr(app, "_rooms_shown", True))
+    mark(app._chat_btn, getattr(app, "_chat_shown", False))
+    window = group(bar, WINDOW, side="right")
+    view._pin = control(window, "pin", text="Pin", command=view.toggle_pin)
     menu = tk.Menu(bar, tearoff=0, bg=_BAR, fg=_INK)
     menu.add_command(label="Quit", command=app._quit)
-    tk.Menubutton(
-        bar, text="Menu", menu=menu, bg=_SEL, fg=_FG, relief="flat", padx=8,
-    ).pack(side="right", padx=8, pady=4)
+    control(window, "menu", text="Menu", menu=menu)
+    if getattr(app, "desktop_escape", True):
+        desk = group(bar, DESKTOP)
+        view._door_btn = control(desk, "door", text="Door: open", command=lambda: _toggle_door(app))
+        view._home_btn = control(desk, "home", text="Call home", command=lambda: _call_home(app))
 
 
 def _body(view, root) -> None:
@@ -176,23 +180,27 @@ def _body(view, root) -> None:
     view._topics = tk.Frame(view._left, bg=_BG)
     view._topics.pack(fill="both", expand=True)
     view.app._rooms_parent = view._topics
-    strip = tk.Frame(view._mid, bg=_BAR)
+    strip = tk.Frame(view._mid, bg=_TABS)
     strip.pack(fill="x")
-    view._tab_dungeon = _btn(strip, text="Dungeon", command=lambda: view.show_center("dungeon"))
-    view._tab_dungeon.pack(side="left", padx=(6, 2), pady=3)
-    view._tab_skins = _btn(strip, text="Skins", command=lambda: view.show_center("skins"))
-    view._tab_skins.pack(side="left", padx=2, pady=3)
-    view._tab_tasks = _btn(strip, text="Tasks", command=lambda: view.show_center("tasks"))
-    view._tab_tasks.pack(side="left", padx=2, pady=3)
+    view._tab_dungeon = Tab(strip, "dungeon", text="Dungeon", command=lambda: view.show_center("dungeon"))
+    view._tab_dungeon.pack(side="left", anchor="s", padx=(6, 2), pady=(4, 0))
+    view._tab_skins = Tab(strip, "skins", text="Skins", command=lambda: view.show_center("skins"))
+    view._tab_skins.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    view._tab_tasks = Tab(strip, "tasks", text="Tasks", command=lambda: view.show_center("tasks"))
+    view._tab_tasks.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view.scene = tk.Canvas(view._mid, bg=_FLOOR, highlightthickness=0, bd=0)
     view._skins = tk.Frame(view._mid, bg=_BG)
     view._tasks = tk.Frame(view._mid, bg=_BG)
     view.scene.bind("<Configure>", lambda _e: paint_floor(view.scene))
-    rstrip = tk.Frame(view._right, bg=_BAR)
+    rstrip = tk.Frame(view._right, bg=_TABS)
     rstrip.pack(fill="x")
-    _btn(rstrip, text="Chat", command=lambda: view.set_right(True, "chat")).pack(side="left", padx=(6, 2), pady=3)
-    _btn(rstrip, text="Settings", command=lambda: view.set_right(True, "settings")).pack(side="left", padx=2, pady=3)
-    view._pop_btn = _btn(rstrip, text="Pop out", command=view.toggle_pop)
+    view._rtab_chat = Tab(rstrip, "dock_chat", text="Chat", command=lambda: view.set_right(True, "chat"))
+    view._rtab_chat.pack(side="left", anchor="s", padx=(6, 2), pady=(4, 0))
+    view._rtab_settings = Tab(
+        rstrip, "dock_settings", text="Settings", command=lambda: view.set_right(True, "settings"),
+    )
+    view._rtab_settings.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    view._pop_btn = control(rstrip, "pop", text="Pop out", command=view.toggle_pop)
     view._pop_btn.pack(side="right", padx=6, pady=3)
     view._right_body = tk.Frame(view._right, bg=_BG)
     view._right_body.pack(fill="both", expand=True)
