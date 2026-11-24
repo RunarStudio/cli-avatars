@@ -5,6 +5,10 @@ Dungeon and Skins. It follows the approved preview (`docs/img/throne-room-previe
 
 ![preview](img/throne-room-preview.png)
 
+In the app (made-up data, `tools/shot_throne_room.py`):
+
+![app](img/throne-room-app.png)
+
 ## What it shows
 
 | Part | Source |
