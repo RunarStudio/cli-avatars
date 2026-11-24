@@ -1,12 +1,15 @@
 """Run one crossing on the place book. The durations live in ``model.crossing``.
 
-A blocked or error agent leaves only while the door is open. A drag leaves
-either way, and that path is the immediate hand-off in ``places``. Children
+While the door is open every agent lives on the desktop; Call home or a drop
+keeps one inside until it needs the user. Closing the door brings the door
+leavers home. A drag leaves either way, and that path is the immediate
+hand-off in ``places``. Children
 wait 150 ms apart, so a spring line never crosses the window.
 """
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 
@@ -27,8 +30,10 @@ from cli_avatars.model.place import (
     Place,
     arrive,
     call_home,
+    door_home,
     drop,
     idle_return,
+    live_outside,
     portal_done,
     rule_clear,
     rule_escape,
@@ -51,7 +56,10 @@ def speed() -> float:
 
 
 def advance(book, agents, now: float) -> None:
-    """Start rule escapes, send idle and cleared actors home, finish due crossings."""
+    """Start door escapes, send idle and door-closed actors home, finish due crossings."""
+    from cli_avatars.app.find_you import advance as find_advance
+
+    find_advance(book, agents, now)
     _start_escapes(book, agents, now)
     _start_homes(book, agents, now)
     _finish(book, now)
@@ -77,7 +85,10 @@ def consider_home(book, av, now: float, status: str | None = None) -> str | None
     if av is getattr(book.app, "_drag_av", None):
         return None
     state = av.agent.status if status is None else status
-    if rule_clear(actor, state).where == RETURNING:
+    door = book.door()
+    if door == "open":
+        return None
+    if door_home(actor, door).where == RETURNING:
         return RULE
     if state in ("blocked", "error"):
         return None
@@ -122,6 +133,8 @@ def start_return(book, aid: str, cause: str, now: float) -> bool:
     _leave_overlay(book, av, aid)
     origin, goal = _return_points(book, av, aid)
     book._actors[aid] = stepped
+    if cause in (CALL, "drop"):
+        book._kept.add(aid)
     book._cross[aid] = Cross("return", now, cause, origin, goal)
     book._portals.append((now + ARCH_FLASH_S, origin[0] + av.aw / 2.0, origin[1] + av.ah, "canvas"))
     book._applied.discard(aid)
@@ -161,8 +174,11 @@ def _start_escapes(book, agents, now: float) -> None:
         if agent is None or getattr(agent, "source", "") == "bot":
             continue
         nxt = rule_escape(actor, door, agent.status)
+        if nxt.where != ESCAPING and aid not in book._kept:
+            nxt = live_outside(actor, door)
         if nxt.where != ESCAPING:
             continue
+        book._kept.discard(aid)
         av = book.app._inside.get(aid)
         if av is None:
             continue
@@ -269,6 +285,17 @@ def _return_points(book, av, aid: str) -> tuple[tuple[float, float], tuple[float
     ids = sorted(set(book.inside_ids()) | {aid})
     cx, cy = book.spot_center(aid, ids)
     return (door, (cx - av.aw / 2.0, cy - av.ah / 2.0))
+
+
+def door_wait(book, spots: dict, now: float) -> dict:
+    """An avatar that needs the user hops at the closed door instead of its spot."""
+    for aid in book._waving & set(spots):
+        av = book.app._inside.get(aid)
+        if av is not None:
+            x, y = _door_top(book, av)
+            hop = abs(math.sin(float(now) * 7.0)) * 6.0
+            spots[aid] = (x + av.aw / 2.0, y + av.ah / 2.0 - 10.0 - hop)
+    return spots
 
 
 def _door_top(book, av) -> tuple[float, float]:

@@ -90,6 +90,11 @@ class InputController:
             return
         app._drag_av = None
         if kind == "click" and av is not None:
+            book = getattr(app, "places", None)
+            if book is not None:
+                from cli_avatars.app.find_you import ack
+
+                ack(book, av.agent.agent_id)
             app._open_chat_for_avatar(av)
 
     def on_double_click(self, event: object) -> None:

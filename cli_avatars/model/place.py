@@ -2,8 +2,9 @@
 
 ``inside`` is the Dungeon. ``desktop`` is an overlay. ``escaping`` and
 ``returning`` are the crossings WIN-DUNGEON.6 animates. Drag-out is allowed
-with the door open or closed. A closed door blocks a blocked or error
-escape. Wander is not a transition here.
+with the door open or closed. An open door lets every top-level actor live
+on the desktop (DOOR.1); a closed door calls the door leavers home and blocks
+a blocked or error escape. Wander is not a transition here.
 """
 
 from __future__ import annotations
@@ -54,6 +55,33 @@ def rule_escape(actor: Place, door: str, status: str) -> Place:
     if door != "open" or status not in _ESCAPE_STATUS:
         return actor
     return Place(actor.node_id, ESCAPING, RULE, None)
+
+
+def needs_you(status: str) -> bool:
+    """Blocked or error: the session waits on the user."""
+    return status in _ESCAPE_STATUS
+
+
+def live_outside(actor: Place, door: str) -> Place:
+    """Door open: a top-level actor inside walks out and lives on the desktop."""
+    if actor.parent_id or actor.where != INSIDE or door != "open":
+        return actor
+    return Place(actor.node_id, ESCAPING, RULE, None)
+
+
+def door_home(actor: Place, door: str) -> Place:
+    """Door closed: an actor that left by the door walks home. A drag stays out."""
+    if actor.cause != RULE or actor.where != DESKTOP or door == "open":
+        return actor
+    return Place(actor.node_id, RETURNING, RULE, actor.parent_id)
+
+
+def find_vx(feet_x: float, pointer_x: float, speed: float, near: float = 24.0) -> float:
+    """Walk toward the pointer and stand still within ``near`` px of it."""
+    gap = float(pointer_x) - float(feet_x)
+    if abs(gap) <= near:
+        return 0.0
+    return float(speed) if gap > 0 else -float(speed)
 
 
 def portal_done(actor: Place) -> Place:

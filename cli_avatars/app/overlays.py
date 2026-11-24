@@ -360,6 +360,8 @@ def bind_avatar(app, av) -> None:
         av.monitor_layout = None
         av.cross_monitors = True
         av._board = None
+        if hasattr(app, "sw") and hasattr(app, "sh"):
+            av.sw, av.sh = app.sw, app.sh
         return
     av.monitor_layout = board.layout
     av.cross_monitors = board.cross

@@ -148,6 +148,14 @@ def meet(self, frame: object) -> None:
     except Exception:
         logging.getLogger("cli_avatars.meetings").exception("meeting step failed")
         steers = {}
+    book = getattr(self, "places", None)
+    if book is not None:
+        from cli_avatars.app.find_you import steers as find_steers
+
+        found = find_steers(book, frame.agents)
+        for aid in found:
+            self.scanner.meetings.release(aid)
+        steers.update(found)
 
     frame.steers = steers
 

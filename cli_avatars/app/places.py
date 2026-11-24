@@ -62,6 +62,7 @@ class PlaceBook:
         self._cross: dict = {}
         self._desktop_since: dict[str, float] = {}
         self._arch_until = 0.0
+        self._kept, self._found, self._waving = set(), set(), set()
         self._portals: list = []
         self._door_images: dict = {}
         self._now = 0.0
@@ -235,6 +236,7 @@ class PlaceBook:
 
         nxt = "closed" if self.door() == "open" else "open"
         self.app.config = config_with_door(getattr(self.app, "config", {}), nxt)
+        self._kept.clear() if nxt == "open" else self.call_everyone()
         path = getattr(self.app, "_config_path", None)
         offscreen = getattr(getattr(self.app, "dungeon", None), "_offscreen", False)
         if path is not None and not offscreen:
@@ -271,7 +273,7 @@ class PlaceBook:
         except Exception:
             return
         now = self._now or time.time()
-        from cli_avatars.app.crossing import paint_marks
+        from cli_avatars.app.crossing import door_wait, paint_marks
         from cli_avatars.app.dungeon_door import paint_door
         from cli_avatars.model.crossing import arch_visible
 
@@ -289,7 +291,7 @@ class PlaceBook:
 
         refresh_rooms(scene)
         room = hall(self)
-        spots = room.place(self._spot_map(settled), now)
+        spots = door_wait(self, room.place(self._spot_map(settled), now), now)
         from cli_avatars.app.room_build import build_for
         from cli_avatars.app.room_glow import glow_for
 

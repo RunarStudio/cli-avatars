@@ -157,6 +157,9 @@ class DoorTests(unittest.TestCase):
         self.assertNotIn("hero", book._cross)
         agents["hero"] = _agent("hero", "idle")
         book.tick(agents, 1001.3)
+        self.assertEqual(book._actors["hero"].where, "desktop")
+        app.config["dungeon"]["door"] = "closed"
+        book.tick(agents, 1001.4)
         self.assertEqual(book._actors["hero"].where, "returning")
         self.assertNotIn("hero", app.avatars)
         book.tick(agents, 1002.5)

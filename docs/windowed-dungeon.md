@@ -99,6 +99,10 @@ stateDiagram-v2
 Wander ("let them roam free") is not on this diagram. It is WIN-DUNGEON.8,
 and it still requires the door to be open.
 
+DOOR.1 (supersedes the open-door rule below): door open, every session avatar walks out and stays on the desktop (Call home or a drop keeps one in until it needs the user); closing the door calls everyone home and none leave.
+Needs the user = `blocked` or `error`: on the desktop the avatar runs to the mouse pointer's x on its floor and waits there until clicked or answered, then wanders on.
+Door closed: a needing avatar stays in, hops at the door and the arch flashes. Subagents follow their parent; bots stay in.
+
 ---
 
 ## 3. The Dungeon window
