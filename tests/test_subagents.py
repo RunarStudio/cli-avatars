@@ -93,6 +93,15 @@ class SubagentControllerTests(unittest.TestCase):
     def tearDown(self):
         self._photo.stop()
 
+    def test_activity_demo_spawns_children_on_demo_orchestrator(self):
+        agent = _parent(1)[0]
+        agent.is_demo = True
+        avatar = _parent(1)[1]
+        app = _app(agent, avatar)
+        with patch.dict("os.environ", {"CLI_AVATARS_ACTIVITY_DEMO": "1"}, clear=False):
+            SubagentController(app).step(_frame(agent))
+        self.assertEqual(len(app.sub_avatars["parent"]), 1)
+
     def test_spawn_keeps_the_same_child_and_skin(self):
         agent, avatar = _parent(1)
         app = _app(agent, avatar)

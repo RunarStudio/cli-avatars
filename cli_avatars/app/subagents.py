@@ -9,6 +9,7 @@ import random
 import time
 from typing import Optional
 
+from activity import activity_demo_enabled
 from cli_avatars.app.overlays import bind_avatar
 from cli_avatars.app.render import _draw_elastic, canvas_photos
 from cli_avatars.effects.burst import BurstEffect
@@ -108,7 +109,10 @@ class SubagentController:
         steers = frame.steers
         origins = frame.origins
         for aid, agent in agents.items():
-            if (agent.is_demo and TUNING.test_subagents == 0) or agent.subagents <= 0:
+            demo_blocked = (
+                agent.is_demo and TUNING.test_subagents == 0 and not activity_demo_enabled()
+            )
+            if demo_blocked or agent.subagents <= 0:
                 for sv in app.sub_avatars.pop(aid, []):
                     self._begin_dying(sv)
                     app._dying_subs.append(sv)
