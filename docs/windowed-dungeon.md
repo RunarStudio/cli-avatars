@@ -236,6 +236,18 @@ Uses kit and existing pieces only; no new art required.
 - Drop occlusion check: the point counts as "on the Dungeon" when it is inside the client rect
   and no window from `win32.list_windows` with a lower z than the Dungeon contains it.
 
+### 4.4 Roster and the needs-me walk (AV.1)
+
+- Inside, each kind wears one repo sprite (`cli_avatars/app/av_roster.py`): the user is the red
+  hood (`ember_mage`), a Claude orchestrator is `caine`, a Grok bot is `amongo` with its body
+  moved to a hue taken from the bot id (visor and outline kept), a subagent is a `bubble` beside
+  its parent. Avatars show a 40x40 cell, subagents 32x32, native pixels at the whole rooms scale.
+  The desktop overlay and the skin picker keep the agent's own skin.
+- A room needs the user while one of its cards is `blocked` or its topic is `waiting_on_user`
+  (`cli_avatars/app/needs_walk.py`). Its avatar (card assignee, else topic members, else agents
+  on that project) walks to the user's side with the amber mark and walks back home when the
+  state clears. `inside_roster.py` draws both in the Dungeon; the rules have no Tk.
+
 ---
 
 ## 5. Multi-monitor
