@@ -506,7 +506,14 @@ class TestStdio(unittest.TestCase):
                     "requirements_set",
                     "say",
                     "status_set",
+                    "task_check",
+                    "task_get",
+                    "task_list",
+                    "task_progress",
+                    "task_propose",
+                    "task_status",
                     "topic_show",
+                    "topic_state",
                     "topics_list",
                 ])
                 result = await session.call_tool("projects_list", {})

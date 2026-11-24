@@ -40,6 +40,7 @@ import time
 from pathlib import Path
 from typing import Optional, Sequence
 
+from emit_tasks import add_task_parser
 from events import (
     DEFAULT_PORT,
     ICONS,
@@ -48,7 +49,6 @@ from events import (
     MAX_PACKET_BYTES,
     STATE_NAMES,
     EventRejected,
-    append_channel,
     app_data_dir,
     configure_logging,
     default_port,
@@ -58,9 +58,9 @@ from events import (
     read_inbox,
 )
 from decisions import ask_decision, format_decisions, list_decisions
+from registry.facade import Registry
 from inbox import format_messages, post_reply, read_unread
 from topics import (
-    ensure_topic,
     format_show,
     format_topics,
     join_topic,
@@ -160,18 +160,8 @@ def cmd_say(args: argparse.Namespace) -> int:
     if note:
         packet["note"] = note
     parse_packet(packet, token)
-    lock_timeout = getattr(args, "lock_timeout", LOCK_TIMEOUT)
-    ensure_topic(directory, channel, timeout=lock_timeout)
-    entry = {
-        "ts": time.time(),
-        "from": args.from_id,
-        "to": args.to,
-        "channel": channel,
-        "icon": args.icon,
-    }
-    if note:
-        entry["note"] = note
-    append_channel(directory, entry, timeout=lock_timeout)
+    registry = Registry(directory, timeout=getattr(args, "lock_timeout", LOCK_TIMEOUT))
+    registry.say(args.from_id, channel, note, icon=args.icon, to=args.to)
     _log_note(directory, note)
     send_packet(packet, args.port)
     return 0
@@ -453,6 +443,7 @@ def build_parser() -> argparse.ArgumentParser:
     leave.add_argument("topic_id")
     leave.add_argument("--agent", required=True)
     leave.set_defaults(func=cmd_topic_leave)
+    add_task_parser(sub, common)
 
     hooks = sub.add_parser(
         "hooks",

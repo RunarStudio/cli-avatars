@@ -8,6 +8,7 @@ There is no hard delete: ``task_archive`` adds the ``archived`` label and the fi
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Callable, Mapping
 
@@ -15,6 +16,7 @@ from board.model import COLUMNS, PERSON, new_card, new_event, valid_assignee, va
 from board.store import LocalStore
 from events import LOCK_TIMEOUT, EventRejected, app_data_dir
 from registry.policy import ARCHIVED_LABEL, check_progress
+from registry.thread import post_update
 
 _UNSET = object()
 
@@ -113,16 +115,44 @@ class Registry:
 
         return set_topic(self.directory, topic, title=title, status=status, project=project, timeout=self.timeout)
 
+    # Chat (TASKBACK.4): emit say, MCP say, the hook note and the chat dock write here
+    def say(self, sender: str, topic: str, text: str = "", *, icon: str = "speech", to: str | None = None) -> dict:
+        """One channel line from ``sender`` in ``topic`` (topics, then channel). Text is stored, not run."""
+        from events import append_channel
+        from topics import ensure_topic
+
+        ensure_topic(self.directory, topic, timeout=self.timeout)
+        entry = {"ts": time.time(), "from": sender, "to": to or sender, "channel": topic, "icon": icon}
+        if text:
+            entry["note"] = text
+        append_channel(self.directory, entry, timeout=self.timeout)
+        return entry
+
+    def chat_post(self, topic: str, text: str, to: list[str]) -> dict:
+        """Daniel's message (from ``user``) to agent inboxes and the topic channel."""
+        from inbox import send_message
+
+        return send_message(self.directory, sender="user", recipients=to, text=text, room=topic)
+
     # Shared by AgentApi
     def change(self, card_id: str, edit: Callable[[dict], dict], actor: str, via: str | None = None,
                timeout: float | None = None) -> dict:
-        """``edit(card)`` -> new card inside the lock; no visible change writes nothing (no event)."""
+        """``edit(card)`` -> new card inside the lock; no visible change writes nothing (no event).
+
+        An agent write (``via`` set) that wrote also posts one ``emit:registry`` line in the topic.
+        """
+        timeout = self.timeout if timeout is None else timeout
+        written: list[dict] = []
 
         def apply(card):
             checked = validate_card({**edit(dict(card)), "updated": card["updated"]})
             events = card_events(card, checked, actor, via)
             if not events:
                 return None
+            written[:] = events
             return checked, events
 
-        return self.store.update(card_id, apply, timeout=self.timeout if timeout is None else timeout)
+        card = self.store.update(card_id, apply, timeout=timeout)
+        if via:
+            post_update(self.directory, card, written, actor, timeout)
+        return card

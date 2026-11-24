@@ -11,7 +11,6 @@ Nothing in an argument is executed, imported, or passed to a shell.
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 
 from cli_avatars_emit import send_packet
@@ -23,7 +22,6 @@ from events import (
     EventRejected,
     _ACTOR,
     _SESSION_ID,
-    append_channel,
     app_data_dir,
     configure_logging,
     default_port,
@@ -31,7 +29,8 @@ from events import (
     parse_packet,
     sanitize_text,
 )
-from topics import ensure_topic, list_topics, show_topic, valid_topic_id
+from registry.facade import Registry
+from topics import list_topics, show_topic, valid_topic_id
 
 from cli_avatars_mcp.memories import add_memory, clean_query, search_memories
 from cli_avatars_mcp.projects import (
@@ -362,15 +361,7 @@ def say(
         "note": cleaned,
     }
     parse_packet(packet, token)
-    ensure_topic(root, topic)
-    append_channel(root, {
-        "ts": time.time(),
-        "from": SAY_ACTOR,
-        "to": SAY_ACTOR,
-        "channel": topic,
-        "icon": "speech",
-        "note": cleaned,
-    })
+    Registry(root).say(SAY_ACTOR, topic, cleaned)
     _log_note(root, cleaned)
     send_packet(packet, default_port() if port is None else port)
     return {"topic": topic, "from": SAY_ACTOR, "text": cleaned}

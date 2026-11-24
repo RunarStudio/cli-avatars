@@ -1,6 +1,6 @@
-# Local MCP server (MCP-M1, MCP-M2, MCP-M3)
+# Local MCP server (MCP-M1, MCP-M2, MCP-M3, TASKBACK.3)
 
-A Claude Code or Grok Build session can connect to CLI Avatars over stdio and read the same local store the overlay already uses. Phase 1 is read-mostly. Its only writes are the caller's own avatar state and one message on a topic channel. Phase 2 adds project, requirements, and key-value writes. Phase 3 adds local memories on a project.
+A Claude Code or Grok Build session can connect to CLI Avatars over stdio and read the same local store the overlay already uses. Phase 1 is read-mostly. Its only writes are the caller's own avatar state and one message on a topic channel. Phase 2 adds project, requirements, and key-value writes. Phase 3 adds local memories on a project. TASKBACK.3 adds board task tools that go through the registry.
 
 The server does not open a socket. It does not run text from a project, a topic, a decision, or a tool argument. It does not call a model.
 
@@ -16,6 +16,7 @@ python -m cli_avatars_mcp     FastMCP, transport stdio
 per-user data directory       same folder as the overlay
   projects/<slug>.json        this phase
   memories/<slug>.json        notes on a project (M3)
+  board/<project>/            task cards, through registry/ (TASKBACK.3)
   topics/<id>.json            existing topic store
   decisions.jsonl             existing decisions
   channel/<topic>.jsonl       existing chat log
@@ -34,7 +35,7 @@ The data directory is the one `events.app_data_dir()` already resolves:
 
 Project writes take `directory_lock` on `projects/` (the same lock the channel and topics use: a timeout, and the handle is closed before the lock returns). Files are owner-only, same as the other store files.
 
-`status_set` builds the emit `state` packet and sends it to `127.0.0.1` on the overlay's UDP port. That is the event the avatars already consume. `say` appends a channel line the chat window already tails, then sends the matching chat packet. The sender is fixed as `emit:mcp`, so the tool cannot post as another agent.
+`status_set` builds the emit `state` packet and sends it to `127.0.0.1` on the overlay's UDP port. That is the event the avatars already consume. `say` appends a channel line the chat window already tails (through `Registry.say`, TASKBACK.4), then sends the matching chat packet. The sender is fixed as `emit:mcp`, so the tool cannot post as another agent.
 
 ## Project record
 
@@ -75,10 +76,41 @@ Phase 1 has no MCP tool that writes a project or a key-value. Phase 2 tools writ
 | `kv_delete` | `project`, `key` | Delete one key-value (M2). |
 | `memories_add` | `project`, `text` | Store one note on that project (M3). |
 | `memories_search` | `project`, `query` | That project's notes whose text contains the query, newest first (M3). |
+| `task_list` | `project`, `column?`, `assignee?` | Cards of one project, newest first. Archived cards are hidden. |
+| `task_get` | `card_id` | One card with its history. |
+| `task_status` | `agent_id`, `card_id`, `column`, `note?` | Move your card: `todo`→`doing`, `doing`→`review`/`blocked`, `review`/`blocked`→`doing`. Never `done`. |
+| `task_progress` | `agent_id`, `card_id`, `progress`, `note?` | Progress 0–100 (an int; going down is allowed) and a one-line status note. |
+| `task_check` | `agent_id`, `card_id`, `index`, `done?` | Tick one checklist item; `done` false unticks it. The text cannot change. |
+| `topic_state` | `agent_id`, `topic`, `status` | `open` ↔ `waiting_on_user` on a topic you are a member of. Never `done`. |
+| `task_propose` | `agent_id`, `project`, `title`, `topic` | A `todo` card labelled `proposed`. Rejected `switched_off` unless `registry.agents_may_create` is on (off by default). |
 
 `agent_id` is `source:id` (for example `claude:` plus the 8-character session id) or a bare session id. A bare id is sent with source `emit`. Pass your own id. The tool emits one event. It does not update anyone else and it does not write a project.
 
 `note` and `text` are data. They are sanitised, stored or logged, and not executed. The desktop bubble stays an icon.
+
+## TASKBACK.3 — tasks
+
+Code: `cli_avatars_mcp/tasks.py`. Writes call `registry.AgentApi` (`via` `mcp`); reads call `registry.Registry`. No tool opens the board store itself. The rules are the registry's (`docs/task-backend-and-memory-map.md` section 2.4):
+
+- An agent changes only a card assigned to it, or an unassigned card in a topic that lists it (`not_owner` otherwise).
+- No agent call reaches `done`, deletes, retitles, relabels or reassigns (`not_allowed`).
+- 30 writes a minute and 300 an hour per agent, 5 proposals an hour (`rate_limited`).
+- Notes are sanitised, capped at 240, and absolute paths become `@external/<8 hex>`.
+- The argument JSON of a task tool is at most 4 KiB (`schema`).
+- The same value twice writes nothing.
+- Each agent update that writes posts one `emit:registry` line in the card's topic (TASKBACK.4), for example `claude:1a2b3c4d · Wire the registry: doing → review, 60% — tests green`. A no-op and Daniel's own edits post none.
+
+`agent_id` is a claim: a stdio server cannot prove its caller. The ownership rule limits what a wrong claim can touch, and every event records the claim and `via`.
+
+The emit CLI has the same writes with `via` `emit`:
+
+```bash
+cli-avatars-emit task status <card-id> review --agent claude:1a2b3c4d --note "ready"
+cli-avatars-emit task progress <card-id> 60 --agent claude:1a2b3c4d
+cli-avatars-emit task check <card-id> 2 --agent claude:1a2b3c4d [--undone]
+```
+
+`tests/test_mcp_tasks.py` covers every tool, the AgentApi-only path, `done` refused, the proposal switch and the 4 KiB cap.
 
 ## Resources
 
@@ -180,4 +212,4 @@ Search is a local string match. It does not call a model, and it does not send t
 python -m unittest discover -s tests
 ```
 
-`tests/test_mcp.py`, `tests/test_mcp_m2.py`, and `tests/test_mcp_m3.py` call the tool functions on a temporary directory. The stdio smoke test starts `python -m cli_avatars_mcp` and is skipped when the `mcp` package is not installed.
+`tests/test_mcp.py`, `tests/test_mcp_m2.py`, `tests/test_mcp_m3.py`, and `tests/test_mcp_tasks.py` call the tool functions on a temporary directory. The stdio smoke test starts `python -m cli_avatars_mcp` and is skipped when the `mcp` package is not installed.
