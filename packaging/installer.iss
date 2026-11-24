@@ -20,6 +20,7 @@
 #define AppExe "cli-avatars.exe"
 
 [Setup]
+LicenseFile=..\LICENSE
 AppId={{B7E2A1C4-5D38-4F90-8A16-3C9E0D2B7F41}
 AppName={#AppName}
 AppVersion={#AppVersion}
