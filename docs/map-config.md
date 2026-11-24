@@ -1,6 +1,6 @@
 # Map config (MAP.1, proposal)
 
-> Preview only: three images and this plan. No app code yet; it waits for the OK on the 30 skins.
+> Preview only: five images and this plan. No app code yet; it waits for the OK on the 30 skins.
 
 Rooms are placed by hand in one file. Each room names a skin, its door spot and its connection points. When two linked doors do not line up, a short corridor is generated between them. Gold = door spot, cyan = connection point; 4× copies are `img/*@4x.png`.
 
@@ -13,7 +13,15 @@ The main layout: HALL, PIT and PANTRY as above, plus the atelier, the owner's of
 
 ![Main structure: 4 rooms, 3 corridors, room-topic panel](img/map-main-structure.png)
 
-## Skin rule
+## Standard rooms, sizes, Create your room (ROOMS.1)
+
+![3 sizes on one grid](img/map-room-sizes.png)
+![Create your room panel and the main structure with a new room](img/map-create-room.png)
+
+- The four MAP.2 rooms are the standard rooms (`standard: true`, a lock badge): every new map starts with them; they can be re-skinned, never deleted.
+- **Create your room** is a panel inside the Dungeon tab: name, topic, size (S/M/L), skin (thumbnails of the 30), connect to (a room and its free point). The new room gets a `CUSTOM` badge; it can be edited or deleted.
+- On create the app puts the room on the nearest free spot where the corridor rule holds, picks the door facing the chosen point, adds a connection point there if needed, appends the room and the link to `building/maps/main.json` and saves (write to a temp file, then rename). No spot fits: the panel says so and nothing is saved.
+
 
 A skin is one pick per slot, from `Sprites/dungeon_kit/` pieces only. No new art, no tint.
 
@@ -38,7 +46,9 @@ No clashing pairs, checked on all 30:
 | Field | Rule |
 |-------|------|
 | `schema_version` | `1`. |
-| `rooms` | Up to 16 `{id, skin, at, size, door, connections, topic}`. `at`: `[x, y]` in building tiles; `size`: `[w, h]`, 4–16; rooms never overlap. |
+| `rooms` | Up to 16 `{id, standard, skin, at, size, door, connections, topic}`. `at`: `[x, y]` in building tiles; rooms never overlap. |
+| `size` | `small` 4x4 · `mid` 6x6 · `large` 14x10 (the throne room's hall). `tiles: [w, h]` may trim a room inside its size (the pit is a 5x5 `mid`). |
+| `standard` | `true` on hall, pantry, pit and atelier: every map starts with them and they cannot be deleted. Created rooms have `false`. |
 | `door` | The door spot: side + tile index, e.g. `"n3"`. Sides `n` and `w` are the back walls, `s` and `e` the open front edges. It carries the skin's door piece; an avatar enters on the tile inside it. |
 | `connections` | More connection points in the same form. On a back wall each is a plain arch; on a front edge, a gap. |
 | `topic` | Optional short text, shown in the room-topic panel. |
@@ -49,16 +59,17 @@ Skins live in `building/skins.json`: `{id: {floor, wall, trim, door, light, prop
 ```json
 {"schema_version": 1, "name": "main",
  "rooms": [
-  {"id": "hall",    "skin": "ember-hall",   "at": [0, 0],   "size": [6, 6], "door": "n3", "connections": ["e3", "s2"], "topic": "release notes"},
-  {"id": "pantry",  "skin": "glass-pantry", "at": [10, -2], "size": [6, 6], "door": "w2", "topic": "bug triage"},
-  {"id": "pit",     "skin": "brewers-pit",  "at": [0, 10],  "size": [5, 5], "door": "n4", "topic": "docs sweep"},
-  {"id": "atelier", "skin": "scribes-nook", "at": [5, -12], "size": [6, 5], "door": "w3", "topic": "design review"}],
- "links": [["hall.e3", "pantry.w2"], ["hall.s2", "pit.n4"], ["hall.n3", "atelier.w3"]]}
+  {"id": "hall",    "standard": true, "skin": "ember-hall",   "at": [0, 0],   "size": "mid", "door": "n3", "connections": ["e3", "s2"], "topic": "release notes"},
+  {"id": "pantry",  "standard": true, "skin": "glass-pantry", "at": [10, -2], "size": "mid", "door": "w2", "connections": ["s3"], "topic": "bug triage"},
+  {"id": "pit",     "standard": true, "skin": "brewers-pit",  "at": [0, 10],  "size": "mid", "tiles": [5, 5], "door": "n4", "topic": "docs sweep"},
+  {"id": "atelier", "standard": true, "skin": "scribes-nook", "at": [5, -12], "size": "mid", "tiles": [6, 5], "door": "w3", "topic": "design review"},
+  {"id": "loom",    "standard": false, "skin": "cinder-stock", "at": [12, 8], "size": "small", "door": "n2", "topic": "asset sorting"}],
+ "links": [["hall.e3", "pantry.w2"], ["hall.s2", "pit.n4"], ["hall.n3", "atelier.w3"], ["pantry.s3", "loom.n2"]]}
 ```
 
 ## Corridor rule
 
-One tile wide, from the tile outside each point. Aligned: straight. Facing but offset: one jog at the midpoint. At right angles: one corner. Floor b01, low walls b10/b11 on the back edges, one torch at the middle. Longer than 12 tiles or crossing a room: the map is rejected and the app keeps `compact`. The example gives 7, 6 and 10 tiles.
+One tile wide, from the tile outside each point. Aligned: straight. Facing but offset: one jog at the midpoint. At right angles: one corner. Floor b01, low walls b10/b11 on the back edges, one torch at the middle. Longer than 12 tiles or crossing a room: the map is rejected and the app keeps `compact`. The example gives 7, 6, 10 and 5 tiles.
 
 ## Where it hooks in
 
