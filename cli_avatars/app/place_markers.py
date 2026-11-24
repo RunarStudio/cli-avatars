@@ -35,6 +35,22 @@ def inside_sub_photo(photos, skin: str, size: int, frame: int = 0):
     return photos.get(key, lambda: image)
 
 
+def bubble_photo(photos, room_scale: int, index: int):
+    """AV.1 subagent: one bubble frame, 32x32 native at the rooms scale."""
+    from cli_avatars.app.av_roster import LOOKS, SUBAGENT, roster_frame
+
+    look = LOOKS[SUBAGENT]
+    registry = REGISTRY
+    if registry is None or not hasattr(registry, "has") or not registry.has(look.skin):
+        return None
+    frame = index % max(1, int(registry.frame_count(look.skin, "idle")))
+    image = registry.get_image(look.skin, "idle", frame)
+    if image is None:
+        return None
+    key = ("av1-sub", look, int(room_scale), frame)
+    return photos.get(key, lambda: roster_frame(image, look, room_scale, False))
+
+
 def draw_inside_sub_marks(scene, av, app) -> None:
     """Draw subagent sprites to the right of an inside parent. Tag: ``inside-sub``."""
     count = getattr(av.agent, "subagents", 0)
@@ -46,6 +62,7 @@ def draw_inside_sub_marks(scene, av, app) -> None:
     photos = photos_for(app)
     parent_id = str(getattr(av.agent, "agent_id", "") or "")
     count, size = min(count, 8), child_size(av, CHILD_SIZE)
+    room_scale = getattr(av, "_room_scale", None)
     for index in range(count):
         left = av.x + av.aw + 6 + index * (size + 4)
         top = av.y + av.ah - size
@@ -56,7 +73,7 @@ def draw_inside_sub_marks(scene, av, app) -> None:
             pool,
             rng=getattr(app, "_subskin_rng", None),
         )
-        photo = inside_sub_photo(photos, skin, size)
+        photo = bubble_photo(photos, room_scale, index) if room_scale else inside_sub_photo(photos, skin, size)
         if photo is None:
             continue
         try:
