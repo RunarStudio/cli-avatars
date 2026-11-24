@@ -266,6 +266,36 @@ store, not a fire-and-forget packet.
   history are kept). Agent notes are also secret-redacted by the board model
   (`redaction`).
 
+### 2.7 Resources (TM.1)
+
+A resource is a link, a file path or a note kept on a topic, optionally tied to one card.
+It is data only: the app never fetches a url, opens a path or runs a body. No UI yet.
+
+```text
+resources/.lock                       directory_lock, taken before topics/
+resources/<topic>/<uuid>.json         one record; <topic> is the topic's file stem
+```
+
+| Field | Rule |
+|-------|------|
+| `id` | lowercase UUID4, set by the store |
+| `topic_id` | must exist in `topics/` |
+| `card_id` | optional; the card must exist and sit in the same topic, else `missing` / `not_allowed` |
+| `kind` | `link`, `file` or `note`; carries only its own payload |
+| `title` | redacted, sanitised, 1–120 chars |
+| `url` (link) | `https` with a host; no userinfo, spaces, controls or `\`; at most 2048 |
+| `path` (file) | relative, `/` separators; no root, drive, UNC, `~`, `:` or `..`; at most 260 |
+| `body` (note) | redacted, newlines kept, 1–4000 chars (longer is rejected) |
+| `added_by`, `created_at`, `updated_at` | set by the store; `id`, `topic_id`, `kind`, `added_by`, `created_at` never change |
+
+Calls (`resources/store.py` `ResourceStore`, reached through the registry; there is no delete):
+
+- `Registry.resource_add(topic, kind, title, url|path|body, card_id?)`, `resource_edit(id, ...)`,
+  `resource_get(id)`, `resource_list(topic, card_id?)`. Daniel is `added_by`.
+- `AgentApi.resource_add(agent, topic, ...)`, `resource_edit(agent, id, ...)`: only in a topic that lists
+  the agent (`not_owner`), counted in the agent's write limit, outside paths in title and body hashed
+  (Decision K). An edit that changes nothing writes nothing. No MCP tool yet.
+
 ---
 
 ## 3. Chat connection: one-shot call vs topic orchestrator
