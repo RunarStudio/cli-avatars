@@ -26,6 +26,7 @@
 - An orchestrator is a top-level session: Claude (`sessions.py`, `parent_id` None) or a live Grok session. Its topic is the project folder as a slug (`agent-chat-protocol.md`). Subagents follow their parent.
 - The Throne tab shows one hall. Its lord is the first top-level agent by id (`throne-room.md`, `throne_model.seat`).
 - Rooms: MAP.1/ROOMS.1 (`map-config.md`, not built yet) put rooms in `building/maps/main.json`. A room has an optional `topic`. **Create your room** puts a room on the nearest free spot, with a corridor and a door. `large` is 14x10, the throne hall's size. Only the main orchestrator gets a `large` room (START.1).
+- Rooms built from the phone (PHONE.3, `phone-view.md`): kept with the session rooms in `ui/session_rooms.json` (`rooms`: name, topic, size, skin, room and point it hangs off; `looks`: the Apothecary's skin), placed by `room_place.py`, dressed by `room_skins.py`. Session rooms are S or M; L stays the main orchestrator's.
 - Room chat (`room-chat.md`): one orchestrator chat per topic, `room_chat/<topic>.json`.
 - Board (`board.md`, TASKBACK): cards have `topic`, `assignee`, `column` and `status_note`. An AI changes only the column, progress, status note and checklist (Agent API).
 

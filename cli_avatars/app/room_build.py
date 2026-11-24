@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from cli_avatars.app.dungeon_rooms import compose, load_manifest
+from cli_avatars.app.dungeon_rooms import build_key, compose, load_manifest
 from cli_avatars.app.room_glow import TORCH_ADD, TORCH_GAIN
 from cli_avatars.app.throne_px import BAYER
 
@@ -129,7 +129,7 @@ def _layers(painter, sid: str):
     base, layout, manifest = painter.base(), painter.layout, load_manifest()
     if base is None or layout is None or manifest is None:
         return None
-    rest = dict(layout, rooms=[r for r in layout.get("rooms") or [] if r.get("session") != sid])
+    rest = dict(layout, rooms=[r for r in layout.get("rooms") or [] if build_key(r) != sid])
     other = compose(rest, manifest)
     canvas = Image.new("RGBA", base.size, (0, 0, 0, 0))
     if other is not None:

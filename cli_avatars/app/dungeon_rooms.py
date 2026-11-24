@@ -8,7 +8,8 @@ only re-composes when the scale changes; otherwise the item is moved.
 Placement follows BLDG-SCHEMA and the kit manifest: a piece at tile ``(u, v)`` with
 footprint ``(w, h)`` puts its manifest anchor on the north vertex of tile ``(u + w, v + h)``
 (the footprint's south vertex), ``floor * FLOOR_Z`` height units up. Wall-hung pieces
-(footprint ``[0, 0]``) anchor on the north vertex of their own tile. State lights, halos,
+(footprint ``[0, 0]``) anchor on the north vertex of their own tile; an item's ``lift`` raises it
+that many pixels (a wall's upper tier, ROOMS.1). State lights, halos,
 plaque counts and desk seating are not drawn here.
 
 Layout and manifest are data: names are looked up in the manifest and nothing else is
@@ -30,7 +31,8 @@ HEIGHT_UNIT = 16
 FLOOR_Z = 3
 MAX_SCALE = 3
 MAX_DATA_BYTES = 512 * 1024
-MAX_ROOMS = 16
+MAX_ROOMS = 64
+MAX_LIFT = 64
 MAX_SPAN = 32
 MAX_UNITS = 4096
 RANK = {"floor": 0, "wall": 1, "door": 2, "stair": 3, "light": 4, "decal": 5, "prop": 6, "ui": 7}
@@ -86,6 +88,7 @@ def placements(layout: dict, manifest: dict) -> list[tuple]:
     """``(sort_key, piece, u, v, floor)`` in paint order; unknown pieces are skipped."""
     pieces = manifest["pieces"]
     found = []
+    seq = 0
     for room in layout["rooms"][:MAX_ROOMS]:
         if not isinstance(room, dict):
             continue
@@ -100,8 +103,11 @@ def placements(layout: dict, manifest: dict) -> list[tuple]:
             if at is None or not isinstance(spec, dict):
                 continue
             span = _cell(item.get("span")) or (1, 1)
-            if not (0 < span[0] <= MAX_SPAN and 0 < span[1] <= MAX_SPAN):
+            lift = item.get("lift", 0)
+            if not (0 < span[0] <= MAX_SPAN and 0 < span[1] <= MAX_SPAN) \
+                    or type(lift) is not int or abs(lift) > MAX_LIFT:
                 continue
+            seq += 1
             fw, fh = _cell(spec.get("footprint")) or (1, 1)
             step_u, step_v = max(1, fw), max(1, fh)
             rank = RANK.get(spec.get("category"), 6)
@@ -111,7 +117,7 @@ def placements(layout: dict, manifest: dict) -> list[tuple]:
                     depth = u + v + max(fw, 1) + max(fh, 1) - 2
                     if (fw, fh) == (0, 0):
                         depth += 0.5
-                    key = (floor, rank > 0, depth, rank, u)
+                    key = (floor, rank > 0, depth, rank, u, seq, lift)
                     found.append((key, name, u, v, floor))
     found.sort(key=lambda row: row[0])
     return found
@@ -137,7 +143,7 @@ def compose(layout: dict, manifest: dict, open_image=None):
     pieces = manifest["pieces"]
     cache: dict[str, object] = {}
     stamps = []
-    for _key, name, u, v, floor in placements(layout, manifest):
+    for key, name, u, v, floor in placements(layout, manifest):
         spec = pieces[name]
         rel = spec.get("file")
         anchor = _cell(spec.get("anchor"))
@@ -152,7 +158,7 @@ def compose(layout: dict, manifest: dict, open_image=None):
         if img is None:
             continue
         ax, ay = _anchor_point(spec, u, v, floor)
-        stamps.append((img, ax - anchor[0], ay - anchor[1]))
+        stamps.append((img, ax - anchor[0], ay - anchor[1] - key[-1]))
     if not stamps:
         return None
     left = min(x for _img, x, _y in stamps)
@@ -274,11 +280,17 @@ class RoomsPainter:
         return ((a + b) / 2.0, (b - a) / 2.0)
 
 
+def build_key(room: dict) -> str | None:
+    """What a room builds in under: its ``build`` (a new skin or size gives a new one), else its session."""
+    key = room.get("build") or room.get("session")
+    return key if isinstance(key, str) else None
+
+
 def _sessions(layout: dict | None) -> set[str] | None:
     if layout is None:
         return None
     rooms = [r for r in layout.get("rooms") or [] if isinstance(r, dict)]
-    return {r["session"] for r in rooms if isinstance(r.get("session"), str)}
+    return {build_key(r) for r in rooms if build_key(r)}
 
 
 def paint_rooms(canvas) -> bool:
