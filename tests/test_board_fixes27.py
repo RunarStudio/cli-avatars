@@ -107,8 +107,8 @@ class PartialAppend(_Board):
 
 class LineLimit(_Board):
     def test_exact_boundary(self):
-        exact = b"x" * MAX_LINE_BYTES
-        over = b"y" * (MAX_LINE_BYTES + 1)
+        exact = b"x" * (MAX_LINE_BYTES - 1)
+        over = b"y" * MAX_LINE_BYTES
         with open(self.events_path, "ab") as fh:
             fh.write(over + b"\n" + exact + b"\n")
         self.store.append_event(new_event("commented", "daniel", self.card["id"], text="after"))
