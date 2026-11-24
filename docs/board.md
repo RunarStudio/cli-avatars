@@ -244,9 +244,15 @@ Read-only by default. The phone view itself is off by default.
 
 | Route | Effect |
 |-------|--------|
-| `GET /api/board?project=<name>` | Cards of one board. |
+| `GET /api/board?project=<name>` | Cards of one board (every board without `project`), each with its `room`. |
 | `GET /api/cards/<id>` | One card. |
-| `POST /api/cards`, `POST /api/cards/<id>/move` | Only when `web.allow_writes` is true. |
+| `GET /api/scene` | The Dungeon rooms (outline and box in map pixels), one avatar per session room, task id to room. |
+| `GET /api/chat/<topic>?tail=N` | The room's last `N` messages (default 30, at most 200). |
+| `GET /api/map.png`, `GET /api/sprite/<skin>.png` | The composed map; a known skin's idle frames. |
+| `GET /api/events` | Server-sent events: `change` when a board, the rooms or a chat changed. |
+| `POST /api/cards`, `POST /api/cards/<id>/move` | Only when `web.allow_writes` is true (WEB.4; not built yet: every write is 405). |
+
+Server, pairing and Tailscale: [phone-view.md](phone-view.md).
 
 Writes need the CSRF header the page received (`X-CLI-Avatars-CSRF`), compared in constant time, and pass an `events.RateLimiter` (10 writes a minute per client). JSON bodies over 16 KiB are rejected. Responses are JSON; the page renders text with `textContent`, never as HTML.
 

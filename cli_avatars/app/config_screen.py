@@ -9,6 +9,7 @@ from cli_avatars.app.bots_ui import build_bots_settings
 from cli_avatars.desktop.settings import desktop_settings, with_bootcheck
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
+from webui.phone_ui import build_phone_settings
 
 
 def _open_config_screen(self):
@@ -214,6 +215,9 @@ def _build_config_ui(self, win):
 
     tbots = tab(" Bots ")
     build_bots_settings(self, tbots)
+
+    tphone = tab(" Phone ")
+    build_phone_settings(self, tphone)
 
     # ── Tab 3: Behavior ───────────────────────────────────────────
     tb = tab(" Behavior ")

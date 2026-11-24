@@ -74,7 +74,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 | DOCS | 6 | 16 (subtasks 0/9) |
 | TAURI | 0 | 4 |
 | BOARD | 1 | 2 (subtasks 2/10) |
-| WEB | 0 | 1 (subtasks 0/4) |
+| WEB | 0 | 1 (subtasks 3/5) |
 | BLDG | 1 | 3 (subtasks 0/3) |
 | BOOTCHECK | 1 | 0 |
 | INSTALL | 4 | 0 |
@@ -572,9 +572,10 @@ Product features only (see Scope). Team process items remain on the board elsewh
 ### 📱 Phone view
 
 - [ ] [WEB][feat] WEB: Phone view served by the app on the LAN. Off by default.
-  - [ ] [WEB][feat] WEB.1 @agents: webui/ on stdlib ThreadingHTTPServer: read-only JSON API plus SSE, binds 127.0.0.1, its own web token, pairing to an HttpOnly cookie, tests. Runs standalone with python -m webui. (M)
+  - [x] [WEB][feat] WEB.1 @agents: webui/ on stdlib ThreadingHTTPServer: read-only JSON API plus SSE, binds 127.0.0.1, its own web token, pairing to an HttpOnly cookie, tests. Runs standalone with python -m webui. (M) (PHONE.1; tick after the Windows check)
   - [ ] [WEB][feat] WEB.2 @agents: Mobile pages in vanilla JS, no build step: topics, chat timeline, board, decisions, agents. Read-only. (M)
-  - [ ] [WEB][feat] WEB.3 @agents: LAN opt-in: one interface IP, QR pairing link in the HUD, rotate token, firewall doc (after SPLIT.4). (S)
+  - [x] [WEB][feat] WEB.3 @agents: LAN opt-in: one interface IP, QR pairing link in the HUD, rotate token, firewall doc (after SPLIT.4). (S) (PHONE.1: Settings, Phone tab; Tailscale named in the interface list, `tailscale serve` preferred; docs/phone-view.md; tick after the Windows check)
+  - [x] [WEB][feat] PHONE.1 @agents: Phone view over Tailscale: the Dungeon map on top (kit pixels, pinch and zoom), tasks with status badges below, tap a task to zoom to its room, the room chat with the latest history under it; side by side from 1024 px. Live over SSE. `python -m webui --demo` for made-up data. Tests: `tests/test_webui.py`. Docs: `docs/phone-view.md`. (tick after the Windows check)
   - [ ] [WEB][feat] WEB.4 @agents: Writes behind web.allow_writes: send, answer a decision, move a card; CSRF header, rate limit, same sanitisers. (M)
 
 ### 🏰 Building view

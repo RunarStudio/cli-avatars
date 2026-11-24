@@ -16,6 +16,7 @@ from cli_avatars.app.bootcheck import run_bootcheck_only
 from cli_avatars.app.shell import OverlayApp
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.sprites.registry import load_sprites as _load_sprites
+from webui import phone_ui
 
 
 def run_selftest() -> int:
@@ -177,5 +178,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     if "--selftest" in args:
         return run_selftest()
     app = OverlayApp()
-    app.run()
+    phone_ui.start_from_config(app)
+    try:
+        app.run()
+    finally:
+        phone_ui.stop(app)
     return 0
