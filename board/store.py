@@ -6,7 +6,9 @@ on ``board/``, atomic card writes. Symlinks are refused; oversized card files ar
 A card over 64 KiB drops its oldest history on write; ``events.jsonl`` rotates to
 ``events.<n>.jsonl`` before 8 MiB, with the next free, higher n (no file is overwritten);
 each rotation deletes rotated files older than 30 days, never ``events.jsonl``.
-``events()`` reads the rotations oldest first, then ``events.jsonl``, line by line at any size.
+``events()`` reads under the board lock, the rotations oldest first, then ``events.jsonl``, line by line
+at any size; a line over 64 KiB (newline included) is skipped. It keeps the newest 32 MiB of lines
+(``MAX_EVENTS_TOTAL_BYTES``) and drops older ones.
 Event lines are appended before the card is written; a failed card write truncates them again.
 """
 
@@ -35,6 +37,7 @@ BOARD_DIR_NAME = "board"
 MAX_CARD_BYTES = 64 * 1024
 MAX_EVENTS_BYTES = 8 * 1024 * 1024
 MAX_LINE_BYTES = 64 * 1024
+MAX_EVENTS_TOTAL_BYTES = 32 * 1024 * 1024
 EVENT_RETENTION_DAYS = 30
 RENAME_TRIES = 5
 RENAME_WAIT = 0.05
@@ -156,21 +159,26 @@ class LocalStore:
         return event
 
     def events(self, project: str) -> list[dict]:
-        """Valid records of the rotations and ``events.jsonl``, oldest first.
+        """Valid records of the newest ``MAX_EVENTS_TOTAL_BYTES``, oldest first.
 
         Bad, oversized and partial lines are skipped.
         """
         project_dir = self._dir(clean_board_project(project))
         if project_dir is None:
             return []
-        lines = []
-        for n in self._rotations(project_dir):
-            lines += self._lines(project_dir / f"events.{n}.jsonl")
-        lines += self._lines(project_dir / "events.jsonl")
+        with directory_lock(self._ensure_root()):
+            paths = [project_dir / f"events.{n}.jsonl" for n in self._rotations(project_dir)]
+            lines, total = [], 0
+            for path in reversed(paths + [project_dir / "events.jsonl"]):
+                for line in reversed(self._lines(path)):
+                    total += len(line) + 1
+                    if total > MAX_EVENTS_TOTAL_BYTES:
+                        break
+                    lines.append(line)
+                if total > MAX_EVENTS_TOTAL_BYTES:
+                    break
         found = []
-        for line in lines:
-            if len(line) > MAX_LINE_BYTES:
-                continue
+        for line in reversed(lines):
             try:
                 found.append(validate_event(json.loads(line)))
             except (ValueError, RecursionError, EventRejected):
@@ -185,8 +193,7 @@ class LocalStore:
     def _lines(self, path: Path) -> list[bytes]:
         """Complete lines, read one at a time at any file size.
 
-        A line over 64 KiB (``MAX_LINE_BYTES``, not counting the newline) is dropped whole,
-        and so is a partial last line.
+        A line over 64 KiB with its newline is dropped whole, and so is a partial last line.
         """
         if path.is_symlink() or not path.is_file():
             return []
@@ -195,13 +202,13 @@ class LocalStore:
             with open(path, "rb") as fh:
                 while True:
                     line = fh.readline(MAX_LINE_BYTES + 1)
-                    if line.endswith(b"\n"):
-                        lines.append(line[:-1])
-                        continue
                     if len(line) <= MAX_LINE_BYTES:
-                        break
-                    while line and not line.endswith(b"\n"):
-                        line = fh.readline(MAX_LINE_BYTES)
+                        if not line.endswith(b"\n"):
+                            break
+                        lines.append(line[:-1])
+                    else:
+                        while line and not line.endswith(b"\n"):
+                            line = fh.readline(MAX_LINE_BYTES)
         except OSError:
             return lines
         return lines
