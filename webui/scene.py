@@ -31,6 +31,7 @@ _LOOK = re.compile(r"^(user|orchestrator|grok|subagent)(?:-(\d{1,3}))?$")
 FEET_UP = 0.08
 ORDER = {name: i for i, name in enumerate(("doing", "blocked", "review", "todo", "done"))}
 MAX_CARDS = 300
+FULL_BYTES = 512 * 1024
 WALL_PX = 48
 _LOCK = threading.Lock()
 _MAPS: dict[str, tuple[bytes, tuple[int, int], tuple[int, int]]] = {}
@@ -256,9 +257,41 @@ def chat(directory: Path | str, topic: str, tail: int) -> list[dict] | None:
     from topics import topic_messages
 
     try:
-        return topic_messages(directory, topic)[-tail:]
+        messages = topic_messages(directory, topic)
     except EventRejected:
         return None
+    messages = messages[-tail:]
+    full = _full_notes(directory, topic)
+    for message in messages:
+        message["text"] = full.get((message["ts"], message["from"]), message["text"])
+    return messages
+
+
+def _full_notes(directory: Path | str, topic: str) -> dict:
+    """``(ts, from) -> note`` up to the room chat's chunk size, from the newest 512 KiB of the room's file.
+
+    The shared reader caps a line at 240 characters; a CLI reply on the phone reads whole.
+    """
+    from cli_avatars.model.room_stream import CHUNK_LIMIT
+    from events import channel_path, sanitize_text
+
+    try:
+        path = channel_path(Path(directory), topic)
+        with open(path, "rb") as handle:
+            handle.seek(max(0, path.stat().st_size - FULL_BYTES))
+            blob = handle.read(FULL_BYTES)
+    except (EventRejected, OSError):
+        return {}
+    found = {}
+    for raw in blob.split(b"\n"):
+        try:
+            obj = json.loads(raw)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if isinstance(obj, dict) and obj.get("channel") == topic and isinstance(obj.get("note"), str) \
+                and isinstance(obj.get("ts"), (int, float)) and isinstance(obj.get("from"), str):
+            found[(float(obj["ts"]), obj["from"])] = sanitize_text(obj["note"], CHUNK_LIMIT)
+    return found
 
 
 def stamp(directory: Path | str) -> tuple:

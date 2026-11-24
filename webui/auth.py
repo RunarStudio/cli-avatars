@@ -39,3 +39,8 @@ def session_value(token: str) -> str:
 
 def same(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
+
+
+def csrf_value(token: str) -> str:
+    """The value a write must echo in ``X-CLI-Avatars-CSRF``; the page reads it from ``/api/sessions``."""
+    return hmac.new(token.encode("utf-8"), b"cli-avatars-web-csrf", hashlib.sha256).hexdigest()

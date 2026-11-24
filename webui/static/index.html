@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#120e18">
 <title>Dungeon</title>
 <link rel="stylesheet" href="/static/app.css">
@@ -14,7 +14,7 @@
       <h1><span class="torch" aria-hidden="true"></span>Dungeon</h1>
       <span id="here" class="here"></span>
       <span id="live" class="live" title="Live updates"></span>
-      <button id="sound" class="icon" type="button" aria-pressed="false" title="Sound on zoom">&#9835;</button>
+      <button id="sound" class="icon" type="button" aria-pressed="false" title="Sound: zoom, send and reply">&#9835;</button>
       <button id="fit" class="icon" type="button" title="Whole map">&#10530;</button>
     </header>
     <div class="stage"><canvas id="map"></canvas></div>
@@ -24,10 +24,38 @@
     <ul id="tasks" class="tasks"></ul>
   </section>
   <section class="pane chat-pane" aria-label="Room chat">
-    <header class="bar"><h2>Room chat</h2><span id="chatRoom" class="chat-room"></span></header>
-    <ol id="chat" class="chat"></ol>
+    <header class="bar"><h2>Room chat</h2><span id="chatRoom" class="chat-room"></span>
+      <button id="sessions" class="icon add" type="button" title="Sessions" aria-haspopup="dialog">+</button></header>
+    <ol id="chat" class="chat" aria-live="polite"></ol>
+    <div id="typing" class="typing" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="typingText"></span></div>
+    <form id="composer" class="composer" autocomplete="off">
+      <textarea id="prompt" rows="1" maxlength="8000" enterkeyhint="send" aria-label="Prompt"></textarea>
+      <button id="send" class="send" type="submit" aria-label="Send">Send</button>
+    </form>
+    <p id="composeHint" class="hint"></p>
   </section>
 </main>
+<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheet-card">
+    <header class="bar"><h2 id="sheetTitle">Sessions</h2><button id="sheetClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <p id="sheetOff" class="hint" hidden></p>
+      <ul id="openSessions" class="open-sessions"></ul>
+      <div id="newSession">
+        <h3>New session</h3>
+        <div class="seg" role="radiogroup" aria-label="Room">
+          <button type="button" data-kind="simple" class="on">Simple room</button><button type="button" data-kind="main">Main: throne</button>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="CLI">
+          <button type="button" data-cli="claude" class="on">Claude</button><button type="button" data-cli="grok">Grok</button>
+        </div>
+        <ul id="folders" class="folders"></ul>
+        <button id="openSession" class="send wide" type="button">Open session</button>
+      </div>
+      <p id="sheetStatus" class="hint"></p>
+    </div>
+  </div>
+</div>
 <script src="/static/app.js"></script>
 </body>
 </html>

@@ -12,6 +12,8 @@ This replaces "never auto-start a CLI":
 
 "Never execute chat content" stays as it is.
 
+The phone page's Send tap (PHONE.2, only with `web.allow_writes` on) is Daniel's Enter too: it goes through the same `chat_window.launch_cli` as the chat's Enter handler, with the room's own folder, binary pin and mode. See [phone-view.md](phone-view.md).
+
 ## Room
 
 One JSON file per room in the per-user data directory: `room_chat/<room_id>.json`. Owner-only, `directory_lock` on `room_chat/`, atomic write, same helpers as topics. Never in git.

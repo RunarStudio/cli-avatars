@@ -5,12 +5,11 @@ Starting it here is Daniel's click; ``start_from_config`` restarts it with the a
 
 from __future__ import annotations
 
-import time
 import tkinter as tk
 from dataclasses import replace
 
 from events import app_data_dir
-from webui import auth, config, live, qr, server
+from webui import auth, config, live, qr, server, writes
 
 _BG, _FG, _SEL, _DIM, _BAD = "#0d0d1a", "#aaccff", "#223366", "#9a98b8", "#ff8866"
 _FONT = ("Courier", 9)
@@ -23,11 +22,17 @@ def _settings(app) -> config.WebSettings:
 def start(app, settings: config.WebSettings) -> str:
     """Serve on the chosen address; ``""`` when it runs, else why not."""
     stop(app)
+    calls = writes.TkCalls(getattr(app, "root", None))
+    actions = writes.Actions(app_data_dir(), book=lambda: getattr(app, "places", None),
+                             model=lambda: _session_model(app), call=calls, after_change=lambda: _refresh(app))
     try:
-        app._phone_server, _thread = server.start(app_data_dir(), settings.bind, settings.port)
+        app._phone_server, _thread = server.start(app_data_dir(), settings.bind, settings.port,
+                                                  writes=lambda: _settings(app).allow_writes, actions=actions)
     except (OSError, ValueError) as exc:
+        calls.stop()
         return f"Could not serve on {settings.bind}:{settings.port}: {exc}"
-    live.set_roster(lambda _lay, _now: dungeon_roster(app))
+    app._phone_calls = calls
+    live.set_roster(lambda _lay, _now: live.dungeon_roster(app))
     return ""
 
 
@@ -35,15 +40,22 @@ def stop(app) -> None:
     live.set_roster(None)
     server.stop(getattr(app, "_phone_server", None))
     app._phone_server = None
+    calls = getattr(app, "_phone_calls", None)
+    if calls is not None:
+        calls.stop()
+    app._phone_calls = None
 
 
-def dungeon_roster(app, stale: float = 2.0) -> list[dict] | None:
-    """The Dungeon's last roster snapshot; None when it is older than ``stale`` seconds (window hidden)."""
-    hall = getattr(getattr(app, "places", None), "_hall", None)
-    snap = getattr(hall, "snapshot", None)
-    if snap is None or time.monotonic() - snap[0] > stale:
-        return None
-    return snap[1]
+def _session_model(app):
+    from cli_avatars.app.session_rooms import model_for
+
+    return model_for(app)
+
+
+def _refresh(app) -> None:
+    panel = getattr(getattr(app, "dungeon", None), "_sessions", None)
+    if panel is not None:
+        panel.refresh()
 
 
 def start_from_config(app) -> None:
@@ -69,6 +81,7 @@ def build_phone_settings(app, parent) -> None:
     labels = [label for label, _ip in rows]
     chosen = next((label for label, ip in rows if ip == current.bind), labels[0])
     v_on = tk.BooleanVar(parent, current.enabled and getattr(app, "_phone_server", None) is not None)
+    v_writes = tk.BooleanVar(parent, current.allow_writes)
     v_if = tk.StringVar(parent, chosen)
     v_addr = tk.StringVar(parent, current.address)
 
@@ -77,12 +90,17 @@ def build_phone_settings(app, parent) -> None:
         label.pack(fill="x", padx=12, pady=2)
         return label
 
-    line("Phone view: the Dungeon map, tasks and room chat in a browser. Read-only.", _DIM)
+    line("Phone view: the Dungeon map, tasks and room chat in a browser.", _DIM)
     head = tk.Frame(parent, bg=_BG)
     head.pack(fill="x", padx=12, pady=4)
     tk.Checkbutton(head, variable=v_on, text="Serve the phone view", command=lambda: _apply(),
                    bg=_BG, fg=_FG, selectcolor=_SEL, activebackground=_BG, activeforeground="white",
                    font=_FONT, highlightthickness=0).pack(side="left")
+    tk.Checkbutton(parent, variable=v_writes, text="Allow the phone to open sessions and send prompts",
+                   command=lambda: _apply(), bg=_BG, fg=_FG, selectcolor=_SEL, activebackground=_BG,
+                   activeforeground="white", font=_FONT, highlightthickness=0).pack(anchor="w", padx=12)
+    line("Off by default. On: Send on the phone runs your own CLI here, in the room's folder, like Enter "
+         "in the Dungeon's chat.", _DIM)
     pick = tk.Frame(parent, bg=_BG)
     pick.pack(fill="x", padx=12, pady=2)
     tk.Label(pick, text="Listen on", bg=_BG, fg=_FG, font=_FONT, width=12, anchor="w").pack(side="left")
@@ -123,7 +141,8 @@ def build_phone_settings(app, parent) -> None:
     def _apply():
         bind = dict((label, ip) for label, ip in rows).get(v_if.get(), config.LOOPBACK)
         settings = config.web_settings({"web": {**_settings(app).__dict__, "enabled": bool(v_on.get()),
-                                                "bind": bind, "address": v_addr.get()}}, rows)
+                                                "bind": bind, "address": v_addr.get(),
+                                                "allow_writes": bool(v_writes.get())}}, rows)
         why = start(app, settings) if settings.enabled else stop(app) or ""
         if why:
             v_on.set(False)

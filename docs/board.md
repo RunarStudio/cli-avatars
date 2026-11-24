@@ -246,15 +246,16 @@ Read-only by default. The phone view itself is off by default.
 |-------|--------|
 | `GET /api/board?project=<name>` | Cards of one board (every board without `project`), each with its `room`. |
 | `GET /api/cards/<id>` | One card. |
-| `GET /api/scene` | The Dungeon rooms (outline and box in map pixels), one avatar per session room, task id to room. |
+| `GET /api/scene` | The Dungeon rooms (outline and box in map pixels), every avatar with feet and facing, task id to room. |
 | `GET /api/chat/<topic>?tail=N` | The room's last `N` messages (default 30, at most 200). |
 | `GET /api/map.png`, `GET /api/sprite/<skin>.png` | The composed map; a known skin's idle frames. |
-| `GET /api/events` | Server-sent events: `change` when a board, the rooms or a chat changed. |
-| `POST /api/cards`, `POST /api/cards/<id>/move` | Only when `web.allow_writes` is true (WEB.4; not built yet: every write is 405). |
+| `GET /api/events` | Server-sent events: `change` when a board, the rooms or a chat changed; `avatars` as they move. |
+| `POST /api/chat/<topic>`, `POST /api/sessions`, `POST /api/sessions/<topic>/end` | Only when `web.allow_writes` is true (PHONE.2): send a prompt, open or end a session. Otherwise 405. |
+| `POST /api/cards`, `POST /api/cards/<id>/move` | Not built yet (WEB.4): 405. |
 
 Server, pairing and Tailscale: [phone-view.md](phone-view.md).
 
-Writes need the CSRF header the page received (`X-CLI-Avatars-CSRF`), compared in constant time, and pass an `events.RateLimiter` (10 writes a minute per client). JSON bodies over 16 KiB are rejected. Responses are JSON; the page renders text with `textContent`, never as HTML.
+Writes need the CSRF header the page received (`X-CLI-Avatars-CSRF`), compared in constant time, and pass an `events.RateLimiter` (10 writes a minute; one key for every phone, since `tailscale serve` hands them all over from 127.0.0.1). JSON bodies over 16 KiB are rejected. Responses are JSON; the page renders text with `textContent`, never as HTML.
 
 ## Threat model
 

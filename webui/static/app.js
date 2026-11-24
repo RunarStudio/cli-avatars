@@ -1,4 +1,5 @@
-// PHONE.1: the Dungeon map, its tasks and the room chat. Read-only; every text goes in with textContent.
+// PHONE.1/2: the Dungeon map, its tasks and the room chat; with writes on, open sessions and send prompts.
+// Every text goes in with textContent.
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -6,7 +7,8 @@ const canvas = $("map");
 const ctx = canvas.getContext("2d");
 const LABELS = { todo: "TODO", doing: "DOING", review: "REVIEW", done: "DONE", blocked: "BLOCKED" };
 const state = { scene: null, cards: [], sel: null, room: null, map: null, mapKey: "", sprites: {},
-  view: { x: 0, y: 0, s: 1 }, anim: null, fitted: false, chatKey: "", glow: 0, walkers: new Map() };
+  view: { x: 0, y: 0, s: 1 }, anim: null, fitted: false, chatKey: "", glow: 0, walkers: new Map(),
+  writes: { writes: false, sessions: [], folders: [] }, lastReply: "", sending: false, pick: { kind: "simple", cli: "claude", topic: "" } };
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -20,6 +22,17 @@ async function getJSON(url) {
   if (res.status === 401) { location.reload(); throw new Error("unpaired"); }
   if (!res.ok) throw new Error(url + " " + res.status);
   return res.json();
+}
+
+async function postJSON(url, body) {
+  const res = await fetch(url, {
+    method: "POST", credentials: "same-origin", cache: "no-store",
+    headers: { "Content-Type": "application/json", "X-CLI-Avatars-CSRF": state.writes.csrf || "" },
+    body: JSON.stringify(body || {}),
+  });
+  let data = {};
+  try { data = await res.json(); } catch (_e) { /* empty body */ }
+  return { ok: res.ok, status: res.status, data };
 }
 
 function loadImage(src) {
@@ -336,33 +349,196 @@ function clock(ts) {
 async function showChat(topic, title) {
   $("chatRoom").textContent = title || "";
   state.chatKey = topic || "";
+  paintComposer(false);
   const list = $("chat");
   if (!topic) {
-    list.replaceChildren(el("li", "empty", "This task has no room chat yet."));
+    list.replaceChildren(el("li", "empty", state.writes.writes ? "Open a session (+) or tap a room to chat." : "This task has no room chat yet."));
+    $("typing").hidden = true;
     return;
   }
   let data;
   try { data = await getJSON("/api/chat/" + encodeURIComponent(topic) + "?tail=40"); } catch (_e) { return; }
   if (state.chatKey !== topic) return;
   const seen = new Set([...list.children].map((n) => n.dataset.key));
+  const stick = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
   list.replaceChildren();
   if (!data.messages.length) list.append(el("li", "empty", "No messages in this room yet."));
+  let reply = "";
   for (const m of data.messages) {
     const who = String(m.from || "").split(":")[0];
     const key = m.ts + m.from;
-    const li = el("li", "msg " + who + (seen.size && !seen.has(key) ? " fresh" : ""));
+    const li = el("li", "msg " + who + (m.icon === "error" ? " error" : "") + (seen.size && !seen.has(key) ? " fresh" : ""));
     li.dataset.key = key;
     const head = el("div", "who", who || "?");
     const t = el("time", "", clock(m.ts));
     head.append(t);
     li.append(el("span", "pip"), head, el("div", "text", m.text));
     list.append(li);
+    if (who !== "user") reply = key;
   }
-  list.scrollTop = list.scrollHeight;
+  if (reply && state.lastReply && reply !== state.lastReply && state.lastReply.startsWith(topic + "|")) tone("reply");
+  state.lastReply = topic + "|" + reply;
+  state.running = !!data.running;
+  $("typing").hidden = !state.running;
+  $("typingText").textContent = state.running ? "Answering in " + (title || topic) + "…" : "";
+  paintComposer(false);
+  if (stick || seen.size === 0) list.scrollTop = list.scrollHeight;
+}
+
+// --- writes: composer and sessions sheet -----------------------------------------------------------
+function paintComposer(busy) {
+  const on = state.writes.writes, topic = state.chatKey;
+  const form = $("composer"), hint = $("composeHint");
+  form.hidden = !on;
+  $("sessions").hidden = false;
+  if (!on) { hint.textContent = "Sending from the phone is off (Dungeon: Settings › Phone)."; return; }
+  const can = !!topic && !state.running && !busy && !state.sending;
+  $("prompt").disabled = !topic;
+  $("send").disabled = !can;
+  $("prompt").placeholder = topic ? "Ask in " + ($("chatRoom").textContent || topic) + "…" : "Tap a room or open a session (+)";
+  hint.textContent = topic ? "" : "";
+}
+
+async function loadWrites() {
+  try { state.writes = await getJSON("/api/sessions"); } catch (_e) { return; }
+  paintComposer(false);
+  if (!$("sheet").hidden) paintSheet();
+}
+
+$("composer").addEventListener("submit", (e) => { e.preventDefault(); sendPrompt(); });
+$("prompt").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && window.matchMedia("(pointer: fine)").matches) {
+    e.preventDefault();
+    sendPrompt();
+  }
+});
+$("prompt").addEventListener("input", growPrompt);
+// tapping Send keeps the keyboard up, as chat apps do
+$("send").addEventListener("pointerdown", (e) => { if (document.activeElement === $("prompt")) e.preventDefault(); });
+$("prompt").addEventListener("focus", () => { document.body.classList.add("composing"); setTimeout(() => { $("chat").scrollTop = $("chat").scrollHeight; }, 250); });
+$("prompt").addEventListener("blur", () => { setTimeout(() => { if (document.activeElement !== $("prompt")) document.body.classList.remove("composing"); }, 150); });
+
+function growPrompt() {
+  const t = $("prompt");
+  t.style.height = "auto";
+  t.style.height = Math.min(t.scrollHeight + 4, window.innerHeight * 0.3) + "px";
+}
+
+async function sendPrompt() {
+  const text = $("prompt").value, topic = state.chatKey;
+  if (!text.trim() || !topic || state.sending || state.running) return;
+  state.sending = true;
+  paintComposer(true);
+  tone("send");
+  const res = await postJSON("/api/chat/" + encodeURIComponent(topic), { text }).catch(() => ({ ok: false, data: {} }));
+  state.sending = false;
+  if (res.ok) {
+    $("prompt").value = "";
+    growPrompt();
+    state.running = true;
+    showChat(topic, $("chatRoom").textContent);
+  } else {
+    $("composeHint").textContent = res.data.why || (res.status === 429 ? "Too many sends: wait a minute." : "Not sent (" + (res.status || "offline") + ").");
+    paintComposer(false);
+  }
+}
+
+function openSheet() {
+  $("sheet").hidden = false;
+  $("sheetStatus").textContent = "";
+  paintSheet();
+  loadWrites();
+}
+function closeSheet() { $("sheet").hidden = true; }
+$("sessions").addEventListener("click", openSheet);
+$("sheetClose").addEventListener("click", closeSheet);
+$("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) closeSheet(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
+for (const b of document.querySelectorAll(".seg button")) {
+  b.addEventListener("click", () => {
+    if (b.dataset.kind) state.pick.kind = b.dataset.kind;
+    if (b.dataset.cli) state.pick.cli = b.dataset.cli;
+    paintSheet();
+  });
+}
+
+function paintSheet() {
+  const w = state.writes, open = new Set(w.sessions.map((x) => x.sid));
+  $("sheetOff").hidden = !!w.writes;
+  $("sheetOff").textContent = "Sending from the phone is off. In the Dungeon: Settings › Phone › Allow the phone to open sessions and send prompts.";
+  $("newSession").hidden = !w.writes;
+  for (const b of document.querySelectorAll(".seg button")) {
+    b.classList.toggle("on", b.dataset.kind ? b.dataset.kind === state.pick.kind : b.dataset.cli === state.pick.cli);
+    b.setAttribute("aria-checked", b.classList.contains("on") ? "true" : "false");
+  }
+  const list = $("openSessions");
+  list.replaceChildren();
+  for (const x of w.sessions) {
+    const li = el("li");
+    li.append(el("span", "", (x.kind === "main" ? "♛ " : "• ") + titleOf(x.sid)), el("small", "", x.kind + " · " + x.cli));
+    const go = el("button", "end", "Chat");
+    go.type = "button";
+    go.addEventListener("click", () => { closeSheet(); goRoom(x.sid); });
+    li.append(go);
+    if (w.writes) {
+      const end = el("button", "end", "End");
+      end.type = "button";
+      end.addEventListener("click", () => endSession(x.sid));
+      li.append(end);
+    }
+    list.append(li);
+  }
+  const folders = $("folders");
+  folders.replaceChildren();
+  const free = w.folders.filter((f) => !open.has(f.topic));
+  if (!free.includes(w.folders.find((f) => f.topic === state.pick.topic))) state.pick.topic = free.length ? free[0].topic : "";
+  if (!free.length) folders.append(el("li", "empty", w.folders.length ? "Every room with a folder is open." : "No room has a folder yet: pick one in the Dungeon's chat (Folder…) once."));
+  for (const f of free) {
+    const li = el("li"), b = el("button", f.topic === state.pick.topic ? "on" : "");
+    b.type = "button";
+    b.append(el("span", "", f.title), el("small", "", f.folder));
+    b.addEventListener("click", () => { state.pick.topic = f.topic; paintSheet(); });
+    li.append(b);
+    folders.append(li);
+  }
+  $("openSession").disabled = !state.pick.topic;
+}
+
+function titleOf(topic) {
+  const room = state.scene && state.scene.rooms.find((r) => r.name === topic);
+  return room ? room.title : topic;
+}
+
+async function goRoom(topic) {
+  await load().catch(() => {});
+  zoomToRoom(topic);
+  showChat(topic, titleOf(topic));
+}
+
+$("openSession").addEventListener("click", async () => {
+  const p = state.pick;
+  if (!p.topic) return;
+  $("openSession").disabled = true;
+  const res = await postJSON("/api/sessions", { kind: p.kind, cli: p.cli, topic: p.topic }).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) {
+    $("sheetStatus").textContent = res.data.why || "Not opened (" + (res.status || "offline") + ").";
+    $("openSession").disabled = false;
+    return;
+  }
+  tone("send");
+  closeSheet();
+  await loadWrites();
+  goRoom(p.topic);
+});
+
+async function endSession(sid) {
+  const res = await postJSON("/api/sessions/" + encodeURIComponent(sid) + "/end", {}).catch(() => ({ ok: false, data: {} }));
+  $("sheetStatus").textContent = res.ok ? titleOf(sid) + " ended. Its avatars walk back to the Apothecary." : "Not ended (" + (res.status || "offline") + ").";
+  loadWrites();
 }
 
 async function load() {
-  const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board")]);
+  const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites()]);
   state.scene = scene;
   state.cards = board.cards;
   if (scene.map) {
@@ -434,6 +610,40 @@ function chime() {
       o.stop(t + 0.72);
     }
   } catch (_e) { soundOn = false; paintSound(); }
+}
+
+// a soft blip on send, a low two-note on a reply; same toggle as the zoom chime
+function tone(kind) {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const t = audio.currentTime, out = audio.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+    out.connect(audio.destination);
+    const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : [[392.0, 0], [523.25, 0.09]];
+    for (const [f, d] of notes) {
+      const o = audio.createOscillator();
+      o.type = kind === "send" ? "square" : "triangle";
+      o.frequency.setValueAtTime(f, t + d);
+      const g = audio.createGain();
+      g.gain.value = kind === "send" ? 0.35 : 1;
+      o.connect(g).connect(out);
+      o.start(t + d);
+      o.stop(t + 0.46);
+    }
+  } catch (_e) { soundOn = false; paintSound(); }
+}
+
+// the keyboard never covers the composer: the app is as tall as the visible viewport
+function fitViewport() {
+  const vv = window.visualViewport;
+  if (vv) document.documentElement.style.setProperty("--app-h", Math.round(vv.height) + "px");
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", fitViewport);
+  fitViewport();
 }
 
 $("fit").addEventListener("click", () => { state.room = null; $("here").textContent = ""; animateTo(wholeMap()); });

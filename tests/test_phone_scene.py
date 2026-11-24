@@ -152,7 +152,7 @@ class DungeonRosterTests(unittest.TestCase):
     def test_fresh_snapshot_is_used_and_a_stale_one_falls_back(self):
         from types import SimpleNamespace
 
-        from webui.phone_ui import dungeon_roster
+        from webui.live import dungeon_roster
 
         rows = [{"id": "__you__", "kind": "user", "name": "You", "room": "Apothecary", "feet": (1.0, 1.0)}]
         app = SimpleNamespace(places=SimpleNamespace(_hall=SimpleNamespace(snapshot=(time.monotonic(), rows))))

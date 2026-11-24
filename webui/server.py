@@ -1,8 +1,10 @@
-"""WEB.1: the phone view server on stdlib ``ThreadingHTTPServer``. Read-only, paired by cookie.
+"""WEB.1: the phone view server on stdlib ``ThreadingHTTPServer``. Paired by cookie; read-only unless writes are on.
 
 Routes are exact names; nothing in a URL becomes a path. Card ids are UUIDs, topics slugs, skins
 a fixed list. ``/pair?t=<token>`` turns the web token into an HttpOnly cookie; everything else
 needs that cookie. Binds 127.0.0.1 unless one local interface IP is passed; never every interface.
+WEB.4 writes (``web.allow_writes``, off by default) also need the CSRF header, a JSON body under
+``MAX_BODY`` and the rate limit.
 """
 
 from __future__ import annotations
@@ -18,7 +20,9 @@ from urllib.parse import parse_qs, urlsplit
 
 from board.model import clean_board_project, valid_uuid
 from bundle_paths import asset_path
-from webui import auth, scene
+from events import RateLimiter
+from topics import valid_topic_id
+from webui import auth, scene, writes
 
 STATIC = asset_path("webui", "static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -29,8 +33,11 @@ MAX_BODY = 16 * 1024
 MAX_STREAMS = 8
 DEFAULT_TAIL, MAX_TAIL = 30, 200
 KEEPALIVE = 15.0
+WRITE_BURST, WRITE_WINDOW = 10, 60.0
+CSRF_HEADER = "X-CLI-Avatars-CSRF"
 AVATAR_TICK = 0.25
 _BAD_PATH = re.compile(r"\.\.|%2e|%2f|%5c|\\|//", re.IGNORECASE)
+_END = re.compile(r"^/api/sessions/([^/]{1,40})/end$")
 _SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; "
@@ -89,7 +96,59 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._error(405)
 
-    do_POST = do_PUT = do_DELETE = do_PATCH = _refuse_body
+    do_PUT = do_DELETE = do_PATCH = _refuse_body
+
+    def do_POST(self) -> None:
+        """A write: writes on, paired, CSRF header, JSON body under the cap, under the rate limit."""
+        if not self.server.writes():
+            return self._refuse_body()
+        self.close_connection = True
+        if len(self.path) > MAX_URL:
+            return self._error(414)
+        parts = urlsplit(self.path)
+        if _BAD_PATH.search(parts.path) or parts.query:
+            return self._error(400)
+        if not self._paired():
+            return self._error(401)
+        if not auth.same(self.headers.get(CSRF_HEADER) or "", auth.csrf_value(auth.load_token(self.server.directory))):
+            return self._error(403)
+        length = self.headers.get("Content-Length") or ""
+        if not length.isdigit() or int(length) > MAX_BODY:
+            return self._error(413)
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
+            return self._error(415)
+        if not self.server.allow_write():
+            return self._error(429)
+        try:
+            body = json.loads(self.rfile.read(int(length)) or b"{}")
+        except (ValueError, UnicodeDecodeError):
+            return self._error(400)
+        if not isinstance(body, dict):
+            return self._error(400)
+        try:
+            self._write(parts.path, body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _write(self, path: str, body: dict) -> None:
+        actions = self.server.actions
+        if path == "/api/sessions":
+            if set(body) - {"kind", "cli", "topic"}:
+                return self._error(400)
+            why = actions.open_session(body.get("kind"), body.get("cli"), body.get("topic"))
+            return self._json({"why": why}, 409) if why else self._json({"ok": True})
+        end = _END.match(path)
+        if end:
+            return self._json({"ok": True}) if actions.end_session(end.group(1)) else self._error(404)
+        if path.startswith("/api/chat/"):
+            topic, text = path[len("/api/chat/"):], body.get("text")
+            if not valid_topic_id(topic) or not isinstance(text, str) or not text.strip():
+                return self._error(400)
+            if len(text) > writes.MAX_PROMPT:
+                return self._error(413)
+            why = actions.send(topic, text)
+            return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
+        self._error(404)
 
     def do_GET(self) -> None:
         if len(self.path) > MAX_URL:
@@ -140,6 +199,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(found) if found else self._error(404)
         if path == "/api/scene":
             return self._json(scene.build_scene(directory))
+        if path == "/api/sessions":
+            state = {"writes": self.server.writes(), **self.server.actions.state()}
+            if state["writes"]:
+                state["csrf"] = auth.csrf_value(auth.load_token(directory))
+            return self._json(state)
         if path.startswith("/api/chat/"):
             return self._chat(path[len("/api/chat/"):], query)
         if path == "/api/map.png":
@@ -161,7 +225,7 @@ class Handler(BaseHTTPRequestHandler):
         messages = scene.chat(self.server.directory, topic, tail)
         if messages is None:
             return self._error(404)
-        self._json({"topic": topic, "messages": messages})
+        self._json({"topic": topic, "messages": messages, "running": topic in self.server.actions.running})
 
     def _events(self) -> None:
         """Server-sent events: ``change`` when the boards, rooms or chat change; ``avatars`` as they move."""
@@ -207,20 +271,38 @@ class Handler(BaseHTTPRequestHandler):
 class PhoneServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, directory: Path, poll: float) -> None:
+    def __init__(self, address, directory: Path, poll: float, writes=None, actions=None) -> None:
         super().__init__(address, Handler)
         self.directory = Path(directory)
         self.poll = poll
         self.streams = threading.BoundedSemaphore(MAX_STREAMS)
         self.stopping = threading.Event()
+        self.writes = writes or (lambda: False)
+        self.actions = actions or writes_actions(self.directory)
+        self._limiter = RateLimiter(WRITE_BURST, WRITE_WINDOW)
+
+    def allow_write(self) -> bool:
+        """At most ``WRITE_BURST`` writes in any ``WRITE_WINDOW`` seconds, every phone together.
+
+        Behind ``tailscale serve`` every phone arrives from 127.0.0.1, so one key for all of them.
+        """
+        return self._limiter.allow("phone")
 
     def shutdown(self) -> None:
         self.stopping.set()
         super().shutdown()
 
 
-def make_server(directory: Path | str, host: str = "127.0.0.1", port: int = 0, poll: float = 1.0) -> PhoneServer:
-    """A bound, not yet serving, server. ``host`` must be one IPv4 address, never the unspecified one."""
+def writes_actions(directory: Path) -> writes.Actions:
+    return writes.Actions(directory)
+
+
+def make_server(directory: Path | str, host: str = "127.0.0.1", port: int = 0, poll: float = 1.0,
+                writes=None, actions=None) -> PhoneServer:
+    """A bound, not yet serving, server. ``host`` must be one IPv4 address, never the unspecified one.
+
+    ``writes`` is read on every write (the Settings toggle); ``actions`` defaults to the data folder's own.
+    """
     try:
         addr = ipaddress.IPv4Address(host)
     except ValueError as exc:
@@ -228,11 +310,12 @@ def make_server(directory: Path | str, host: str = "127.0.0.1", port: int = 0, p
     if addr.is_unspecified or addr.is_multicast:
         raise ValueError("never bind every interface")
     auth.load_token(directory)
-    return PhoneServer((str(addr), port), Path(directory), poll)
+    return PhoneServer((str(addr), port), Path(directory), poll, writes, actions)
 
 
-def start(directory: Path | str, host: str, port: int) -> tuple[PhoneServer, threading.Thread]:
-    httpd = make_server(directory, host, port)
+def start(directory: Path | str, host: str, port: int, writes=None,
+          actions=None) -> tuple[PhoneServer, threading.Thread]:
+    httpd = make_server(directory, host, port, writes=writes, actions=actions)
     thread = threading.Thread(target=httpd.serve_forever, name="phone-view", daemon=True)
     thread.start()
     return httpd, thread

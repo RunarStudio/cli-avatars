@@ -7,6 +7,7 @@ START.1 does: you in the Apothecary, one avatar wandering each session room, roa
 
 from __future__ import annotations
 
+import time
 from typing import Callable, Iterable
 
 from cli_avatars.app.room_floor import Plan, wander
@@ -59,3 +60,12 @@ def _walking(floor, key: str, kind: str, name: str, now: float) -> dict:
     feet, face = wander(floor, key, now)
     walk = wander(floor, key, now - 0.1)[0] != feet
     return {"id": key, "kind": kind, "name": name, "room": floor.name, "feet": feet, "face": face, "walk": walk}
+
+
+def dungeon_roster(app, stale: float = 2.0) -> list[dict] | None:
+    """The Dungeon's last roster snapshot; None when it is older than ``stale`` seconds (window hidden)."""
+    hall = getattr(getattr(app, "places", None), "_hall", None)
+    snap = getattr(hall, "snapshot", None)
+    if snap is None or time.monotonic() - snap[0] > stale:
+        return None
+    return snap[1]

@@ -96,6 +96,31 @@ def _runner():
     return importlib.import_module("cli_avatars.runner.cli_runner")
 
 
+def launch_cli(request, prompt: str, event=None):
+    """Start one CLI run for a prompt the user sent: Enter or Send here, or Send on the phone page (PHONE.2).
+
+    Argv is fixed by the runner; the prompt and the room context go on stdin. Raises ``CliRejected``.
+    """
+    runner = _runner()
+    process = runner.start(
+        user_action=runner.UserAction.from_ui_event(event),
+        room_id=request.room_id,
+        cli=request.cli,
+        binary=runner.ConfirmedBinary(cli=request.cli, **request.pin),
+        working_dir=request.working_dir,
+        prompt=prompt,
+        topic_title=request.topic_title,
+        open_cards=request.open_cards,
+        permission_mode=request.mode,
+        session_id=request.session_id,
+        on_stdout_line=request.on_line,
+        on_done=request.on_done,
+    )
+    if not _STOP_ON_EXIT:
+        _STOP_ON_EXIT.append(atexit.register(runner.stop_all))
+    return process
+
+
 def room_tools() -> SimpleNamespace:
     """The runner's checks the room pane may call. None of them starts a process."""
     runner = _runner()
@@ -1029,27 +1054,11 @@ class ChatWindow:
         request = self._room.prepare(raw)
         if request is None:
             return
-        runner = _runner()
         try:
-            process = runner.start(
-                user_action=runner.UserAction.from_ui_event(event),
-                room_id=request.room_id,
-                cli=request.cli,
-                binary=runner.ConfirmedBinary(cli=request.cli, **request.pin),
-                working_dir=request.working_dir,
-                prompt=raw,
-                topic_title=request.topic_title,
-                open_cards=request.open_cards,
-                permission_mode=request.mode,
-                session_id=request.session_id,
-                on_stdout_line=request.on_line,
-                on_done=request.on_done,
-            )
-        except runner.CliRejected as exc:
+            process = launch_cli(request, raw, event)
+        except _runner().CliRejected as exc:
             self._room.rejected(request, str(exc))
             return
-        if not _STOP_ON_EXIT:
-            _STOP_ON_EXIT.append(atexit.register(runner.stop_all))
         try:
             entry.delete(0, "end")
         except Exception:
