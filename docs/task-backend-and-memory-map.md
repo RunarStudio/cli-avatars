@@ -195,7 +195,7 @@ Daniel turns on the one switch in Decision C.
 | `task_status(agent, card, column, note?)` | Column only | Transition table below. |
 | `task_progress(agent, card, progress, note?)` | `progress`, `status_note` | 0–100, an int. Going down is allowed (rework). |
 | `task_check(agent, card, index, done)` | One checklist item's `done` | Index must exist. Text cannot change. |
-| `topic_state(agent, topic, status)` | `open` ↔ `waiting_on_user` | Never `done` (Decision F). |
+| `topic_state(agent, topic, status)` | `open` ↔ `waiting_on_user` | Never `done` (Decision F). Read, member check and write share one `topics/` lock (MEMMAP.5 fix), so a concurrent change such as Daniel closing the topic is not overwritten. |
 | `status_set`, `say` | Avatar state, one topic message | Existing MCP M1 tools, now routed through the registry. |
 | `task_propose(agent, project, title, topic)` | New card in `todo`, label `proposed` | Only when `registry.agents_may_create` is true (default false). At most 5 per agent per hour. |
 
@@ -462,6 +462,7 @@ These are hints for Daniel. The app does not edit, move or summarise any file.
 |--------|----------------------------------------------------------|
 | `memmap/tail.py` | `ReadsTail(data_dir, project).poll()` returns only the new records (offset per file, follows rotation, starts over after a prune rewrite or "Clear map data"). `drop_older` applies retention in memory. |
 | `memmap/graph.py` | `aggregate(records, now=, since=, sessions=, links=)` returns `(Graph, Metrics)` in one pass. `window_start("session" / "today" / "7d" / "30d", now)`; `sessions=` is the topic filter or the selected session. `never_read(files, records, now=, kind_of=)` and `task_reads(records, spans)` (MEMMAP.5 builds the `TaskSpan`s from the registry). |
+| `memmap/tasks.py` | MEMMAP.5. `card_span(card, members, now)` builds a card's `TaskSpan` from its `moved` history (first entry into `doing` to leaving `review`, or now while the card is active); `task_counts(records, cards, members, now)` joins card topic → topic members → reads; `task_rows` sorts them. A card without a topic, members or a `doing` move is "no data". The memory map's metrics strip shows them under `tasks`; the task card and Tasks tab can reuse `memmap_view.task_line`. |
 | `memmap/links.py` | `refresh_links(root, node_paths, cache, known)` reads only files whose mtime or size changed; `load_links` / `save_links` keep `links.json`. `list_markdown(root)` lists names for "never read". `root` comes from a live session's cwd through `find_project_root` and stays in memory. |
 
 The app calls these on a worker thread, never the Tk thread. Measured: 10,000 records aggregate

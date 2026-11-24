@@ -24,6 +24,7 @@ from memmap.layout import layout
 from memmap.links import list_markdown, load_links, refresh_links, save_links
 from memmap.model import classify, find_project_root, project_name
 from memmap.store import READS_NAME, ROTATION_NAME, memmap_root
+from memmap.tasks import task_counts, task_rows
 from memmap.tail import ReadsTail
 
 MAX_DRAWN_EDGES = 120
@@ -49,6 +50,7 @@ class Result:
     positions: dict[str, tuple[float, float]]
     never_read: list[str] = field(default_factory=list)
     serial: int = 0
+    tasks: list[tuple[str, tuple[int, int] | None, bool]] = field(default_factory=list)
 
 
 def _newest_mtime(folder: Path) -> float:
@@ -98,6 +100,21 @@ def topic_filter(directory: Path | str, topic_id: str) -> tuple[str, frozenset[s
             project = row.get("project") if isinstance(row.get("project"), str) else ""
             return project, frozenset(str(m) for m in members if isinstance(m, str))
     return "", None
+
+
+def project_tasks(directory: Path | str, project: str, records: list[dict], now: float) -> list[tuple]:
+    """MEMMAP.5 rows for the project's open cards, joined through each card's topic members."""
+    try:
+        from registry.facade import Registry
+        from topics import list_topics
+
+        cards = Registry(Path(directory), timeout=0.2).task_list(project)
+        rows = list_topics(Path(directory), timeout=0.2)
+    except (EventRejected, OSError):
+        return []
+    members = {str(row.get("id")): frozenset(m for m in row.get("members") or [] if isinstance(m, str))
+               for row in rows}
+    return task_rows(cards, task_counts(records, cards, members, now))
 
 
 def _shape(g: Graph) -> tuple:
@@ -224,4 +241,5 @@ class MapFeed:
             positions=dict(points),
             never_read=never,
             serial=self._serial,
+            tasks=project_tasks(self.directory, project, records, now),
         )
