@@ -277,7 +277,10 @@ class PlaceBook:
             aid for aid, actor in self._actors.items()
             if actor.where == INSIDE and aid not in self._cross
         )
-        spots = self._spot_map(settled)
+        from cli_avatars.app.inside_roster import hall
+
+        room = hall(self)
+        spots = room.walk(self._spot_map(settled), now)
         photos = canvas_photos(self.app)
         from cli_avatars.app.nameplates import seat_inside
 
@@ -287,6 +290,8 @@ class PlaceBook:
         for aid in list(self._cross):
             if self._actors.get(aid) is not None and self._actors[aid].where in (INSIDE, RETURNING):
                 self._paint_inside(scene, aid, (0.0, 0.0), photos, dragging, now, posed=True)
+        room.paint_user(scene, photos, now)
+        room.paint_marks(scene)
         try:
             scene.tag_lower("floor")
         except Exception:
@@ -416,14 +421,14 @@ class PlaceBook:
     def _paint_inside(self, scene, aid, spot, photos, dragging, now, posed: bool) -> None:
         from cli_avatars.app.crossing import pose
         from cli_avatars.app.dungeon_rooms import rooms_scale
-        from cli_avatars.app.room_fit import fit_inside
+        from cli_avatars.app.inside_roster import dress, hall, wearing
 
         av = self.app._inside.get(aid)
         if av is None:
             return
         av.monitor_layout = None
         av._board = None
-        photos = fit_inside(av, photos, rooms_scale(scene))
+        photos, look = dress(av, photos, rooms_scale(scene), hall(self).hues)
         shown = pose(self, aid, now) if posed else None
         if shown is not None:
             av.x, av.y = shown.x, shown.y
@@ -436,7 +441,8 @@ class PlaceBook:
             av.y = spot[1] - av.ah / 2.0
             av.vx = av.vy = 0.0
         try:
-            av.draw(scene, photos)
+            with wearing(av, look):
+                av.draw(scene, photos)
         except Exception:
             pass
         self._draw_children(scene, av)
