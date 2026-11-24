@@ -280,7 +280,7 @@ class PlaceBook:
         from cli_avatars.app.inside_roster import hall
 
         room = hall(self)
-        spots = room.walk(self._spot_map(settled), now)
+        spots = room.stroll(room.walk(self._spot_map(settled), now), now)
         photos = canvas_photos(self.app)
         from cli_avatars.app.nameplates import seat_inside
 

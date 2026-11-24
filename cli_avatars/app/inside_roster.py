@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from dataclasses import replace
 
 from cli_avatars.app.av_roster import GROK, USER_ID, bot_hues, kind_of, look_for, roster_frame
-from cli_avatars.app.needs_walk import Walker, beside, needing, read_rooms
+from cli_avatars.app.needs_walk import Walker, beside, needing, read_rooms, stroll
 from cli_avatars.app.room_fit import fit_inside
 from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.model.agent import AgentInfo
@@ -18,6 +18,7 @@ from cli_avatars.model.crossing import span
 
 USER_SPOT = (0.0, 112.0)
 STEP = 44
+STROLL = 12
 
 
 class RosterPhotos:
@@ -98,6 +99,20 @@ class Hall:
             at = self.walker.at(aid, spots[aid], goals[aid]) if aid in spots else None
             if at is not None:
                 moved[aid] = at
+        return moved
+
+    def stroll(self, spots: dict, now: float) -> dict:
+        """Settled avatars pace near their spot; every one animates. Walkers keep their path."""
+        inside = self.book.app._inside
+        reach = STROLL * max(1, self._scale())
+        moved = dict(spots)
+        for aid, home in spots.items():
+            av = inside.get(aid)
+            if av is None:
+                continue
+            av.frame = int(now * 5)
+            if aid not in self.walker.walking():
+                moved[aid], av.dir = stroll(home, aid, now, reach)
         return moved
 
     def user_spot(self) -> tuple[float, float]:

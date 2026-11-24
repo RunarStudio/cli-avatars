@@ -8,6 +8,7 @@ amber mark, and walks back home when the state clears. A blocked card labelled
 
 from __future__ import annotations
 
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -18,6 +19,7 @@ BLOCKED = "blocked"
 WAITING = "waiting_on_user"
 GUEST_LABEL = "guest"
 MAX_STEP_S = 0.25
+STROLL_S = 6.0
 
 
 def for_guest(card: Mapping) -> bool:
@@ -83,6 +85,13 @@ def beside(user: tuple[float, float], index: int, gap: float) -> tuple[float, fl
     """Waiting spot ``index``: right of the user, then left, one ``gap`` further each pair."""
     side = 1 if index % 2 == 0 else -1
     return (user[0] + side * gap * (index // 2 + 1), user[1])
+
+
+def stroll(home: tuple[float, float], key: str, now: float, reach: float) -> tuple[tuple[float, float], int]:
+    """Idle pacing along one iso axis, ``reach`` px each way, out of phase per ``key``; point and facing."""
+    t = (now / STROLL_S + zlib.crc32(key.encode("utf-8")) / 2**32) % 1.0
+    d = reach * (1.0 - abs(4.0 * t - 2.0))
+    return (home[0] + d, home[1] + d / 2.0), (1 if t < 0.5 else -1)
 
 
 @dataclass
