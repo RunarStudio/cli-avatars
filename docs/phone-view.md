@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.4)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -39,6 +39,15 @@ Grok rooms open, but Grok cannot run prompts yet (as in the Dungeon).
 
 When Update cannot run the button is disabled and the reason shows under it: Running from source, git or PyInstaller missing, an update already running, or sending from the phone off.
 
+## Build and customize rooms from the phone (PHONE.3)
+
+1. Same switch as above: **Allow the phone to open sessions and send prompts**.
+2. The rooms button in the map bar opens **Rooms**: the Apothecary, the session rooms and your own rooms. Tap a room on the map twice, or tap it in the list, to edit it.
+3. **+ Add** asks for a name, a size (S, M, L), one of the 30 skins, the room to connect to and one of its free points, and a topic. The preview shows the room in that skin; the line under it says whether it fits. **Build** places it on the nearest free spot off that point, with a corridor of at most 12 tiles, never over another room or a session's slot. When no spot fits it says so and nothing is saved.
+4. Edit: rename, topic, skin and size for your own rooms; skin only for the Apothecary; skin and size (S or M) for session rooms. Only your own rooms can be deleted, and not while another room hangs off them.
+
+A new or changed room builds in on the phone map and in the Dungeon at once, with the START.1 sweep, and is kept in `ui/session_rooms.json` with the session rooms, so it survives a restart. The build sound follows the note button.
+
 ## Try it with made-up data
 
 ```bash
@@ -65,6 +74,12 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `POST /api/chat/<topic>` | Writes on: `{"text"}` (at most 8,000 characters) runs the room's CLI once; 202, or 409 with why not. |
 | `/api/update` | Update status: version, short commit, last check, whether Update may run and why not, the latest progress line, the outcome. |
 | `POST /api/update` | Writes on: start Update app; 202, or 409 with why not (already running, a missing tool, from source). |
+| `/api/rooms` | Every room with its kind, topic, size, sizes allowed, skin and whether it can be deleted; the free points of each; the 30 skins; whether writes are on. |
+| `/api/rooms/plan?size&at&point` | Whether a room of that size fits off that point, and why not. |
+| `/api/skins/<id>/<S\|M\|L\|T>.png` | A skin drawn as an S, M or L room, or a thumbnail (T). |
+| `POST /api/rooms` | Writes on: add `{"name", "topic", "size", "skin", "at", "point"}`; 200 with its id, or 409 with why not. |
+| `POST /api/rooms/<id>` | Writes on: change any of `{"name", "topic", "size", "skin"}` the room allows; 409 with why not. |
+| `POST /api/rooms/<id>/delete` | Writes on: delete one of your rooms; its avatars go back to the Apothecary. |
 | `/api/media/<id>` | A picture or video a phone-sent turn wrote in the room's folder, by its id; byte ranges for video. |
 
 The page keeps the Send box above the phone's keyboard: while you type, the task list folds away and the map shrinks.

@@ -87,6 +87,39 @@ class Actions:
         except Exception:
             return False
 
+    def rooms(self, op: str, *args, **fields) -> tuple[str, str]:
+        """PHONE.3: ``add``, ``edit`` or ``delete`` a room in the shared model: ``(why not, room id)``."""
+
+        def run() -> tuple[str, str]:
+            model = self._model()
+            why = {"add": model.add_room, "edit": model.edit_room, "delete": model.delete_room}[op](*args, **fields)
+            if why:
+                return why, ""
+            self._after_change()
+            return "", model.rooms[-1].rid if op == "add" else str(args[0])
+
+        try:
+            return self._call(run)
+        except Exception:
+            return "The Dungeon did not answer. Try again.", ""
+
+    def room_state(self) -> dict:
+        """Rooms with what may change, the points to connect to, and the 30 skins."""
+        from cli_avatars.app.room_skins import SKINS
+
+        try:
+            state = self._call(lambda: {"rooms": self._model().catalog(), "points": self._model().points()})
+        except Exception:
+            state = {"rooms": [], "points": []}
+        state["skins"] = [{"id": k.id, "name": k.name, "light": k.light} for k in SKINS.values()]
+        return state
+
+    def plan_room(self, size: str, at: str, point: str) -> str:
+        try:
+            return self._call(lambda: self._model().plan_room(size, at, point))
+        except Exception:
+            return "The Dungeon did not answer. Try again."
+
     def send(self, topic: str, text: str) -> str:
         """Start one run for the phone's Send tap; ``""`` when it started, else why not."""
         from chat_window import launch_cli, room_tools

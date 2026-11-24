@@ -41,6 +41,10 @@ _RANGE = re.compile(r"^bytes=(\d{0,15})-(\d{0,15})$")
 CHUNK = 64 * 1024
 _END = re.compile(r"^/api/sessions/([^/]{1,40})/end$")
 _SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
+_ROOM = re.compile(r"^/api/rooms/([A-Za-z0-9][A-Za-z0-9-]{0,39})(/delete)?$")
+_SKIN = re.compile(r"^/api/skins/([a-z-]{1,32})/([SMLT])\.png$")
+ROOM_ADD = ("name", "topic", "size", "skin", "at", "point")
+ROOM_EDIT = ("name", "topic", "size", "skin")
 HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; "
                                "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -154,6 +158,8 @@ class Handler(BaseHTTPRequestHandler):
         end = _END.match(path)
         if end:
             return self._json({"ok": True}) if actions.end_session(end.group(1)) else self._error(404)
+        if path == "/api/rooms" or path.startswith("/api/rooms/"):
+            return self._room_write(path, body)
         if path.startswith("/api/chat/"):
             topic, text = path[len("/api/chat/"):], body.get("text")
             if not valid_topic_id(topic) or not isinstance(text, str) or not text.strip():
@@ -163,6 +169,24 @@ class Handler(BaseHTTPRequestHandler):
             why = actions.send(topic, text)
             return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
         self._error(404)
+
+    def _room_write(self, path: str, body: dict) -> None:
+        """PHONE.3: add (``/api/rooms``), edit (``/api/rooms/<id>``) or delete (``.../delete``) a room."""
+        if any(not isinstance(v, str) or len(v) > 200 for v in body.values()):
+            return self._error(400)
+        if path == "/api/rooms":
+            if set(body) - set(ROOM_ADD):
+                return self._error(400)
+            why, rid = self.server.actions.rooms("add", *(body.get(k, "") for k in ROOM_ADD))
+        else:
+            match = _ROOM.match(path)
+            if match is None or (match.group(2) and body) or set(body) - set(ROOM_EDIT):
+                return self._error(400)
+            if match.group(2):
+                why, rid = self.server.actions.rooms("delete", match.group(1))
+            else:
+                why, rid = self.server.actions.rooms("edit", match.group(1), **body)
+        return self._json({"why": why}, 409) if why else self._json({"ok": True, "id": rid})
 
     def do_GET(self) -> None:
         if self._stopped():
@@ -222,6 +246,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(state)
         if path.startswith("/api/chat/"):
             return self._chat(path[len("/api/chat/"):], query)
+        if path == "/api/rooms":
+            return self._json({"writes": self.server.writes(), **self.server.actions.room_state()})
+        if path == "/api/rooms/plan":
+            size, at, point = ((query.get(k) or [""])[0][:40] for k in ("size", "at", "point"))
+            why = self.server.actions.plan_room(size, at, point)
+            return self._json({"fits": not why, "why": why})
+        skin = _SKIN.match(path)
+        if skin:
+            png = scene.skin_png(skin.group(1), skin.group(2))
+            return self._send(200, png, "image/png", {"Cache-Control": "private, max-age=3600"}) if png \
+                else self._error(404)
         if path == "/api/update":
             return self._json(self.server.updater.status())
         if path == "/api/map.png":

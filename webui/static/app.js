@@ -1,4 +1,5 @@
-// PHONE.1/2/4: the Dungeon map, its tasks and the room chat; with writes on, open sessions, send prompts and Update.
+// PHONE.1/2/3/4: the Dungeon map, its tasks and the room chat; with writes on, open sessions, send prompts,
+// build and customize rooms, and Update.
 // Every text goes in with textContent.
 "use strict";
 
@@ -8,7 +9,8 @@ const ctx = canvas.getContext("2d");
 const LABELS = { todo: "TODO", doing: "DOING", review: "REVIEW", done: "DONE", blocked: "BLOCKED" };
 const state = { scene: null, cards: [], sel: null, room: null, map: null, mapKey: "", sprites: {},
   view: { x: 0, y: 0, s: 1 }, anim: null, fitted: false, chatKey: "", glow: 0, walkers: new Map(),
-  writes: { writes: false, sessions: [], folders: [] }, lastReply: "", sending: false, pick: { kind: "simple", cli: "claude", topic: "" } };
+  writes: { writes: false, sessions: [], folders: [] }, lastReply: "", sending: false, pick: { kind: "simple", cli: "claude", topic: "" },
+  builds: null, rise: new Map(), prevMap: null, prevOrigin: [0, 0], rooms: { writes: false, rooms: [], points: [], skins: [] }, form: null };
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -69,7 +71,15 @@ function zoomToRoom(name, quiet) {
   state.glow = performance.now();
   animateTo(fitView(room.box, 0.82));
   $("here").textContent = room.title;
+  $("editRoom").hidden = false;
   if (!quiet) chime();
+}
+
+function leaveRoom() {
+  state.room = null;
+  $("here").textContent = "";
+  $("editRoom").hidden = true;
+  animateTo(wholeMap());
 }
 
 const pointers = new Map();
@@ -114,7 +124,7 @@ canvas.addEventListener("wheel", (e) => {
   const p = { x: e.offsetX, y: e.offsetY };
   zoomAround({ ...state.view }, Math.exp(-e.deltaY * 0.0015), p, p);
 }, { passive: false });
-canvas.addEventListener("dblclick", () => { state.room = null; $("here").textContent = ""; animateTo(wholeMap()); });
+canvas.addEventListener("dblclick", leaveRoom);
 
 function zoomAround(base, factor, from, to) {
   const s = Math.max(0.3, Math.min(8, base.s * factor));
@@ -136,6 +146,7 @@ function tapMap(sx, sy) {
   const x = (sx - state.view.x) / state.view.s, y = (sy - state.view.y) / state.view.s;
   const room = state.scene.rooms.find((r) => inside(r.poly, x, y));
   if (!room) return;
+  if (room.name === state.room && !state.anim) return openRooms(room.id);
   const card = state.cards.find((c) => c.room === room.name);
   state.sel = card ? card.id : null;
   renderTasks();
@@ -174,8 +185,13 @@ function frame(now) {
     ctx.imageSmoothingEnabled = false;
     ctx.shadowColor = "rgba(0,0,0,.6)";
     ctx.shadowBlur = 24 * v.s;
-    ctx.drawImage(state.map, 0, 0);
+    if (state.rise.size && state.prevMap) {
+      ctx.drawImage(state.prevMap, state.prevOrigin[0] - state.scene.map.origin[0], state.prevOrigin[1] - state.scene.map.origin[1]);
+      ctx.shadowBlur = 0;
+      ctx.drawImage(riseLayer(now), 0, 0);
+    } else ctx.drawImage(state.map, 0, 0);
     ctx.shadowBlur = 0;
+    drawFlare(now);
     drawGlow(now);
     drawAvatars(now);
     ctx.restore();
@@ -595,21 +611,32 @@ async function endSession(sid) {
 
 async function load() {
   const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites()]);
+  const oldOrigin = state.scene && state.scene.map ? state.scene.map.origin : null;
   state.scene = scene;
   state.cards = board.cards;
   if (scene.map) {
-    const key = JSON.stringify([scene.map, scene.rooms.map((r) => r.name)]);
+    const key = JSON.stringify([scene.map, scene.rooms.map((r) => [r.name, r.build])]);
     if (key !== state.mapKey) {
-      state.map = await loadImage("/api/map.png?v=" + encodeURIComponent(key.length + ":" + hash(key)));
+      const img = await loadImage("/api/map.png?v=" + encodeURIComponent(key.length + ":" + hash(key)));
+      const risen = state.builds ? scene.rooms.filter((r) => state.builds.get(r.name) !== r.build) : [];
+      if (risen.length && state.map) {
+        state.prevMap = state.map;
+        state.prevOrigin = oldOrigin || [0, 0];
+        const t0 = performance.now();
+        for (const r of risen) state.rise.set(r.name, { t0, box: r.box, poly: r.poly });
+        tone("build");
+      }
+      state.map = img;
       state.mapKey = key;
     }
+    state.builds = new Map(scene.rooms.map((r) => [r.name, r.build]));
     for (const skin of Object.keys(scene.sprites)) {
       if (!state.sprites[skin]) state.sprites[skin] = await loadImage("/api/sprite/" + skin + ".png");
     }
     setAvatars(scene.avatars, performance.now());
   }
   if (!state.fitted && scene.map) { state.view = wholeMap(); state.fitted = true; }
-  if (state.room && !scene.rooms.some((r) => r.name === state.room)) state.room = null;
+  if (state.room && !scene.rooms.some((r) => r.name === state.room)) { state.room = null; $("editRoom").hidden = true; }
   renderTasks();
   if (state.chatKey) showChat(state.chatKey, $("chatRoom").textContent);
   else if (!$("chat").children.length) $("chat").append(el("li", "empty", "Tap a task to open its room."));
@@ -713,6 +740,284 @@ async function reconnect(src) {
   }
 }
 
+// --- PHONE.3: a new or changed room rises out of the dark, as the Dungeon's build-in does -------------
+const BUILD_MS = 1400, CELL = 4;
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+let riseCanvas = null;
+function riseLayer(now) {
+  const map = state.map;
+  riseCanvas = riseCanvas || document.createElement("canvas");
+  if (riseCanvas.width !== map.width || riseCanvas.height !== map.height) { riseCanvas.width = map.width; riseCanvas.height = map.height; }
+  const o = riseCanvas.getContext("2d");
+  o.clearRect(0, 0, map.width, map.height);
+  o.drawImage(map, 0, 0);
+  for (const [name, r] of state.rise) {
+    const t = (now - r.t0) / BUILD_MS;
+    if (t >= 1) { state.rise.delete(name); continue; }
+    const [bx, by, bw, bh] = r.box, front = t * 1.3 - 0.05, step = Math.floor(t * 12);
+    for (let y = 0; y < bh; y += CELL) {
+      for (let x = 0; x < bw; x += CELL) {
+        const cx = x / CELL, cy = y / CELL;
+        const order = (1 - y / Math.max(1, bh - 1)) * 0.78 + BAYER[(cy & 3) * 4 + (cx & 3)] / 16 * 0.22;
+        if (order < front) continue;
+        o.clearRect(bx + x, by + y, CELL, CELL);
+        const seed = ((cx * 73856093) ^ (cy * 19349663) ^ (step * 83492791)) & 1023;
+        if (order < front + 0.09 && seed < 380 && inside(r.poly, bx + x + 2, by + y + 2)) {
+          o.fillStyle = "#d6c6a8";
+          o.fillRect(bx + x + 1, by + y + 1, 2, 2);
+        }
+      }
+    }
+  }
+  return riseCanvas;
+}
+
+function drawFlare(now) {
+  for (const r of state.rise.values()) {
+    const t = (now - r.t0) / BUILD_MS;
+    const k = Math.sin(Math.PI * Math.min(1, Math.max(0, (t - 0.25) / 0.75))) * 0.32;
+    if (k <= 0) continue;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.beginPath();
+    r.poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.fillStyle = `rgba(242,163,58,${k})`;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// --- PHONE.3: Rooms sheet: list, add, edit, re-skin, resize, delete ------------------------------------
+const SIDES = { n: "north", e: "east", s: "south", w: "west" };
+const SIZE_NAMES = { S: "small", M: "mid", L: "large" };
+const KIND_TAG = { apothecary: "Apothecary", main: "Throne", simple: "Session", custom: "Custom" };
+
+async function loadRooms() {
+  try { state.rooms = await getJSON("/api/rooms"); } catch (_e) { /* keep the last */ }
+  if (state.rooms.writes && !state.writes.csrf) await loadWrites();
+  return state.rooms;
+}
+
+async function openRooms(id) {
+  $("rooms").hidden = false;
+  $("roomStatus").textContent = "";
+  await loadRooms();
+  const room = id && state.rooms.rooms.find((r) => r.id === id);
+  if (room) editRoom(room); else paintRoomList();
+}
+function closeRooms() { $("rooms").hidden = true; $("roomAsk").hidden = true; }
+$("roomsBtn").addEventListener("click", () => openRooms());
+$("editRoom").addEventListener("click", () => {
+  const room = state.scene && state.scene.rooms.find((r) => r.name === state.room);
+  openRooms(room ? room.id : null);
+});
+$("roomsClose").addEventListener("click", closeRooms);
+$("roomsBack").addEventListener("click", () => { state.form = null; paintRoomList(); });
+$("rooms").addEventListener("click", (e) => { if (e.target === $("rooms")) closeRooms(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("rooms").hidden) closeRooms(); });
+
+function skinName(id) {
+  const s = state.rooms.skins.find((k) => k.id === id);
+  return s ? s.name : "Kit look";
+}
+
+function paintRoomList() {
+  const w = state.rooms.writes;
+  $("roomsTitle").textContent = "Rooms";
+  $("roomsBack").hidden = true;
+  $("roomList").hidden = false;
+  $("roomForm").hidden = true;
+  $("roomsOff").hidden = w;
+  $("roomsOff").textContent = "Building from the phone is off. In the Dungeon: Settings › Phone › Allow the phone to open sessions and send prompts.";
+  $("addRoom").hidden = !w;
+  const list = $("roomRows");
+  list.replaceChildren();
+  for (const r of state.rooms.rooms) {
+    const li = el("li"), b = el("button");
+    b.type = "button";
+    const tag = el("span", "tag " + (r.kind === "custom" ? "custom" : "lock"), KIND_TAG[r.kind] || r.kind);
+    b.append(tag, el("b", "", r.name), el("span", "size", r.size));
+    b.append(el("small", "", skinName(r.skin) + (r.topic ? " · " + r.topic : "")));
+    b.addEventListener("click", () => editRoom(r));
+    li.append(b);
+    list.append(li);
+  }
+}
+
+$("addRoom").addEventListener("click", () => {
+  const point = state.rooms.points.find((p) => p.points.length);
+  editRoom(null, point ? { at: point.id, point: point.points[0] } : { at: "", point: "" });
+});
+
+function editRoom(room, where) {
+  const custom = !room || room.kind === "custom";
+  state.form = room
+    ? { mode: "edit", id: room.id, kind: room.kind, name: room.name, topic: room.topic, size: room.size, skin: room.skin || "",
+      sizes: room.sizes, deletable: room.deletable, renamable: room.renamable }
+    : { mode: "add", name: "", topic: "", size: "S", skin: state.rooms.skins[0].id, sizes: ["S", "M", "L"],
+      deletable: false, renamable: true, at: where.at, point: where.point };
+  state.form.start = { ...state.form };
+  $("roomsTitle").textContent = room ? room.name : "New room";
+  $("roomsBack").hidden = false;
+  $("roomList").hidden = true;
+  $("roomForm").hidden = false;
+  $("roomsOff").hidden = state.rooms.writes;
+  $("nameField").hidden = !custom;
+  $("topicField").hidden = !custom;
+  $("roomName").value = state.form.name;
+  $("roomTopic").value = state.form.topic;
+  $("connectBlock").hidden = !!room;
+  $("roomDelete").hidden = !state.form.deletable;
+  $("roomSave").textContent = room ? "Save" : "Build";
+  $("roomStatus").textContent = "";
+  for (const id of ["roomName", "roomTopic", "roomSave"]) $(id).disabled = !state.rooms.writes;
+  paintSkins();
+  paintForm(true);
+}
+
+function paintForm(rise) {
+  const f = state.form;
+  const sizes = $("roomSizes");
+  sizes.replaceChildren();
+  for (const k of ["S", "M", "L"]) {
+    const b = el("button", k === f.size ? "on" : "", k);
+    b.type = "button";
+    b.append(el("small", "", SIZE_NAMES[k]));
+    b.disabled = !f.sizes.includes(k) || !state.rooms.writes;
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", k === f.size ? "true" : "false");
+    b.addEventListener("click", () => { f.size = k; paintForm(true); });
+    sizes.append(b);
+  }
+  for (const b of $("skins").children) {
+    const on = b.dataset.skin === f.skin;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-checked", on ? "true" : "false");
+  }
+  $("skinName").textContent = f.skin ? skinName(f.skin) : "the kit look";
+  const preview = $("roomPreview");
+  preview.parentElement.hidden = !f.skin;
+  const src = "/api/skins/" + f.skin + "/" + (f.kind === "apothecary" ? "M" : f.size) + ".png";
+  if (f.skin && preview.dataset.src !== src) {
+    preview.dataset.src = src;
+    preview.onload = () => {
+      const room = preview.parentElement.clientWidth - 16;
+      const k = Math.max(1, Math.floor(room / preview.naturalWidth));
+      preview.width = preview.naturalWidth * Math.min(k, 3);
+      preview.height = preview.naturalHeight * Math.min(k, 3);
+      if (rise) { preview.classList.remove("rise"); void preview.offsetWidth; preview.classList.add("rise"); }
+    };
+    preview.src = src;
+  }
+  if (f.mode === "add") paintPoints();
+  checkFit();
+}
+
+function paintSkins() {
+  const box = $("skins");
+  box.replaceChildren();
+  for (const s of state.rooms.skins) {
+    const b = el("button");
+    b.type = "button";
+    b.dataset.skin = s.id;
+    b.setAttribute("role", "radio");
+    b.title = s.name;
+    const img = el("img");
+    img.alt = "";
+    img.loading = "lazy";
+    img.src = "/api/skins/" + s.id + "/T.png";
+    b.append(img, el("i", s.light), el("span", "", s.name));
+    b.disabled = !state.rooms.writes;
+    b.addEventListener("click", () => { state.form.skin = s.id; paintForm(true); });
+    box.append(b);
+  }
+  const on = box.querySelector(`[data-skin="${state.form.skin}"]`);
+  if (on) setTimeout(() => on.scrollIntoView({ block: "nearest", inline: "center" }), 60);
+}
+
+function paintPoints() {
+  const f = state.form, list = $("points");
+  list.replaceChildren();
+  for (const row of state.rooms.points) {
+    for (const p of row.points) {
+      const on = f.at === row.id && f.point === p;
+      const b = el("button", on ? "on" : "", row.name + " · " + SIDES[p[0]] + " " + p.slice(1));
+      b.type = "button";
+      b.disabled = !state.rooms.writes;
+      b.addEventListener("click", () => { f.at = row.id; f.point = p; paintForm(false); });
+      const li = el("li");
+      li.append(b);
+      list.append(li);
+    }
+  }
+  if (!list.children.length) list.append(el("li", "empty", "No free point left: delete a room first."));
+}
+
+let fitSeq = 0;
+async function checkFit() {
+  const f = state.form, line = $("roomFit"), seq = ++fitSeq;
+  line.className = "fit";
+  if (f.mode !== "add") {
+    line.textContent = f.kind === "custom" ? "A new size is placed again from the same point." : "";
+    return;
+  }
+  if (!f.at) { line.textContent = ""; return; }
+  const q = new URLSearchParams({ size: f.size, at: f.at, point: f.point });
+  try {
+    const res = await getJSON("/api/rooms/plan?" + q.toString());
+    if (seq !== fitSeq) return;
+    line.className = "fit " + (res.fits ? "ok" : "bad");
+    line.textContent = res.fits ? "Fits: a corridor joins it to " + titleOfRoom(f.at) + "." : res.why;
+  } catch (_e) { line.textContent = ""; }
+}
+
+function titleOfRoom(id) {
+  const r = state.rooms.rooms.find((x) => x.id === id);
+  return r ? r.name : id;
+}
+
+$("roomForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = state.form;
+  f.name = $("roomName").value.trim();
+  f.topic = $("roomTopic").value.trim();
+  let url = "/api/rooms", body;
+  if (f.mode === "add") body = { name: f.name, topic: f.topic, size: f.size, skin: f.skin, at: f.at, point: f.point };
+  else {
+    url = "/api/rooms/" + encodeURIComponent(f.id);
+    body = {};
+    for (const k of ["name", "topic", "size", "skin"]) if (f[k] !== f.start[k] && (k !== "name" && k !== "topic" || f.renamable)) body[k] = f[k];
+    if (!Object.keys(body).length) { $("roomStatus").textContent = "Nothing changed."; return; }
+  }
+  $("roomSave").disabled = true;
+  const res = await postJSON(url, body).catch(() => ({ ok: false, data: {} }));
+  $("roomSave").disabled = false;
+  if (!res.ok) {
+    $("roomStatus").textContent = res.data.why || "Not saved (" + (res.status || "offline") + ").";
+    return;
+  }
+  const name = f.renamable ? f.name : f.start.name;
+  closeRooms();
+  await load().catch(() => {});
+  zoomToRoom(name, true);
+});
+
+$("roomDelete").addEventListener("click", () => { $("roomAsk").hidden = false; $("roomAskYes").focus(); });
+$("roomAskNo").addEventListener("click", () => { $("roomAsk").hidden = true; });
+$("roomAsk").addEventListener("click", (e) => { if (e.target === $("roomAsk")) $("roomAsk").hidden = true; });
+$("roomAskYes").addEventListener("click", async () => {
+  $("roomAsk").hidden = true;
+  const res = await postJSON("/api/rooms/" + encodeURIComponent(state.form.id) + "/delete", {}).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) { $("roomStatus").textContent = res.data.why || "Not deleted (" + (res.status || "offline") + ")."; return; }
+  state.form = null;
+  await loadRooms();
+  paintRoomList();
+  $("roomStatus").textContent = "";
+  leaveRoom();
+  load().catch(() => {});
+});
+
 // --- live updates --------------------------------------------------------------------------------
 let pending = null;
 function live() {
@@ -775,9 +1080,10 @@ function tone(kind) {
     const t = audio.currentTime, out = audio.createGain();
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
-    out.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + (kind === "build" ? 1.1 : 0.45));
     out.connect(audio.destination);
     const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : kind === "done" ? [[523.25, 0], [659.25, 0.09], [783.99, 0.18]]
+      : kind === "build" ? [[130.81, 0], [196.0, 0.16], [261.63, 0.34], [392.0, 0.52]]
       : kind === "failed" ? [[329.63, 0], [261.63, 0.12]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {
       const o = audio.createOscillator();
@@ -787,7 +1093,7 @@ function tone(kind) {
       g.gain.value = kind === "send" ? 0.35 : 1;
       o.connect(g).connect(out);
       o.start(t + d);
-      o.stop(t + 0.46);
+      o.stop(t + (kind === "build" ? 1.1 : 0.46));
     }
   } catch (_e) { soundOn = false; paintSound(); }
 }
@@ -802,7 +1108,7 @@ if (window.visualViewport) {
   fitViewport();
 }
 
-$("fit").addEventListener("click", () => { state.room = null; $("here").textContent = ""; animateTo(wholeMap()); });
+$("fit").addEventListener("click", leaveRoom);
 paintSound();
 load().then(loadUpdate).then(live).catch(() => {});
 requestAnimationFrame(frame);

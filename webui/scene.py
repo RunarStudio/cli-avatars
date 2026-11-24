@@ -66,6 +66,32 @@ def _map(lay: dict | None) -> tuple[bytes, tuple[int, int], tuple[int, int]] | N
     return found
 
 
+def skin_png(skin: str, size: str) -> bytes | None:
+    """PHONE.3: one room in ``skin`` at size S, M or L (``T`` a 5x5 thumbnail), drawn from the kit as the Dungeon is."""
+    from cli_avatars.app.room_skins import SKINS, dress
+    from cli_avatars.app.session_rooms import SIZE_TILES
+
+    tiles = {"T": (5, 5), **SIZE_TILES}
+    if skin not in SKINS or size not in tiles:
+        return None
+    key = f"skin:{skin}:{size}"
+    with _LOCK:
+        if key in _SPRITES:
+            return _SPRITES[key][0]
+    w, h = tiles[size]
+    manifest = load_manifest()
+    room = {"name": "preview", "origin": [0, 0], "size": [w, h], "floor": 0,
+            "structure": dress(skin, w, h, {(w // 2, 0): "skin"})}
+    image = compose({"rooms": [room]}, manifest) if manifest else None
+    if image is None:
+        return None
+    out = io.BytesIO()
+    image.save(out, "PNG")
+    with _LOCK:
+        _SPRITES[key] = (out.getvalue(), image.width, image.height, 1)
+    return out.getvalue()
+
+
 def map_png(directory: Path | str) -> bytes | None:
     found = _map(layout(directory))
     return found[0] if found else None
@@ -198,21 +224,25 @@ def build_scene(directory: Path | str) -> dict:
         box += [min(w, max(xs)) - box[0], min(h, max(ys)) - box[1]]
         name = room["name"]
         title = APOTHECARY
-        if room.get("session"):
+        if room.get("custom"):
+            title = name
+        elif room.get("session"):
             try:
                 topic = get_topic(directory, name)
             except EventRejected:
                 topic = None
             title = (topic or {}).get("title") or name
-        rooms.append({"name": name, "title": title, "kind": room.get("kind", "apothecary"),
-                      "cli": room.get("cli"), "poly": poly, "box": box})
+        kind = "custom" if room.get("custom") else room.get("kind", "apothecary")
+        rooms.append({"name": name, "title": title, "kind": kind, "cli": room.get("cli"), "poly": poly, "box": box,
+                      "id": room.get("custom") or room.get("session") or name, "topic": room.get("topic") or "",
+                      "build": room.get("build") or ""})
     avatars = public_avatars(lay, (left, top), time.time())
     sprites = {}
     for key in sorted({a["sprite"] for a in avatars}):
         strip = sprite_png(key)
         if strip:
             sprites[key] = {"w": strip[1], "h": strip[2], "frames": strip[3], "feet": FEET_UP}
-    scene = {"map": {"w": w, "h": h}, "rooms": rooms, "avatars": avatars, "sprites": sprites}
+    scene = {"map": {"w": w, "h": h, "origin": [left, top]}, "rooms": rooms, "avatars": avatars, "sprites": sprites}
     scene["tasks"] = {c["id"]: room_for_topic(scene, c.get("topic")) for c in cards(directory)}
     return scene
 

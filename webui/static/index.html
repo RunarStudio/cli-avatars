@@ -14,6 +14,8 @@
       <h1><span class="torch" aria-hidden="true"></span>Dungeon</h1>
       <span id="here" class="here"></span>
       <span id="live" class="live" title="Live updates"></span>
+      <button id="editRoom" class="icon" type="button" title="Edit this room" aria-haspopup="dialog" hidden>&#9998;</button>
+      <button id="roomsBtn" class="icon" type="button" title="Rooms: add and customize" aria-haspopup="dialog">&#9638;</button>
       <button id="appBtn" class="icon app" type="button" title="App: version and Update" aria-haspopup="dialog">&#9881;</button>
       <button id="sound" class="icon" type="button" aria-pressed="false" title="Sound: zoom, send and reply">&#9835;</button>
       <button id="fit" class="icon" type="button" title="Whole map">&#10530;</button>
@@ -79,6 +81,42 @@
       <h3 id="updAskTitle">Update the Dungeon?</h3>
       <p class="ask-text">The Dungeon restarts; the page reconnects.</p>
       <div class="ask-row"><button id="updNo" class="ghost" type="button">Cancel</button><button id="updYes" class="send" type="button">Update</button></div>
+    </div>
+  </div>
+</div>
+<div id="rooms" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="roomsTitle">
+  <div class="sheet-card">
+    <header class="bar"><button id="roomsBack" class="icon" type="button" title="Back" hidden>&#8249;</button>
+      <h2 id="roomsTitle">Rooms</h2><button id="roomsClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <p id="roomsOff" class="hint" hidden></p>
+      <div id="roomList">
+        <ul id="roomRows" class="room-rows"></ul>
+        <button id="addRoom" class="send wide" type="button">+ Add room</button>
+      </div>
+      <form id="roomForm" class="room-form" hidden autocomplete="off">
+        <div class="preview"><img id="roomPreview" class="pixel" alt="Room preview"></div>
+        <p id="roomFit" class="fit"></p>
+        <label id="nameField" class="field"><span>Name</span><input id="roomName" maxlength="24" enterkeyhint="next"></label>
+        <h3>Size</h3>
+        <div id="roomSizes" class="pick" role="radiogroup" aria-label="Size"></div>
+        <h3>Skin <small id="skinName"></small></h3>
+        <div id="skins" class="skins" role="radiogroup" aria-label="Skin"></div>
+        <div id="connectBlock"><h3>Connect to</h3><ul id="points" class="points"></ul></div>
+        <label id="topicField" class="field"><span>Topic</span><input id="roomTopic" maxlength="60" enterkeyhint="done"></label>
+        <div class="form-row"><button id="roomDelete" class="ghost danger" type="button">Delete</button>
+          <button id="roomSave" class="send" type="submit">Save</button></div>
+        <p id="roomStatus" class="hint" aria-live="polite"></p>
+      </form>
+    </div>
+  </div>
+</div>
+<div id="roomAsk" class="sheet ask" hidden role="alertdialog" aria-modal="true" aria-labelledby="roomAskTitle">
+  <div class="sheet-card">
+    <div class="sheet-body">
+      <h3 id="roomAskTitle">Delete this room?</h3>
+      <p class="ask-text">Avatars in it go back to the Apothecary.</p>
+      <div class="ask-row"><button id="roomAskNo" class="ghost" type="button">Cancel</button><button id="roomAskYes" class="send" type="button">Delete</button></div>
     </div>
   </div>
 </div>
