@@ -18,6 +18,7 @@ opened. A missing or bad file returns ``None`` and the caller keeps the plain fl
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from bundle_paths import asset_path
@@ -175,10 +176,12 @@ def fit_scale(image_size: tuple[int, int], box: tuple[int, int]) -> int:
 
 
 class RoomsPainter:
-    """One composed image per scale; one canvas item, reused."""
+    """One composed image per scale; one canvas item, reused. ``source`` (START.1) gives the layout live."""
 
-    def __init__(self, layout_name: str = LAYOUT_NAME) -> None:
+    def __init__(self, layout_name: str = LAYOUT_NAME, source=None) -> None:
         self._layout_name = layout_name
+        self._source = source
+        self.born: dict[str, float] = {}
         self.layout = None
         self._center = None
         self._base = None
@@ -189,11 +192,33 @@ class RoomsPainter:
 
     def base(self):
         if self._base is None and not self._failed:
-            layout, manifest = load_layout(self._layout_name), load_manifest()
+            layout = self._source() if self._source is not None else load_layout(self._layout_name)
+            manifest = load_manifest()
             self.layout = layout
             self._base = compose(layout, manifest) if layout and manifest else None
+            if self._base is not None and self._source is not None:
+                from cli_avatars.app.throne_stamp import stamp_thrones
+
+                stamp_thrones(self._base, layout)
             self._failed = self._base is None
         return self._base
+
+    def sync(self) -> bool:
+        """Re-compose when the source gives a new layout; rooms of new sessions are ``born`` now."""
+        if self._source is None:
+            return False
+        layout = self._source()
+        if layout is self.layout:
+            return False
+        old = _sessions(self.layout)
+        self._base, self._failed, self._photo = None, False, None
+        self.__dict__.pop("_glow_art", None)
+        self.base()
+        if old is not None:
+            stamp = time.time()
+            self.born = {sid: at for sid, at in self.born.items() if sid in _sessions(layout)}
+            self.born.update({sid: stamp for sid in _sessions(layout) - old})
+        return True
 
     def paint(self, canvas) -> bool:
         """Draw or move the rooms item. False when the kit or layout is unavailable."""
@@ -249,12 +274,30 @@ class RoomsPainter:
         return ((a + b) / 2.0, (b - a) / 2.0)
 
 
+def _sessions(layout: dict | None) -> set[str] | None:
+    if layout is None:
+        return None
+    rooms = [r for r in layout.get("rooms") or [] if isinstance(r, dict)]
+    return {r["session"] for r in rooms if isinstance(r.get("session"), str)}
+
+
 def paint_rooms(canvas) -> bool:
     painter = getattr(canvas, "_rooms_painter", None)
     if painter is None:
-        painter = RoomsPainter()
+        painter = RoomsPainter(source=getattr(canvas, "_rooms_source", None))
         canvas._rooms_painter = painter
     return painter.paint(canvas)
+
+
+def refresh_rooms(canvas) -> bool:
+    """START.1: repaint when the live layout changed. True when it did."""
+    painter = getattr(canvas, "_rooms_painter", None)
+    if not callable(getattr(painter, "sync", None)) or not painter.sync():
+        return False
+    try:
+        return painter.paint(canvas)
+    except Exception:
+        return False
 
 
 def rooms_scale(canvas) -> int:

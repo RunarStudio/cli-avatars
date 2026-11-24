@@ -29,6 +29,7 @@ class Floor:
     v0: int
     w: int
     h: int
+    corridor: bool = False
 
     def box(self) -> tuple[float, float, float, float]:
         return (self.u0 + 1 + MARGIN, self.v0 + 1 + MARGIN, self.u0 + self.w - MARGIN, self.v0 + self.h - MARGIN)
@@ -75,7 +76,7 @@ class Plan:
                 continue
             name = room.get("name") if isinstance(room.get("name"), str) else None
             name = name or (ROOM_NAMES[index] if index < len(ROOM_NAMES) else f"Room {index + 1}")
-            floors.append(Floor(name, origin[0], origin[1], size[0], size[1]))
+            floors.append(Floor(name, origin[0], origin[1], size[0], size[1], room.get("corridor") is True))
             kept.append(room)
         plan = cls(floors, [])
         for room, floor in zip(kept, floors, strict=True):
@@ -86,7 +87,7 @@ class Plan:
         return plan
 
     def names(self) -> list[str]:
-        return [f.name for f in self.floors]
+        return [f.name for f in self.floors if not f.corridor]
 
     def floor(self, name: str) -> Floor | None:
         return self._by_name.get(name)

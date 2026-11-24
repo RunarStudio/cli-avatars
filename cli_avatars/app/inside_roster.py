@@ -16,6 +16,7 @@ from cli_avatars.app.av_roster import GROK, USER_ID, bot_hues, kind_of, look_for
 from cli_avatars.app.needs_walk import Walker, beside, needing, read_rooms, stroll
 from cli_avatars.app.room_fit import fit_inside
 from cli_avatars.app.room_floor import Plan, along, length, wander
+from cli_avatars.app.session_rooms import APOTHECARY, bound_room
 from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.model.agent import AgentInfo
 from cli_avatars.model.crossing import span
@@ -23,7 +24,7 @@ from cli_avatars.model.crossing import span
 USER_SPOT = (0.0, 112.0)
 STEP = 44
 STROLL = 12
-USER_ROOM = "Atelier"
+USER_ROOM = "Apothecary"
 FEET_UP = 0.08
 
 
@@ -90,6 +91,7 @@ class Hall:
         self._plan = None
         self._trips: dict[str, tuple[list, float, float]] = {}
         self._feet: dict[str, tuple[float, float]] = {}
+        self._sent: dict[str, str] = {}
         self._now = 0.0
 
     def plan(self) -> Plan | None:
@@ -106,6 +108,8 @@ class Hall:
         plan = self.plan()
         if plan is None:
             return None
+        if plan.floor(self._sent.get(aid, "")) is not None:
+            return self._sent[aid]
         saved = self.book._file.rooms.get(aid) if hasattr(self.book, "_file") else None
         if plan.floor(saved or "") is not None:
             return saved
@@ -113,6 +117,11 @@ class Hall:
             return USER_ROOM if plan.floor(USER_ROOM) else plan.floors[-1].name
         av = self.book.app._inside.get(aid)
         agent = getattr(av, "agent", None)
+        bound = bound_room(self._plan[0], agent)
+        if plan.floor(bound or "") is not None:
+            return bound
+        if plan.floor(APOTHECARY) is not None:
+            return APOTHECARY
         key = str(getattr(agent, "project", "") or aid) if getattr(agent, "source", "") == "bot" else aid
         return plan.floors[zlib.crc32(key.encode("utf-8")) % len(plan.floors)].name
 
@@ -127,11 +136,11 @@ class Hall:
         feet = self._feet.get(aid)
         return (plan.room_at(*feet) if feet is not None else None) or self.room_of(aid)
 
-    def move(self, aid: str, room: str, now: float) -> bool:
-        """Walk ``aid`` (or the user) to ``room`` through the doors and keep it there."""
+    def move(self, aid: str, room: str, now: float, keep: bool = True) -> bool:
+        """Walk ``aid`` (or the user) to ``room`` through the doors; ``keep`` saves it as the chosen room."""
         plan = self.plan()
         floor = plan.floor(room) if plan is not None else None
-        if floor is None:
+        if floor is None or floor.corridor:
             return False
         start = self._feet.get(aid) or self._rest_at(plan, aid, now)[0]
         goal, path, eta = floor.centre(), [start], now
@@ -140,8 +149,9 @@ class Hall:
             path = plan.route(start, room, goal)
             eta = now + self._seconds(path)
         self._trips[aid] = (path, now, eta)
+        self._sent[aid] = room
         set_room = getattr(self.book, "set_room", None)
-        if callable(set_room):
+        if keep and callable(set_room):
             set_room(aid, room)
         return True
 
@@ -150,7 +160,7 @@ class Hall:
         plan = self.plan()
         tile = self.book._scene()._rooms_painter.to_tile(x, y) if plan is not None else None
         room = plan.room_at(*tile) if tile is not None else None
-        if room is None:
+        if room is None or plan.floor(room).corridor:
             return False
         self._feet[aid] = plan.floor(room).clamp(*tile)
         self._trips.pop(aid, None)

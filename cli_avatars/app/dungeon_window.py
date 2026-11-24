@@ -7,6 +7,7 @@ The door control is a toolbar button. It is not a separate window.
 
 from __future__ import annotations
 
+import time
 import tkinter as tk
 from dataclasses import replace
 
@@ -67,6 +68,9 @@ class DungeonWindow:
         except tk.TclError:
             pass
         mount(self)
+        from cli_avatars.app.session_rooms import model_for
+
+        self.scene._rooms_source = lambda: model_for(self.app).layout(time.time())
         if self._topmost:
             self._pin.config(text="Pinned")
             paint(self._pin, True)
@@ -79,6 +83,9 @@ class DungeonWindow:
             return
         self._import_legacy_chat()
         self._fill_topics()
+        from cli_avatars.app.session_panel import mount as mount_sessions
+
+        self._sessions = mount_sessions(self)
         try:
             root.update_idletasks()
             use_dark_titlebar(root)

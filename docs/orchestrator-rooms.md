@@ -1,6 +1,17 @@
 # Orchestrator rooms (ORCH.ROOM, proposal)
 
-> Preview only: three images and this plan. No app code yet; it waits for the OK. Made-up names, topics and cards.
+> Preview only: three images and this plan. Made-up names, topics and cards. START.1 built the first part: see "Session rooms (START.1, built)" below.
+
+## Session rooms (START.1, built)
+
+- The Dungeon starts with one room, the **Apothecary** (the old Pantry). With no sessions open, every avatar and you roam it. Hall, Pit and Atelier are not drawn on the Dungeon floor any more; the Atelier stays on the Throne tab, through the throne room door.
+- **Sessions** panel, at the top of the Topics dock (no new window): Simple room or Main: throne, Claude or Grok, Folder… (the project folder; its name is the topic), Open session. Each open session has a row with End.
+- Opening a session adds its room at once, with a short build-in (the floor rises out of the dark, a band of dust, the torchlight flares and settles). A **simple** session gets a mid room (10x8). The **main** session gets the large throne room (14x10, dais, throne, carpet). Only the main orchestrator gets the large room, and only one main is open at a time: a second main is refused and the panel says to open it as simple. Up to three simple rooms.
+- Rooms sit on fixed spots around the Apothecary (main north, simple east, south, west), each joined by a short corridor with an arch at each end. Rooms never overlap.
+- **Binding.** A live top-level session whose CLI and project folder match lives in that room, its subagents with it. Other avatars stay in the Apothecary. A room you picked with Move to room still wins.
+- **Lifetime.** A room lasts as long as its session. End walks everyone in it back to the Apothecary through the corridor; then the room goes. Open sessions are kept in `ui/session_rooms.json` (topic, kind, CLI, spot; no paths).
+- Opening starts no CLI. The chat opens on the topic; the CLI starts only on Send or Enter there, and the chat's own folder dialog sets the working folder on the first Enter (`room-chat.md`).
+- Code: `cli_avatars/app/session_rooms.py` (model, layout, binding; no Tk), `session_walks.py`, `session_panel.py`, `room_build.py`, `throne_stamp.py`. There is no event-sound path in the app, so a new room makes no sound yet.
 
 ## The asks
 
@@ -14,7 +25,7 @@
 
 - An orchestrator is a top-level session: Claude (`sessions.py`, `parent_id` None) or a live Grok session. Its topic is the project folder as a slug (`agent-chat-protocol.md`). Subagents follow their parent.
 - The Throne tab shows one hall. Its lord is the first top-level agent by id (`throne-room.md`, `throne_model.seat`).
-- Rooms: MAP.1/ROOMS.1 (`map-config.md`, not built yet) put rooms in `building/maps/main.json`. A room has an optional `topic`. **Create your room** puts a room on the nearest free spot, with a corridor and a door. `large` is 14x10, the throne hall's size.
+- Rooms: MAP.1/ROOMS.1 (`map-config.md`, not built yet) put rooms in `building/maps/main.json`. A room has an optional `topic`. **Create your room** puts a room on the nearest free spot, with a corridor and a door. `large` is 14x10, the throne hall's size. Only the main orchestrator gets a `large` room (START.1).
 - Room chat (`room-chat.md`): one orchestrator chat per topic, `room_chat/<topic>.json`.
 - Board (`board.md`, TASKBACK): cards have `topic`, `assignee`, `column` and `status_note`. An AI changes only the column, progress, status note and checklist (Agent API).
 
@@ -93,6 +104,6 @@ Same paths as today. No new process, and nothing executes chat text.
 
 1. Meeting room: the asker's room (proposed), or always the Hall?
 2. May an orchestrator add `proposed` cards to its own topic without asking (proposed), or only suggest them in chat so you click Add?
-3. A running session with no room: one click to give it a room (proposed), or create the room automatically?
+3. A running session with no room: one click to give it a room (proposed), or create the room automatically? **Answered (START.1):** the room appears when you open the session from the Sessions panel, and goes when you end it.
 
 The images are drawn in code from `Sprites/dungeon_kit` and `throne_pieces.py`. Each has an `@4x` copy.

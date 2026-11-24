@@ -284,12 +284,16 @@ class PlaceBook:
             aid for aid, actor in self._actors.items()
             if actor.where == INSIDE and aid not in self._cross
         )
+        from cli_avatars.app.dungeon_rooms import refresh_rooms
         from cli_avatars.app.inside_roster import hall
 
+        refresh_rooms(scene)
         room = hall(self)
         spots = room.place(self._spot_map(settled), now)
+        from cli_avatars.app.room_build import build_for
         from cli_avatars.app.room_glow import glow_for
 
+        build_for(self).paint(scene, getattr(scene, "_rooms_painter", None), now)
         glow_for(self).paint(scene, room, dragging, now)
         photos = canvas_photos(self.app)
         from cli_avatars.app.nameplates import seat_inside
