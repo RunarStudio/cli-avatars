@@ -129,6 +129,9 @@ class DungeonWindow:
         if focus is not None and _inside(focus, getattr(self, "_skins", None)) and self._center == "skins":
             self.show_center("dungeon")
             return "break"
+        if focus is not None and _inside(focus, getattr(self, "_tasks", None)) and self._center == "tasks":
+            self.show_center("dungeon")
+            return "break"
         if focus is not None and _inside(focus, getattr(self, "_right", None)):
             self.set_right(False)
             return "break"
@@ -314,6 +317,17 @@ class DungeonWindow:
             self.app._build_picker_ui(self._skins)
         except Exception:
             self._picker_built = False
+
+    def _ensure_tasks(self) -> None:
+        panel = getattr(self.app, "_tasks_panel", None)
+        if panel is None:
+            from cli_avatars.app.tasks_panel import TasksPanel
+            from cli_avatars.app.tasks_view import selected_topic
+
+            panel = TasksPanel(self._tasks, self.app._chat_directory, lambda: selected_topic(self.app),
+                               shown=lambda: self._center == "tasks")
+            self.app._tasks_panel = panel
+        panel.refresh(force=True)
 
     def _ensure_settings(self) -> None:
         if self._settings_built:

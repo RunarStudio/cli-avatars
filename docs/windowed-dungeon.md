@@ -143,6 +143,10 @@ and it still requires the door to be open.
 | Tray (7) | Kept: Show Dungeon, Door open/closed, Call home, Quit | Callbacks still go through `root.after(0, …)`. "Let them roam" waits for WIN-DUNGEON.8. |
 | Building window (8) | The central "Dungeon" tab | BLDG.2 becomes a widget (`app/building_view.py`), not a `Toplevel`. |
 
+**Tasks tab (TM.3).** Central tab "Tasks" beside Dungeon and Skins: a read-only kanban of the chat's
+topic cards from every board (todo, doing, review, done collapsed, blocked; assignee, progress,
+checklist done/total). `app/tasks_view.py` (no Tk) and `app/tasks_panel.py`; rooms tick, ≤ 1/s.
+
 After this work the app shows **one** normal window plus the overlays (which are invisible and
 withdrawn when they hold no avatar). The only optional extra is the popped-out chat.
 

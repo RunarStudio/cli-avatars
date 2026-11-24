@@ -453,4 +453,7 @@ class RoomsPanel:
         panel = getattr(self.app, "_memmap_panel", None)
         if panel is not None:
             panel.refresh()
+        tasks = getattr(self.app, "_tasks_panel", None)
+        if tasks is not None:
+            tasks.refresh()
         return _update_rooms_win(self.app)
