@@ -2,13 +2,16 @@
 
 Three columns: topics, the selected thread with a composer, and the live
 avatars. The composer writes the local inbox of an orchestrator. It does
-not start a process, open a socket, or run the text.
+not start a process, open a socket, or run the text. ROOM-CHAT.4: with the
+Claude target picked, Enter or Send on Daniel's typed prompt starts one CLI
+run through ``cli_runner`` (``_send_cli``); the prompt goes on stdin.
 
 ``routing.py`` chooses the inbox. A subagent click opens the parent's topic.
 """
 
 from __future__ import annotations
 
+import atexit
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -80,6 +83,27 @@ def install_bot_redactor() -> None:
 
     module = importlib.import_module("cli_avatars.runner.cli_runner")
     use_redactor(module.redact_secrets)
+
+
+_STOP_ON_EXIT = []
+
+
+def _runner():
+    """``cli_runner``, loaded on use like ``install_bot_redactor``."""
+    import importlib
+
+    return importlib.import_module("cli_avatars.runner.cli_runner")
+
+
+def room_tools() -> SimpleNamespace:
+    """The runner's checks the room pane may call. None of them starts a process."""
+    runner = _runner()
+    return SimpleNamespace(
+        validate_dir=runner.validate_working_dir,
+        resolve=runner.resolve_binary,
+        confirm=runner.confirm_binary,
+        rejected=runner.CliRejected,
+    )
 
 
 BG = "#0d0d1a"
@@ -164,6 +188,7 @@ class ChatWindow:
         offscreen: bool = False,
         container=None,
         on_show=None,
+        room_pane=None,
     ) -> None:
         self.master = master
         self._directory = directory
@@ -199,6 +224,9 @@ class ChatWindow:
         self._to_btn = None
         self._entry = None
         self._status = None
+        self._room_pane_factory = room_pane
+        self._room = None
+        self._thread_wrap = None
         if container is not None:
             self._ensure()
 
@@ -308,6 +336,8 @@ class ChatWindow:
             topics = list(self._topics)
         self._topics = topics
         self._pick_topic(topics)
+        if self._room is not None:
+            self._room.sync(self._topic_id)
         if self._topic_id:
             self._mark_seen(self._topic_id, lines)
         counts = unread_counts(lines, self._seen)
@@ -442,6 +472,7 @@ class ChatWindow:
 
         thread_wrap = tk.Frame(center, bg=BG)
         thread_wrap.pack(fill="both", expand=True)
+        self._thread_wrap = thread_wrap
         self._thread = self._scroller(thread_wrap)
         self._build_composer(center)
 
@@ -463,10 +494,10 @@ class ChatWindow:
             relief="flat", font=FONT,
         )
         entry.pack(side="left", fill="x", expand=True, padx=(0, 6), ipady=4)
-        entry.bind("<Return>", lambda _event: self._send())
+        entry.bind("<Return>", self._on_enter)
         self._entry = entry
         tk.Button(
-            text_row, text="Send", command=self._send,
+            text_row, text="Send", command=self._on_enter,
             bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
             font=FONT, relief="flat", padx=12, pady=3, cursor="hand2",
         ).pack(side="right")
@@ -475,6 +506,10 @@ class ChatWindow:
             bg=BG, fg="#55556a", font=FONT_SMALL, anchor="w",
         )
         self._status.pack(fill="x", pady=(4, 0))
+        if self._room_pane_factory is not None:
+            if self._room is None:
+                self._room = self._room_pane_factory(self, room_tools())
+            self._room.mount(center, self._thread_wrap, composer, text_row)
 
     def _scroller(self, parent):
         canvas = tk.Canvas(parent, bg=BG, highlightthickness=0, bd=0)
@@ -963,6 +998,56 @@ class ChatWindow:
     def _pick(self, target: str) -> None:
         self._manual_target = target
         self.refresh(force=True)
+
+    def _on_enter(self, event=None) -> None:
+        """Enter or Send: a CLI target runs Daniel's prompt, otherwise it goes to the inboxes."""
+        if self._room is not None and self._room.cli_target() is not None:
+            self._send_cli(event)
+            return
+        self._send()
+
+    def _send_cli(self, event=None) -> None:
+        """Start one CLI run for the prompt Daniel typed. Called only from ``_on_enter``.
+
+        Argv is fixed by the runner; the prompt and the room context go on stdin.
+        Output comes back as text through the pane's queue and is never run.
+        """
+        entry = self._entry
+        if entry is None or self._room is None:
+            return
+        try:
+            raw = str(entry.get())
+        except Exception:
+            return
+        request = self._room.prepare(raw)
+        if request is None:
+            return
+        runner = _runner()
+        try:
+            process = runner.start(
+                user_action=runner.UserAction.from_ui_event(event),
+                room_id=request.room_id,
+                cli=request.cli,
+                binary=runner.ConfirmedBinary(cli=request.cli, **request.pin),
+                working_dir=request.working_dir,
+                prompt=raw,
+                topic_title=request.topic_title,
+                open_cards=request.open_cards,
+                permission_mode=request.mode,
+                session_id=request.session_id,
+                on_stdout_line=request.on_line,
+                on_done=request.on_done,
+            )
+        except runner.CliRejected as exc:
+            self._room.rejected(request, str(exc))
+            return
+        if not _STOP_ON_EXIT:
+            _STOP_ON_EXIT.append(atexit.register(runner.stop_all))
+        try:
+            entry.delete(0, "end")
+        except Exception:
+            pass
+        self._room.started(request, process)
 
     def _send(self) -> None:
         """Write the entry to orchestrator inboxes. The text is not run."""

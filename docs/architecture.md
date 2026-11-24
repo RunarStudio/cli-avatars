@@ -406,7 +406,7 @@ layer rules in section 3.
 
 Where to add features: the controllers are in place. Do not grow
 `overlay.py`. ROOM-CHAT.4 (chat pane, target picker, Both) and BOARD.4
-(board tab) extend `cli_avatars/app/chat.py`; that module is the only
+(board tab) extend `cli_avatars/app/chat.py`; `chat_window.py` is the only
 caller of `cli_runner`, from a button or Enter, never from the tick.
 BLDG.2 adds `cli_avatars/app/building_window.py` and uses
 `render.PhotoCache`. CLICK-THROUGH puts the Win32 bits in
@@ -416,9 +416,9 @@ exists (see also `app/input.py`), not from the tick.
 | Feature | Task | Location | Layer | Notes |
 |---------|------|----------|-------|-------|
 | CLI runner | ROOM-CHAT.2 | `cli_avatars/runner/cli_runner.py` | below `app`, beside `world` | **Only** module that starts a process. See 6.1 |
-| stream-json parser | ROOM-CHAT.3 | `cli_avatars/runner/stream.py` | pure | Text in, sanitised topic messages out. No subprocess, no exec |
+| stream-json parser | ROOM-CHAT.3 | `cli_avatars/model/room_stream.py` (records: `app/room_log.py`) | pure | Text in, sanitised topic messages out. No subprocess, no exec. Not under `runner/`: only `chat_window.py` may name the runner package |
 | Room model | ROOM-CHAT.1 | `cli_avatars/model/room.py` | model | Working dir path stored in the per-user data dir (`events.app_data_dir()`), never in the repo or `config.json` |
-| Chat pane, target picker, Both | ROOM-CHAT.4/.5 | `cli_avatars/app/chat.py` + `chat_window.py` | app | The only caller of `cli_runner`, on a button or Enter |
+| Chat pane, target picker, Both | ROOM-CHAT.4/.5 | `cli_avatars/app/room_pane.py` (widgets, no launch) + `chat_window.py` (`_send_cli`, the only caller of `cli_runner.start`) | app | Started only from Enter or Send |
 | Agent tree | CHAT-TREE | `cli_avatars/model/tree.py` | model | Built from the scanner snapshot + topics; stable node ids; one API used by rooms panel, Building and web. Spec source is a small protocol so CHAT-HARNESS-READ plugs in |
 | Counts | CHAT-COUNTS | `cli_avatars/model/tree.py` (`counts()`) | model | Derived from the tree, no new scan |
 | `blocked` state | CHAT-BLOCKED | see 6.2 | model + core | |
@@ -448,7 +448,7 @@ by ROOM-CHAT.0 (a CLI starts only on Daniel's explicit action).
 - Allowlisted binaries only, resolved once; fixed argv; `shell=False`;
   prompt on stdin, never in argv; `cwd` = the room dir; one process per
   room; timeout; Stop; output cap.
-- Called only from `app/chat.py` in a user event handler. Never from the
+- Called only from `chat_window.py` in a user event handler. Never from the
   tick, the scanner, a bus subscriber, MCP or a hook.
 - Output is data: parsed by `runner/stream.py`, shown and logged, never
   executed or fed back as a command.

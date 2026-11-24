@@ -13,6 +13,7 @@ Message text is data. Nothing in this module executes it.
 from pathlib import Path
 
 from chat_window import ChatWindow
+from cli_avatars.app.room_pane import RoomPane
 from cli_avatars.app.toolbar_widgets import paint
 from events import app_data_dir
 from routing import config_with_window_box, focus_for, save_window_box
@@ -56,6 +57,7 @@ def _ensure_chat_window(self) -> ChatWindow:
         on_box=self._remember_chat_box,
         container=getattr(self, "_chat_host", None),
         on_show=lambda: _chat_dock_show(self),
+        room_pane=RoomPane,
     )
     self._chat_window = window
     return window
