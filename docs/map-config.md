@@ -25,8 +25,7 @@ No clashing pairs, checked on all 30:
 - `torture` and `blood` sets are never used (BLDG-SCHEMA decision I); `gate` only with a prop from the `dungeon` or `skulls` set.
 - Glow matches the light: cauldron only under green; magic circle and crystal ball only under blue or green; red flask never under blue, blue bottle never under red.
 - `checker` floor never with the magic circle; no two skins share the same floor + wall + trim + door + light, or the same prop trio.
-
-Result: 30 distinct skins (8 amber, 8 blue, 7 green, 7 red). All names are made up.
+- Result: 30 distinct skins (8 amber, 8 blue, 7 green, 7 red). All names are made up.
 
 ## File format `building/maps/<name>.json`
 
