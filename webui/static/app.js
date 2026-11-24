@@ -1,4 +1,4 @@
-// PHONE.1/2: the Dungeon map, its tasks and the room chat; with writes on, open sessions and send prompts.
+// PHONE.1/2/4: the Dungeon map, its tasks and the room chat; with writes on, open sessions, send prompts and Update.
 // Every text goes in with textContent.
 "use strict";
 
@@ -621,12 +621,111 @@ function hash(text) {
   return (h >>> 0).toString(36);
 }
 
+// --- PHONE.4: Update app, as the Dungeon's toolbar; the page reconnects after the relaunch --------
+const STEPS = [["checking dev", "Check"], ["pulling", "Pull"], ["selftest", "Selftest"], ["boot check", "Boot"],
+  ["building", "Build"], ["restarting", "Restart"]];
+const DONE = { up_to_date: "ok", updated: "ok", failed: "bad", rolled_back: "bad", blocked: "bad" };
+state.upd = null;
+state.restarting = false;
+
+async function loadUpdate() {
+  try { paintUpdate(await getJSON("/api/update")); } catch (_e) { /* offline */ }
+}
+
+function stepOf(u) {
+  if (u.phase === "staged" || u.phase === "rolled_back" || state.restarting) return STEPS.length - 1;
+  if (u.phase === "updated") return STEPS.length;
+  const line = (u.line || "").toLowerCase(), found = STEPS.findIndex(([key]) => line.includes(key));
+  if (u.running) return (state.updStep = Math.max(0, found));
+  return u.phase === "failed" ? (found >= 0 ? found : state.updStep || 0) : -1;
+}
+
+function paintUpdate(u) {
+  const was = state.upd;
+  state.upd = u;
+  // the old app may stop before its last event leaves, so its "restarting" line is the signal
+  if (u.phase === "staged" || (u.running && /restarting/i.test(u.line))) state.restarting = true;
+  $("updVer").textContent = "v" + u.version;
+  $("updCommit").textContent = u.commit || "no commit";
+  const checked = Date.parse(u.last_checked);
+  $("updChecked").textContent = "Last checked " + (isNaN(checked) ? u.last_checked || "not yet"
+    : new Date(checked).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }));
+  const at = stepOf(u), bad = !u.running && DONE[u.phase] === "bad", list = $("updSteps");
+  list.hidden = at < 0;
+  list.replaceChildren(...STEPS.map(([, label], i) => el("li", i < at ? "done" : i === at ? (bad ? "bad" : "now") : "", label)));
+  const line = $("updLine");
+  line.className = "upd-line " + (u.running || state.restarting ? "busy" : DONE[u.phase] || "");
+  if (state.restarting) line.textContent = state.retry || "Restarting the Dungeon. The page reconnects on its own.";
+  else if (u.running) line.textContent = u.line || "Update: checking dev";
+  else if (u.phase === "up_to_date") line.textContent = "Up to date on " + (u.commit || "dev");
+  else if (u.phase === "updated" || u.phase === "rolled_back") line.textContent = u.note;
+  else if (u.phase === "failed") line.textContent = "Update stopped: " + (u.note || "update failed");
+  else line.textContent = "";
+  const writes = state.writes.writes;
+  $("updGo").disabled = !u.enabled || !writes || state.restarting;
+  $("updGo").textContent = u.running || state.restarting ? "Updating…" : "Update app";
+  $("updWhy").textContent = u.running || state.restarting ? "" : u.reason
+    || (writes ? "" : "Updating from the phone is off. In the Dungeon: Settings › Phone › Allow the phone to open sessions and send prompts.");
+  $("appBtn").classList.toggle("busy", !!u.running || state.restarting);
+  if (was && (was.running || was.phase === "staged") && !u.running && DONE[u.phase]) tone(DONE[u.phase] === "ok" ? "done" : "failed");
+}
+
+$("appBtn").addEventListener("click", () => { $("upd").hidden = false; loadWrites().then(loadUpdate); });
+$("updClose").addEventListener("click", () => { $("upd").hidden = true; });
+$("upd").addEventListener("click", (e) => { if (e.target === $("upd")) $("upd").hidden = true; });
+$("updGo").addEventListener("click", () => { $("updAsk").hidden = false; $("updYes").focus(); });
+$("updNo").addEventListener("click", () => { $("updAsk").hidden = true; });
+$("updAsk").addEventListener("click", (e) => { if (e.target === $("updAsk")) $("updAsk").hidden = true; });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!$("updAsk").hidden) $("updAsk").hidden = true;
+  else if (!$("upd").hidden) $("upd").hidden = true;
+});
+$("updYes").addEventListener("click", async () => {
+  $("updAsk").hidden = true;
+  $("updGo").disabled = true;
+  tone("send");
+  const res = await postJSON("/api/update", {}).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) $("updWhy").textContent = res.data.why || (res.status === 429 ? "Too many taps: wait a minute." : "Not started (" + (res.status || "offline") + ").");
+  loadUpdate();
+});
+
+// after Update the old app quits and the new one serves again: try with backoff until it answers
+async function reconnect(src) {
+  src.close();
+  $("live").classList.remove("on");
+  for (let n = 1, wait = 1000; state.restarting; n++, wait = Math.min(wait * 2, 15000)) {
+    state.retry = "Restarting. Reconnecting (try " + n + ")…";
+    if (state.upd) paintUpdate(state.upd);
+    await new Promise((ok) => setTimeout(ok, wait));
+    try {
+      const res = await fetch("/api/update", { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) continue;
+      const u = await res.json();
+      if (u.phase === "staged") continue;
+      state.restarting = false;
+      state.retry = "";
+      paintUpdate(u);
+      $("upd").hidden = false;
+      load().then(live).catch(() => {});
+      return;
+    } catch (_e) { /* still down */ }
+  }
+}
+
 // --- live updates --------------------------------------------------------------------------------
 let pending = null;
 function live() {
   const src = new EventSource("/api/events");
-  src.onopen = () => $("live").classList.add("on");
-  src.onerror = () => $("live").classList.remove("on");
+  src.onopen = () => { $("live").classList.add("on"); loadUpdate(); };
+  src.onerror = () => {
+    $("live").classList.remove("on");
+    if (state.upd && state.upd.running) state.restarting = true;
+    if (state.restarting) reconnect(src);
+  };
+  src.addEventListener("update", (e) => {
+    try { paintUpdate(JSON.parse(e.data)); } catch (_e) { /* bad frame */ }
+  });
   src.addEventListener("change", () => {
     clearTimeout(pending);
     pending = setTimeout(() => load().catch(() => {}), 150);
@@ -678,7 +777,8 @@ function tone(kind) {
     out.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
     out.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
     out.connect(audio.destination);
-    const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : [[392.0, 0], [523.25, 0.09]];
+    const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : kind === "done" ? [[523.25, 0], [659.25, 0.09], [783.99, 0.18]]
+      : kind === "failed" ? [[329.63, 0], [261.63, 0.12]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {
       const o = audio.createOscillator();
       o.type = kind === "send" ? "square" : "triangle";
@@ -704,5 +804,5 @@ if (window.visualViewport) {
 
 $("fit").addEventListener("click", () => { state.room = null; $("here").textContent = ""; animateTo(wholeMap()); });
 paintSound();
-load().then(live).catch(() => {});
+load().then(loadUpdate).then(live).catch(() => {});
 requestAnimationFrame(frame);

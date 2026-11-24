@@ -41,7 +41,7 @@ The portable onefile executables from `build.ps1` are unchanged.
 
 ## Update
 
-**Update** on the Dungeon toolbar, in the WINDOW group, starts the update. Settings, in the Dungeon dock, shows the version, the short commit, and the last time an update was checked. **Update app** in Settings and in the tray menu does the same. Progress is a line on the status bar. The button does not open a window.
+**Update** on the Dungeon toolbar, in the WINDOW group, starts the update. Settings, in the Dungeon dock, shows the version, the short commit, and the last time an update was checked. **Update app** in Settings and in the tray menu does the same. Progress is a line on the status bar. The button does not open a window. The phone view runs the same Update from its App sheet when the phone may send ([phone-view.md](phone-view.md#update-the-app-from-the-phone-phone4)).
 
 The buttons stay disabled, with the reason beside the Settings button and as the toolbar button's tooltip, when `git` is not on `PATH` or when `python -m PyInstaller --version` fails. A source checkout shows "Running from source" because there is no install folder to swap.
 

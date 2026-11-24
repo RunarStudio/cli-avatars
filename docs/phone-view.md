@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2)
+# Phone view (PHONE.1, PHONE.2, PHONE.4)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -30,6 +30,15 @@ Pick the address marked **Tailscale** in **Listen on**. The server then listens 
 
 Grok rooms open, but Grok cannot run prompts yet (as in the Dungeon).
 
+## Update the app from the phone (PHONE.4)
+
+1. Same switch as above: **Allow the phone to open sessions and send prompts**.
+2. On the phone: the gear in the map bar opens **App**: the version, the short commit, `dev`, and when Update last checked.
+3. Tap **Update app**, then **Update** in the sheet that asks (the Dungeon restarts; the page reconnects). It is the Dungeon's own Update (toolbar, Settings, tray): same steps, same log, see [install-and-update.md](install-and-update.md#update).
+4. The steps light up as they run (Check, Pull, Selftest, Boot, Build, Restart) with the status line under them. While the app restarts the page retries with backoff and, once the new build answers, shows **Updated to** its commit, or that the new build failed its boot check and the old one is back.
+
+When Update cannot run the button is disabled and the reason shows under it: Running from source, git or PyInstaller missing, an update already running, or sending from the phone off.
+
 ## Try it with made-up data
 
 ```bash
@@ -49,11 +58,13 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `/api/chat/<topic>?tail=N` | The room's last messages (default 30, at most 200). |
 | `/api/map.png` | The Dungeon map, composed from the kit exactly as the Dungeon window draws it. |
 | `/api/sprite/<look>.png` | Idle and walk rows of a roster look (`user`, `orchestrator`, `grok`, `grok-<hue>`, `subagent`), cut as the Dungeon cuts them. |
-| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move. |
+| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line. |
 | `/api/sessions` | Open sessions, the rooms the phone may open (title and folder name, never a path), whether writes are on, and then the CSRF value. |
 | `POST /api/sessions` | Writes on: open a session `{"kind", "cli", "topic"}` on a room whose folder was picked in the Dungeon. |
 | `POST /api/sessions/<topic>/end` | Writes on: end it; its avatars walk back to the Apothecary. |
 | `POST /api/chat/<topic>` | Writes on: `{"text"}` (at most 8,000 characters) runs the room's CLI once; 202, or 409 with why not. |
+| `/api/update` | Update status: version, short commit, last check, whether Update may run and why not, the latest progress line, the outcome. |
+| `POST /api/update` | Writes on: start Update app; 202, or 409 with why not (already running, a missing tool, from source). |
 | `/api/media/<id>` | A picture or video a phone-sent turn wrote in the room's folder, by its id; byte ranges for video. |
 
 The page keeps the Send box above the phone's keyboard: while you type, the task list folds away and the map shrinks.
@@ -68,6 +79,7 @@ The avatars are the Dungeon's own: while the Dungeon window runs, the page shows
 - A token of its own (`web/token` in the data folder, owner-only). The pairing link carries it once; the page then holds an HttpOnly, SameSite=Lax cookie derived from it, not the token. No cookie: 401.
 - Writes are off by default (`web.allow_writes`): then every write method answers 405 and a request body is refused. On, a write also needs the `X-CLI-Avatars-CSRF` header (an HMAC of the token, handed to the paired page by `/api/sessions`, compared in constant time), a JSON body of at most 16 KiB, and stays under 10 writes a minute for every phone together (429). The cookie is SameSite=Lax, so another site's form cannot send it. URLs over 2 KiB answer 414.
 - A Send tap is the user's Enter: the phone server calls the Dungeon chat's own launch (`chat_window.launch_cli`), one run per room at a time. The command line is fixed in code and the prompt goes on stdin, never a shell; the folder, binary and permission mode come from the room file the Dungeon wrote. See [room-chat.md](room-chat.md).
+- Update tap: the phone server calls the Dungeon's `start_update`, the toolbar button's own; nothing from the phone reaches a command. One update at a time. After the phone view stops, a kept-alive phone gets 503 and a closed connection.
 - Media: a turn's new or changed files are listed before and after the run, inside the room's folder only (no hidden folders, no symlinks, 4 levels, 5,000 entries). A file is served only when its name ends in an allowed type, its first bytes match it, it is at most 50 MiB, and it still resolves inside the folder. The URL holds a random id from `web/media.json`, never a path.
 - Routes are fixed names. Topics must be slugs, card ids UUIDs, skins a fixed list; `..`, encoded slashes and backslashes answer 400. Nothing in a URL becomes a file path.
 - Card and chat text are data: the page sets them with `textContent`, never as HTML. A strict Content-Security-Policy allows only the page's own script and style; `Referrer-Policy: no-referrer` keeps the pairing link out of referrers.
@@ -82,4 +94,4 @@ The avatars are the Dungeon's own: while the Dungeon window runs, the page shows
 
 ## Sound
 
-A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered.
+A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered.
