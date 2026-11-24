@@ -6,7 +6,6 @@ The tick module does not own those names. Hot-unplug still parks.
 
 import json
 import os
-import sys
 import tempfile
 import time
 import unittest
