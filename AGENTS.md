@@ -35,6 +35,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `redaction.py` | Shared secret redactor for hook commands and board text |
 | `board/`, `registry/` | Task cards (model, `LocalStore`) and the registry: full API, narrow `AgentApi`, policy, rate limits |
 | `building/layouts/` | AG-3 room layouts (`compact.json` tiling 4, `tower.json` tiling 16) drawn by the Dungeon tab |
+| `cli_avatars/app/throne_*.py` | Throne tab of the Dungeon: `throne_model` (seating, board columns, state lights, door), `throne_px` (pixel engine), `throne_pieces` (code-drawn pieces), `throne_art` (the room), `throne_panel` (Tk tab) |
 | `bots/` | Grok Bot roster and pull-only status (`roster`, `status`, `status_source`, `service`). Files live in the data dir, not in git. |
 | `tools/gen_ponmi.py`, `tools/gen_meowatar_gifs.py`, `tools/gen_subskin_placeholders.py` | Offline sprite / GIF generators (not imported at runtime) |
 
@@ -93,6 +94,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | MCP | `docs/mcp.md` |
 | Sprites | `docs/adding-sprites.md` |
 | Building scene | `docs/building-scene.md` |
+| Throne room | `docs/throne-room.md` |
 | Task board | `docs/board.md` |
 | Room chat | `docs/room-chat.md` |
 | Bot roster and status | `docs/bot-status.md` |
