@@ -143,7 +143,7 @@ The agent id is the first 8 characters of `session_id`. That is the same id `Cla
 
 | Event | What the hook does |
 |-------|--------------------|
-| `SessionStart` | Prints a short context block when something is new: the topic summary, the pins, unread inbox rows, and decision answers for this agent. Marks those rows read. `needs_summary: true` counts as new. If nothing is new, it prints nothing. The block is capped at 2000 characters. |
+| `SessionStart` | Prints a short context block when something is new: the topic summary, the pins, unread inbox rows, decision answers for this agent, and the agent's open cards (NOTIFY.1: id, column, progress, title; cards assigned to it or unassigned in its topics, not `done` or archived). Marks those rows read. `needs_summary: true` and an open card count as new. If nothing is new, it prints nothing. The block is capped at 2000 characters; cards that do not fit become `- <n> more`. |
 | `UserPromptSubmit` | Same context block as `SessionStart`. Also emits `thinking`, which clears `blocked`. The prompt text is not executed. |
 | `PreToolUse` | Emits `busy`. That clears `blocked`. The tool name and tool input are not stored. |
 | `PostToolUse` | Emits `thinking`. That clears `blocked`. With the memory map on, a `Read` of a `.md` or `.mdc` file stores that file's path relative to the project root and the length of the returned text ([Memory map capture](#memory-map-capture-memmap2)). Other tool input and all tool output are not stored. |

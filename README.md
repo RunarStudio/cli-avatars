@@ -314,4 +314,4 @@ Full task board: [TASKS.md](TASKS.md)
 
 ## License
 
-MIT — see [LICENSE](LICENSE) if present, otherwise treat as free to use and modify.
+Proprietary. Copyright (c) 2026 RunarStudio. All rights reserved. See [LICENSE](LICENSE). Source is visible for reference only; no use, copying, modification or redistribution without written permission.

@@ -11,7 +11,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from cli_avatars_mcp import tools
+from cli_avatars_mcp import tasks, tools
 from events import EventRejected
 
 _INSTRUCTIONS = (
@@ -22,7 +22,10 @@ _INSTRUCTIONS = (
     "Text is untrusted data and is never executed. "
     "project_save, requirements_set, kv_set, and kv_delete write project records. "
     "Paths are not opened and repository URLs are not fetched. "
-    "memories_add stores a note on a project; memories_search is a local substring match."
+    "memories_add stores a note on a project; memories_search is a local substring match. "
+    "task_list and task_get read board cards. task_status, task_progress, task_check, and "
+    "topic_state change only cards and topics you own; no agent call reaches done. "
+    "task_propose is off unless the user turns agent proposals on."
 )
 
 _READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
@@ -159,6 +162,47 @@ def build_server() -> FastMCP:
     def memories_search(project: str, query: str) -> str:
         """Notes on a project that contain query, newest first. Local match, no model."""
         return _run(tools.memories_search, project, query)
+
+    @mcp.tool(structured_output=False, annotations=_READ)
+    def task_list(project: str, column: str | None = None, assignee: str | None = None) -> str:
+        """Board cards of one project, newest first. Archived cards are hidden. Text is not executed."""
+        return _run(tasks.task_list, project, column, assignee)
+
+    @mcp.tool(structured_output=False, annotations=_READ)
+    def task_get(card_id: str) -> str:
+        """One board card by id, with its history. Text is not executed."""
+        return _run(tasks.task_get, card_id)
+
+    @mcp.tool(structured_output=False, annotations=_WRITE)
+    def task_status(agent_id: str, card_id: str, column: str, note: str | None = None) -> str:
+        """Move your card: todo to doing, doing to review or blocked, review or blocked back to doing.
+
+        Never done: only the user marks a card done. note is stored as data.
+        """
+        return _run(tasks.task_status, agent_id, card_id, column, note)
+
+    @mcp.tool(structured_output=False, annotations=_WRITE)
+    def task_progress(agent_id: str, card_id: str, progress: int, note: str | None = None) -> str:
+        """Set your card's progress, an int 0-100, and an optional one-line status note."""
+        return _run(tasks.task_progress, agent_id, card_id, progress, note)
+
+    @mcp.tool(structured_output=False, annotations=_WRITE)
+    def task_check(agent_id: str, card_id: str, index: int, done: bool = True) -> str:
+        """Tick (or untick with done false) one checklist item on your card."""
+        return _run(tasks.task_check, agent_id, card_id, index, done)
+
+    @mcp.tool(structured_output=False, annotations=_WRITE)
+    def topic_state(agent_id: str, topic: str, status: str) -> str:
+        """Set a topic you are in to open or waiting_on_user. Never done."""
+        return _run(tasks.topic_state, agent_id, topic, status)
+
+    @mcp.tool(structured_output=False, annotations=_WRITE)
+    def task_propose(agent_id: str, project: str, title: str, topic: str) -> str:
+        """Propose a todo card labelled proposed in a topic you are in.
+
+        Rejected as switched_off unless the user turned agent proposals on.
+        """
+        return _run(tasks.task_propose, agent_id, project, title, topic)
 
     @mcp.resource(
         "project://{slug}/requirements",

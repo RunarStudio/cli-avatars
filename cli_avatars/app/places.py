@@ -26,16 +26,14 @@ from cli_avatars.app.place_store import (
     remember,
     save_file,
 )
+from cli_avatars.app.place_markers import draw_inside_sub_marks
 from cli_avatars.app.render import canvas_photos
+from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.desktop.chrome import frame_hwnd
 from cli_avatars.desktop.windows import occlusion_covers
 from cli_avatars.model.place import DESKTOP, INSIDE, RETURNING, Place, drag_out, new_actor, portal_done
-from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.world.avatar import Avatar
 from cli_avatars.world.monitors import monitor_at
-
-_CHILD = ("#7eb6ff", "#ffd36e", "#9dff8a", "#ff8ec8", "#d2a6ff", "#ffb070", "#7dffe0", "#e8e8e8")
-_CHILD_SIZE = 32
 
 
 def places_path():
@@ -444,22 +442,7 @@ class PlaceBook:
         self._draw_children(scene, av)
 
     def _draw_children(self, scene, av) -> None:
-        count = getattr(av.agent, "subagents", 0)
-        if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
-            return
-        from cli_avatars.app.room_fit import child_size
-
-        count, size = min(count, 8), child_size(av, _CHILD_SIZE)
-        for index in range(count):
-            left = av.x + av.aw + 6 + index * (size + 4)
-            top = av.y + av.ah - size
-            try:
-                scene.create_rectangle(
-                    left, top, left + size, top + size,
-                    fill=_CHILD[index], outline=_CHILD[index], tags=("inside-sub",),
-                )
-            except Exception:
-                return
+        draw_inside_sub_marks(scene, av, self.app)
 
     def _client(self):
         root = self.app.root

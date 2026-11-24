@@ -36,7 +36,7 @@ from chatlog import (
 )
 from decisions import answer_decision, list_decisions, pin_answered
 from events import EventRejected, app_data_dir
-from inbox import send_message
+from registry.facade import Registry
 from rooms import build_rooms, idle_thumbnail
 from routing import (
     ALL_ORCHESTRATORS,
@@ -137,14 +137,13 @@ def seed_simulated(directory: Path | str) -> None:
     join_topic(root, "sprites", "grok:north01", ts=20)
     set_summary(root, "hooks", "Meet on the same window.", ts=40)
     pin_item(root, "hooks", kind="fact", text="Perch is clear.", author="abcd1234", ts=50)
+    from inbox import send_message
+
     send_message(
         root, sender="claude:abcd1234", recipients=["abcd1234"],
         text="Walk to the middle.", room="hooks", ts=100,
     )
-    send_message(
-        root, sender="user", recipients=["abcd1234"],
-        text="Use the same window.", room="hooks", ts=160,
-    )
+    Registry(root).chat_post("hooks", "Use the same window.", ["abcd1234"])
     ask_decision(
         root, agent="abcd1234", room="hooks", question="Same window?",
         options=["a=Same window", "b=Drop to the floor"], ts=200,
@@ -983,13 +982,7 @@ class ChatWindow:
             return
         room = self._topic_id or "general"
         try:
-            send_message(
-                self.directory(),
-                sender="user",
-                recipients=ids,
-                text=raw,
-                room=room,
-            )
+            Registry(self.directory()).chat_post(room, raw, ids)
         except EventRejected:
             self._set_status("Not sent")
             return

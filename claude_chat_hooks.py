@@ -428,22 +428,25 @@ def _format_context(topic_id: str, shown: dict, unread: list[dict]) -> str:
 
 
 def context_block(directory: Path, agent_id: str, topic_id: str) -> str:
-    """Summary, pins, and unread rows. Empty when nothing is new.
+    """Summary, pins, unread rows, and the agent's open cards (NOTIFY.1). Empty when nothing is new.
 
     Unread rows are marked read, the same way ``inbox read`` does.
     ``needs_summary`` counts as new so the agent can replace the summary.
     """
     from events import EventRejected
     from inbox import read_unread
+    from registry.notify import hook_cards
 
     try:
         shown = _load_topic(directory, topic_id)
         unread = read_unread(directory, agent_id, timeout=HOOK_LOCK_TIMEOUT)
     except EventRejected:
         return ""
-    if not unread and not shown.get("needs_summary"):
+    text = _format_context(topic_id, shown, unread)
+    cards = hook_cards(directory, agent_id, HOOK_LOCK_TIMEOUT, OUTPUT_CAP - len(text))
+    if not unread and not shown.get("needs_summary") and not cards:
         return ""
-    return cap_context(_format_context(topic_id, shown, unread))
+    return cap_context(text + cards)
 
 
 def _emit_state(
