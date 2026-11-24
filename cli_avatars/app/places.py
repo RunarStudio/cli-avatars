@@ -30,12 +30,41 @@ from cli_avatars.app.render import canvas_photos
 from cli_avatars.desktop.chrome import frame_hwnd
 from cli_avatars.desktop.windows import occlusion_covers
 from cli_avatars.model.place import DESKTOP, INSIDE, RETURNING, Place, drag_out, new_actor, portal_done
+from cli_avatars.app.render import photos_for
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.world.avatar import Avatar
 from cli_avatars.world.monitors import monitor_at
+from subskins import assign_subagent_skin
 
-_CHILD = ("#7eb6ff", "#ffd36e", "#9dff8a", "#ff8ec8", "#d2a6ff", "#ffb070", "#7dffe0", "#e8e8e8")
 _CHILD_SIZE = 32
+
+
+def _subagent_skin_pool() -> list[str]:
+    if REGISTRY is not None and hasattr(REGISTRY, "subagent_ids"):
+        return list(REGISTRY.subagent_ids())
+    return []
+
+
+def _inside_sub_photo(photos, skin: str, size: int, frame: int = 0):
+    """One idle-frame subagent sprite scaled to the rooms-floor marker size."""
+    registry = REGISTRY
+    if registry is None or not hasattr(registry, "has") or not registry.has(skin):
+        return None
+    image = registry.get_image(skin, "idle", frame)
+    if image is None:
+        return None
+    from cli_avatars.app.room_fit import _resize
+
+    base_w, base_h = registry.get_render_size(skin)
+    longest = max(int(base_w), int(base_h), 1)
+    factor = float(size) / float(longest)
+    if factor != 1.0:
+        image = _resize(image, factor)
+    else:
+        image = _resize(image, 1.0)
+    scale = round(factor, 4)
+    key = ("inside-sub", skin, size, frame, scale)
+    return photos.get(key, lambda: image)
 
 
 def places_path():
@@ -449,15 +478,27 @@ class PlaceBook:
             return
         from cli_avatars.app.room_fit import child_size
 
+        pool = _subagent_skin_pool()
+        if not pool:
+            return
+        photos = photos_for(self.app)
+        parent_id = str(getattr(av.agent, "agent_id", "") or "")
         count, size = min(count, 8), child_size(av, _CHILD_SIZE)
         for index in range(count):
             left = av.x + av.aw + 6 + index * (size + 4)
             top = av.y + av.ah - size
+            skin = assign_subagent_skin(
+                getattr(self.app, "config", None),
+                parent_id,
+                index,
+                pool,
+                rng=getattr(self.app, "_subskin_rng", None),
+            )
+            photo = _inside_sub_photo(photos, skin, size)
+            if photo is None:
+                continue
             try:
-                scene.create_rectangle(
-                    left, top, left + size, top + size,
-                    fill=_CHILD[index], outline=_CHILD[index], tags=("inside-sub",),
-                )
+                scene.create_image(left, top, image=photo, anchor="nw", tags=("inside-sub",))
             except Exception:
                 return
 

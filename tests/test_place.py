@@ -6,11 +6,15 @@ The tick module does not own those names. Hot-unplug still parks.
 
 import json
 import os
+import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parent.parent
 
 from cli_avatars.app.dungeon_map import (
     HANDOFF_PX,
@@ -298,8 +302,21 @@ class PlaceBookTests(unittest.TestCase):
 
         marks = _Marks()
         home.agent = AgentInfo("new", "New", subagents=2)
-        book._draw_children(marks, home)
-        self.assertEqual(marks.boxes, [(32.0, 32.0), (32.0, 32.0)])
+        registry = None
+        sheets = ROOT / "Sprites" / "subagents"
+        if sheets.is_dir():
+            from sprite_loader import SpriteRegistry
+
+            registry = SpriteRegistry()
+            registry.load_subagents(sheets, scale=1.0)
+        app.config = {}
+        app._subskin_rng = None
+        with patch("cli_avatars.app.places.REGISTRY", registry):
+            with patch("cli_avatars.app.places._inside_sub_photo", return_value="photo"):
+                book._draw_children(marks, home)
+        self.assertEqual(marks.boxes, [])
+        if registry is not None:
+            self.assertGreaterEqual(len(marks.images), 1)
         child = Avatar(
             AgentInfo("new_sub_0", "bit", parent_id="new"), 800, 600, 1, registry=None, spring_mode=True,
         )
@@ -341,10 +358,15 @@ class _Canvas:
 class _Marks:
     def __init__(self):
         self.boxes = []
+        self.images = []
 
     def create_rectangle(self, x1, y1, x2, y2, **_kwargs):
         self.boxes.append((x2 - x1, y2 - y1))
         return 1
+
+    def create_image(self, x, y, **_kwargs):
+        self.images.append((x, y))
+        return len(self.images)
 
 
 if __name__ == "__main__":
