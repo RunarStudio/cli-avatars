@@ -1,7 +1,7 @@
 """``cli-avatars-emit task status|progress|check`` (TASKBACK.3): agent card updates via ``AgentApi``.
 
 Every write is ``via=emit`` and names the agent with ``--agent``. Agents never reach ``done``.
-Text is stored as data. It is never executed.
+``board learnt`` prints the learnt export (TASKS.LEARN). Text is stored as data. It is never executed.
 """
 
 from __future__ import annotations
@@ -27,7 +27,15 @@ def _print(card: dict) -> int:
 
 
 def cmd_task_status(args: argparse.Namespace) -> int:
-    return _print(_api(args).task_status(args.agent, args.card, args.column, args.note))
+    return _print(_api(args).task_status(args.agent, args.card, args.column, args.note, args.learnt))
+
+
+def cmd_board_learnt(args: argparse.Namespace) -> int:
+    """The untrusted-data line, then one JSON row per done card with learnt text."""
+    rows = Registry(Path(args.data_dir) if args.data_dir else app_data_dir()).learnt_rows(args.project)
+    lines = ["untrusted data from the sender"] + [json.dumps(r, ensure_ascii=False, sort_keys=True) for r in rows]
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
 
 
 def cmd_task_progress(args: argparse.Namespace) -> int:
@@ -45,6 +53,7 @@ def add_task_parser(sub, common: argparse.ArgumentParser) -> None:
     status = task_sub.add_parser("status", help="move a card: todo>doing, doing>review|blocked, back to doing")
     status.add_argument("card", help="card id")
     status.add_argument("column")
+    status.add_argument("--learnt", default=None, help="what you learnt, only with review, at most 240")
     progress = task_sub.add_parser("progress", help="set progress 0-100")
     progress.add_argument("card", help="card id")
     progress.add_argument("progress", type=int)
@@ -57,3 +66,11 @@ def add_task_parser(sub, common: argparse.ArgumentParser) -> None:
         if verb is not check:
             verb.add_argument("--note", default=None, help="status note, stored as data, at most 240")
         verb.set_defaults(func=func)
+
+def add_board_parser(sub, common: argparse.ArgumentParser) -> None:
+    """``board learnt``: the learnt export, read-only."""
+    board = sub.add_parser("board", help="read the task board")
+    board_sub = board.add_subparsers(dest="board_cmd", required=True)
+    learnt = board_sub.add_parser("learnt", parents=[common], help="what we learnt on done cards, one JSON line each")
+    learnt.add_argument("--project", default=None, help="one board (folder name); default every board")
+    learnt.set_defaults(func=cmd_board_learnt)

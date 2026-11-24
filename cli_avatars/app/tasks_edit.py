@@ -17,6 +17,7 @@ from board.model import (
     CHECK_TEXT_LIMIT,
     COLUMNS,
     EVENT_TEXT_LIMIT,
+    LEARNT_LIMIT,
     MAX_CHECKLIST,
     MAX_LABELS,
     PERSON,
@@ -157,6 +158,13 @@ class TaskEditor:
         return self._run(lambda: self.registry.change(card_id, lambda c: {**c, "status_note": note}, PERSON),
                          "status")
 
+    def learnt(self, card_id: str, text: str) -> Outcome:
+        """What we learnt, asked when the card lands in done."""
+        error = "Write what we learnt, or Skip." if not text.strip() else _too_long(text.strip(), LEARNT_LIMIT)
+        if error:
+            return Outcome(errors={"learnt": error})
+        return self._run(lambda: self.registry.task_learnt(card_id, text), "learnt")
+
     def comment(self, card_id: str, text: str) -> Outcome:
         error = "Write the comment first." if not text.strip() else _too_long(text, EVENT_TEXT_LIMIT)
         if error:
@@ -225,6 +233,8 @@ def _line(event: Mapping) -> str:
         return f"progress {before if before is not None else 'auto'} → {after if after is not None else 'auto'}"
     if kind == "status":
         return f"status: {text}"
+    if kind == "learnt":
+        return f"learnt: {text}"
     return kind
 
 

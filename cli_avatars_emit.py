@@ -40,7 +40,7 @@ import time
 from pathlib import Path
 from typing import Optional, Sequence
 
-from emit_tasks import add_task_parser
+from emit_tasks import add_board_parser, add_task_parser
 from events import (
     DEFAULT_PORT,
     ICONS,
@@ -444,6 +444,7 @@ def build_parser() -> argparse.ArgumentParser:
     leave.add_argument("--agent", required=True)
     leave.set_defaults(func=cmd_topic_leave)
     add_task_parser(sub, common)
+    add_board_parser(sub, common)
 
     hooks = sub.add_parser(
         "hooks",

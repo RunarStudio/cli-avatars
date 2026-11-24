@@ -21,7 +21,16 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from board.model import MAX_HISTORY, clean_board_project, new_event, now_ts, valid_uuid, validate_card, validate_event
+from board.model import (
+    MAX_HISTORY,
+    clean_board_project,
+    learnt_row,
+    new_event,
+    now_ts,
+    valid_uuid,
+    validate_card,
+    validate_event,
+)
 from events import (
     LOCK_TIMEOUT,
     EventRejected,
@@ -34,6 +43,7 @@ from events import (
 from topics import get_topic
 
 BOARD_DIR_NAME = "board"
+LEARNT_FILE = "learnt.jsonl"
 MAX_CARD_BYTES = 64 * 1024
 MAX_EVENTS_BYTES = 8 * 1024 * 1024
 MAX_LINE_BYTES = 64 * 1024
@@ -184,6 +194,34 @@ class LocalStore:
             except (ValueError, RecursionError, EventRejected):
                 continue
         return found
+
+    def learnt(self, project: str | None = None) -> list[dict]:
+        """Learnt rows of done cards, oldest ``done_at`` first; every board when ``project`` is None."""
+        if project is not None:
+            projects = [clean_board_project(project)]
+        elif self._safe_dir(self.root):
+            projects = sorted(p.name for p in self.root.iterdir() if self._dir(p.name, "cards") is not None)
+        else:
+            projects = []
+        rows = [row for name in projects for row in map(learnt_row, self.list(name)) if row]
+        return sorted(rows, key=lambda r: (r["done_at"], r["card"]))
+
+    def export_learnt(self, timeout: float = LOCK_TIMEOUT) -> Path:
+        """Rewrite ``board/learnt.jsonl`` (all boards) inside the board lock; atomic, owner-only."""
+        with directory_lock(self._ensure_root(), timeout=timeout):
+            rows = self.learnt()
+            path, tmp = self.root / LEARNT_FILE, self.root / (LEARNT_FILE + ".tmp")
+            if path.is_symlink() or tmp.is_symlink():
+                raise EventRejected("schema")
+            payload = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in rows)
+            fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            try:
+                write_all(fd, payload.encode("utf-8"))
+            finally:
+                os.close(fd)
+            os.replace(tmp, path)
+            _restrict_to_user(path)
+        return path
 
     def _rotations(self, project_dir: Path) -> list[int]:
         """Numbers of the ``events.<n>.jsonl`` files, ascending."""

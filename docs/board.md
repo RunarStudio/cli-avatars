@@ -22,10 +22,25 @@ One JSON object per card.
 | `checklist` | At most 20 `{text, done}`. `text` sanitised, at most 240. |
 | `progress` | Optional int 0–100 (`true` / `50.0` / `"50"` are rejected). `null` means "use the checklist ratio" (`board.model.effective_progress`). |
 | `status_note` | Sanitised, at most 240. The agent's one-line "where I am". Empty by default. |
+| `learnt` | Sanitised, redacted, at most 240. What we learnt doing the card, written when it is done. Empty by default; a card file without it loads as empty. |
 | `created`, `updated` | ISO 8601 UTC with `Z`. |
 | `history` | Newest 200 events (below). The full list is in `events.jsonl`. |
 
 `agent@machine`: the agent part follows the agent id rule; `machine` is `^[A-Za-z0-9][A-Za-z0-9-]{0,62}$`. `daniel` is the person (`user` in the chat store).
+
+### Statuses
+
+The column is the card's status. The Tasks tab shows it as a pixel badge on every card and a colour strip under every column head:
+
+| Column | Badge | Colour | Meaning |
+|--------|-------|--------|---------|
+| `todo` | TODO | slate `#4a5a7a` | Not started. |
+| `doing` | DOING | torch amber `#c0661a` | Someone is on it. |
+| `review` | REVIEW | violet `#6a3c9a` | The agent finished; Daniel checks it. |
+| `done` | DONE | green `#2f7a3e` | Finished. Asks "What did we learn?". |
+| `blocked` | BLOCKED | red `#a02818` | Waiting on something. |
+
+Under the title a card shows its `status_note` and, when done, `learnt: …`.
 
 `blocked` matches the agent state `blocked` (CHAT-BLOCKED). A card in `blocked` does not change an avatar's state by itself.
 
@@ -41,13 +56,13 @@ Unknown fields are dropped. `token` is never stored.
 | `ts` | ISO 8601 UTC. |
 | `card` | Card UUID, or `null` for a board-level event (a room prompt, see [room-chat.md](room-chat.md)). |
 | `actor` | `daniel`, an agent id, `agent@machine`, or `emit:mcp`. |
-| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`. |
+| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`, `learnt`. |
 | `from`, `to` | Optional. Old and new column or assignee; for `progress`, old and new ints 0–100. |
 | `via` | Optional. `mcp`, `hook` or `emit`: the path an agent write came through. Anything else is rejected. |
 | `text` | Optional. Sanitised, at most 2,000. A comment's text lives here. |
 | `notify` | Optional. Up to 8 assignee ids that should get an inbox line for this event. |
 
-A `checklist` event may add `index` (0–19) and `done` (bool). A `status` event carries only `text` (the new status note).
+A `checklist` event may add `index` (0–19) and `done` (bool). A `status` event carries only `text` (the new status note). A `learnt` event carries `text`, the new learnt text.
 
 A `prompt` event adds `room`, `target` (`claude`, `grok`, `both`), and `outcome` (`ok`, `error`, `stopped`, `timeout`). It does not copy the prompt text; that is already on the topic channel.
 
@@ -161,14 +176,43 @@ shows an error under it and nothing is written. Everything happens inside the Du
 | Assign | Assignee menu: unassigned, `daniel`, live agents by name, the topic's members. | `assigned` |
 | Checklist | "+ Item" adds one; a tick box sets it done or not. Progress follows the checklist while `progress` is empty. | `edited`, `checklist` |
 | Progress, status note | Progress 0–100 (empty: use the checklist) and the note, "Set". | `progress` or `status` |
+| What we learnt | A card dropped in Done (or the "done" button) opens the card panel at "What did we learn?". Type one line, "Save" (or Enter); "Skip" closes it. The text stays on the card and can be changed later. Empty or over 240 characters is a field error. | `learnt` |
 | Comment | "Comment": the text goes into the card's history. | `commented` |
 | Archive | "Archive" adds the `archived` label; the card leaves the board, the file and `events.jsonl` keep it. There is no hard delete, so the event log never points at a missing card. | `edited` |
 
-The app has no sound path; a card event shows as the redrawn board and the history line.
+The app has no sound path; a card event (Done included) shows as the redrawn board and the history line.
+
+## Learnt export (for the Now system)
+
+The Now system reads what we learnt from one file. Its own format is not known yet, so the board
+writes plain JSON lines and the Now system maps them.
+
+`board/learnt.jsonl` in the data directory (beside `board/<project>/`) is rewritten, atomic and
+owner-only, after every write that sets `learnt` or moves a card into or out of `done`. One line
+per `done` card with learnt text, every board, oldest `done_at` first. Archived cards stay in it.
+
+| Field | Value |
+|-------|-------|
+| `card` | Card UUID. |
+| `project` | The board (folder name). |
+| `topic` | Topic slug or `null`. |
+| `title` | Card title. |
+| `learnt` | The learnt text, at most 240. |
+| `done_at` | ISO 8601 UTC of the last move to `done` (the card's `updated` if that event left the history). |
+| `actor` | Who wrote the learnt text: `daniel` or an agent id; `null` if that event left the history. |
+
+```json
+{"actor": "daniel", "card": "4f0c…", "done_at": "2026-11-24T21:40:12Z", "learnt": "Oil the sconces before the wicks", "project": "keep-demo", "title": "Light the west torches", "topic": "west-wing"}
+```
+
+The same rows: `Registry.learnt_rows(project=None)` in Python, `board learnt` on the CLI. The text is
+data: a reader stores and shows it, never runs it.
 
 ## MCP tools
 
-Added to `cli_avatars_mcp` beside the Phase 1 tools. Writes use the same store and validators. The actor is `emit:mcp`.
+Added to `cli_avatars_mcp` beside the Phase 1 tools. An agent writes what it learnt with
+`task_status(..., column="review", learnt=...)`: only with the move to `review` (agents never reach
+`done`); Daniel's move to `done` puts it in the export. Writes use the same store and validators. The actor is `emit:mcp`.
 
 | Tool | Arguments | Effect |
 |------|-----------|--------|
@@ -188,9 +232,11 @@ python -m cli_avatars_emit board show <card-id> --json
 python -m cli_avatars_emit board move <card-id> review
 python -m cli_avatars_emit board assign <card-id> claude:abcd1234
 python -m cli_avatars_emit board sync
+python -m cli_avatars_emit board learnt --project cli-avatars
+python -m cli_avatars_emit task status <card-id> review --agent claude:abcd1234 --learnt "Mock the clock first"
 ```
 
-`cli-avatars-emit.exe board …` is the same. `list` and `show` print `untrusted data from the sender` first, like `inbox read`.
+`cli-avatars-emit.exe board …` is the same. `list`, `show` and `learnt` print `untrusted data from the sender` first, like `inbox read`; `learnt` then prints one export row per line.
 
 ## Web API (LAN phone view)
 

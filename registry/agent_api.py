@@ -1,7 +1,8 @@
 """AgentApi: the narrow API for AIs (MCP, hook, emit "task" verbs). Section 2.4.
 
-An agent changes a card's column, progress, status note or one checklist tick, and a
-topic's status between ``open`` and ``waiting_on_user``. There is no call that deletes,
+An agent changes a card's column, progress, status note, what it learnt (with the move to
+``review``) or one checklist tick, and a topic's status between ``open`` and
+``waiting_on_user``. There is no call that deletes,
 retitles, re-bodies, relabels or reassigns. Creating is ``task_propose``, off unless
 ``Registry.agents_may_create``. In a topic that lists the agent, it may also add and edit
 resources (TM.1: links, relative file paths, notes); none is deleted, opened or fetched.
@@ -19,7 +20,7 @@ from typing import Callable
 
 from board.model import VIA, new_card
 from events import EventRejected, directory_lock
-from registry.facade import Registry
+from registry.facade import Registry, learnt_text
 from registry.limits import Limits
 from registry.policy import (
     PROPOSE_LIMITS,
@@ -54,10 +55,17 @@ class AgentApi:
         self.via = via
         self._clock = clock
 
-    def task_status(self, agent: str, card_id: str, column: str, note: str | None = None) -> dict:
+    def task_status(self, agent: str, card_id: str, column: str, note: str | None = None,
+                    learnt: str | None = None) -> dict:
+        """``learnt`` (what you learnt) only with the move to ``review``, the agent's completion."""
         def edit(card, members):
             check_move(card["column"], column)
-            return {**card, "column": column, **self._note(note)}
+            extra = {}
+            if learnt is not None:
+                if column != "review":
+                    raise EventRejected("not_allowed")
+                extra["learnt"] = learnt_text(clean_note(learnt))
+            return {**card, "column": column, **self._note(note), **extra}
 
         return self._card(agent, card_id, edit)
 

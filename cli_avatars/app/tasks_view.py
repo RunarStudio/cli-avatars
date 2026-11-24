@@ -15,6 +15,13 @@ from registry.facade import Registry
 from topics import valid_topic_id
 
 COLLAPSED = frozenset({"done"})
+STATUS_BADGES = {
+    "todo": ("TODO", "#4a5a7a"),
+    "doing": ("DOING", "#c0661a"),
+    "review": ("REVIEW", "#6a3c9a"),
+    "done": ("DONE", "#2f7a3e"),
+    "blocked": ("BLOCKED", "#a02818"),
+}
 
 
 @dataclass(frozen=True)
@@ -24,6 +31,9 @@ class TaskCard:
     assignee: str | None
     progress: int | None
     checks: tuple[int, int]
+    column: str
+    status_note: str
+    learnt: str
 
 
 @dataclass(frozen=True)
@@ -79,6 +89,7 @@ def task_card(card: Mapping) -> TaskCard:
     return TaskCard(
         id=card["id"], title=card["title"], assignee=card.get("assignee"),
         progress=effective_progress(card), checks=(sum(1 for i in items if i["done"]), len(items)),
+        column=card["column"], status_note=card.get("status_note") or "", learnt=card.get("learnt") or "",
     )
 
 

@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Callable, Mapping
 
-from board.model import COLUMNS, PERSON, new_card, new_event, valid_assignee, validate_card
+from board.model import COLUMNS, LEARNT_LIMIT, PERSON, new_card, new_event, valid_assignee, validate_card
 from board.store import LocalStore
 from events import LOCK_TIMEOUT, EventRejected, app_data_dir
 from registry.policy import ARCHIVED_LABEL, check_progress
@@ -21,6 +21,13 @@ from registry.thread import post_update
 from resources.store import ResourceStore
 
 _UNSET = object()
+
+
+def learnt_text(value: object) -> str:
+    """What we learnt: a non-empty string of at most ``LEARNT_LIMIT`` characters, else ``schema``."""
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > LEARNT_LIMIT:
+        raise EventRejected("schema")
+    return value.strip()
 
 
 def card_events(old: Mapping, new: Mapping, actor: str, via: str | None = None) -> list[dict]:
@@ -39,6 +46,8 @@ def card_events(old: Mapping, new: Mapping, actor: str, via: str | None = None) 
         events.append(new_event("progress", actor, card, **ends, text=note or None, **extra))
     elif note is not None:
         events.append(new_event("status", actor, card, text=note or None, **extra))
+    if old["learnt"] != new["learnt"]:
+        events.append(new_event("learnt", actor, card, text=new["learnt"] or None, **extra))
     for index, (was, now) in enumerate(zip(old["checklist"], new["checklist"], strict=False)):
         if was["text"] == now["text"] and was["done"] != now["done"]:
             events.append(new_event("checklist", actor, card, index=index, done=now["done"], text=now["text"],
@@ -83,10 +92,20 @@ class Registry:
             raise EventRejected("schema")
         return self.change(card_id, lambda card: {**card, **changes}, PERSON)
 
-    def task_move(self, card_id: str, column: str) -> dict:
+    def task_move(self, card_id: str, column: str, learnt: str | None = None) -> dict:
+        """Move a card; ``learnt`` (what we learnt) is written in the same change."""
         if column not in COLUMNS:
             raise EventRejected("schema")
-        return self.change(card_id, lambda card: {**card, "column": column}, PERSON)
+        extra = {} if learnt is None else {"learnt": learnt_text(learnt)}
+        return self.change(card_id, lambda card: {**card, "column": column, **extra}, PERSON)
+
+    def task_learnt(self, card_id: str, text: str) -> dict:
+        value = learnt_text(text)
+        return self.change(card_id, lambda card: {**card, "learnt": value}, PERSON)
+
+    def learnt_rows(self, project: str | None = None) -> list[dict]:
+        """The learnt export: done cards with learnt text (docs/board.md)."""
+        return self.store.learnt(project)
 
     def task_assign(self, card_id: str, assignee: str | None) -> dict:
         if assignee is not None and not valid_assignee(assignee):
@@ -183,6 +202,8 @@ class Registry:
             return checked, events
 
         card = self.store.update(card_id, apply, timeout=timeout)
+        if any(e["kind"] == "learnt" or (e["kind"] == "moved" and "done" in (e["from"], e["to"])) for e in written):
+            self.store.export_learnt(timeout)
         if via:
             post_update(self.directory, card, written, actor, timeout)
         return card

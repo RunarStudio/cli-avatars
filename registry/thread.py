@@ -25,6 +25,8 @@ def describe(card: Mapping, events: Sequence[Mapping], actor: str) -> str:
             parts.append(f"{event['to']}%" if event.get("to") is not None else "progress cleared")
         elif kind == "checklist":
             parts.append(("ticked " if event.get("done") else "unticked ") + str(event.get("text", "")))
+        elif kind == "learnt" and event.get("text"):
+            parts.append(f"learnt: {event['text']}")
         if kind in ("progress", "status") and event.get("text"):
             note = str(event["text"])
     line = f"{actor} · {card['title']}: " + (", ".join(parts) or "note")

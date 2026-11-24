@@ -78,7 +78,7 @@ Phase 1 has no MCP tool that writes a project or a key-value. Phase 2 tools writ
 | `memories_search` | `project`, `query` | That project's notes whose text contains the query, newest first (M3). |
 | `task_list` | `project`, `column?`, `assignee?` | Cards of one project, newest first. Archived cards are hidden. |
 | `task_get` | `card_id` | One card with its history. |
-| `task_status` | `agent_id`, `card_id`, `column`, `note?` | Move your card: `todo`→`doing`, `doing`→`review`/`blocked`, `review`/`blocked`→`doing`. Never `done`. |
+| `task_status` | `agent_id`, `card_id`, `column`, `note?`, `learnt?` | Move your card: `todo`→`doing`, `doing`→`review`/`blocked`, `review`/`blocked`→`doing`. Never `done`. `learnt` (what you learnt, at most 240) only with `review`. |
 | `task_progress` | `agent_id`, `card_id`, `progress`, `note?` | Progress 0–100 (an int; going down is allowed) and a one-line status note. |
 | `task_check` | `agent_id`, `card_id`, `index`, `done?` | Tick one checklist item; `done` false unticks it. The text cannot change. |
 | `topic_state` | `agent_id`, `topic`, `status` | `open` ↔ `waiting_on_user` on a topic you are a member of. Never `done`. |

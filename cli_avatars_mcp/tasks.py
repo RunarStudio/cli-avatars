@@ -49,11 +49,15 @@ def task_get(card_id: str, *, registry: Registry | None = None,
     return card
 
 
-def task_status(agent_id: str, card_id: str, column: str, note: str | None = None, *,
+def task_status(agent_id: str, card_id: str, column: str, note: str | None = None, learnt: str | None = None, *,
                 registry: Registry | None = None, directory: Path | str | None = None) -> dict:
-    """Move a card along the agent table (todo-doing-review/blocked); never to ``done``."""
-    _capped(agent_id=agent_id, card_id=card_id, column=column, note=note)
-    return AgentApi(_registry(registry, directory), via=VIA).task_status(agent_id, card_id, column, note)
+    """Move a card along the agent table (todo-doing-review/blocked); never to ``done``.
+
+    ``learnt`` (what the agent learnt) goes with the move to ``review`` only.
+    """
+    _capped(agent_id=agent_id, card_id=card_id, column=column, note=note, learnt=learnt)
+    return AgentApi(_registry(registry, directory), via=VIA).task_status(agent_id, card_id, column, note,
+                                                                          learnt=learnt)
 
 
 def task_progress(agent_id: str, card_id: str, progress: int, note: str | None = None, *,

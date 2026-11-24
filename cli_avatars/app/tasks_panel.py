@@ -10,9 +10,9 @@ from __future__ import annotations
 import time
 import tkinter as tk
 
-from cli_avatars.app.tasks_card import GOLD, PARCH, WINE, CardPanel, button
+from cli_avatars.app.tasks_card import GOLD, PARCH, WINE, CardPanel, badge, button
 from cli_avatars.app.tasks_edit import TaskEditor, assignee_choices
-from cli_avatars.app.tasks_view import COLUMNS, Board, TaskCard, card_meta, load_board
+from cli_avatars.app.tasks_view import COLUMNS, STATUS_BADGES, Board, TaskCard, card_meta, load_board
 from topics import valid_topic_id
 
 REFRESH_S = 1.0
@@ -106,6 +106,10 @@ class TasksPanel:
         elif panel.open and panel.card is not None and panel.card["id"] == out.card["id"]:
             panel.update(out.card)
         self.refresh(force=True)
+        if name == "move" and out.card["column"] == "done":
+            if not (panel.open and panel.card is not None and panel.card["id"] == out.card["id"]):
+                self.open_card(out.card["id"])
+            panel.ask_learnt()
         return out
 
     def _show_panel(self) -> None:
@@ -159,7 +163,8 @@ class TasksPanel:
                                  font="DungeonTitle", anchor="w", bd=0, highlightthickness=0, padx=0, pady=0)
             else:
                 head = tk.Label(col, bg=_COL, fg=_HEAD, font="DungeonTitle", anchor="w")
-            head.pack(fill="x", padx=6, pady=(4, 2))
+            head.pack(fill="x", padx=6, pady=(4, 0))
+            tk.Frame(col, bg=STATUS_BADGES[name][1], height=3).pack(fill="x", padx=6, pady=(0, 3))
             body = tk.Frame(col, bg=_COL)
             body.pack(fill="both", expand=True, padx=4, pady=(0, 4))
             self.headers[name], self._bodies[name] = head, body
@@ -225,10 +230,17 @@ def _glow(col: tk.Frame) -> None:
 def _card(parent, card: TaskCard) -> tk.Frame:
     box = tk.Frame(parent, bg=_CARD, highlightthickness=1, highlightbackground="#8a6a3a", cursor="hand2")
     box.pack(fill="x", pady=2)
+    badge(box, card.column).pack(anchor="w", padx=6, pady=(4, 0))
     title = tk.Label(box, text=card.title, bg=_CARD, fg=_INK, font="DungeonText", anchor="w", justify="left",
                      wraplength=180)
     title.pack(fill="x", padx=6, pady=(4, 0))
     title.bind("<Configure>", lambda e: title.config(wraplength=max(60, e.width - 4)))
+    for text, colour in ((card.status_note, _DIM), (card.learnt and f"learnt: {card.learnt}", "#2f5a2e")):
+        if text:
+            line = tk.Label(box, text=text, bg=_CARD, fg=colour, font="DungeonBubble", anchor="w", justify="left",
+                            wraplength=180)
+            line.pack(fill="x", padx=6)
+            line.bind("<Configure>", lambda e, w=line: w.config(wraplength=max(60, e.width - 4)))
     tk.Label(box, text=card_meta(card), bg=_CARD, fg=_DIM, font="DungeonBubble", anchor="w").pack(
         fill="x", padx=6, pady=(0, 2 if card.progress is not None else 4))
     if card.progress is not None:

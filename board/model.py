@@ -21,7 +21,7 @@ from topics import clean_project, valid_topic_id
 
 COLUMNS = ("todo", "doing", "review", "done", "blocked")
 KINDS = ("created", "edited", "moved", "assigned", "commented", "checklist", "linked_pr", "prompt", "progress",
-         "status")
+         "status", "learnt")
 VIA = ("mcp", "hook", "emit")
 PROMPT_TARGETS = ("claude", "grok", "both")
 PROMPT_OUTCOMES = ("ok", "error", "stopped", "timeout")
@@ -36,6 +36,7 @@ MAX_CHECKLIST = 20
 MAX_NOTIFY = 8
 MAX_HISTORY = 200
 STATUS_NOTE_LIMIT = 240
+LEARNT_LIMIT = 240
 
 _LABEL = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 _MACHINE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,62}$")
@@ -176,6 +177,7 @@ def validate_card(obj: object) -> dict[str, object]:
         "pr": obj.get("pr"),
         "progress": obj.get("progress"),
         "status_note": sanitize_text(_redacted(obj.get("status_note") or ""), STATUS_NOTE_LIMIT),
+        "learnt": sanitize_text(_redacted(obj.get("learnt") or ""), LEARNT_LIMIT),
         "checklist": [],
         "created": obj["created"],
         "updated": obj["updated"],
@@ -194,8 +196,9 @@ def validate_card(obj: object) -> dict[str, object]:
         raise _reject()
     if card["progress"] is not None and not valid_progress(card["progress"]):
         raise _reject()
-    if obj.get("status_note") is not None and not isinstance(obj.get("status_note"), str):
-        raise _reject()
+    for key in ("status_note", "learnt"):
+        if obj.get(key) is not None and not isinstance(obj.get(key), str):
+            raise _reject()
     checklist = obj.get("checklist", [])
     if not isinstance(checklist, list) or len(checklist) > MAX_CHECKLIST:
         raise _reject()
@@ -221,6 +224,18 @@ def effective_progress(card: Mapping) -> int | None:
     if not items:
         return None
     return round(100 * sum(1 for item in items if item["done"]) / len(items))
+
+
+def learnt_row(card: Mapping) -> dict[str, object] | None:
+    """The export row of a ``done`` card with learnt text (docs/board.md "Learnt export"), else None."""
+    if card.get("column") != "done" or not card.get("learnt"):
+        return None
+    history = card.get("history") or []
+    done = next((e["ts"] for e in reversed(history) if e["kind"] == "moved" and e.get("to") == "done"),
+                card["updated"])
+    actor = next((e["actor"] for e in reversed(history) if e["kind"] == "learnt"), None)
+    return {"card": card["id"], "project": card["project"], "topic": card.get("topic"), "title": card["title"],
+            "learnt": card["learnt"], "done_at": done, "actor": actor}
 
 
 def new_card(project: str, title: str, body: str = "", topic: str | None = None,

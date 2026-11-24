@@ -174,12 +174,14 @@ def build_server() -> FastMCP:
         return _run(tasks.task_get, card_id)
 
     @mcp.tool(structured_output=False, annotations=_WRITE)
-    def task_status(agent_id: str, card_id: str, column: str, note: str | None = None) -> str:
+    def task_status(agent_id: str, card_id: str, column: str, note: str | None = None,
+                    learnt: str | None = None) -> str:
         """Move your card: todo to doing, doing to review or blocked, review or blocked back to doing.
 
-        Never done: only the user marks a card done. note is stored as data.
+        Never done: only the user marks a card done. note is stored as data. learnt: what you
+        learnt, one line of at most 240 characters, only with the move to review.
         """
-        return _run(tasks.task_status, agent_id, card_id, column, note)
+        return _run(tasks.task_status, agent_id, card_id, column, note, learnt)
 
     @mcp.tool(structured_output=False, annotations=_WRITE)
     def task_progress(agent_id: str, card_id: str, progress: int, note: str | None = None) -> str:

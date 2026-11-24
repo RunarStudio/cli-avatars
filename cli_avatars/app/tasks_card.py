@@ -11,6 +11,7 @@ import tkinter as tk
 
 from board.model import COLUMNS, effective_progress
 from cli_avatars.app.tasks_edit import history_lines
+from cli_avatars.app.tasks_view import STATUS_BADGES
 
 PARCH = "#d8c8a0"
 PAPER = "#efe3c2"
@@ -28,6 +29,21 @@ def _entry(parent, width: int = 28) -> tk.Entry:
                     width=width, highlightthickness=1, highlightbackground=EDGE, highlightcolor=WINE)
 
 
+def badge(parent, column: str) -> tk.Frame:
+    """A pixel status tag: a lit gem and the column name on its colour, with a darker drop edge."""
+    label, colour = STATUS_BADGES[column]
+    box = tk.Frame(parent, bg="#1a1012")
+    inner = tk.Frame(box, bg=colour)
+    inner.pack(padx=(0, 1), pady=(0, 1))
+    gem = tk.Canvas(inner, width=6, height=6, bg=colour, highlightthickness=0, bd=0)
+    gem.create_rectangle(0, 0, 6, 6, fill=GOLD if column == "doing" else PAPER, width=0)
+    gem.create_rectangle(0, 0, 2, 2, fill="#ffffff", width=0)
+    gem.pack(side="left", padx=(3, 2))
+    tk.Label(inner, text=label, bg=colour, fg=PAPER, font="DungeonBubble", padx=0, pady=0).pack(
+        side="left", padx=(0, 4))
+    return box
+
+
 def button(parent, text: str, command, bg: str = WINE, fg: str = PAPER) -> tk.Button:
     return tk.Button(parent, text=text, command=command, bg=bg, fg=fg, activebackground=GOLD,
                      activeforeground=INK, relief="flat", bd=0, font="DungeonText", padx=8, pady=1,
@@ -42,6 +58,7 @@ class CardPanel:
         self._choices = choices
         self._close = close
         self.card: dict | None = None
+        self.status_badge: tk.Frame | None = None
         self.frame = tk.Frame(parent, bg=WOOD)
         self.sheet = tk.Frame(self.frame, bg=PARCH, highlightthickness=2, highlightbackground=EDGE)
         self.sheet.pack(fill="both", expand=True, padx=4, pady=4)
@@ -91,6 +108,20 @@ class CardPanel:
         for widget in self.column_buttons.values():
             widget.config(padx=4)
             widget.pack(side="left", padx=(0, 2))
+        self.learnt_frame = tk.Frame(self.sheet, bg=PAPER, highlightthickness=2, highlightbackground=GOLD)
+        self.learnt_prompt = tk.Label(self.learnt_frame, text="What did we learn?", bg=PAPER, fg=WINE,
+                                      font="DungeonTitle", anchor="w")
+        self.learnt_prompt.pack(fill="x", padx=6, pady=(3, 0))
+        self.learnt_entry = _entry(self.learnt_frame, 24)
+        self.learnt_entry.pack(fill="x", padx=6)
+        self.learnt_entry.bind("<Return>", lambda _e: self._learnt())
+        row = tk.Frame(self.learnt_frame, bg=PAPER)
+        row.pack(fill="x", padx=6, pady=(3, 4))
+        self.learnt_save = button(row, "Save", self._learnt)
+        self.learnt_save.pack(side="left")
+        self.skip_button = button(row, "Skip", self._close, WOOD)
+        self.skip_button.pack(side="left", padx=6)
+        self._error("learnt", self.learnt_frame)
         row = self._row()
         tk.Label(row, text="Assignee", bg=PARCH, fg=SOFT, font="DungeonBubble").pack(side="left")
         self.assign = tk.Menubutton(row, bg=PAPER, fg=INK, relief="flat", font="DungeonText", anchor="w",
@@ -139,6 +170,15 @@ class CardPanel:
     def update(self, card: dict) -> None:
         """Refresh what any change can touch, keeping text the user is still typing."""
         self.card = card
+        if self.status_badge is not None:
+            self.status_badge.destroy()
+        self.status_badge = badge(self.head, card["column"])
+        self.status_badge.pack(side="left", padx=(6, 0), before=self.head_title)
+        if card["column"] == "done":
+            if not self.learnt_frame.winfo_manager():
+                self.learnt_frame.pack(fill="x", padx=8, pady=(6, 0), after=self.columns)
+        else:
+            self.learnt_frame.pack_forget()
         for name, widget in self.column_buttons.items():
             lit = name == card["column"]
             widget.config(bg=GOLD if lit else WOOD, fg=INK if lit else PAPER)
@@ -156,6 +196,10 @@ class CardPanel:
         self.progress_caption.config(text=f"Progress {shown}%" if auto else "Progress")
         self.history.config(text="\n".join(history_lines(card)))
 
+    def ask_learnt(self) -> None:
+        """The card just landed in done: put the cursor in "What did we learn?"."""
+        self.learnt_entry.focus_set()
+
     def show_errors(self, errors) -> None:
         for name, label in self.errors.items():
             label.config(text=errors.get(name, ""))
@@ -171,6 +215,7 @@ class CardPanel:
         self.topic.insert(0, card["topic"] or "")
         self.progress.insert(0, "" if card["progress"] is None else str(card["progress"]))
         self.note.insert(0, card["status_note"])
+        self.learnt_entry.insert(0, card["learnt"])
 
     def _fill_menu(self) -> None:
         self.assign_menu.delete(0, "end")
@@ -191,6 +236,9 @@ class CardPanel:
         if self._do("check_add", self.check_entry.get()):
             self.check_entry.delete(0, "end")
 
+    def _learnt(self) -> None:
+        self._do("learnt", self.learnt_entry.get())
+
     def _comment(self) -> None:
         if self._do("comment", self.comment_entry.get()):
             self.comment_entry.delete(0, "end")
@@ -204,13 +252,16 @@ class CardPanel:
         for child in self.sheet.winfo_children():
             child.destroy()
         self.errors = {}
+        self.status_badge = None
 
     def _head(self, title: str, sub: str) -> None:
-        head = tk.Frame(self.sheet, bg=WINE)
+        self.head = head = tk.Frame(self.sheet, bg=WINE)
         head.pack(fill="x")
-        tk.Label(head, text=title, bg=WINE, fg=PAPER, font="DungeonTitle", anchor="w", justify="left",
-                 wraplength=250).pack(side="left", fill="x", expand=True, padx=8, pady=3)
-        tk.Label(head, text=sub, bg=WINE, fg=GOLD, font="DungeonBubble").pack(side="right", padx=6)
+        self.head_title = tk.Label(head, text=title, bg=WINE, fg=PAPER, font="DungeonTitle", anchor="w",
+                                   justify="left", wraplength=170)
+        self.head_title.pack(side="left", fill="x", expand=True, padx=8, pady=3)
+        self.head_sub = tk.Label(head, text=sub, bg=WINE, fg=GOLD, font="DungeonBubble")
+        self.head_sub.pack(side="right", padx=6)
 
     def _row(self) -> tk.Frame:
         row = tk.Frame(self.sheet, bg=PARCH)
