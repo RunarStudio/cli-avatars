@@ -11,6 +11,7 @@ import contextlib
 import io
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,9 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _no_side_effects import icacls_only, refuse  # noqa: E402
 
 import chat_window  # noqa: E402
 import claude_chat_hooks  # noqa: E402
@@ -33,7 +37,10 @@ from topics import join_topic, set_topic  # noqa: E402
 ME = "claude:abcdef01"
 OTHER = "grok:9f3c0e11"
 SESSION = "abcdef01-1111-2222-3333-444444444444"
-NO_PROCESS = ("subprocess.Popen", "os.system", "os.startfile", "os.execv", "os.spawnv")
+
+
+def _stub_icacls(args: list[str]) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.CompletedProcess(["icacls", *args], 0, b"", b"")
 
 
 class _Base(unittest.TestCase):
@@ -55,10 +62,15 @@ class _Base(unittest.TestCase):
 
     @contextlib.contextmanager
     def no_process(self):
+        import events
+
         with contextlib.ExitStack() as stack:
-            for target in NO_PROCESS:
+            stack.enter_context(patch("subprocess.Popen", icacls_only(self.data)))
+            stack.enter_context(patch("subprocess.run", side_effect=refuse))
+            stack.enter_context(patch.object(events, "_run_icacls", _stub_icacls))
+            for target in ("os.system", "os.startfile", "os.execv", "os.spawnv"):
                 with contextlib.suppress(AttributeError):
-                    stack.enter_context(patch(target, side_effect=AssertionError(target)))
+                    stack.enter_context(patch(target, side_effect=refuse))
             yield
 
 
