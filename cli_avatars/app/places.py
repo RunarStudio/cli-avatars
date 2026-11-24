@@ -288,6 +288,9 @@ class PlaceBook:
 
         room = hall(self)
         spots = room.place(self._spot_map(settled), now)
+        from cli_avatars.app.room_glow import glow_for
+
+        glow_for(self).paint(scene, room, dragging, now)
         photos = canvas_photos(self.app)
         from cli_avatars.app.nameplates import seat_inside
 

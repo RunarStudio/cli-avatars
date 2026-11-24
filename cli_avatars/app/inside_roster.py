@@ -116,6 +116,17 @@ class Hall:
         key = str(getattr(agent, "project", "") or aid) if getattr(agent, "source", "") == "bot" else aid
         return plan.floors[zlib.crc32(key.encode("utf-8")) % len(plan.floors)].name
 
+    def home_room(self, aid: str) -> str | None:
+        """DRAG.GLOW: the room ``aid`` was moved to, else the room it stands in, else its picked room."""
+        plan = self.plan()
+        if plan is None:
+            return None
+        saved = self.book._file.rooms.get(aid) if hasattr(self.book, "_file") else None
+        if plan.floor(saved or "") is not None:
+            return saved
+        feet = self._feet.get(aid)
+        return (plan.room_at(*feet) if feet is not None else None) or self.room_of(aid)
+
     def move(self, aid: str, room: str, now: float) -> bool:
         """Walk ``aid`` (or the user) to ``room`` through the doors and keep it there."""
         plan = self.plan()
