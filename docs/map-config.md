@@ -55,7 +55,6 @@ One tile wide, from the tile outside each point. Aligned: straight. Facing but o
 ## Where it hooks in
 
 - New pure module `cli_avatars/app/map_config.py`: load, validate, route the corridors, expand rooms + skins into the `structure` items that `dungeon_rooms.placements()` already paints.
-- `cli_avatars/app/dungeon_rooms.py`: `paint_rooms` reads the map first and falls back to `building/layouts/compact.json`. A few lines, plus a pass for the room lights (not drawn today).
-- New data: `building/maps/demo.json`, `building/skins.json`; tests beside `tests/test_dungeon_rooms.py`. `docs/building-scene.md` gains a "Map" section; layouts (`tiling` 4/16) stay as they are.
+- `cli_avatars/app/dungeon_rooms.py`: `paint_rooms` reads the map first and falls back to `building/layouts/compact.json`. A few lines, plus a pass for the room lights (not drawn today). New data: `building/maps/demo.json`, `building/skins.json`; tests beside `tests/test_dungeon_rooms.py`. `docs/building-scene.md` gains a "Map" section; layouts (`tiling` 4/16) stay as they are.
 
 **Freeze:** `overlay.py` and the core packages (`model/`, `world/`, `physics/`) need no change. Everything is under `cli_avatars/app/` and `building/`, so the work can start before the freeze lifts. Avatars walking the corridors would touch `places.py`; that is a later step.
