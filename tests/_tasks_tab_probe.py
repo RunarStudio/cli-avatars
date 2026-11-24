@@ -54,7 +54,7 @@ root.deiconify()
 root.update()
 
 strip = view._tab_dungeon.master.pack_slaves()
-check("tab beside dungeon and skins", strip[:3] == [view._tab_dungeon, view._tab_skins, view._tab_tasks],
+check("tab beside dungeon", strip[:2] == [view._tab_dungeon, view._tab_tasks],
       str(strip))
 view.show_center("tasks")
 root.update()

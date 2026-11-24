@@ -315,7 +315,7 @@ class TestOverlayWiring(unittest.TestCase):
         topics = dungeon.index('text="Topics"')
         chat = dungeon.index('text="Chat"')
         self.assertLess(topics, chat)
-        self.assertIn('text="Skins"', dungeon)
+        self.assertNotIn('text="Skins"', dungeon)
         self.assertIn('text="Settings"', dungeon)
         self.assertIn("build_rooms(", rooms)
         self.assertIn("save_rooms_pref", rooms)

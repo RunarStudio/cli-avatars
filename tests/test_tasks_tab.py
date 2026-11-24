@@ -126,7 +126,7 @@ class Tab(unittest.TestCase):
         if proc.returncode == 77:
             self.skipTest("tkinter has no display")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        for name in ("tab beside dungeon and skins", "tasks shown", "scene hidden", "no new toplevel",
+        for name in ("tab beside dungeon", "tasks shown", "scene hidden", "no new toplevel",
                      "five column headers", "done collapsed", "card meta", "done expands", "redraw skipped",
                      "empty state", "escape returns to dungeon"):
             self.assertIn(f"ok {name}", proc.stdout)

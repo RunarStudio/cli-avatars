@@ -36,7 +36,7 @@ PICK_FRAME_MS = 150
 
 
 def _open_skin_picker(self):
-    """Select the Skins tab. The picker is not its own window."""
+    """Open the skin panel in the Dungeon. The picker is not its own window."""
     dungeon = getattr(self, "dungeon", None)
     if dungeon is not None:
         dungeon.show_skins()
@@ -86,7 +86,7 @@ def _picker_frame(self, cache, name, row, t_ms, box, hue=0):
     return cache[key]
 
 
-def _build_picker_ui(self, win):
+def _build_picker_ui(self, win, agent_id=None, on_apply=None):
     P = self.PICK
     TITLE = ("Consolas", 18, "bold")
     LBL = ("Consolas", 9, "bold")
@@ -199,7 +199,8 @@ def _build_picker_ui(self, win):
     # ── apply panel (right) ───────────────────────────────────
     right = panel(2)
     label(right, "Agent").pack(fill="x")
-    sel_agent = tk.StringVar(win, value=labels[0] if labels else "")
+    start = next((lb for lb, aid in lbl_to_id.items() if aid == agent_id), labels[0] if labels else "")
+    sel_agent = tk.StringVar(win, value=start)
     if labels:
         om = tk.OptionMenu(right, sel_agent, *labels)
         om.config(bg=P["slot"], fg=P["ink"], activebackground=P["line"], activeforeground=P["ink"],
@@ -270,6 +271,9 @@ def _build_picker_ui(self, win):
             if REGISTRY and not REGISTRY.has(skin):
                 REGISTRY.load_hue_variant(skin, base, float(hue))
         self._apply_skin(aid, skin)
+        if on_apply is not None:
+            on_apply()
+            return
         toast.config(text=f"{sel_agent.get()} is now {base.replace('_', ' ')}"
                           f"{f' ({hue}°)' if hue else ''}.")
         win.after(250, render_sessions)
@@ -351,6 +355,7 @@ def _build_picker_ui(self, win):
     self._picker_kick = _kick
     if getattr(self, "_picker_live", True):
         tick()
+    return {"agent": sel_agent, "skin": lambda: state["skin"], "select": select, "apply": apply}
 
 
 def _apply_skin(self, agent_id, skin):

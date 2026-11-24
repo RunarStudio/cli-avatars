@@ -114,6 +114,10 @@ class DungeonWindow:
     def on_escape(self, _event=None):
         """Cancel a drag, or close the dock that has focus. Does not quit."""
         app = self.app
+        from cli_avatars.app.avatar_menu import close
+
+        if close(app.root):
+            return "break"
         dragging = (
             getattr(app, "_drag_av", None) is not None
             or getattr(app, "_press_av", None) is not None
@@ -191,7 +195,9 @@ class DungeonWindow:
         self._schedule_save()
 
     def show_skins(self) -> None:
-        self.show_center("skins")
+        from cli_avatars.app.avatar_menu import open_skin_panel
+
+        open_skin_panel(self.app)
 
     def show_settings(self) -> None:
         self.set_right(True, "settings")
@@ -358,13 +364,11 @@ class DungeonWindow:
                 self.app._rooms_shown = True
             self._right_open = True
             self._right_tab = "chat"
-            center = "dungeon"
             left_w, right_w = 280, 360
         else:
             self.app._rooms_shown = saved.left_open
             self._right_open = saved.right_open
             self._right_tab = saved.right_tab
-            center = saved.center_tab
             self._zoom = saved.zoom
             self._pan = saved.pan
             left_w, right_w = saved.left_width, saved.right_width
@@ -374,7 +378,7 @@ class DungeonWindow:
         self._left.configure(width=left_w)
         self._right.configure(width=right_w)
         repack(self)
-        show_center(self, center if center in ("dungeon", "skins") else "dungeon")
+        show_center(self, "dungeon")
         if self._right_open:
             show_right(self)
         self.app._chat_shown = self._right_open and self._right_tab == "chat" and self._pop is None

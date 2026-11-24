@@ -1,4 +1,4 @@
-"""Pointer: click opens chat, drag throws, double-click focuses, right-click moves rooms or focuses.
+"""Pointer: click opens chat (Dungeon: avatar menu), drag throws, double-click focuses, right-click moves or focuses.
 
 CLICK-THROUGH: the Win32 click-through bit lives in ``cli_avatars.desktop``.
 Wire it from the shell after the root exists, not from this controller and
@@ -137,6 +137,11 @@ class InputController:
 
     def on_scene_press(self, event: object) -> None:
         app = self.app
+        grabbed = getattr(app, "_grabbed", None)
+        app._grabbed = None
+        if grabbed is not None and app._drag_av is grabbed:
+            self.on_scene_release(event)
+            return
         book = getattr(app, "places", None)
         app._press_inside = book.hit(event.x, event.y) if book is not None else None
         app._press_av = None
@@ -197,7 +202,9 @@ class InputController:
             hall(book).drop(dragged.agent.agent_id, *feet, time.time())
             return
         if kind == "click" and inside is not None:
-            app._open_chat_for_avatar(inside)
+            from cli_avatars.app.avatar_menu import open_for
+
+            open_for(app, inside, event)
 
     def on_scene_double(self, event: object) -> None:
         app = self.app

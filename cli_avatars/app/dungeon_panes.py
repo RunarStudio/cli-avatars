@@ -112,7 +112,6 @@ def show_center(view, name: str) -> None:
         view.scene.pack(fill="both", expand=True)
         view._center = "dungeon"
     mark(view._tab_dungeon, view._center == "dungeon")
-    mark(view._tab_skins, view._center == "skins")
     mark(view._tab_tasks, view._center == "tasks")
     mark(getattr(view, "_tab_throne", None), view._center == "throne")
 
@@ -199,8 +198,6 @@ def _body(view, root) -> None:
     strip.pack(fill="x")
     view._tab_dungeon = Tab(strip, "dungeon", text="Dungeon", command=lambda: view.show_center("dungeon"))
     view._tab_dungeon.pack(side="left", anchor="s", padx=(6, 2), pady=(4, 0))
-    view._tab_skins = Tab(strip, "skins", text="Skins", command=lambda: view.show_center("skins"))
-    view._tab_skins.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_tasks = Tab(strip, "tasks", text="Tasks", command=lambda: view.show_center("tasks"))
     view._tab_tasks.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_throne = Tab(strip, "throne", text="Throne", command=lambda: view.show_center("throne"))
