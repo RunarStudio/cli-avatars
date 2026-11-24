@@ -1,9 +1,11 @@
-"""Pointer: click opens chat, drag throws, double-click and right-click focus.
+"""Pointer: click opens chat, drag throws, double-click focuses, right-click moves rooms or focuses.
 
 CLICK-THROUGH: the Win32 click-through bit lives in ``cli_avatars.desktop``.
 Wire it from the shell after the root exists, not from this controller and
 not from the tick. Pose changes stay on ``world/avatar.py``.
 """
+
+import time
 
 from cli_avatars.effects.glitch import GlitchFlash
 from cli_avatars.tuning import THROW_SCALE, TUNING
@@ -188,6 +190,12 @@ class InputController:
             self._throw(dragged, x, y)
             return
         app._drag_av = None
+        if kind == "drag" and dragged is not None and dragged in getattr(app, "_inside", {}).values():
+            from cli_avatars.app.inside_roster import FEET_UP, hall
+
+            feet = (dragged.x + dragged.aw / 2.0, dragged.y + dragged.ah - FEET_UP * dragged.ah)
+            hall(book).drop(dragged.agent.agent_id, *feet, time.time())
+            return
         if kind == "click" and inside is not None:
             app._open_chat_for_avatar(inside)
 
@@ -203,6 +211,10 @@ class InputController:
         app = self.app
         book = getattr(app, "places", None)
         av = book.hit(event.x, event.y) if book is not None else None
+        from cli_avatars.app.room_menu import open_for
+
+        if open_for(app, event, av):
+            return
         if av is not None:
             app._focus_linked_console(av.agent.pid)
         # Empty space does not quit.

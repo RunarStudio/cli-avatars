@@ -2,16 +2,20 @@
 
 ``PlaceBook.draw_inside`` calls ``hall(book)`` each frame. The look and walk
 rules live in ``av_roster`` and ``needs_walk`` so other views can share them.
+With rooms painted (MOVE.1) every avatar, the user's too, belongs to one room:
+it wanders on that floor and changes room only through the doors (``room_floor``).
 """
 
 from __future__ import annotations
 
+import zlib
 from contextlib import contextmanager
 from dataclasses import replace
 
 from cli_avatars.app.av_roster import GROK, USER_ID, bot_hues, kind_of, look_for, roster_frame
 from cli_avatars.app.needs_walk import Walker, beside, needing, read_rooms, stroll
 from cli_avatars.app.room_fit import fit_inside
+from cli_avatars.app.room_floor import Plan, along, length, wander
 from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.model.agent import AgentInfo
 from cli_avatars.model.crossing import span
@@ -19,6 +23,8 @@ from cli_avatars.model.crossing import span
 USER_SPOT = (0.0, 112.0)
 STEP = 44
 STROLL = 12
+USER_ROOM = "Atelier"
+FEET_UP = 0.08
 
 
 class RosterPhotos:
@@ -81,6 +87,135 @@ class Hall:
         self.hues: dict[str, int] = {}
         self.user = None
         self._read = StoreThrottle()
+        self._plan = None
+        self._trips: dict[str, tuple[list, float, float]] = {}
+        self._feet: dict[str, tuple[float, float]] = {}
+        self._now = 0.0
+
+    def plan(self) -> Plan | None:
+        """Rooms of the painted layout, or None while the plain floor shows."""
+        painter = getattr(self.book._scene(), "_rooms_painter", None)
+        layout = getattr(painter, "layout", None)
+        if layout is None or self._scale() < 1 or not callable(getattr(painter, "to_canvas", None)):
+            return None
+        if self._plan is None or self._plan[0] is not layout:
+            self._plan = (layout, Plan.from_layout(layout))
+        return self._plan[1] if self._plan[1].floors else None
+
+    def room_of(self, aid: str) -> str | None:
+        plan = self.plan()
+        if plan is None:
+            return None
+        saved = self.book._file.rooms.get(aid) if hasattr(self.book, "_file") else None
+        if plan.floor(saved or "") is not None:
+            return saved
+        if aid == USER_ID:
+            return USER_ROOM if plan.floor(USER_ROOM) else plan.floors[-1].name
+        av = self.book.app._inside.get(aid)
+        agent = getattr(av, "agent", None)
+        key = str(getattr(agent, "project", "") or aid) if getattr(agent, "source", "") == "bot" else aid
+        return plan.floors[zlib.crc32(key.encode("utf-8")) % len(plan.floors)].name
+
+    def move(self, aid: str, room: str, now: float) -> bool:
+        """Walk ``aid`` (or the user) to ``room`` through the doors and keep it there."""
+        plan = self.plan()
+        floor = plan.floor(room) if plan is not None else None
+        if floor is None:
+            return False
+        start = self._feet.get(aid) or self._rest_at(plan, aid, now)[0]
+        goal, path, eta = floor.centre(), [start], now
+        for _ in range(3):
+            goal = floor.centre() if aid == USER_ID else wander(floor, aid, eta)[0]
+            path = plan.route(start, room, goal)
+            eta = now + self._seconds(path)
+        self._trips[aid] = (path, now, eta)
+        set_room = getattr(self.book, "set_room", None)
+        if callable(set_room):
+            set_room(aid, room)
+        return True
+
+    def drop(self, aid: str, x: float, y: float, now: float) -> bool:
+        """A drag released on a room's floor at canvas ``(x, y)`` moves ``aid`` into that room."""
+        plan = self.plan()
+        tile = self.book._scene()._rooms_painter.to_tile(x, y) if plan is not None else None
+        room = plan.room_at(*tile) if tile is not None else None
+        if room is None:
+            return False
+        self._feet[aid] = plan.floor(room).clamp(*tile)
+        self._trips.pop(aid, None)
+        return self.move(aid, room, now)
+
+    def user_box(self) -> tuple[float, float, float, float] | None:
+        av = self.user
+        if av is None:
+            return None
+        return (av.x, av.y, av.x + av.aw, av.y + av.ah)
+
+    def user_feet(self, now: float | None = None) -> tuple[float, float] | None:
+        plan = self.plan()
+        if plan is None:
+            return None
+        return self._where(plan, USER_ID, self._now if now is None else now)[0]
+
+    def place(self, spots: dict, now: float) -> dict:
+        """Canvas spots for the settled avatars: room floors when rooms show, the ring otherwise."""
+        plan = self.plan()
+        if plan is None:
+            return self.stroll(self.walk(spots, now), now)
+        self._now = now
+        inside = self.book.app._inside
+        agents = {aid: inside[aid].agent for aid in spots if aid in inside}
+        self.hues = bot_hues(aid for aid, agent in agents.items() if kind_of(agent) == GROK)
+        topics, cards = self._rooms()
+        need = set(needing(topics, cards, agents))
+        user = self._where(plan, USER_ID, now)[0]
+        self._feet[USER_ID] = user
+        floor = plan.floor(self.room_of(USER_ID))
+        order = sorted(need | (self.walker.walking() & set(spots)))
+        homes = {aid: self._where(plan, aid, now) for aid in spots}
+        paths = {}
+        for index, aid in enumerate(order):
+            if aid in homes:
+                side = 1.375 * (1 if index % 2 == 0 else -1) * (index // 2 + 1)
+                goal = floor.clamp(user[0] + side, user[1] - side)
+                paths[aid] = plan.route(homes[aid][0], floor.name, goal)
+        scale = max(1, self._scale())
+        self.walker.step(need & set(spots), {aid: length(p) * scale for aid, p in paths.items()}, now)
+        moved = {}
+        for aid, (feet, face) in homes.items():
+            t = self.walker.progress(aid)
+            if t is not None and aid in paths:
+                feet, face = along(paths[aid], t)
+            self._feet[aid] = feet
+            av = inside.get(aid)
+            if av is None:
+                continue
+            av.frame, av.dir = int(now * 5), face
+            moved[aid] = self._spot(feet, av)
+        return moved
+
+    def _where(self, plan: Plan, aid: str, now: float) -> tuple[tuple[float, float], int]:
+        trip = self._trips.get(aid)
+        if trip is not None:
+            path, start, eta = trip
+            if now < eta:
+                return along(path, (now - start) / max(1e-6, eta - start))
+            self._trips.pop(aid, None)
+        return self._rest_at(plan, aid, now)
+
+    def _rest_at(self, plan: Plan, aid: str, now: float) -> tuple[tuple[float, float], int]:
+        floor = plan.floor(self.room_of(aid))
+        return (floor.centre(), 1) if aid == USER_ID else wander(floor, aid, now)
+
+    def _seconds(self, path) -> float:
+        return length(path) * max(1, self._scale()) / max(1.0, self.walker.speed)
+
+    def _spot(self, feet: tuple[float, float], av) -> tuple[float, float]:
+        """Sprite centre whose feet stand on ``feet``."""
+        painter = self.book._scene()._rooms_painter
+        x, y = painter.to_canvas(*feet)
+        size = look_for(av.agent, self.hues).size * max(1, self._scale())
+        return (x, y - size * (0.5 - FEET_UP))
 
     def walk(self, spots: dict, now: float) -> dict:
         """Spots with every needing avatar moved toward its place beside the user."""
@@ -131,7 +266,8 @@ class Hall:
         av = self.user
         av.frame = int(now * 5)
         shown, look = dress(av, photos, self._scale(), {})
-        x, y = self.user_spot()
+        feet = self.user_feet(now) if self.plan() is not None else None
+        x, y = self.user_spot() if feet is None else self._spot(feet, av)
         av.x, av.y = x - av.aw / 2.0, y - av.ah / 2.0
         with wearing(av, look):
             try:

@@ -161,6 +161,7 @@ def compose(layout: dict, manifest: dict, open_image=None):
     out = Image.new("RGBA", (right - left, bottom - top), (0, 0, 0, 0))
     for img, x, y in stamps:
         out.alpha_composite(img, (x - left, y - top))
+    out.info["origin"] = (left, top)
     return out
 
 
@@ -178,6 +179,8 @@ class RoomsPainter:
 
     def __init__(self, layout_name: str = LAYOUT_NAME) -> None:
         self._layout_name = layout_name
+        self.layout = None
+        self._center = None
         self._base = None
         self._failed = False
         self._scale = 0
@@ -187,6 +190,7 @@ class RoomsPainter:
     def base(self):
         if self._base is None and not self._failed:
             layout, manifest = load_layout(self._layout_name), load_manifest()
+            self.layout = layout
             self._base = compose(layout, manifest) if layout and manifest else None
             self._failed = self._base is None
         return self._base
@@ -203,6 +207,7 @@ class RoomsPainter:
         except tk.TclError:
             return False
         scale = fit_scale(base.size, (width, height))
+        self._center = (width // 2, height // 2)
         if scale != self._scale or self._photo is None:
             from PIL import Image, ImageTk
 
@@ -218,6 +223,30 @@ class RoomsPainter:
             canvas.coords(self._item, width // 2, height // 2)
         canvas.tag_lower("rooms")
         return True
+
+    def _corner(self):
+        if self._base is None or not self._scale or self._center is None:
+            return None
+        left, top = self._base.info.get("origin", (0, 0))
+        s = self._scale
+        return (self._center[0] - self._base.width * s / 2.0 - left * s,
+                self._center[1] - self._base.height * s / 2.0 - top * s, s)
+
+    def to_canvas(self, u: float, v: float) -> tuple[float, float] | None:
+        """Canvas point of the floor point at tile ``(u, v)``; None until painted."""
+        corner = self._corner()
+        if corner is None:
+            return None
+        x0, y0, s = corner
+        return (x0 + (u - v) * TILE_HALF_W * s, y0 + (u + v) * TILE_HALF_H * s)
+
+    def to_tile(self, x: float, y: float) -> tuple[float, float] | None:
+        corner = self._corner()
+        if corner is None:
+            return None
+        x0, y0, s = corner
+        a, b = (x - x0) / (TILE_HALF_W * s), (y - y0) / (TILE_HALF_H * s)
+        return ((a + b) / 2.0, (b - a) / 2.0)
 
 
 def paint_rooms(canvas) -> bool:

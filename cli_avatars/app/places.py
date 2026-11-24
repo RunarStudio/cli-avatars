@@ -216,6 +216,13 @@ class PlaceBook:
         self._now = time.time() if now is None else float(now)
         advance(self, agents, self._now)
 
+    def set_room(self, aid: str, room: str) -> None:
+        """MOVE.1: remember the room an inside avatar or the user was moved to."""
+        from cli_avatars.app.place_store import with_room
+
+        self._file = with_room(self._file, aid, room)
+        self._schedule()
+
     def door(self) -> str:
         from cli_avatars.app.dungeon_geom import dungeon_prefs
 
@@ -280,7 +287,7 @@ class PlaceBook:
         from cli_avatars.app.inside_roster import hall
 
         room = hall(self)
-        spots = room.stroll(room.walk(self._spot_map(settled), now), now)
+        spots = room.place(self._spot_map(settled), now)
         photos = canvas_photos(self.app)
         from cli_avatars.app.nameplates import seat_inside
 

@@ -1,4 +1,4 @@
-"""``ui/avatar_places.json``. Desktop actors only. No Tk.
+"""``ui/avatar_places.json``. Desktop actors, and the room each inside actor was moved to. No Tk.
 
 A file over 64 KiB or a document that is not schema 1 is ignored. Node ids
 are opaque. Device names, paths, and chat text are not stored. An entry
@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from events import _restrict_to_user, ensure_private_dir
@@ -18,6 +18,7 @@ from events import _restrict_to_user, ensure_private_dir
 SCHEMA_VERSION = 1
 MAX_BYTES = 64 * 1024
 MAX_AGE_S = 24 * 60 * 60
+MAX_ROOMS = 64
 _MONITOR = re.compile(r"^[0-9a-f]{8}$")
 
 
@@ -32,6 +33,7 @@ class DesktopSpot:
 @dataclass(frozen=True)
 class PlaceFile:
     spots: dict[str, DesktopSpot]
+    rooms: dict[str, str] = field(default_factory=dict)
 
 
 def empty_file() -> PlaceFile:
@@ -47,7 +49,7 @@ def remember(
         return store
     spots = dict(store.spots)
     spots[node_id] = spot
-    return PlaceFile(spots)
+    return replace(store, spots=spots)
 
 
 def forget(store: PlaceFile, node_id: str) -> PlaceFile:
@@ -55,7 +57,7 @@ def forget(store: PlaceFile, node_id: str) -> PlaceFile:
         return store
     spots = dict(store.spots)
     spots.pop(node_id, None)
-    return PlaceFile(spots)
+    return replace(store, spots=spots)
 
 
 def prune(store: PlaceFile, live: set[str], now: float) -> PlaceFile:
@@ -64,7 +66,16 @@ def prune(store: PlaceFile, live: set[str], now: float) -> PlaceFile:
     for node_id, spot in store.spots.items():
         if node_id in live or now - spot.seen <= MAX_AGE_S:
             spots[node_id] = spot
-    return PlaceFile(spots)
+    return replace(store, spots=spots)
+
+
+def with_room(store: PlaceFile, node_id: str, room: str) -> PlaceFile:
+    """Record the room an inside actor was moved to; the newest ``MAX_ROOMS`` are kept."""
+    if not _node_ok(node_id) or not _room_ok(room):
+        return store
+    rooms = {k: v for k, v in store.rooms.items() if k != node_id}
+    rooms[node_id] = room
+    return replace(store, rooms=dict(list(rooms.items())[-MAX_ROOMS:]))
 
 
 def store_from_bytes(blob: bytes, now: float) -> PlaceFile:
@@ -91,6 +102,7 @@ def dump_file(store: PlaceFile) -> dict:
             }
             for node_id, spot in store.spots.items()
         },
+        "rooms": dict(store.rooms),
     }
 
 
@@ -148,7 +160,12 @@ def _parse(data: object, now: float) -> PlaceFile | None:
         spot = _spot(value.get("monitor"), value.get("x"), value.get("y"), seen)
         if spot is not None and now - spot.seen <= MAX_AGE_S:
             spots[key] = spot
-    return PlaceFile(spots)
+    raw_rooms = data.get("rooms", {})
+    rooms = {}
+    for key, value in raw_rooms.items() if isinstance(raw_rooms, dict) else ():
+        if _node_ok(key) and _room_ok(value):
+            rooms[key] = value
+    return PlaceFile(spots, dict(list(rooms.items())[-MAX_ROOMS:]))
 
 
 def _spot(monitor: object, x: object, y: object, seen: object) -> DesktopSpot | None:
@@ -166,6 +183,10 @@ def _node_ok(value: object) -> bool:
     if not isinstance(value, str) or not value or len(value) > 80:
         return False
     return not any(char in value for char in "/\\\n\r\x00")
+
+
+def _room_ok(value: object) -> bool:
+    return isinstance(value, str) and 0 < len(value) <= 40 and value.isprintable()
 
 
 def _int(value: object) -> int | None:
