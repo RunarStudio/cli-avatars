@@ -310,8 +310,8 @@ class PlaceBookTests(unittest.TestCase):
             registry.load_subagents(sheets, scale=1.0)
         app.config = {}
         app._subskin_rng = None
-        with patch("cli_avatars.app.places.REGISTRY", registry):
-            with patch("cli_avatars.app.places._inside_sub_photo", return_value="photo"):
+        with patch("cli_avatars.app.place_markers.REGISTRY", registry):
+            with patch("cli_avatars.app.place_markers.inside_sub_photo", return_value="photo"):
                 book._draw_children(marks, home)
         self.assertEqual(marks.boxes, [])
         if registry is not None:
