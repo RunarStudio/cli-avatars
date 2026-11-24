@@ -8,14 +8,13 @@ Every other check runs on a daemon thread so the first frame is not delayed.
 from __future__ import annotations
 
 import gc
-import json
-import os
 import threading
 import time
 import tkinter as tk
 from types import SimpleNamespace
 
 from cli_avatars import VERSION
+from cli_avatars.app.config_file import save_config_with
 from cli_avatars.app.dungeon_geom import floor_diamonds
 from cli_avatars.bootcheck import (
     BUDGET_S,
@@ -241,38 +240,7 @@ def probe_dungeon() -> tuple[str, str]:
 
 def save_bootcheck_pref(path, enabled: bool) -> bool:
     """Store ``desktop.bootcheck``. A missing file is created. A symlink is left alone."""
-    target = path if hasattr(path, "is_symlink") else None
-    if target is None:
-        return False
-    if target.is_symlink() or target.parent.is_symlink():
-        return False
-    parsed: dict = {}
-    if target.exists():
-        if not target.is_file():
-            return False
-        try:
-            loaded = json.loads(target.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            return False
-        if not isinstance(loaded, dict):
-            return False
-        parsed = loaded
-    updated = with_bootcheck(parsed, enabled)
-    raw = (json.dumps(updated, indent=2) + "\n").encode("utf-8")
-    temporary = target.with_name(target.name + ".tmp")
-    if temporary.is_symlink():
-        return False
-    try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        try:
-            os.write(fd, raw)
-        finally:
-            os.close(fd)
-        os.replace(temporary, target)
-    except OSError:
-        return False
-    return True
+    return save_config_with(path, lambda parsed: with_bootcheck(parsed, enabled))
 
 
 def open_bootcheck_details(app) -> None:

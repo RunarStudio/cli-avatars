@@ -6,6 +6,7 @@ from tkinter import ttk
 
 from activity import bind_settings, bubble_settings
 from cli_avatars.app.bots_ui import build_bots_settings
+from cli_avatars.app.close_choice import mount_setting as mount_close_setting
 from cli_avatars.desktop.settings import desktop_settings, with_bootcheck
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
@@ -158,6 +159,7 @@ def _build_config_ui(self, win):
         ).pack(side="left")
 
     row(td, "Boot check", boot_widget)
+    mount_close_setting(self, td)
 
     current = getattr(self, "bubbles_cfg", None) or bubble_settings(getattr(self, "config", {}))
     v_act = tk.BooleanVar(win, current.activity)

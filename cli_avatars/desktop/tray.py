@@ -31,7 +31,9 @@ def _setup_tray(self):
         else:
             icon_img = Image.new("RGBA", (32, 32), (68, 136, 255, 255))
         items = [
-            pystray.MenuItem("Show Dungeon", lambda icon, item: self.root.after(0, self._show_hud_win)),
+            pystray.MenuItem(
+                "Show Dungeon", lambda icon, item: self.root.after(0, self._show_hud_win), default=True,
+            ),
         ]
         if getattr(self, "desktop_escape", True):
             items.append(pystray.MenuItem(

@@ -51,7 +51,7 @@ pip install -r requirements.txt
 python overlay.py
 ```
 
-Close the Dungeon window to quit. ESC closes a dock or cancels a drag.
+Closing the Dungeon window asks: **Minimize** keeps the app running in the tray (click the tray icon by the clock to open it again), **Close** quits. Tick "Remember my choice" to skip the question; Settings, Display, "When I close" changes it. ESC closes a dock or cancels a drag.
 
 ---
 
@@ -97,7 +97,7 @@ After the copy, the script runs:
 | Right-click empty area | Does nothing. It does not quit |
 | Door | Windows toolbar and tray. Open: a blocked or error agent may leave, and returns when that clears. Closed: leave only by dragging. Hidden on Linux and macOS |
 | Call home | Windows toolbar and tray. Every desktop avatar walks back |
-| Close the window | Quit |
+| Close the window | Asks Minimize (to the tray, keeps running) or Close (quit) |
 | ESC | Close the focused dock, or cancel a drag. It does not quit |
 
 ---

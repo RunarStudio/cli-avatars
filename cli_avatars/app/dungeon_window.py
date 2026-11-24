@@ -1,6 +1,6 @@
 """The Dungeon: framed root, docks, status bar, remembered geometry.
 
-Overlays stay separate top-level windows. Closing this window quits.
+Overlays stay separate top-level windows. Closing this window asks Close or Minimize (BG.1).
 Escape closes the focused dock or cancels a drag. It does not quit.
 The door control is a toolbar button. It is not a separate window.
 """

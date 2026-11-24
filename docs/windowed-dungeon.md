@@ -112,7 +112,7 @@ and it still requires the door to be open.
 | Size | Resizable, `minsize` 720×480 client. First run: 70 % of the primary work area, centred. | One 2× room is about 576×390; docks need the rest. |
 | Scene zoom | Integer only (BLDG-SCHEMA). `auto` = largest integer 1–3 at which the building fits the scene area; otherwise the scene pans (drag on empty floor, mouse wheel). | Pixel art, nearest neighbour, no fractional scale. |
 | Always on top | Off by default. Pin button in the toolbar and `dungeon.topmost`. | Optional, as asked. |
-| Close (`WM_DELETE_WINDOW`) | Quits the app (decision A). Desktop avatars vanish with the existing burst. | "Always there while the app runs": the Dungeon *is* the app. |
+| Close (`WM_DELETE_WINDOW`) | Asks in a parchment panel inside the Dungeon: **Minimize** (Enter, default) or **Close** (quit); Esc cancels. "Remember my choice" stores `desktop.on_close` (`ask`, `minimize`, `quit`), changeable in Settings, Display, "When I close". Close takes the tray Quit path. Minimize hides the window to the tray: avatars, events and the phone view keep running, a one-time tray notice says so. Without a tray icon, Minimize iconifies to the taskbar (decision A, BG.1). | The app keeps working in the background; the window can always come back. |
 | Minimise | Normal minimise to the taskbar. Inside avatars are not drawn; scene state still updates at 2 Hz. Desktop avatars keep walking. Tray click or taskbar restores. | No surprise escapes on minimise. |
 | Escape key | No longer quits. ESC closes the focused dock tab or cancels a drag. Quit is the window `x`, tray Quit, or the toolbar menu. | Today ESC and right-click on empty space quit the app by accident. |
 | Remembered geometry | Per monitor configuration (3.3). | Docking a laptop must not put the window off-screen or on the wrong monitor. |
@@ -140,7 +140,7 @@ and it still requires the door to be open.
 | Chat (4) | Right dock tab "Chat", collapsible, with **Pop out** | `ChatWindow` takes a parent container; pop out re-parents into a framed `Toplevel` whose box is remembered (today's `chat.window`). Avatar click opens the dock tab, not a new window. |
 | Config (6) | Right dock tab "Settings" | `_build_config_ui(win)` already takes a container. Not topmost. |
 | Skins picker (5) | Central tab "Skins" beside "Dungeon" | `_build_picker_ui(win)` already takes a container. The picker's own frame timer stops when the tab is hidden. |
-| Tray (7) | Kept: Show Dungeon, Door open/closed, Call home, Quit | Callbacks still go through `root.after(0, …)`. "Let them roam" waits for WIN-DUNGEON.8. |
+| Tray (7) | Kept: Show Dungeon (default item: tray click opens the Dungeon at its last rect), Door open/closed, Call home, Quit | Callbacks still go through `root.after(0, …)`. "Let them roam" waits for WIN-DUNGEON.8. |
 | Building window (8) | The central "Dungeon" tab | BLDG.2 becomes a widget (`app/building_view.py`), not a `Toplevel`. |
 
 **Tasks tab (TM.3).** Central tab "Tasks" beside Dungeon and Skins: a read-only kanban of the chat's
@@ -518,7 +518,7 @@ Daniel approved these on 23/11/2026. They replace the open list.
 
 | ID | Decision |
 |----|----------|
-| A | Closing the Dungeon quits the app. Desktop avatars vanish with the existing burst. |
+| A | Closing the Dungeon asks Close or Minimize (BG.1, 24/11/2026; replaces "Close quits"). Close quits; desktop avatars vanish with the existing burst. Minimize keeps the app running in the tray. "Remember my choice" skips the question; Settings changes it. |
 | B | The Dungeon has a door Daniel can open and close. Default **open**, which keeps the old recommended attention behaviour. **Open:** `blocked` and `error` agents may escape to the desktop and return when that state clears. **Closed:** avatars leave only when dragged out. "Let them roam free" is WIN-DUNGEON.8, last and low priority, and a closed door still blocks it. The toggle lands in WIN-DUNGEON.6. |
 | C | Chat is docked as a right tab with a Pop out button. |
 | D | Overlays on all monitors. Avatars cross only where edges touch (5.1). A corner touch and a dead zone are not crossings. |

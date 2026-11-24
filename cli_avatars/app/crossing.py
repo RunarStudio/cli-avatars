@@ -363,7 +363,7 @@ def _immediate(book) -> bool:
         return True
     root = getattr(book.app, "root", None)
     try:
-        return root.state() == "iconic"
+        return root.state() in ("iconic", "withdrawn")
     except Exception:
         return False
 

@@ -2,10 +2,12 @@
 
 Window geometry is not stored here. This is which monitors get an overlay,
 whether a walker may cross, the step-up limit, the poll interval, and
-whether the startup boot check runs.
+whether the startup boot check runs, and what the Dungeon `x` does.
 """
 
 from dataclasses import dataclass
+
+ON_CLOSE = ("ask", "minimize", "quit")
 
 
 @dataclass(frozen=True)
@@ -17,6 +19,7 @@ class DesktopSettings:
     step_up_px: int
     monitor_poll_s: float
     bootcheck: bool = True
+    on_close: str = "ask"
 
 
 def desktop_settings(config: object) -> DesktopSettings:
@@ -32,6 +35,7 @@ def desktop_settings(config: object) -> DesktopSettings:
         step_up_px=_int(block.get("step_up_px", 96), 96, 0, 256),
         monitor_poll_s=_float(block.get("monitor_poll_s", 1.0), 1.0, 0.5, 10.0),
         bootcheck=_bool(block.get("bootcheck", True), True),
+        on_close=block.get("on_close") if block.get("on_close") in ON_CLOSE else "ask",
     )
 
 
@@ -41,6 +45,16 @@ def with_bootcheck(config: object, enabled: bool) -> dict:
     block = data.get("desktop")
     copied = dict(block) if isinstance(block, dict) else {}
     copied["bootcheck"] = bool(enabled)
+    data["desktop"] = copied
+    return data
+
+
+def with_on_close(config: object, choice: str) -> dict:
+    """Copy ``config`` and set ``desktop.on_close``. The input is not changed."""
+    data = dict(config) if isinstance(config, dict) else {}
+    block = data.get("desktop")
+    copied = dict(block) if isinstance(block, dict) else {}
+    copied["on_close"] = choice if choice in ON_CLOSE else "ask"
     data["desktop"] = copied
     return data
 

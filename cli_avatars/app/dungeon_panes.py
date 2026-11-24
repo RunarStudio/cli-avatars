@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from cli_avatars.app.close_choice import request_close
 from cli_avatars.app.toolbar_kit import DESKTOP, PANEL, WINDOW
 from cli_avatars.app.toolbar_widgets import Tab, control, group, paint
 
@@ -51,7 +52,7 @@ def mount(view) -> None:
     root.title("Dungeon")
     root.minsize(720, 480)
     root.configure(bg=_BG)
-    root.protocol("WM_DELETE_WINDOW", view.app._quit)
+    root.protocol("WM_DELETE_WINDOW", lambda: request_close(view.app))
     _toolbar(view, root)
     _body(view, root)
     bar = tk.Frame(root, bg=_BAR)

@@ -9,6 +9,7 @@ import time
 import tkinter as tk
 
 from bundle_paths import asset_path
+from cli_avatars.app.close_choice import restore
 from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.desktop.capabilities import HAS_PIL
 from decisions import decisions_caption, open_count
@@ -76,6 +77,7 @@ def _show_hud_win(self):
     """The bubble icon and the tray both raise the Dungeon."""
     dungeon = getattr(self, "dungeon", None)
     if dungeon is not None:
+        restore(self)
         dungeon.raise_window()
         return
     parent = getattr(self, "_status_parent", None)

@@ -244,7 +244,7 @@ class OverlayApp:
 
     def run(self) -> None:
         print(f"[Dungeon v{VERSION}] overlay {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
-        print("[Dungeon] Close the window to quit. ESC closes a dock or cancels a drag.")
+        print("[Dungeon] Close the window to quit or minimize to the tray. ESC closes a dock or cancels a drag.")
         self.root.mainloop()
 
     # Pool / spring. Names stay so a bare ``OverlayApp.__new__`` still runs them.
