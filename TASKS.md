@@ -551,13 +551,13 @@ Product features only (see Scope). Team process items remain on the board elsewh
 
 - [ ] [CHAT][feat] ROOM-CHAT: One orchestrator chat per room/topic. Clicking an avatar or room opens it; it starts Claude Code and/or Grok CLI only on Daniel's explicit action, and everything is logged to the topic and board.
   - [x] [DOCS][docs] ROOM-CHAT.0 @pixel: docs/room-chat.md spec and threat model; update the CLI rule in AGENTS.md, CLAUDE.md and README. (S) (daily 2026-11-23)
-  - [ ] [CHAT][feat] ROOM-CHAT.1 @agents: Room model: topic, participants (claude, grok), working dir picked by Daniel and stored only in the per-user data dir. (S)
+  - [x] [CHAT][feat] ROOM-CHAT.1 @agents: Room model: topic, participants (claude, grok), working dir picked by Daniel and stored only in the per-user data dir. (S)
   - [x] [CHAT][feat] ROOM-CHAT.2 @pixel: cli_runner: allowlisted binaries, fixed argv, shell=False, prompt on stdin, cwd = room dir, one process per room, timeout, Stop, output cap; fake-CLI tests. Security-critical. (M) (daily 2026-11-23)
-  - [ ] [CHAT][feat] ROOM-CHAT.3 @agents: Parse stream-json into sanitised topic messages and a board log entry per prompt; nothing executed. (M)
-  - [ ] [CHAT][feat] ROOM-CHAT.4 @agents: Chat pane opened by clicking an avatar or room; target picker Claude / Grok / Both; Enter sends the typed prompt (after SPLIT.4). (M)
+  - [x] [CHAT][feat] ROOM-CHAT.3 @agents: Parse stream-json into sanitised topic messages and a board log entry per prompt; nothing executed. (M)
+  - [x] [CHAT][feat] ROOM-CHAT.4 @agents: Chat pane opened by clicking an avatar or room; target picker Claude / Grok / Both; Enter sends the typed prompt (after SPLIT.4). (M)
   - [ ] [CHAT][feat] ROOM-CHAT.5 @agents: 'Both' sends one prompt to both CLIs, shown in two separate tagged lanes. (S)
   - [ ] [CHAT][feat] ROOM-CHAT.6 @agents: Grok runner (MVP2). Blocked by GROK-LOGIN. (M)
-  - [ ] [CHAT][feat] ROOM-CHAT.7 @agents: Resume the room's session and pin a room summary. (S)
+  - [ ] [CHAT][feat] ROOM-CHAT.7 @agents: Resume the room's session and pin a room summary. (S) Resume and New session shipped with ROOM-CHAT.4; the summary pin is still open.
 
 ### 📋 Board (no Slack)
 
