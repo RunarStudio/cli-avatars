@@ -95,10 +95,13 @@ class RoomPane:
             )
             btn.pack(side="left", padx=1)
             self._buttons[key] = btn
-        self._stop_btn = self._small(bar, "Stop", self.stop)
-        self._new_btn = self._small(bar, "New session", self.new_session)
-        self._mode_btn = self._small(bar, "plan", self.toggle_mode)
-        self._folder_btn = self._small(bar, "Folder…", self.pick_folder)
+        # Own row: the docked chat is too narrow for targets and session controls on one line.
+        controls = tk.Frame(composer, bg=BG)
+        controls.pack(fill="x", pady=(2, 0), before=before)
+        self._stop_btn = self._small(controls, "Stop", self.stop)
+        self._new_btn = self._small(controls, "New session", self.new_session)
+        self._mode_btn = self._small(controls, "plan", self.toggle_mode)
+        self._folder_btn = self._small(controls, "Folder…", self.pick_folder)
         self._bin_row = tk.Frame(composer, bg=BG)
         self._bin_label = tk.Label(self._bin_row, text="", bg=BG, fg=META, font=FONT_SMALL, anchor="w")
         self._bin_label.pack(side="left", fill="x", expand=True)
@@ -109,7 +112,7 @@ class RoomPane:
         self._bin_btn.pack(side="right")
         self._bin_before = before
         term = tk.Text(
-            center, bg=TERM_BG, fg=INK, insertbackground=INK, font=FONT, relief="flat", wrap="word",
+            center, height=1, bg=TERM_BG, fg=INK, insertbackground=INK, font=FONT, relief="flat", wrap="word",
             padx=10, pady=8, highlightthickness=0, state="disabled",
         )
         for tag, color in (("prompt", ACCENT), ("reply", INK), ("tool", META), ("ok", OK_INK),
@@ -120,6 +123,7 @@ class RoomPane:
 
     def sync(self, topic_id: str) -> None:
         """Follow the topic the chat shows. The Claude target stays on in a room that used it."""
+        topic_id = topic_id or "general"  # the room the inbox send uses when there is no topic
         if topic_id == self.room_id:
             return
         self.room_id = topic_id

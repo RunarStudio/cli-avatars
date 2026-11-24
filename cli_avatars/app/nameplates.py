@@ -55,7 +55,8 @@ def seat_inside(scene, settled, spots, inside, dragging) -> None:
                 center = (0.0, 0.0)
             x = center[0] - av.aw / 2.0
             y = center[1] - av.ah / 2.0
-        sprites.append((int(x), int(y), int(av.aw), int(av.ah)))
+        # Round like plate_box, or a sub-pixel spot makes the plate hit its own sprite.
+        sprites.append((int(round(x)), int(round(y)), int(av.aw), int(av.ah)))
         try:
             text = av.plate_text()
             width, height = plate_pixels(scene, text)

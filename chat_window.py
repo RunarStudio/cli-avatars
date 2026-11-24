@@ -60,6 +60,7 @@ from topics import (
     STATUS_COLOR,
     SUMMARY_STALE,
     VISIBLE_MESSAGES,
+    ensure_topic,
     get_topic,
     group_by_project,
     latest_per_topic,
@@ -245,6 +246,10 @@ class ChatWindow:
         self._ensure()
         if topic_id:
             self._topic_id = topic_id
+            try:
+                ensure_topic(self.directory(), topic_id)
+            except (EventRejected, OSError):
+                pass
         if address_id:
             parties = self._parties()
             self._router.observe(parties)
@@ -440,9 +445,11 @@ class ChatWindow:
         left = tk.Frame(win, bg=BG, width=240)
         center = tk.Frame(win, bg=BG)
         right = tk.Frame(win, bg=BG, width=220)
-        left.grid(row=0, column=0, sticky="ns")
         center.grid(row=0, column=1, sticky="nsew")
-        right.grid(row=0, column=2, sticky="ns")
+        # The dock is too narrow for three columns; its topics and avatars live in the Topics panel.
+        if not self._embedded:
+            left.grid(row=0, column=0, sticky="ns")
+            right.grid(row=0, column=2, sticky="ns")
         # children use pack(), so pack_propagate is what keeps the side columns fixed
         left.pack_propagate(False)
         right.pack_propagate(False)

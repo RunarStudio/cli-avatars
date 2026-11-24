@@ -10,6 +10,17 @@ CLI Avatars installs per user on Windows and can rebuild itself from the `dev` b
 4. Run `dist\CLI-Avatars-Setup.exe` and start CLI Avatars from the Start menu.
 5. To get the latest dev later, press **Update** on the toolbar.
 
+## Your Claude and Grok sessions, and the chat (Windows)
+
+1. Run `claude` and `grok` in a normal Windows terminal, not in WSL. The app reads `%USERPROFILE%\.claude\projects` and `%USERPROFILE%\.grok\sessions` (`%GROK_HOME%\sessions` when `GROK_HOME` is set). A session shows while it was active in the last 15 minutes: send an idle one a prompt. If `.grok\sessions` does not exist after a Grok run, your Grok CLI keeps its sessions elsewhere: set `GROK_HOME` to that folder's parent.
+2. For live status and chat context, run this once in the clone, then restart your sessions: `python -m cli_avatars_emit hooks install --apply` (`python` must be on `PATH`; details in [claude-hooks.md](claude-hooks.md)).
+3. Press **Chat** on the toolbar, or click an avatar. In the **Run** row, pick **Claude**.
+4. The first time, the row shows the Claude CLI it found on `PATH`. Press **Use this binary**. If it says not found, run `where claude` in a terminal and fix `PATH` first.
+5. Type a prompt and press Enter. The first time, pick the project folder in the dialog. Runs start in `plan` mode; click `plan` to switch.
+6. Grok in the chat comes with ROOM-CHAT.6. Until then Grok sessions show as avatars and in the status bar only.
+
+Check: the status bar lists `Claude 1` and `◆ Grok 1` (your counts), and the chat shows your prompt, `… claude is answering`, the reply, and `[ok]`.
+
 ## Install
 
 `tools/build_installer.py` builds an onedir app with PyInstaller (`packaging/cli_avatars.spec`) and then compiles `packaging/installer.iss` with Inno Setup 6.6 or newer. The version string comes from `cli_avatars/__version__.py`. The build writes the current commit into `version.json` beside the executable and into `build_stamp.json` inside the bundle. A frozen boot check reads that `version.json` and shows the first 12 characters of the commit on the status line.
