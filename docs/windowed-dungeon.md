@@ -121,7 +121,7 @@ and it still requires the door to be open.
 
 ```text
 +-------------------------------------------------------------------------------+
-| [pin] [zoom auto] [door: open] [Call home]                      Dungeon _ x|
+| PANELS [<o Topics][Chat o>]  DESKTOP [Door: open][Call home]   WINDOW [Pin][Menu] |
 +------------+--------------------------------------------------+---------------+
 | Topics     |  [ Dungeon | Skins ]                              | [Chat|Settings]|
 | (rooms     |                                                   |               |
@@ -146,6 +146,18 @@ and it still requires the door to be open.
 **Tasks tab (TM.3).** Central tab "Tasks" beside Dungeon and Skins: a read-only kanban of the chat's
 topic cards from every board (todo, doing, review, done collapsed, blocked; assignee, progress,
 checklist done/total). `app/tasks_view.py` (no Tk) and `app/tasks_panel.py`; rooms tick, ≤ 1/s.
+
+**Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
+inside the window (no `Toplevel`) that says what it does:
+
+| Kind | Controls | Look |
+|------|----------|------|
+| Tab | Dungeon, Skins, Tasks (centre); Chat, Settings (right dock) | Tab strip; the selected tab is joined to its panel with a lit top accent |
+| Panel toggle | Topics, Chat (toolbar, PANELS) | Lamp lit and sunken while open; the arrow points to the side the panel opens on |
+| Desktop / window action | Door, Call home (DESKTOP); Pin, Menu (WINDOW); Pop out (right dock) | Raised buttons on their own plate; Pop out is the only control that opens a separate window |
+
+`app/toolbar_kit.py` (no Tk: kinds, tips, colours, icon pixel maps) and `app/toolbar_widgets.py`
+(PhotoImage icons, `Tab`, tooltips).
 
 After this work the app shows **one** normal window plus the overlays (which are invisible and
 withdrawn when they hold no avatar). The only optional extra is the popped-out chat.
@@ -443,6 +455,7 @@ Follows the layers in `architecture.md` section 3.
 | `cli_avatars/world/monitors.py` | world (pure) | Grounds, ceilings, shared edges, step up, clamp |
 | `cli_avatars/model/place.py` | model (pure) | Place state machine. Door open: `blocked` / `error` may escape. Door closed: drag-out only. Wander is WIN-DUNGEON.8. |
 | `cli_avatars/app/dungeon_window.py` | app | Root window, docks, toolbar, status bar, geometry store |
+| `cli_avatars/app/toolbar_kit.py` | app (pure) | Toolbar control kinds, tooltips, pixel icons |
 | `cli_avatars/app/building_view.py` | app | BLDG.2 scene renderer as a widget, uses `render.PhotoCache` |
 | `cli_avatars/app/dungeon_map.py` | app (pure math) | Scene ↔ virtual mapping |
 | `cli_avatars/app/overlays.py` | app | One overlay `Toplevel` per monitor, draw offset, withdraw when empty |
