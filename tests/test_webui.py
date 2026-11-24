@@ -200,6 +200,18 @@ class ServerTests(_Live):
         resp, _ = self.request("/api/board")
         self.assertEqual(resp.status, 401)
 
+    def test_page_and_headers(self):
+        resp, data = self.request("/")
+        self.assertEqual(resp.status, 200)
+        self.assertIn(b"<canvas", data)
+        csp = resp.getheader("Content-Security-Policy")
+        self.assertIn("default-src 'self'", csp)
+        self.assertNotIn("unsafe-inline", csp)
+        self.assertEqual(resp.getheader("X-Content-Type-Options"), "nosniff")
+        resp, data = self.request("/static/app.js")
+        self.assertEqual(resp.status, 200)
+        self.assertNotIn(b"innerHTML", data)
+
     def test_board_lists_cards_with_room(self):
         cards = {c["id"]: c for c in self.json("/api/board")["cards"]}
         self.assertEqual(cards[self.ids["forge"]]["room"], "moon-forge")
