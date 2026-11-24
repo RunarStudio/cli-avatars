@@ -6,7 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "cli-avatars"
 version = "0.4.0"
 description = "Animated desktop avatars for local AI coding sessions"
+license = { text = "Proprietary" }
 requires-python = ">=3.10"
+classifiers = [
+    "License :: Other/Proprietary License",
+]
 
 [project.scripts]
 cli-avatars-emit = "cli_avatars_emit:main"
