@@ -7,6 +7,7 @@ The chip colors stay on the agent palette until a separate fix.
 
 import time
 import tkinter as tk
+from dataclasses import replace
 from types import SimpleNamespace
 
 from cli_avatars.app.bots_ui import bot_signature, render_bot_sections
@@ -216,11 +217,25 @@ def _update_rooms_win(self, force: bool = False) -> None:
     except EventRejected:
         counts = {}
     topic_sig = tuple((name, tuple(row.get("id") for row in rows)) for name, rows in topics)
-    sig = (tuple(cards), topic_sig, tuple(sorted(counts.items())), bot_signature(self))
+    sig = (tuple(_steady(card) for card in cards), topic_sig, tuple(sorted(counts.items())), bot_signature(self))
     if not force and sig == self._rooms_sig:
+        _set_ages(self, cards)
         return
     self._rooms_sig = sig
     self._render_topic_groups(topics, cards, counts)
+
+
+def _steady(card):
+    """The card without the clock parts that change every second; those are set in place."""
+    return replace(card, activity="", last_seen=0.0, subs=tuple(replace(sub, activity="") for sub in card.subs))
+
+
+def _set_ages(self, cards) -> None:
+    labels = getattr(self, "_rooms_ages", {})
+    for card in cards:
+        label = labels.get(card.agent_id)
+        if label is not None and label.cget("text") != card.activity:
+            label.configure(text=card.activity)
 
 
 def _topic_rows(self) -> list:
@@ -245,6 +260,9 @@ def _sync_topics(self, force: bool) -> None:
 
 def _render_topic_groups(self, groups, cards, counts) -> None:
     parent = self._rooms_list
+    canvas = self._rooms_canvas
+    top = canvas.yview()[0]
+    self._rooms_ages = {}
     for child in parent.winfo_children():
         child.destroy()
     bg = "#0d0d1a"
@@ -266,6 +284,9 @@ def _render_topic_groups(self, groups, cards, counts) -> None:
     for card in cards:
         self._render_orchestrator_dot(parent, card)
     self._bind_rooms_scroll(parent)
+    parent.update_idletasks()
+    canvas.configure(scrollregion=canvas.bbox("all"))
+    canvas.yview_moveto(top)
 
 
 def _render_topic_card(self, parent, topic, decisions: int) -> None:
@@ -374,8 +395,11 @@ def _render_orchestrator_dot(self, parent, card) -> None:
             warn = tk.Label(row, image=icon, bg=bg)
             warn.image = icon
             warn.pack(side="left", padx=(4, 0))
-    tk.Label(row, text=card.activity, bg=bg, fg="#9a98b8",
-             font=("Courier", 9)).pack(side="right")
+    age = tk.Label(row, text=card.activity, bg=bg, fg="#9a98b8", font=("Courier", 9))
+    age.pack(side="right")
+    ages = getattr(self, "_rooms_ages", None)
+    if ages is not None:
+        ages[card.agent_id] = age
 
 
 class RoomsPanel:
