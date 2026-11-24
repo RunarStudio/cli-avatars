@@ -75,9 +75,10 @@ class Registry:
         return self.store.put(new_card(project, title, body, topic, labels, assignee), actor=PERSON,
                               timeout=self.timeout)
 
-    def task_edit(self, card_id: str, *, title=_UNSET, body=_UNSET, labels=_UNSET, checklist=_UNSET) -> dict:
+    def task_edit(self, card_id: str, *, title=_UNSET, body=_UNSET, labels=_UNSET, checklist=_UNSET,
+                  topic=_UNSET) -> dict:
         changes = {k: v for k, v in (("title", title), ("body", body), ("labels", labels),
-                                     ("checklist", checklist)) if v is not _UNSET}
+                                     ("checklist", checklist), ("topic", topic)) if v is not _UNSET}
         if not changes:
             raise EventRejected("schema")
         return self.change(card_id, lambda card: {**card, **changes}, PERSON)
@@ -103,6 +104,12 @@ class Registry:
             return new
 
         return self.change(card_id, change, PERSON)
+
+    def task_comment(self, card_id: str, text: str) -> dict:
+        """A ``commented`` event on the card; the card fields stay as they are."""
+        if not isinstance(text, str) or not text.strip():
+            raise EventRejected("schema")
+        return self.store.append_event(new_event("commented", PERSON, card_id, text=text), timeout=self.timeout)
 
     def task_archive(self, card_id: str) -> dict:
         def change(card):

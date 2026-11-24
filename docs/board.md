@@ -147,6 +147,25 @@ Sync:
 | Same, for `agent@machine` on another machine | The event goes into the git store's `events.jsonl`. On that machine's next Sync, events whose `notify` lists `<agent>@<board.machine>` are copied into local inboxes once (deduplicated by event id). |
 | Claude `SessionStart`, `UserPromptSubmit` | The chat hook adds the agent's open cards (not `done`) to its context block: id, column, title. The card section is capped at 2,000 characters and is labelled untrusted data like the rest of the block. |
 
+## Tasks tab (Daniel)
+
+The Dungeon's Tasks tab shows the chat topic's cards. Daniel edits them there; every write goes
+through `Registry` with the actor `daniel` (`cli_avatars/app/tasks_edit.py`, no Tk). A bad field
+shows an error under it and nothing is written. Everything happens inside the Dungeon window.
+
+| Action | How | Event |
+|--------|-----|-------|
+| Add a card | "+ New task": title, notes, labels. It lands in `todo` of the topic's project board (the topic id when the topic has no project). | `created` |
+| Edit | Card click opens the card panel: title, notes, labels, topic link, "Save text". | `edited` |
+| Move | Drag the card to another column, or a column button in the card panel. | `moved` |
+| Assign | Assignee menu: unassigned, `daniel`, live agents by name, the topic's members. | `assigned` |
+| Checklist | "+ Item" adds one; a tick box sets it done or not. Progress follows the checklist while `progress` is empty. | `edited`, `checklist` |
+| Progress, status note | Progress 0–100 (empty: use the checklist) and the note, "Set". | `progress` or `status` |
+| Comment | "Comment": the text goes into the card's history. | `commented` |
+| Archive | "Archive" adds the `archived` label; the card leaves the board, the file and `events.jsonl` keep it. There is no hard delete, so the event log never points at a missing card. | `edited` |
+
+The app has no sound path; a card event shows as the redrawn board and the history line.
+
 ## MCP tools
 
 Added to `cli_avatars_mcp` beside the Phase 1 tools. Writes use the same store and validators. The actor is `emit:mcp`.

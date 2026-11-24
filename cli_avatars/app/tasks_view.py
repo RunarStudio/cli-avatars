@@ -1,6 +1,6 @@
 """Tasks tab view-model (TM.3): the selected topic's cards in the board columns. Read-only, no Tk.
 
-Cards are read through the registry on every project board; nothing here writes.
+Cards are read through the registry on every project board; nothing here writes (edits: ``tasks_edit``).
 """
 
 from __future__ import annotations
@@ -44,6 +44,18 @@ class Board:
 def selected_topic(app) -> str:
     """The topic the chat window shows, the Dungeon's current topic."""
     return str(getattr(getattr(app, "_chat_window", None), "_topic_id", "") or "")
+
+
+def live_agents(app) -> dict[str, str]:
+    """Agent id -> name of the scanner's live, non-demo agents."""
+    try:
+        agents = app.scanner.get_agents()
+    except Exception:
+        return {}
+    if not isinstance(agents, dict):
+        return {}
+    return {str(aid): str(getattr(info, "name", "") or aid) for aid, info in agents.items()
+            if not getattr(info, "is_demo", False)}
 
 
 def topic_cards(directory: Path | str, topic: str) -> list[dict]:

@@ -338,10 +338,10 @@ class DungeonWindow:
         panel = getattr(self.app, "_tasks_panel", None)
         if panel is None:
             from cli_avatars.app.tasks_panel import TasksPanel
-            from cli_avatars.app.tasks_view import selected_topic
+            from cli_avatars.app.tasks_view import live_agents, selected_topic
 
             panel = TasksPanel(self._tasks, self.app._chat_directory, lambda: selected_topic(self.app),
-                               shown=lambda: self._center == "tasks")
+                               shown=lambda: self._center == "tasks", agents=lambda: live_agents(self.app))
             self.app._tasks_panel = panel
         panel.refresh(force=True)
 

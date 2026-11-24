@@ -146,6 +146,8 @@ and it still requires the door to be open.
 **Tasks tab (TM.3).** Central tab "Tasks" beside Dungeon and Skins: a read-only kanban of the chat's
 topic cards from every board (todo, doing, review, done collapsed, blocked; assignee, progress,
 checklist done/total). `app/tasks_view.py` (no Tk) and `app/tasks_panel.py`; rooms tick, ≤ 1/s.
+Since KANBAN.1 Daniel edits it too: "+ New task", a card panel drawn over the board's right edge,
+drag between columns (`app/tasks_edit.py`, `app/tasks_card.py`; see [board.md](board.md) § Tasks tab).
 
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:

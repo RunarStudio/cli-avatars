@@ -83,6 +83,10 @@ def valid_assignee(value: object) -> bool:
     return valid_agent_id(value)
 
 
+def valid_label(value: object) -> bool:
+    return isinstance(value, str) and _LABEL.fullmatch(value) is not None
+
+
 def sanitize_body(value: object, limit: int = BODY_LIMIT) -> str:
     """``sanitize_text`` that keeps newlines."""
     if not isinstance(value, str):
