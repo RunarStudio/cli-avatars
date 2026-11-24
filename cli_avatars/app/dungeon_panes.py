@@ -77,7 +77,13 @@ def repack(view) -> None:
 def show_center(view, name: str) -> None:
     view.scene.pack_forget()
     view._skins.pack_forget()
-    if name == "skins":
+    view._tasks.pack_forget()
+    if name == "tasks":
+        view.app._picker_live = False
+        view._tasks.pack(fill="both", expand=True)
+        view._center = "tasks"
+        view._ensure_tasks()
+    elif name == "skins":
         view._ensure_skins()
         view._skins.pack(fill="both", expand=True)
         view.app._picker_live = True
@@ -91,6 +97,7 @@ def show_center(view, name: str) -> None:
         view._center = "dungeon"
     mark(view._tab_dungeon, view._center == "dungeon")
     mark(view._tab_skins, view._center == "skins")
+    mark(view._tab_tasks, view._center == "tasks")
 
 
 def show_right(view) -> None:
@@ -175,8 +182,11 @@ def _body(view, root) -> None:
     view._tab_dungeon.pack(side="left", padx=(6, 2), pady=3)
     view._tab_skins = _btn(strip, text="Skins", command=lambda: view.show_center("skins"))
     view._tab_skins.pack(side="left", padx=2, pady=3)
+    view._tab_tasks = _btn(strip, text="Tasks", command=lambda: view.show_center("tasks"))
+    view._tab_tasks.pack(side="left", padx=2, pady=3)
     view.scene = tk.Canvas(view._mid, bg=_FLOOR, highlightthickness=0, bd=0)
     view._skins = tk.Frame(view._mid, bg=_BG)
+    view._tasks = tk.Frame(view._mid, bg=_BG)
     view.scene.bind("<Configure>", lambda _e: paint_floor(view.scene))
     rstrip = tk.Frame(view._right, bg=_BAR)
     rstrip.pack(fill="x")
