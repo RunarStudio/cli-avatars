@@ -36,6 +36,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `board/`, `registry/` | Task cards (model, `LocalStore`) and the registry: full API, narrow `AgentApi`, policy, rate limits |
 | `building/layouts/` | AG-3 room layouts (`compact.json` tiling 4, `tower.json` tiling 16) drawn by the Dungeon tab |
 | `cli_avatars/app/throne_*.py` | Throne tab of the Dungeon: `throne_model` (seating, board columns, state lights, door), `throne_px` (pixel engine), `throne_pieces` (code-drawn pieces), `throne_art` (the room), `throne_panel` (Tk tab) |
+| `cli_avatars/app/atelier*.py` | ATELIER.1 backroom beside the throne room: `atelier` (guest trigger, walk route, `Errands`; no Tk), `atelier_pieces` (desk, easel, plant, scrolls, rug, sketches), `atelier_art` (the atelier pass of the Throne tab) |
 | `bots/` | Grok Bot roster and pull-only status (`roster`, `status`, `status_source`, `service`). Files live in the data dir, not in git. |
 | `tools/gen_ponmi.py`, `tools/gen_meowatar_gifs.py`, `tools/gen_subskin_placeholders.py` | Offline sprite / GIF generators (not imported at runtime) |
 

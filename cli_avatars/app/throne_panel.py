@@ -2,21 +2,27 @@
 
 Live agents, the lord's board and the state crystals are read once a second while the
 tab shows. A changed room is drawn on a worker thread; the Tk thread only swaps images
-and cycles the torch frames. A click on the door goes back to the Dungeon tab.
+and cycles the torch frames. A click on the door goes back to the Dungeon tab. A bot
+whose blocked card is labelled ``guest`` walks to the atelier desk (``atelier``).
 """
 
 from __future__ import annotations
 
 import logging
 import threading
+import time
 import tkinter as tk
 
+from cli_avatars.app import atelier as at
 from cli_avatars.app import throne_model as tm
 from cli_avatars.app.dungeon_rooms import fit_scale
+from cli_avatars.app.needs_walk import read_rooms
 from cli_avatars.app.throne_art import RoomScene, ThroneArt
 from cli_avatars.app.throne_px import BG
+from cli_avatars.app.throttle import StoreThrottle
 
 REFRESH_MS = 1000
+WALK_MS = 200
 FLICKER_MS = 180
 BOARD_EVERY = 3
 _LOG = logging.getLogger("cli_avatars.throne")
@@ -50,6 +56,8 @@ class ThronePanel:
         self._ticks = 0
         self._cards: list = []
         self._project = None
+        self._errands = at.Errands()
+        self._rooms = StoreThrottle()
 
     def show(self) -> None:
         self.canvas.pack(fill="both", expand=True)
@@ -74,6 +82,8 @@ class ThronePanel:
         agents = self._agents()
         actors = tm.actors_from(agents, self._registry_obj())
         seating = tm.seat(actors)
+        topics, cards = self._read_rooms()
+        seating, marked = self._errands.step(seating, at.needing_guest(topics, cards, agents), time.monotonic())
         project = tm.lord_project(agents, seating)
         if project != self._project or self._ticks % BOARD_EVERY == 0:
             self._project, self._cards = project, self._read_cards(project)
@@ -83,7 +93,10 @@ class ThronePanel:
             image = self._frame_1x(placed.actor)
             if image is not None:
                 sprites[placed.actor.id] = image
-        return RoomScene(seating, tm.board_columns(self._cards), tm.lights(a.state for a in actors), sprites)
+        guest = self._frame_1x(tm.Actor(at.GUEST_ID, at.GUEST_NAME, skin=at.GUEST_SKIN))
+        if guest is not None:
+            sprites[at.GUEST_ID] = guest
+        return RoomScene(seating, tm.board_columns(self._cards), tm.lights(a.state for a in actors), sprites, marked)
 
     def _agents(self) -> dict:
         app, agents = self.app, {}
@@ -110,6 +123,16 @@ class ThronePanel:
         except Exception:
             _LOG.exception("board read failed")
             return []
+
+    def _read_rooms(self) -> tuple[list, list]:
+        directory = getattr(self.app, "_chat_directory", None)
+        if not callable(directory):
+            return [], []
+        try:
+            return self._rooms.get(lambda: read_rooms(directory()))
+        except Exception:
+            _LOG.exception("rooms read failed")
+            return [], []
 
     def _registry_obj(self):
         if self._registry is None:
@@ -147,7 +170,7 @@ class ThronePanel:
             return
         try:
             scene = self.scene()
-            key = (scene.seating, scene.columns, scene.lights,
+            key = (scene.seating, scene.columns, scene.lights, scene.marked,
                    tuple((p.actor.skin, p.actor.state) for p in scene.seating.placed))
             if key != self._key and not self._busy:
                 self._key, self._busy = key, True
@@ -155,7 +178,7 @@ class ThronePanel:
                 self.canvas.after(50, self._poll)
         except Exception:
             _LOG.exception("throne room refresh failed")
-        self._job = self.canvas.after(REFRESH_MS, self._refresh)
+        self._job = self.canvas.after(WALK_MS if self._errands.moving() else REFRESH_MS, self._refresh)
 
     def _work(self, scene: RoomScene) -> None:
         try:

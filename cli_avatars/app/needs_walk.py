@@ -2,7 +2,8 @@
 
 A room needs the user while one of its cards is ``blocked`` or its topic is
 ``waiting_on_user``. The avatar walks over, waits beside the user with the
-amber mark, and walks back home when the state clears. No Tk here.
+amber mark, and walks back home when the state clears. A blocked card labelled
+``guest`` needs the guest helper instead (ATELIER.1). No Tk here.
 """
 
 from __future__ import annotations
@@ -15,11 +16,17 @@ from cli_avatars.model.crossing import mix
 
 BLOCKED = "blocked"
 WAITING = "waiting_on_user"
+GUEST_LABEL = "guest"
 MAX_STEP_S = 0.25
 
 
-def needing(topics: Iterable, cards: Iterable, agents: Mapping) -> dict[str, str]:
-    """Top-level agent id to the reason its room needs the user."""
+def for_guest(card: Mapping) -> bool:
+    labels = card.get("labels")
+    return isinstance(labels, list) and GUEST_LABEL in labels
+
+
+def needing(topics: Iterable, cards: Iterable, agents: Mapping, guest: bool = False) -> dict[str, str]:
+    """Top-level agent id to the reason its room needs the user, or with ``guest`` the guest helper."""
     present = {aid for aid, agent in agents.items() if not getattr(agent, "parent_id", None)}
     rooms = {t["id"]: t for t in topics if isinstance(t, dict) and isinstance(t.get("id"), str)}
     out: dict[str, str] = {}
@@ -34,14 +41,14 @@ def needing(topics: Iterable, cards: Iterable, agents: Mapping) -> dict[str, str
         return [m for m in found or [] if m in present]
 
     for card in cards:
-        if not isinstance(card, dict) or card.get("column") != BLOCKED:
+        if not isinstance(card, dict) or card.get("column") != BLOCKED or for_guest(card) != guest:
             continue
         who = str(card.get("assignee") or "").partition("@")[0]
         sent = [who] if who in present else members(rooms.get(card.get("topic")))
         for aid in sent or by_project(card.get("project")):
             out.setdefault(aid, BLOCKED)
     for topic in rooms.values():
-        if topic.get("status") != WAITING:
+        if guest or topic.get("status") != WAITING:
             continue
         for aid in members(topic) or by_project(topic.get("project")):
             out.setdefault(aid, WAITING)
@@ -102,6 +109,9 @@ class Walker:
 
     def walking(self) -> set[str]:
         return set(self._t)
+
+    def progress(self, aid: str) -> float | None:
+        return self._t.get(aid)
 
     def arrived(self, aid: str) -> bool:
         return self._t.get(aid, 0.0) >= 1.0

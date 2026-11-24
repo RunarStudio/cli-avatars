@@ -71,11 +71,11 @@ def banner_bitmap() -> Buf:
 
 
 def sign_bitmap() -> Buf:
-    b = _bitmap(29, 9)
-    b.rect(0, 0, 29, 9, "#8a5a34")
-    b.rect(1, 1, 27, 7, "#120d1f")
-    b.rect(1, 1, 27, 1, tone(GOLD, 0.6))
-    t35(b, 15, 2, "ROOMS", GOLD, align="c")
+    b = _bitmap(33, 9)
+    b.rect(0, 0, 33, 9, "#8a5a34")
+    b.rect(1, 1, 31, 7, "#120d1f")
+    b.rect(1, 1, 31, 1, tone(GOLD, 0.6))
+    t35(b, 17, 2, "ATELIER", GOLD, align="c")
     return b
 
 
@@ -86,7 +86,7 @@ def crystal_pal(color: str, dim: bool) -> dict:
             "C": col(color), "d": tone(color, 0.6)}
 
 
-def rug(b: Buf, u, v, z, du, dv, along_v: bool) -> None:
+def rug(b: Buf, u, v, z, du, dv, along_v: bool, wine=WINE, mid="#b03a5c") -> None:
     def f(a, bb, x, y):
         s = bb - v if along_v else a - u
         w = a - u if along_v else bb - v
@@ -94,16 +94,16 @@ def rug(b: Buf, u, v, z, du, dv, along_v: bool) -> None:
         t = (s % 1.7) / 1.7
         d = abs(t - 0.5) * 3.4 + abs(w - 1) * 1.9
         if e < 0.07:
-            return tone(WINE, 0.55), 1
+            return tone(wine, 0.55), 1
         if e < 0.17:
             return GOLD, 1
         if e < 0.24:
-            return tone(WINE, 0.6), 1
+            return tone(wine, 0.6), 1
         if abs(d - 0.8) < 0.11:
             return tone(GOLD, 0.85), 1
         if d < 0.34:
-            return "#b03a5c", 1
-        return (WINE if (x + y) % 2 else tone(WINE, 0.9)), 1
+            return mid, 1
+        return (wine if (x + y) % 2 else tone(wine, 0.9)), 1
 
     b.floor_fn(u, v, u + du, v + dv, z, f)
 

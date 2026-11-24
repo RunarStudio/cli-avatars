@@ -16,7 +16,10 @@ from pathlib import Path
 import numpy as np
 
 from bundle_paths import asset_path
+from cli_avatars.app import atelier as at
+from cli_avatars.app import atelier_art
 from cli_avatars.app import throne_model as tm
+from cli_avatars.app.atelier_pieces import PIECES
 from cli_avatars.app.throne_pieces import (
     CRYSTAL,
     banner_bitmap,
@@ -60,12 +63,13 @@ _MAX_INDEX = 256 * 1024
 
 @dataclass
 class RoomScene:
-    """What the room shows. ``sprites`` maps actor id to a PIL RGBA frame."""
+    """What the room shows. ``sprites`` maps actor id to a PIL RGBA frame; ``marked`` ids need the guest."""
 
     seating: tm.Seating = field(default_factory=tm.Seating)
     columns: tuple = ()
     lights: tuple = ()
     sprites: dict = field(default_factory=dict)
+    marked: frozenset = field(default_factory=frozenset)
 
 
 def load_kit(folder: Path | None = None) -> dict[str, Sprite]:
@@ -129,10 +133,11 @@ class ThroneArt:
     def __init__(self, kit: dict[str, Sprite] | None = None):
         self.kit = load_kit() if kit is None else kit
         self.pieces: dict[str, Sprite] = {}
-        self._pre: Buf | None = None
-        self._snap: np.ndarray | None = None
-        self._pre_lamps: list = []
-        self._pre_glows: list = []
+        self._back: Buf | None = None
+        self._back_lamps: list = []
+        self._back_glows: list = []
+        self._pre_key = None
+        self._pre: tuple | None = None
         self._banner = None
         self._sign = None
 
@@ -148,6 +153,8 @@ class ThroneArt:
                       "throne": throne}
             if key in makers:
                 self.pieces[key] = capture(makers[key])
+            elif key in PIECES:
+                self.pieces[key] = capture(PIECES[key])
             elif key.startswith("ped_"):
                 _p, name, dim = key.split("_")
                 self.pieces[key] = capture(pedestal(tm.STATE_COLOR[name], dim == "dim"))
@@ -198,63 +205,29 @@ class ThroneArt:
         for k in range(tiers):
             self._put(b, "b12", u0, v0, z + 1.2 * k)
 
-    def _far_room(self, b, lamps, glows, u0, v0, a, bb, opts, pool, props, torches) -> None:
-        self._shell(b, u0, v0, FZ, a, bb, **opts)
-        for key, u, v in props:
-            self._put(b, key, u0 + u, v0 + v, FZ)
-        for side, u, v in torches:
-            self._wall_torch(b, lamps, glows, side, u0 + u, v0 + v, FZ, 0.3)
-        m = b.g(u0 + a / 2, v0 + bb / 2, FZ)
-        glows.append((pool[0], m[0], m[1], 0.75, False, False))
-        lamps.append((m[0], m[1], 84, 46, 0.32, pool[1]))
-
-    def _build_pre(self) -> None:
-        """Background, the walkway and stairs beyond the door, two far rooms, the hall shell."""
-        b = Buf(tm.WIDTH, tm.HEIGHT, tm.X0, tm.Y0, tm.TILE)
-        b.rect(0, 0, b.w, b.h, BG)
-        lamps, glows = [], []
-
-        def walk(u, v, z):
-            self._put(b, "b06", u, v, z)
-            self._put(b, tile_key(u, v), u, v, z)
-
-        def beacon(u, v, z):
-            self._put(b, "o20", u, v, z)
-            p = b.g(u + 0.5, v + 0.5, z + 0.6)
-            lamps.append((p[0], p[1], 66, 44, 0.5, "#ffb070"))
-            glows.append(("b26", p[0], p[1] - 2, 0.8, False, True))
-
-        for u in range(11, 18):
-            for v in (-2, -1):
-                walk(u, v, 0)
-        p = b.g(12, -1, 0.8)
-        lamps.append((p[0], p[1], 90, 60, 0.9, "#ffc070"))
-        self._put(b, "b20", 18, -2)
-        self._put(b, "b20", 18, -1)
-        beacon(14, -2.2, 0)
-        beacon(17, -2.2, 0)
-        self._far_room(b, lamps, glows, 20, -4, 6, 6, {"left": {2: "b13", 3: "b13"}, "drain": (3, 3)},
-                       ("b30", "#5a96ff"),
-                       (("o16", 0.05, 1), ("o13", 2.5, 1.2), ("o11", 4.4, 3), ("o24", 5, 0.6), ("o14", 2, 4.2)),
-                       (("r", 2, 0), ("r", 4, 0)))
-        self._put(b, "b19", 15, 0)
-        self._put(b, "b19", 16, 0)
-        for v in range(2, 13):
-            for u in (15, 16):
-                walk(u, v, FZ)
-        beacon(16.2, 4.5, FZ)
-        beacon(16.2, 9.5, FZ)
-        self._far_room(b, lamps, glows, 13, 13, 6, 5, {"right": {2: "b14", 3: "b14"}}, ("b27", "#ffbe3c"),
-                       (("o12", 1.4, 1.6), ("o26", 4.8, 0.6), ("o27", 0.8, 3.4), ("o02", 3.6, 3.2), ("o30", 0.05, 2)),
-                       (("r", 1, 0), ("l", 0, 3)))
-        self._snap = b.d.copy()
+    def _build_pre(self, scene: RoomScene) -> tuple:
+        """The atelier with its guest and visitors, then the hall shell in front. Cached per visitor set."""
+        if self._back is None:
+            self._back, self._back_lamps, self._back_glows = atelier_art.back(self)
+            self._banner, self._sign = banner_bitmap(), sign_bitmap()
+        inside = tuple(p for p in scene.seating.placed if p.v < 0)
+        key = (at.GUEST_ID in scene.sprites, scene.marked & {p.actor.id for p in inside},
+               tuple((p.actor.id, p.actor.name, p.actor.skin, p.actor.state, p.u, p.v) for p in inside))
+        if key == self._pre_key and self._pre is not None:
+            return self._pre
+        back = self._back
+        b = Buf(back.w, back.h, back.ox, back.oy, back.t)
+        b.d[:] = back.d
+        b.mask[:] = back.mask
+        lamps, glows, tags = list(self._back_lamps), list(self._back_glows), []
+        atelier_art.furnish(self, b, scene, inside, lamps, glows, tags)
+        snap = b.d.copy()
         self._shell(b, 0, 0, 0, A, B, tiers=3, drain=(9, 8))
-        self._pre, self._pre_lamps, self._pre_glows = b, lamps, glows
-        self._banner, self._sign = banner_bitmap(), sign_bitmap()
+        self._pre_key, self._pre = key, (b, snap, lamps, glows, tags)
+        return self._pre
 
-    def _door(self, b: Buf, lamps, glows) -> None:
-        """Arched doorway in the back right wall; the walkway behind shows through."""
-        snap = self._snap
+    def _door(self, b: Buf, lamps, glows, snap) -> None:
+        """Arched doorway in the back right wall; the landing and the atelier behind show through."""
 
         def opening(c, h):
             return 0 < c < 1.6 and h >= 0 and (h < 1.7 or math.hypot(c - 0.8, h - 1.7) < 0.8)
@@ -282,7 +255,7 @@ class ThroneArt:
             return mix((s[0], s[1], s[2]), "#ffb45e", 0.22 + 0.34 * max(0.0, 1 - hh / 2.4))
 
         b.face_fn("u", DU - 0.3, TH, 0, 2.2, 3.0, f)
-        b.tex("u", DU + 0.8 - 29 / 32, TH, 2.82, self._sign)
+        b.tex("u", DU + 0.8 - 33 / 32, TH, 2.82, self._sign)
         k, f2 = b.g(DU + 0.8, TH, 2.2), b.g(DU + 0.8, 1.5, 0)
         glows.append(("b26", k[0], k[1], 0.9, False, True))
         glows.append(("b27", f2[0], f2[1], 0.45, False, False))
@@ -291,20 +264,18 @@ class ThroneArt:
     # Per scene
     def compose(self, scene: RoomScene) -> tuple[Buf, list, list, list]:
         """The lit room before glows and life, plus its glows, name tags and badges."""
-        if self._pre is None:
-            self._build_pre()
-        pre = self._pre
+        pre, snap, pre_lamps, pre_glows, pre_tags = self._build_pre(scene)
         b = Buf(pre.w, pre.h, pre.ox, pre.oy, pre.t)
         b.d[:] = pre.d
         b.mask[:] = pre.mask
-        lamps, glows, tags = list(self._pre_lamps), list(self._pre_glows), []
+        lamps, glows, tags = list(pre_lamps), list(pre_glows), list(pre_tags)
 
         b.tex("u", 1.75, TH, 0.78, board_bitmap(scene.columns))
         a, e = b.g(1.75, TH, 0.78), b.g(10.75, TH, 0.78)
         b.line(a[0], a[1] + 1, e[0] - 1, e[1], "#1a1228")
         m = b.g(6.2, TH, 2)
         lamps.append((m[0], m[1], 120, 70, 0.22, "#fff0d0"))
-        self._door(b, lamps, glows)
+        self._door(b, lamps, glows, snap)
         for v in (2.75, 6.4):
             b.tex("v", TH, v, 0.95, self._banner)
         for u in (1.25, 13.3):
@@ -349,19 +320,24 @@ class ThroneArt:
                     glows.append((lt.halo or "b26", p[0], p[1], 0.9, lt.halo is None, False))
                 lamps.append((p[0], p[1] + 10, 34, 22, 0.42 if lt.now else 0.24, lt.color))
         for n, placed in enumerate(scene.seating.placed):
+            if placed.v < 0:
+                continue
             depth = 6.3 if n == 0 and placed.main else placed.u + placed.v + 1.1
-            items.append((depth, self._actor_fn(b, placed, n == 0 and placed.main, scene.sprites, tags)))
+            items.append((depth, self._actor_fn(b, placed, n == 0 and placed.main, scene.sprites, tags,
+                                                scene.marked, lamps, glows)))
         for _d, fn in sorted(items, key=lambda it: it[0]):
             fn()
         light_pass(b, lamps + [(*b.g(A / 2, B / 2, 0), 300, 170, 0.42, "#e8dcff")])
         return b, glows, tags, lamps
 
-    def _actor_fn(self, b: Buf, placed: tm.Placed, lord: bool, sprites: dict, tags: list):
+    def _actor_fn(self, b: Buf, placed: tm.Placed, lord: bool, sprites: dict, tags: list,
+                  marked=frozenset(), lamps=None, glows=None):
         def draw():
             actor, u, v, z = placed.actor, placed.u, placed.v, placed.z
             size = 40 if placed.main else 32
             sprite = fit_cell(sprites.get(actor.id), size)
             state = tm.norm_state(actor.state)
+            errand = placed.main and actor.id in marked
             if lord:
                 p = b.g(u, v, z)
                 tag = b.g(0.6, 5, 4.75)
@@ -370,16 +346,24 @@ class ThroneArt:
                 tag = (p[0], p[1] - 37)
                 if actor.fly:
                     b.shadow(u + 0.5, v + 0.5, 0, 0.28)
-                halo = tm.STATE_HALO.get(state)
+                halo = tm.STATE_HALO["blocked"] if errand else tm.STATE_HALO.get(state)
                 if halo and halo in self.kit:
                     q = b.g(u + 0.5, v + 0.5, 0 if actor.fly else z)
                     b.paste(self.kit[halo], q[0], q[1] - 3, a=0.9)
             if sprite is not None:
                 b.paste(sprite, p[0], p[1], lit=True)
-            if placed.main and state == "blocked" and "row_blocked" in self.kit:
+            if placed.main and (state == "blocked" or errand) and "row_blocked" in self.kit:
                 b.paste(self.kit["row_blocked"], p[0], p[1], lit=True)
-            if placed.main:
-                tags.append((tm.label(actor.name, tm.NAME_CHARS) or "AGENT", state, tag[0], tag[1], placed.badge_more))
+            if errand and lamps is not None and glows is not None:
+                lamps.append((p[0], p[1] - 10, 60, 40, 0.45, tm.STATE_COLOR["blocked"]))
+                glows.append((tm.STATE_HALO["blocked"], p[0], p[1] - 3, 0.6, False, False))
+            name = tm.label(actor.name, tm.NAME_CHARS) or "AGENT"
+            if errand:
+                # Inside the atelier the short tag keeps the guest in view.
+                text = name if v < 0 else f"{name} NEEDS THE GUEST"
+                tags.append((text, "blocked", tag[0], tag[1], placed.badge_more))
+            elif placed.main:
+                tags.append((name, state, tag[0], tag[1], placed.badge_more))
             elif placed.badge_more:
                 tags.append(("", state, p[0], p[1] - 30, placed.badge_more))
 
@@ -444,7 +428,7 @@ def _ui(b: Buf, scene: RoomScene, tags) -> None:
     t35(b, 12, 14, "THRONE ROOM", TXT, sh="#33274f", k=3)
     t35(b, 12, 36, "THE ORCHESTRATOR HALL, CENTRE OF THE BUILDING", SUB)
     for text, state, x, y, more in tags:
-        color = tm.STATE_COLOR[state]
+        color = tm.STATE_COLOR.get(state, state)
         if text:
             _tag(b, x, y, text, color)
         if more:
@@ -490,8 +474,9 @@ def _ui(b: Buf, scene: RoomScene, tags) -> None:
     b.line(a[0] + 2, a[1] - 2, x - 3, y + 8, LINE)
     b.px(a[0] + 2, a[1] - 2, TXT)
     t35(b, x, y, "THE DOOR", GOLD)
-    t35(b, x, y + 7, "WALKWAY AND STAIRS", SUB)
-    t35(b, x, y + 14, "TO THE OTHER ROOMS", SUB)
+    t35(b, x, y + 7, "TO THE ATELIER", SUB)
+    t35(b, x, y + 14, "CLICK: DUNGEON TAB", SUB)
+    atelier_art.label(b)
     if scene.seating.more:
         d = b.g(DU + 0.8, TH, 0)
         _tag(b, d[0], d[1] + 8, f"+{scene.seating.more} MORE", SUB)
