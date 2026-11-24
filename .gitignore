@@ -18,6 +18,8 @@ build/*
 dist/
 *.spec
 !cli-avatars.spec
+!packaging/cli_avatars.spec
+packaging/build_stamp.json
 
 # IDE
 .vscode/

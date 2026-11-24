@@ -4,6 +4,7 @@ import logging
 import random
 import time
 
+from cli_avatars.app.overlays import bind_avatar
 from cli_avatars.app.render import canvas_photos
 from cli_avatars.effects.burst import BurstEffect
 from cli_avatars.model.agent import S
@@ -12,6 +13,30 @@ from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
 from cli_avatars.world.avatar import Avatar
 from meetings import AvatarPose, PerchSpan, Stage
+
+
+def _screen_floor(self) -> float:
+    """Y of the ground the meeting planner treats as the screen, not a perch."""
+    board = getattr(self, "overlays", None)
+    layout = getattr(board, "layout", None) if board is not None else None
+    grounds = getattr(layout, "grounds", None) or ()
+    for span in grounds:
+        monitor = layout.monitor(span.monitor_id) if layout is not None else None
+        if monitor is not None and monitor.primary:
+            return float(span.y)
+    if grounds:
+        return float(grounds[0].y)
+    return float(self.sh - 2)
+
+
+def _fall_limit(self) -> float:
+    """Below this, a walker missed every floor and is put back on screen."""
+    board = getattr(self, "overlays", None)
+    layout = getattr(board, "layout", None) if board is not None else None
+    bounds = getattr(layout, "bounds", None) if layout is not None else None
+    if bounds and getattr(layout, "monitors", None):
+        return float(bounds[3] + 80)
+    return float(self.sh + 80)
 
 
 def _refresh_activity(self, av: "Avatar") -> None:
@@ -33,7 +58,7 @@ def _meeting_stage(self, floors, floor_hwnds) -> Stage:
         hwnd = floor_hwnds[i] if i < len(floor_hwnds) else None
         pid = int(hwnd) if hwnd is not None else -(i + 1)
         perches.append(PerchSpan(pid, float(fx1), float(fx2), float(fy)))
-    floor_y = float(self.sh - 2)
+    floor_y = _screen_floor(self)
     poses = {}
     for aid, av in self.avatars.items():
         if av._vanishing:
@@ -66,16 +91,26 @@ def _meeting_stage(self, floors, floor_hwnds) -> Stage:
 
 def sync(self, frame: object) -> None:
     agents = frame.agents
-    for aid in self.avatars.keys() - agents.keys():
+    book = getattr(self, "places", None)
+    if book is not None:
+        book.reconcile(agents)
+    desktop = None if book is None else book.desktop_ids()
+    wanted = set(agents) if desktop is None else set(agents) & desktop
+    for aid in list(self.avatars.keys() - wanted):
         self.scanner.meetings.release(aid)
-        self.avatars.pop(aid).cleanup(self.canvas)
+        gone = self.avatars.pop(aid, None)
+        if gone is not None:
+            gone.cleanup(self.canvas)
         for sv in self.sub_avatars.pop(aid, []):
             sv.cleanup(self.canvas)
 
-    for aid in agents.keys() - self.avatars.keys():
+    for aid in wanted - self.avatars.keys():
         agent = agents[aid]
         self.avatars[aid] = Avatar(agent, self.sw, self.sh, self._cidx, REGISTRY)
+        bind_avatar(self, self.avatars[aid])
         self._cidx += 1
+        if book is not None:
+            book.claim_desktop(self.avatars[aid])
 
 
 def ride(self, frame: object) -> None:
@@ -122,9 +157,13 @@ def step_avatars(self, frame: object) -> None:
     walls = frame.walls
     floor_hwnds = frame.floor_hwnds
     steers = frame.steers
+    book = getattr(self, "places", None)
+    if book is not None:
+        book.tick(agents, time.time())
     vanished_aids = []
     for aid, av in self.avatars.items():
         av.agent = agents[aid]
+        bind_avatar(self, av)
         self._refresh_activity(av)
 
         if av._vanishing:
@@ -134,6 +173,7 @@ def step_avatars(self, frame: object) -> None:
             av.vx  *= 0.97
             av.y   += av.vy
             av.x   += av.vx
+            av._label_box = None
             av.draw(self.canvas, canvas_photos(self))
             if av._vanish_frames >= 65 or av.y < -av.ah:
                 sprite_cols = _sample_sprite_colors(REGISTRY, av.agent.skin)
@@ -143,8 +183,8 @@ def step_avatars(self, frame: object) -> None:
                 vanished_aids.append(aid)
             continue
 
-        # Trigger vanish after 5 min idle (demo avatars excluded)
-        if not av.agent.is_demo and time.time() - av.last_active > 300:
+        # Idle on the desktop walks home. Vanish remains when there is no place book.
+        if book is None and not av.agent.is_demo and time.time() - av.last_active > 300:
             av._vanishing    = True
             av._vanish_frames = 0
             av.vx = random.uniform(-0.4, 0.4)
@@ -154,11 +194,12 @@ def step_avatars(self, frame: object) -> None:
             av.vx = av.vy = 0.0
         else:
             av.update(floors, walls, floor_hwnds, steers.get(aid))
-            if av.y > self.sh + 80:
+            if av.y > _fall_limit(self):
                 av.x = float(random.randint(0, max(1, self.sw - av.aw)))
                 av.y = float(self.sh - av.ah - 10)
                 av.vx = random.choice([-TUNING.walk_speed, TUNING.walk_speed])
                 av.vy = 0.0
+        av._label_box = None
         av.draw(self.canvas, canvas_photos(self))
 
     for aid in vanished_aids:
@@ -167,6 +208,10 @@ def step_avatars(self, frame: object) -> None:
         for sv in self.sub_avatars.pop(aid, []):
             self._begin_dying(sv)
             self._dying_subs.append(sv)
+
+    if book is not None:
+        book.draw_inside()
+        book.note_positions()
 
 
 class PoolController:

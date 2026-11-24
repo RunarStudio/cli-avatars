@@ -4,6 +4,10 @@ Animated pixel-art characters that live on your desktop and react to your active
 
 Each avatar represents one running agent. It walks on top of your open windows, speeds up when the agent is using a tool, and dangles as a sub-agent when a sub-task spawns. No browser, no VS Code extension — just a Python script you run once.
 
+## Scope
+
+CLI Avatars helps Daniel manage tasks, follow the chats tied to each task and juggle many topics without overwhelm. It is not Watchtower and does not use Bitbucket or git PR data. The only PR-related features allowed: (a) reading a PR that Daniel explicitly tags on a task, and (b) an "Update version" button that pulls the latest app version, which comes only after a functional version exists. The Spidey_PR_Dashboard branch assets/dungeon-kit is only a shared workspace for Oscar's agents.
+
 ---
 
 <p align="center">
@@ -47,7 +51,7 @@ pip install -r requirements.txt
 python overlay.py
 ```
 
-Right-click on screen → **Quit**, or press **ESC**.
+Close the Dungeon window to quit. ESC closes a dock or cancels a drag.
 
 ---
 
@@ -87,12 +91,14 @@ After the copy, the script runs:
 
 | Action | Result |
 |--------|--------|
-| Left-click avatar | Open that avatar's topic in the chat window |
-| Drag avatar | Move it. A short click does not |
-| Right-click avatar | Focus that agent's terminal window |
-| Right-click empty area | Open context menu (Skins / Config / Status / Quit) |
-| Drag HUD panel | Reposition the status box |
-| ESC | Quit |
+| Left-click avatar | Open that avatar's topic in the chat dock |
+| Drag avatar | On Windows, drag past the Dungeon edge to the desktop and release to throw. On Linux and macOS the avatar stays inside |
+| Right-click avatar | Focus that agent's console. On Windows a desktop avatar also offers Go home |
+| Right-click empty area | Does nothing. It does not quit |
+| Door | Windows toolbar and tray. Open: a blocked or error agent may leave, and returns when that clears. Closed: leave only by dragging. Hidden on Linux and macOS |
+| Call home | Windows toolbar and tray. Every desktop avatar walks back |
+| Close the window | Quit |
+| ESC | Close the focused dock, or cancel a drag. It does not quit |
 
 ---
 
@@ -194,6 +200,8 @@ The chat hook is the same script. A payload that carries Grok's own fields, or a
 
 Until a Grok sprite exists, those avatars use the Caine sheet shifted by `grok.hue` degrees (`200` unless `config.json` says otherwise). `grok.skin` picks the base sheet. The HUD row for Grok uses its own mark and color. Details: [docs/grok-sessions.md](docs/grok-sessions.md).
 
+Grok Bot cloud assistants are a separate list. They sit in the Topics dock, grouped by topic, with a status dot. The roster is per-user (`bots/roster.json` in the data directory). Status is pulled from a git branch or a local folder. The app does not open a port for it. Details: [docs/bot-status.md](docs/bot-status.md).
+
 ---
 
 ## Subagent skins
@@ -253,6 +261,7 @@ cli-avatars/
 ├── requirements-build.txt  ← Pinned packages for that build
 ├── events.py               ← Event bus and localhost UDP listener
 ├── bubbles.py              ← Icon bubble layout, queue, and talk count
+├── activity.py             ← Activity sentences from hook tokens (no prompt text)
 ├── meetings.py             ← Walk-to-meet planner (perch or floor)
 ├── portal.py               ← Portal on the meeting point (anchor, frames, sprite)
 ├── cli_avatars_emit.py     ← `python -m cli_avatars_emit` (state / say / inbox / reply / hooks)
@@ -295,7 +304,7 @@ cli-avatars/
 | Version | Focus |
 |---------|-------|
 | v0.4 ✅ | Real sprite sheets, skin picker, hue shift, wall climbing, subagent spring physics |
-| v0.5 | UDP listener, icon speech bubbles, and the meeting walk (F2, F3, F4) |
+| v0.5 | UDP listener, icon speech bubbles, the meeting walk (F2, F3, F4), and activity sentences (BUBBLES) |
 | v0.6 | System tray, sound effects, config file |
 | v1.0 | Tauri port — cross-platform binary, no Python required |
 

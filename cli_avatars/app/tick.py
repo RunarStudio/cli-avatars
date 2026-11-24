@@ -10,7 +10,7 @@
 8. Lingering subagents.
 9. Dying subagents.
 10. Bursts and glitches.
-11. Portal, then talk, decision, and blocked marks.
+11. Portal, then talk, decision, blocked marks, and activity bubbles.
 12. HUD, rooms panel, chat panel.
 13. Schedule the next tick.
 """
@@ -19,6 +19,7 @@ import logging
 import time
 from typing import Any
 
+from cli_avatars.app.overlays import apply_monitor_changes, refresh_overlay_visibility
 from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.desktop.windows import window_moves
 from cli_avatars.tuning import TUNING
@@ -76,7 +77,13 @@ class TickLoop:
 
     def snapshot(self) -> Frame:
         app = self.app
-        agents = app.scanner.get_agents()
+        agents = dict(app.scanner.get_agents())
+        bots = getattr(app, "bots", None)
+        if bots is not None:
+            try:
+                agents.update(bots.dungeon_agents())
+            except Exception:
+                logging.getLogger("cli_avatars.bots").exception("bot roster failed")
         floors, walls, floor_hwnds, win_pos = app.terrain.get_snapshot()
         moves = window_moves(app._last_win_pos, win_pos)
         app._last_win_pos = win_pos
@@ -114,6 +121,7 @@ class TickLoop:
 
     def step(self) -> None:
         started = time.perf_counter()
+        apply_monitor_changes(self.app)
         frame = self.snapshot()
         for name, method in self.ORDER:
             if not self._store_due(name):
@@ -129,6 +137,7 @@ class TickLoop:
                     logging.getLogger(logger).exception(message)
             else:
                 fn(frame)
+        refresh_overlay_visibility(self.app)
         self._note_tick(started)
         self.schedule()
 

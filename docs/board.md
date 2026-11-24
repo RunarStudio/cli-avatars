@@ -18,8 +18,10 @@ One JSON object per card.
 | `assignee` | Optional. An agent id (`inbox.valid_agent_id`), `agent@machine`, or `daniel`. |
 | `column` | `todo`, `doing`, `review`, `done`, `blocked`. |
 | `labels` | At most 8. Each `^[a-z0-9][a-z0-9_-]{0,31}$`. |
-| `pr` | Optional. `https://github.com/<owner>/<repo>/pull/<n>` only. Any other host, scheme, or userinfo is rejected. Not fetched. |
+| `pr` | Optional. `https://github.com/<owner>/<repo>/pull/<n>` only. Any other host, scheme, or userinfo is rejected. **In scope:** Daniel tags a URL here; the app may read that tagged PR only when implemented. **Out of scope (see `README.md` / `TASKS.md` § Scope):** automatic forge, Bitbucket, CI, or review ingestion. |
 | `checklist` | At most 20 `{text, done}`. `text` sanitised, at most 240. |
+| `progress` | Optional int 0–100 (`true` / `50.0` / `"50"` are rejected). `null` means "use the checklist ratio" (`board.model.effective_progress`). |
+| `status_note` | Sanitised, at most 240. The agent's one-line "where I am". Empty by default. |
 | `created`, `updated` | ISO 8601 UTC with `Z`. |
 | `history` | Newest 200 events (below). The full list is in `events.jsonl`. |
 
@@ -39,10 +41,13 @@ Unknown fields are dropped. `token` is never stored.
 | `ts` | ISO 8601 UTC. |
 | `card` | Card UUID, or `null` for a board-level event (a room prompt, see [room-chat.md](room-chat.md)). |
 | `actor` | `daniel`, an agent id, `agent@machine`, or `emit:mcp`. |
-| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`. |
-| `from`, `to` | Optional. Old and new column or assignee. |
+| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`. |
+| `from`, `to` | Optional. Old and new column or assignee; for `progress`, old and new ints 0–100. |
+| `via` | Optional. `mcp`, `hook` or `emit`: the path an agent write came through. Anything else is rejected. |
 | `text` | Optional. Sanitised, at most 2,000. A comment's text lives here. |
 | `notify` | Optional. Up to 8 assignee ids that should get an inbox line for this event. |
+
+A `checklist` event may add `index` (0–19) and `done` (bool). A `status` event carries only `text` (the new status note).
 
 A `prompt` event adds `room`, `target` (`claude`, `grok`, `both`), and `outcome` (`ok`, `error`, `stopped`, `timeout`). It does not copy the prompt text; that is already on the topic channel.
 
@@ -54,6 +59,7 @@ One interface, two stores. The CLI, MCP tools, web API, and chat window call the
 list(project, column?, assignee?) -> [card]
 get(card_id) -> card | None
 put(card) -> card            # validates, sets updated, appends an event
+update(card_id, change) -> card   # LocalStore: read, change(card), write inside one lock; None = no-op
 append_event(event)
 sync() -> result             # GitStore only; LocalStore returns "local"
 ```
@@ -73,6 +79,8 @@ board/
 Same helpers as topics and inbox: `ensure_private_dir` (owner-only, `0700`/`0600` or a user-only ACL on Windows), `directory_lock` on `board/`, and an atomic write (temp file, then `os.replace`, then `_restrict_to_user`). Symlinked files are refused. Card files over 64 KiB and `events.jsonl` over 8 MiB are not read. Lines over 64 KiB are skipped. A trailing partial line is ignored.
 
 ### GitStore
+
+> **Scope (Daniel 2026-11-23):** Git-backed board sync (`BOARD.2`) is out of product scope until Scope changes. This section remains a design reference only. Automatic PR/Bitbucket/CI/review dashboards (Watchtower-style) are not in scope.
 
 In a git working tree, under `.cli-avatars/board/` with the same layout:
 
@@ -112,6 +120,8 @@ One JSON file per card. When two versions of a card meet, the newer `updated` wi
 Detection is a file check only. It does not start git. `board.git_repo` is a local path, so `config.json` with that key set must not be committed. `board.machine` names this machine for `agent@machine`.
 
 ## Git policy
+
+> **Scope:** No automatic ingestion of forge PR metadata, Bitbucket, or CI status. The git steps below apply only if GitStore is implemented; they are user-triggered Sync, not background PR polling.
 
 - Every change is committed locally at once: `git add -- <paths>` then `git commit -m "board: <kind> <card-id>"`.
 - Pull and push happen only on an explicit Sync: the Sync button, or `board sync`. No timer, no hook, no chat message triggers one.

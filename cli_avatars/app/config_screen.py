@@ -1,27 +1,27 @@
 """Config window. Apply writes ``TUNING``. Movers read ``TUNING`` at call time."""
 
 import tkinter as tk
+from dataclasses import replace
 from tkinter import ttk
 
+from activity import bind_settings, bubble_settings
+from cli_avatars.app.bots_ui import build_bots_settings
+from cli_avatars.desktop.settings import desktop_settings, with_bootcheck
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
 
 
 def _open_config_screen(self):
-    if self._config_win and self._config_win.winfo_exists():
-        self._config_win.lift()
-        return
-    win = tk.Toplevel(self.root)
-    win.title("Overlay Config")
-    win.geometry("340x460+300+80")
-    win.resizable(False, False)
-    win.attributes("-topmost", True)
-    win.configure(bg="#0d0d1a")
-    self._config_win = win
-    self._build_config_ui(win)
+    """Select the Settings tab. The screen is not its own window and is not topmost."""
+    dungeon = getattr(self, "dungeon", None)
+    if dungeon is not None:
+        dungeon.show_settings()
 
 
 def _build_config_ui(self, win):
+    from cli_avatars.app.update_ui import mount_update_settings
+
+    mount_update_settings(self, win)
     BG, FG, SEL = "#0d0d1a", "#aaccff", "#223366"
     FONT = ("Courier", 9)
     BFONT = ("Courier", 9, "bold")
@@ -132,6 +132,74 @@ def _build_config_ui(self, win):
                            highlightthickness=0, showvalue=True, length=150,
                            font=("Courier", 7), command=_on_win_alpha).pack(side="left"))
 
+    v_boot = tk.BooleanVar(win, desktop_settings(getattr(self, "config", {})).bootcheck)
+
+    def _save_boot():
+        enabled = bool(v_boot.get())
+        from cli_avatars.app.bootcheck import save_bootcheck_pref
+
+        path = getattr(self, "_config_path", None)
+        if path is not None:
+            save_bootcheck_pref(path, enabled)
+        self.config = with_bootcheck(getattr(self, "config", {}), enabled)
+        desktop = getattr(self, "desktop", None)
+        if desktop is not None:
+            try:
+                self.desktop = replace(desktop, bootcheck=enabled)
+            except TypeError:
+                pass
+
+    def boot_widget(parent):
+        tk.Checkbutton(
+            parent, variable=v_boot, text="on startup", command=_save_boot,
+            bg=BG, fg=FG, selectcolor=SEL, activebackground=BG, activeforeground="white",
+            font=FONT, highlightthickness=0,
+        ).pack(side="left")
+
+    row(td, "Boot check", boot_widget)
+
+    current = getattr(self, "bubbles_cfg", None) or bubble_settings(getattr(self, "config", {}))
+    v_act = tk.BooleanVar(win, current.activity)
+    v_sub = tk.BooleanVar(win, current.subagents)
+    v_dots = tk.BooleanVar(win, current.spring_dots)
+    v_dur = tk.DoubleVar(win, current.duration_s)
+    self._activity_var = v_act
+
+    def _save_bubbles(*_args):
+        settings = bubble_settings({"bubbles": {
+            "activity": bool(v_act.get()),
+            "subagents": bool(v_sub.get()),
+            "spring_dots": bool(v_dots.get()),
+            "duration_s": v_dur.get(),
+        }})
+        bind_settings(self, settings)
+
+    def _bubble_check(parent, var, caption):
+        tk.Checkbutton(
+            parent, variable=var, text=caption, command=_save_bubbles,
+            bg=BG, fg=FG, selectcolor=SEL, activebackground=BG, activeforeground="white",
+            font=FONT, highlightthickness=0,
+        ).pack(side="left")
+
+    def _bubble_row(label, widget_fn):
+        host = tk.Frame(td, bg=BG, pady=3)
+        host.pack(fill="x", padx=12)
+        tk.Label(host, text=label, bg=BG, fg=FG, font=FONT, width=22, anchor="w").pack(side="left")
+        widget_fn(host)
+
+    _bubble_row("Activity bubbles", lambda p: _bubble_check(p, v_act, "on"))
+    _bubble_row("Show on subagents", lambda p: _bubble_check(p, v_sub, "too"))
+    _bubble_row("Spring dots", lambda p: _bubble_check(p, v_dots, "on"))
+
+    def _duration(parent):
+        tk.Spinbox(
+            parent, textvariable=v_dur, from_=1, to=12, increment=0.5,
+            command=_save_bubbles, bg=SEL, fg=FG, insertbackground=FG,
+            font=FONT, width=6, relief="flat",
+        ).pack(side="left")
+
+    _bubble_row("Bubble seconds", _duration)
+
     tk.Frame(td, bg="#223366", height=1).pack(fill="x", padx=12, pady=(10, 4))
 
     def _rescan_floors():
@@ -143,6 +211,9 @@ def _build_config_ui(self, win):
         bg=SEL, fg=FG, activebackground="#334477", activeforeground="white",
         font=FONT, relief="flat", padx=10, pady=4, cursor="hand2")
     rescan_btn.pack(pady=6)
+
+    tbots = tab(" Bots ")
+    build_bots_settings(self, tbots)
 
     # ── Tab 3: Behavior ───────────────────────────────────────────
     tb = tab(" Behavior ")

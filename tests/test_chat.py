@@ -501,14 +501,15 @@ class TestModuleBoundary(unittest.TestCase):
         for name in ("tkinter", "pywinctl", "pystray", "eval(", "exec(", "subprocess", "os.system"):
             self.assertNotIn(name, text)
 
-    def test_hud_button_sits_next_to_rooms_and_has_a_send_box(self):
+    def test_chat_dock_sits_in_the_dungeon_and_has_a_send_box(self):
         root = Path(__file__).resolve().parent.parent
-        hud = (root / "cli_avatars" / "app" / "hud_window.py").read_text(encoding="utf-8")
+        dungeon = (root / "cli_avatars" / "app" / "dungeon_panes.py").read_text(encoding="utf-8")
         chat = (root / "cli_avatars" / "app" / "chat.py").read_text(encoding="utf-8")
         bubbles_src = (root / "cli_avatars" / "app" / "bubbles_view.py").read_text(encoding="utf-8")
-        rooms_btn = hud.index('text="Rooms"')
-        chat_btn = hud.index('text="Chat"')
-        self.assertLess(rooms_btn, chat_btn)
+        topics = dungeon.index('text="Topics"')
+        chat_btn = dungeon.index('text="Chat"')
+        self.assertLess(topics, chat_btn)
+        self.assertIn('text="Pop out"', dungeon)
         self.assertIn("ChatWindow(", chat)
         text = (root / "chat_window.py").read_text(encoding="utf-8")
         self.assertIn("ChannelTail(", text)

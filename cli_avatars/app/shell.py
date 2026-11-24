@@ -14,7 +14,10 @@ import threading
 import tkinter as tk
 from typing import Optional
 
+from activity import bubble_settings
 from bundle_paths import asset_path
+from cli_avatars import VERSION
+from cli_avatars.app.bootcheck import start_bootcheck
 from cli_avatars.app.bubbles_view import (
     BubblesView,
     _draw_blocked_marks,
@@ -23,8 +26,12 @@ from cli_avatars.app.bubbles_view import (
 )
 from cli_avatars.app.chat import ChatController
 from cli_avatars.app.config_screen import ConfigScreen
+from cli_avatars.app.desktop_follow import start as start_desktop_follow
+from cli_avatars.app.dungeon_window import DungeonWindow
 from cli_avatars.app.hud_window import HudWindow
 from cli_avatars.app.input import InputController
+from cli_avatars.app.overlays import OverlayBoard, read_monitors
+from cli_avatars.app.places import PlaceBook
 from cli_avatars.app.pool import PoolController
 from cli_avatars.app.portal_view import PortalView, _draw_portal
 from cli_avatars.app.render import RenderController
@@ -33,11 +40,14 @@ from cli_avatars.app.rooms_panel import RoomsPanel
 from cli_avatars.app.skin_picker import PICK, PICK_ANIMS, PICK_FRAME_MS, SkinPicker
 from cli_avatars.app.subagents import SubagentController
 from cli_avatars.app.tick import TickLoop
+from cli_avatars.app.update_ui import mount_update_status
+from cli_avatars.desktop.capabilities import desktop_escape_available
 from cli_avatars.desktop.focus import focus_linked_console
+from cli_avatars.desktop.settings import desktop_settings
 from cli_avatars.desktop.tray import setup_tray
 from cli_avatars.paths import CONFIG_PATH, images_dir
 from cli_avatars.sprites.registry import REGISTRY, load_sprites
-from cli_avatars.tuning import CHROMA_KEY, TUNING
+from cli_avatars.tuning import TUNING
 from cli_avatars.world.scanner import SessionScanner
 from cli_avatars.world.terrain import WindowTerrain
 from portal import PortalPlayer
@@ -46,7 +56,7 @@ from routing import PointerGesture
 
 
 class OverlayApp:
-    TITLE = "AI Agent Overlay"
+    TITLE = "Dungeon"
     PICK = PICK
     PICK_ANIMS = PICK_ANIMS
     PICK_FRAME_MS = PICK_FRAME_MS
@@ -62,6 +72,8 @@ class OverlayApp:
     def __init__(self):
         self._config_path = CONFIG_PATH
         self.config = load_config(self._config_path)
+        self.desktop = desktop_settings(self.config)
+        self.bubbles_cfg = bubble_settings(self.config)
         self._subskin_rng = random.Random()
         self._rooms_shown = rooms_from_config(self.config)
         self._rooms_win = None
@@ -69,6 +81,20 @@ class OverlayApp:
         self._rooms_sig = None
         self._rooms_thumbs = {}
         self._rooms_warns = {}
+        self._bot_photos = []
+        self._bot_vars = []
+        try:
+            from chat_window import install_bot_redactor
+            install_bot_redactor()
+        except Exception:
+            print("[WARN] Bot status redaction did not install")
+        try:
+            from bots.service import BotService
+            self.bots = BotService()
+            self.bots.start()
+        except Exception:
+            print("[WARN] Bot roster did not start")
+            self.bots = None
         self._rooms_drag = None
         self._chat_shown = False
         self._chat_win = None
@@ -91,24 +117,15 @@ class OverlayApp:
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
         self.sw, self.sh = sw, sh
-
-        self.root.geometry(f"{sw}x{sh}+0+0")
-        self.root.overrideredirect(True)
-        self.root.wm_attributes("-topmost", True)
-        self.root.wm_attributes("-alpha", TUNING.overlay_alpha)
-        self.root.config(bg=CHROMA_KEY)
-        self.root.wm_attributes("-transparentcolor", CHROMA_KEY)
-
-        self.canvas = tk.Canvas(
-            self.root, width=sw, height=sh,
-            bg=CHROMA_KEY, highlightthickness=0, bd=0)
-        self.canvas.pack(fill="both", expand=True)
+        # The root is the Dungeon. Overlay canvases are created per monitor.
+        self.canvas = None
 
         self.scanner = SessionScanner()
         self.scanner._grok_config = self.config
         self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
         self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict = {}
+        self._inside: dict = {}
         self.sub_avatars: dict = {}   # parent_id → [sub Avatar, …]
         self._lingering_subs: list = []         # task-done subs waiting to float away
         self._dying_subs: list = []             # closing subchat, dying row then gone
@@ -147,19 +164,43 @@ class OverlayApp:
         self.config_screen = ConfigScreen(self)
         self.tick_loop = TickLoop(self)
 
-        # Bindings
-        self.canvas.bind("<Button-3>", self._on_right_click)
-        self.root.bind("<Escape>", lambda e: self._quit())
-        self.canvas.bind("<ButtonPress-1>", self._on_left_press)
-        self.canvas.bind("<B1-Motion>", self._on_left_drag)
-        self.canvas.bind("<ButtonRelease-1>", self._on_left_release)
-        self.canvas.bind("<Double-Button-1>", self._on_double_click)
+        self.desktop_escape = desktop_escape_available()
+        self.dungeon = DungeonWindow(self)
+        self.dungeon.build()
+        self.overlays = OverlayBoard(self)
+        found = read_monitors()
+        try:
+            self.overlays.sync(found, self.desktop)
+            screen, monitors = self.overlays.screen((0, 0, self.sw, self.sh))
+            self.terrain.set_world(screen, monitors)
+            self.terrain.note_monitors(found, self.desktop.monitor_poll_s)
+            self.dungeon.place(found)
+        except Exception as exc:
+            print(f"[WARN] Monitor layout: {exc}")
+            try:
+                self.overlays._enter_legacy()
+            except Exception:
+                pass
+            self.dungeon.place([])
+
+        self.places = PlaceBook(self)
+        self.places.attach()
+        try:
+            self.dungeon._door_btn.config(text=f"Door: {self.places.door()}")
+        except Exception:
+            pass
 
         threading.Thread(target=self.scanner.loop, daemon=True).start()
         threading.Thread(target=self.terrain.loop, daemon=True).start()
 
         # Load sprites and set up UI in background so window appears immediately
         threading.Thread(target=self._deferred_init, daemon=True).start()
+        try:
+            start_bootcheck(self)
+        except Exception:
+            print("[WARN] Boot check did not start")
+        mount_update_status(self)
+        start_desktop_follow(self)
         self._tick()
 
     def _deferred_init(self):
@@ -167,12 +208,30 @@ class OverlayApp:
             load_sprites(REGISTRY)
         self.root.after(0, self._load_bubble_icon)
         self.root.after(0, self._create_hud_win)
-        self.root.after(0, self._setup_tray)
+        try:
+            from cli_avatars.update.tools import probe_tools
+
+            toolchain = probe_tools()
+        except Exception:
+            toolchain = None
+        self.root.after(0, lambda: self._finish_update_probe(toolchain))
 
     def _tick(self):
         self.tick_loop.step()
 
     def _quit(self):
+        places = getattr(self, "places", None)
+        if places is not None:
+            try:
+                places.save_now()
+            except Exception:
+                pass
+        dungeon = getattr(self, "dungeon", None)
+        if dungeon is not None:
+            try:
+                dungeon.save_now()
+            except Exception:
+                pass
         events = getattr(getattr(self, "scanner", None), "_events", None)
         if events is not None:
             events.close()
@@ -184,8 +243,8 @@ class OverlayApp:
         self.root.quit()
 
     def run(self) -> None:
-        print(f"[AI Overlay v0.4] {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
-        print("[AI Overlay] Drag HUD | R-Click avatar=terminal | R-Click empty=quit | ESC=quit")
+        print(f"[Dungeon v{VERSION}] overlay {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")
+        print("[Dungeon] Close the window to quit. ESC closes a dock or cancels a drag.")
         self.root.mainloop()
 
     # Pool / spring. Names stay so a bare ``OverlayApp.__new__`` still runs them.
@@ -232,6 +291,20 @@ class OverlayApp:
 
     def _bring_all_to_front(self):
         return self._ctrl("hud", HudWindow)._bring_all_to_front()
+
+    def _finish_update_probe(self, toolchain) -> None:
+        from cli_avatars.app.update_ui import apply_probe
+        from cli_avatars.update.machine import Toolchain
+
+        if toolchain is None:
+            toolchain = Toolchain(None, (), False, "Could not check git and PyInstaller")
+        apply_probe(self, toolchain)
+        self._setup_tray()
+
+    def _update_app(self):
+        from cli_avatars.app.update_ui import start_update
+
+        start_update(self)
 
     def _setup_tray(self):
         return setup_tray(self)
@@ -368,6 +441,36 @@ class OverlayApp:
 
     def _on_right_click(self, event):
         return self._ctrl("pointer", InputController).on_right_click(event)
+
+    def _door_label(self, _item=None) -> str:
+        book = getattr(self, "places", None)
+        door = book.door() if book is not None and hasattr(book, "door") else "open"
+        return f"Door: {door}"
+
+    def _toggle_door(self) -> None:
+        book = getattr(self, "places", None)
+        if book is not None:
+            book.toggle_door()
+
+    def _call_home(self) -> None:
+        book = getattr(self, "places", None)
+        if book is not None:
+            book.call_everyone()
+
+    def _on_scene_press(self, event):
+        return self._ctrl("pointer", InputController).on_scene_press(event)
+
+    def _on_scene_drag(self, event):
+        return self._ctrl("pointer", InputController).on_scene_drag(event)
+
+    def _on_scene_release(self, event):
+        return self._ctrl("pointer", InputController).on_scene_release(event)
+
+    def _on_scene_double(self, event):
+        return self._ctrl("pointer", InputController).on_scene_double(event)
+
+    def _on_scene_right(self, event):
+        return self._ctrl("pointer", InputController).on_scene_right(event)
 
     def _focus_linked_console(self, pid):
         return focus_linked_console(pid)

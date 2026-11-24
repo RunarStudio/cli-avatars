@@ -6,6 +6,7 @@ No GUI imports — unit tests can load this module on Linux.
 
 import json
 import os
+import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
@@ -95,6 +96,15 @@ _ERROR_SUBTYPES = frozenset({
     "error_max_budget_usd",
     "error_max_structured_output_retries",
 })
+
+
+def _tool_basename(tool_input: object) -> str:
+    """File basename from a tool-use input. The path and the command are dropped."""
+    try:
+        from activity import basename_from_tool_input
+    except Exception:
+        return ""
+    return basename_from_tool_input(tool_input)
 
 
 def _line_blocked(line: str) -> bool:
@@ -188,6 +198,32 @@ def _result_failed(line: str) -> Optional[bool]:
     return False
 
 
+# Working folders of live sessions, for the memory map's link edges and
+# "never read" (MEMMAP.4). Memory only: never written, never shown, never sent.
+LIVE_CWD_MAX = 32
+LIVE_CWD_TTL = STALE_AFTER
+_live_cwds: dict = {}
+_live_cwds_lock = threading.Lock()
+
+
+def remember_cwd(cwd, now: Optional[float] = None) -> None:
+    if not isinstance(cwd, str) or not cwd.strip() or len(cwd) > 1024 or "\x00" in cwd:
+        return
+    stamp = time.time() if now is None else now
+    with _live_cwds_lock:
+        _live_cwds.pop(cwd, None)
+        _live_cwds[cwd] = stamp
+        while len(_live_cwds) > LIVE_CWD_MAX:
+            _live_cwds.pop(next(iter(_live_cwds)))
+
+
+def live_cwds(now: Optional[float] = None) -> list:
+    """Working folders seen in the last ``LIVE_CWD_TTL`` seconds, newest first."""
+    stamp = time.time() if now is None else now
+    with _live_cwds_lock:
+        return [cwd for cwd, seen in reversed(_live_cwds.items()) if stamp - seen <= LIVE_CWD_TTL]
+
+
 def _folder_in_text(text: str) -> str:
     """First ``cwd`` folder name in ``text``. The rest of the path is dropped."""
     for line in text.splitlines():
@@ -200,6 +236,7 @@ def _folder_in_text(text: str) -> str:
         if isinstance(obj, dict):
             folder = project_folder(obj.get("cwd"))
             if folder:
+                remember_cwd(obj.get("cwd"))
                 return folder
     return ""
 
@@ -222,6 +259,7 @@ class SessionInfo:
     parent_id:      Optional[str] = None
     project:        str   = ""
     failed:         bool  = False
+    file:           str   = ""
 
 
 class SessionSource(ABC):
@@ -253,7 +291,7 @@ class ClaudeJsonlSource(SessionSource):
                 if time.time() - f.stat().st_mtime > STALE_AFTER:
                     continue
                 aid = f.stem[:8]
-                status, tool, failed = self._parse_tail(f)
+                status, tool, failed, basename = self._parse_tail(f)
                 sub_dir = f.parent / f.stem / "subagents"
                 if sub_dir.exists():
                     cutoff = time.time() - SUBAGENT_FRESH
@@ -269,12 +307,13 @@ class ClaudeJsonlSource(SessionSource):
                     skin="__new__", is_demo=False,
                     workspace_hash=f.parent.name,
                     source=self.name, parent_id=None,
-                    project=self._project_name(f), failed=failed))
+                    project=self._project_name(f), failed=failed,
+                    file=basename))
             except Exception:
                 pass
         return found
 
-    def _parse_tail(self, path) -> tuple[str, str, bool]:
+    def _parse_tail(self, path) -> tuple[str, str, bool, str]:
         try:
             with open(path, "rb") as f:
                 size = f.seek(0, 2)
@@ -287,28 +326,29 @@ class ClaudeJsonlSource(SessionSource):
                     # walk returns the newest marker.
                     ended = _result_failed(line)
                     failed = bool(ended) if ended is not None else False
-                    return BLOCKED, "", failed
+                    return BLOCKED, "", failed, ""
                 ended = _result_failed(line)
                 if ended is not None:
                     # A finished turn wins over the word "tool_use" inside its text.
-                    return IDLE, "", ended
+                    return IDLE, "", ended, ""
                 if '"tool_use"' in line:
                     try:
                         obj = json.loads(line)
                         for block in obj.get("message", {}).get("content", []):
                             if isinstance(block, dict) and block.get("type") == "tool_use":
                                 name = block.get("name", "")
-                                return BUSY, name if isinstance(name, str) else "", False
+                                tool = name if isinstance(name, str) else ""
+                                return BUSY, tool, False, _tool_basename(block.get("input"))
                     except Exception:
                         pass
-                    return BUSY, "", False
+                    return BUSY, "", False, ""
                 if '"thinking"' in line:
-                    return THINKING, "", False
+                    return THINKING, "", False, ""
                 if _prompt_or_tool_result(line):
-                    return THINKING, "", False
+                    return THINKING, "", False, ""
         except Exception:
             pass
-        return IDLE, "", False
+        return IDLE, "", False, ""
 
     def _project_name(self, path) -> str:
         """Folder name from a ``cwd`` field. The path itself is not kept."""
@@ -715,6 +755,8 @@ class GrokBuildSource(SessionSource):
                 return None
             cwd = _summary_cwd(summary, cwd_hint)
             project = project_folder(cwd)
+            if project:
+                remember_cwd(cwd)
             title = _summary_title(summary)
             status, tool, failed = grok_state_from_updates(_read_tail(updates_path))
             subs, child_ids = self._subagents(session)

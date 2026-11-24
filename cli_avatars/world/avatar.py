@@ -22,6 +22,7 @@ from cli_avatars.tuning import (
     WALL_CLIMB_SPEED,
     WALL_MARGIN,
 )
+from cli_avatars.world.monitors import contain_walker, dpi_body, ground_floors, monitor_at, monitor_factor
 
 
 class Avatar:
@@ -78,6 +79,35 @@ class Avatar:
                 return w, h
         return AVATAR_W, AVATAR_H
 
+    def _monitor_dpi(self) -> int:
+        """DPI under the feet. No layout, or a miss, stays at 96 so the sheet size holds."""
+        layout = getattr(self, "monitor_layout", None)
+        if layout is None:
+            return 96
+        try:
+            ident = monitor_at(layout, self.x + self.aw / 2.0, self.y + self.ah - 1.0)
+        except Exception:
+            return 96
+        if not ident:
+            return 96
+        monitor = layout.monitor(ident) if hasattr(layout, "monitor") else None
+        dpi = getattr(monitor, "dpi", 96)
+        return int(dpi) if dpi else 96
+
+    def _scaled_image(self, image):
+        factor = monitor_factor(self._monitor_dpi())
+        if factor <= 1 or not hasattr(image, "resize"):
+            return image
+        width = int(getattr(image, "width", 0) or 0)
+        height = int(getattr(image, "height", 0) or 0)
+        if width < 1 or height < 1:
+            return image
+        try:
+            from PIL import Image
+        except ImportError:
+            return image
+        return image.resize((width * factor, height * factor), Image.NEAREST)
+
     def _foot_pad(self):
         """Empty rows under the sprite's feet (sprite_loader measures them per sheet)."""
         if self.registry and hasattr(self.registry, "get_foot_pad"):
@@ -107,8 +137,10 @@ class Avatar:
         # Dying plays in place. No gravity, no leash, no walk.
         if getattr(self, "_dying", False):
             return
-        self.aw, self.ah = self._sprite_size()
-        fh = self.ah - self._foot_pad()   # feet height: physics uses this, drawing uses ah
+        base_w, base_h = self._sprite_size()
+        dpi = self._monitor_dpi()
+        self.aw, self.ah = dpi_body(base_w, base_h, dpi)
+        fh = self.ah - self._foot_pad() * monitor_factor(dpi)
         last_fh = getattr(self, "_last_fh", fh)
         if self.on_ground and fh != last_fh:
             self.y -= fh - last_fh        # animation changed: keep the feet on the floor
@@ -173,7 +205,14 @@ class Avatar:
         nx = self.x + self.vx
         ny = self.y + self.vy
 
-        all_floors = floors + [(0, self.sh-2, self.sw, self.sh)]
+        layout = getattr(self, "monitor_layout", None)
+        if layout is not None and getattr(layout, "monitors", None):
+            extra = ground_floors(layout)
+        else:
+            layout = None
+            extra = [(0, self.sh - 2, self.sw, self.sh)]
+        was_ground = self.on_ground
+        all_floors = list(floors) + extra
         self.on_ground = False
         self.perch_hwnd = None
         for i, (fx1, fy, fx2, _) in enumerate(all_floors):
@@ -212,10 +251,25 @@ class Avatar:
                             self._wall_climb = (wx, wy1, wy2)
                             break
 
-        if nx < 0:
-            nx, self.vx, self.dir = 0.0, abs(self.vx), 1
-        elif nx > self.sw - self.aw:
-            nx, self.vx, self.dir = float(self.sw-self.aw), -abs(self.vx), -1
+        if layout is None:
+            if nx < 0:
+                nx, self.vx, self.dir = 0.0, abs(self.vx), 1
+            elif nx > self.sw - self.aw:
+                nx, self.vx, self.dir = float(self.sw - self.aw), -abs(self.vx), -1
+        else:
+            step = contain_walker(
+                layout, self.x, self.y, nx, ny, self.vx, self.vy, self.aw, fh,
+                on_ground=was_ground or self.on_ground,
+                cross=bool(getattr(self, "cross_monitors", True)),
+                fly=bool(self.spring_mode and child_flight_mode(self) == "fly"),
+            )
+            nx, ny = step.x, step.y
+            self.vx, self.vy = step.vx, step.vy
+            if step.facing:
+                self.dir = step.facing
+            # A step up, or a clamp onto the work-area ground, leaves the feet there.
+            if step.vy == 0.0 and ny < self.y - 0.5:
+                self.on_ground = True
 
         self.x, self.y = nx, ny
 
@@ -239,7 +293,7 @@ class Avatar:
         """
         mirror = self.dir < 0
         frame = self.frame if isinstance(self.frame, int) and not isinstance(self.frame, bool) else 0
-        scale = float(TUNING.avatar_scale)
+        scale = float(TUNING.avatar_scale) * monitor_factor(self._monitor_dpi())
         skin = str(getattr(self.agent, "skin", "") or "")
         hue = 0
         base, sep, tail = skin.rpartition("_h")
@@ -265,7 +319,7 @@ class Avatar:
         if registry is not None and hasattr(registry, "get_image"):
             image = registry.get_image(self.agent.skin, self._anim_status, frame, mirror=mirror)
             if image is not None:
-                return image
+                return self._scaled_image(image)
         elif registry is not None and hasattr(registry, "get_photo"):
             photo = registry.get_photo(self.agent.skin, self._anim_status, frame, mirror=mirror)
             if photo is not None:
@@ -273,11 +327,76 @@ class Avatar:
         return make_photo(self.color, self.agent.status, frame, mirror=mirror)
 
     def draw(self, canvas: object, photos: object = None) -> None:
+        board = getattr(self, "_board", None)
+        if board is not None and not getattr(board, "legacy", True):
+            targets = board.targets(self.x, self.y, self.aw, self.ah)
+            if targets:
+                seen = set()
+                first = None
+                for key, target, ox, oy in targets:
+                    seen.add(key)
+                    ink = self._ink(key)
+                    ink["canvas"] = target
+                    self._paint(target, photos, ink, ox, oy)
+                    if first is None:
+                        first = ink
+                if first is not None:
+                    self._adopt(first)
+                self._drop_inks(seen)
+                return
+        ink = {
+            "spr": self.spr_id,
+            "lbl": self.lbl_id,
+            "sig": getattr(self, "_draw_sig", None),
+            "mode": getattr(self, "_spr_mode", "none"),
+            "photo": self._photo,
+            "canvas": canvas,
+        }
+        self._paint(canvas, photos, ink, 0, 0)
+        self._adopt(ink)
+
+    def _ink(self, key: str) -> dict:
+        inks = getattr(self, "_inks", None)
+        if inks is None:
+            self._inks = {}
+            inks = self._inks
+        if key not in inks:
+            inks[key] = {
+                "spr": None, "lbl": None, "sig": None,
+                "mode": "none", "photo": None, "canvas": None,
+            }
+        return inks[key]
+
+    def _adopt(self, ink: dict) -> None:
+        self.spr_id = ink["spr"]
+        self.lbl_id = ink["lbl"]
+        self._draw_sig = ink["sig"]
+        self._spr_mode = ink["mode"]
+        self._photo = ink["photo"]
+
+    def _drop_inks(self, keep: set) -> None:
+        inks = getattr(self, "_inks", None) or {}
+        for key in list(inks):
+            if key in keep:
+                continue
+            ink = inks.pop(key)
+            target = ink.get("canvas")
+            if target is None:
+                continue
+            for iid in (ink.get("spr"), ink.get("lbl")):
+                if iid:
+                    try:
+                        target.delete(iid)
+                    except Exception:
+                        pass
+
+    def _paint(self, canvas: object, photos: object, ink: dict, ox: float, oy: float) -> None:
+        """Draw one sprite. ``ox, oy`` is that monitor's top-left in virtual px."""
         registry = self.registry
         if registry is not None and hasattr(registry, "ensure_hue_variant"):
             # TODO(Caine art): load the configured Grok hue the first time it draws.
             registry.ensure_hue_variant(self.agent.skin)
-        px, py = int(self.x), int(self.y)
+        px, py = int(self.x - ox), int(self.y - oy)
         if getattr(self, "_dying", False):
             pose = getattr(self, "_dying_pose", None) or {}
             frame = pose.get("frame", 0)
@@ -287,20 +406,12 @@ class Avatar:
                 py += frame * 2
         sc = STATUS_COLOR.get(self.agent.status, "#aaaaaa")
         key = self.photo_key()
-        if self.spring_mode:
-            label = self.agent.name
-        else:
-            pfx = "[D] " if self.agent.is_demo else ""
-            parts = [f"{pfx}{self.agent.name}", self.agent.status]
-            if self.agent.tool:
-                parts.append(f"→{self.agent.tool[:10]}")
-            if self.agent.subagents > 0:
-                parts.append(f"⚡{self.agent.subagents}")
-            label = "\n".join(parts)
+        label = self.plate_text()
         fill = "#7799cc" if (self.agent.is_demo or self.spring_mode) else "white"
         dash = (4, 2) if (self.agent.is_demo or self.spring_mode) else ()
-        sig = (px, py, self.aw, self.ah, key, label, fill, sc, dash)
-        if sig == getattr(self, "_draw_sig", None) and self.spr_id and self.lbl_id:
+        box = getattr(self, "_label_box", None)
+        sig = (px, py, self.aw, self.ah, key, label, fill, sc, dash, box)
+        if sig == ink["sig"] and ink["spr"] and ink["lbl"]:
             return
         if photos is not None:
             photo = photos.get(key, self.sprite_image)
@@ -308,46 +419,70 @@ class Avatar:
             photo = self.sprite_image()
 
         if photo:
-            if self._spr_mode == "rect" and self.spr_id:
-                canvas.delete(self.spr_id)
-                self.spr_id = None
-            self._spr_mode = "image"
-            self._photo = photo
-            if self.spr_id:
-                canvas.coords(self.spr_id, px, py)
-                canvas.itemconfig(self.spr_id, image=self._photo)
+            if ink["mode"] == "rect" and ink["spr"]:
+                canvas.delete(ink["spr"])
+                ink["spr"] = None
+            ink["mode"] = "image"
+            ink["photo"] = photo
+            if ink["spr"]:
+                canvas.coords(ink["spr"], px, py)
+                canvas.itemconfig(ink["spr"], image=ink["photo"])
             else:
-                self.spr_id = canvas.create_image(px, py, image=self._photo, anchor="nw")
+                ink["spr"] = canvas.create_image(px, py, image=ink["photo"], anchor="nw")
         else:
-            if self._spr_mode == "image" and self.spr_id:
-                canvas.delete(self.spr_id)
-                self.spr_id = None
-            self._spr_mode = "rect"
-            if self.spr_id:
-                canvas.coords(self.spr_id, px,py,px+self.aw,py+self.ah)
-                canvas.itemconfig(self.spr_id, fill=self.color, outline=sc, dash=dash)
+            if ink["mode"] == "image" and ink["spr"]:
+                canvas.delete(ink["spr"])
+                ink["spr"] = None
+            ink["mode"] = "rect"
+            if ink["spr"]:
+                canvas.coords(ink["spr"], px, py, px + self.aw, py + self.ah)
+                canvas.itemconfig(ink["spr"], fill=self.color, outline=sc, dash=dash)
             else:
-                self.spr_id = canvas.create_rectangle(
-                    px,py,px+self.aw,py+self.ah,
+                ink["spr"] = canvas.create_rectangle(
+                    px, py, px + self.aw, py + self.ah,
                     fill=self.color, outline=sc, width=2, dash=dash)
 
-        lx = px + self.aw//2
-        ly = py - 14
-        if self.lbl_id:
-            canvas.coords(self.lbl_id, lx, ly)
-            canvas.itemconfig(self.lbl_id, text=label, fill=fill)
+        box = getattr(self, "_label_box", None)
+        if box and len(box) == 4:
+            left, top, bw, bh = box
+            lx = int(left + bw / 2 - ox)
+            ly = int(top + bh / 2 - oy)
         else:
-            self.lbl_id = canvas.create_text(
+            lx = px + self.aw // 2
+            ly = py - 14
+        if ink["lbl"]:
+            canvas.coords(ink["lbl"], lx, ly)
+            canvas.itemconfig(ink["lbl"], text=label, fill=fill)
+        else:
+            ink["lbl"] = canvas.create_text(
                 lx, ly, text=label,
                 font=("Courier", 7, "bold"),
                 fill=fill,
                 justify="center")
-        self._draw_sig = sig
+        ink["sig"] = sig
+
+    def plate_text(self) -> str:
+        """The nameplate. A spring child is just the name. The rest is status, tool, and count."""
+        if self.spring_mode:
+            return self.agent.name or ""
+        pfx = "[D] " if self.agent.is_demo else ""
+        parts = [f"{pfx}{self.agent.name}", self.agent.status]
+        if self.agent.tool:
+            parts.append(f"→{self.agent.tool[:10]}")
+        if getattr(self.agent, "subagents", 0) > 0:
+            parts.append(f"⚡{self.agent.subagents}")
+        line = getattr(self.agent, "status_line", "")
+        if isinstance(line, str) and line:
+            parts.append(line[:32])
+        return "\n".join(parts)
 
     def cleanup(self, canvas: object) -> None:
-        for iid in [self.spr_id, self.lbl_id]:
-            if iid:
-                canvas.delete(iid)
+        if getattr(self, "_inks", None):
+            self._drop_inks(set())
+        else:
+            for iid in [self.spr_id, self.lbl_id]:
+                if iid:
+                    canvas.delete(iid)
         for iid in getattr(self, "_elastic_ids", None) or []:
             if iid:
                 canvas.delete(iid)

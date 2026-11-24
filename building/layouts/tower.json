@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "name": "tower",
+  "tiling": "16",
+  "theme": {"name": "dungeon"},
+  "rooms": [
+    {
+      "slot": 0,
+      "floor": 0,
+      "origin": [36, 36],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b01-losa", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 1,
+      "floor": 0,
+      "origin": [43, 36],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b03-losa-oscura", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 2,
+      "floor": 0,
+      "origin": [36, 42],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b02-losa-clara", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 3,
+      "floor": 0,
+      "origin": [43, 42],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b01-losa", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]},
+      "stairs": [
+        {"piece": "b20-escalera-der", "at": [5, 5]}
+      ]
+    },
+    {
+      "slot": 4,
+      "floor": 1,
+      "origin": [24, 24],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b01-losa", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 5,
+      "floor": 1,
+      "origin": [31, 24],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b03-losa-oscura", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 6,
+      "floor": 1,
+      "origin": [24, 30],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b02-losa-clara", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 7,
+      "floor": 1,
+      "origin": [31, 30],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b01-losa", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]},
+      "stairs": [
+        {"piece": "b20-escalera-der", "at": [5, 5]}
+      ]
+    },
+    {
+      "slot": 8,
+      "floor": 2,
+      "origin": [12, 12],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b01-losa", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 9,
+      "floor": 2,
+      "origin": [19, 12],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b03-losa-oscura", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 10,
+      "floor": 2,
+      "origin": [12, 18],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b02-losa-clara", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 11,
+      "floor": 2,
+      "origin": [19, 18],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b01-losa", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]},
+      "stairs": [
+        {"piece": "b20-escalera-der", "at": [5, 5]}
+      ]
+    },
+    {
+      "slot": 12,
+      "floor": 3,
+      "origin": [0, 0],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b01-losa", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 13,
+      "floor": 3,
+      "origin": [7, 0],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b03-losa-oscura", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 14,
+      "floor": 3,
+      "origin": [0, 6],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b02-losa-clara", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    },
+    {
+      "slot": 15,
+      "floor": 3,
+      "origin": [7, 6],
+      "size": [7, 6],
+      "structure": [
+        {"piece": "b01-losa", "at": [0, 0], "span": [7, 6]},
+        {"piece": "b12-esquina", "at": [0, 0]},
+        {"piece": "b09-muro-der", "at": [1, 0], "span": [2, 1]},
+        {"piece": "b09-muro-der", "at": [4, 0], "span": [2, 1]},
+        {"piece": "b18-remate-der", "at": [6, 0]},
+        {"piece": "b08-muro-izq", "at": [0, 1], "span": [1, 4]},
+        {"piece": "b17-remate-izq", "at": [0, 5]},
+        {"piece": "b24-antorcha-der", "at": [5, 0]},
+        {"piece": "b23-antorcha-izq", "at": [0, 3]}
+      ],
+      "circle": {"piece": "o09-circulo-magico", "at": [1, 1], "spot": [1, 1]},
+      "desks": [
+        {"piece": "o14-mesa-con-vela", "at": [4, 1], "spot": [4, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [6, 1], "spot": [6, 2]},
+        {"piece": "o14-mesa-con-vela", "at": [4, 4], "spot": [4, 5]}
+      ],
+      "sub_spots": {"offsets": [[-1, 0], [-1, -1]], "max_per_desk": 2},
+      "plaque": {"at": [2, 0], "wall": "right"},
+      "light_points": [[3, 3]],
+      "door": {"piece": "b16-puerta-der", "at": [3, 0], "side": "right"},
+      "prop_slots": {"chest": [1, 4], "skull": [6, 4], "bench": [1, 3]}
+    }
+  ]
+}

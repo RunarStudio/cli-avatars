@@ -87,7 +87,7 @@ virtual px  x=-2560              x=0                    x=1920        x=3000
 ```mermaid
 stateDiagram-v2
     [*] --> inside: new agent
-    inside --> escaping: drag past client edge / roam rule
+    inside --> escaping: drag past client edge, or door open and blocked or error
     escaping --> desktop: portal done (<= 1.2 s)
     desktop --> returning: drop on Dungeon / Call home / rule resolved / idle_return_s
     returning --> inside: door reached
@@ -95,6 +95,9 @@ stateDiagram-v2
     inside --> [*]: agent gone
     desktop --> [*]: agent gone (burst, as today)
 ```
+
+Wander ("let them roam free") is not on this diagram. It is WIN-DUNGEON.8,
+and it still requires the door to be open.
 
 ---
 
@@ -118,7 +121,7 @@ stateDiagram-v2
 
 ```text
 +-------------------------------------------------------------------------------+
-| [pin] [zoom auto] [roam: attention] [Call home]                     Dungeon _ x|
+| [pin] [zoom auto] [door: open] [Call home]                      Dungeon _ x|
 +------------+--------------------------------------------------+---------------+
 | Topics     |  [ Dungeon | Skins ]                              | [Chat|Settings]|
 | (rooms     |                                                   |               |
@@ -137,7 +140,7 @@ stateDiagram-v2
 | Chat (4) | Right dock tab "Chat", collapsible, with **Pop out** | `ChatWindow` takes a parent container; pop out re-parents into a framed `Toplevel` whose box is remembered (today's `chat.window`). Avatar click opens the dock tab, not a new window. |
 | Config (6) | Right dock tab "Settings" | `_build_config_ui(win)` already takes a container. Not topmost. |
 | Skins picker (5) | Central tab "Skins" beside "Dungeon" | `_build_picker_ui(win)` already takes a container. The picker's own frame timer stops when the tab is hidden. |
-| Tray (7) | Kept: Show Dungeon, Let them roam, Call home, Quit | Callbacks still go through `root.after(0, …)`. |
+| Tray (7) | Kept: Show Dungeon, Door open/closed, Call home, Quit | Callbacks still go through `root.after(0, …)`. "Let them roam" waits for WIN-DUNGEON.8. |
 | Building window (8) | The central "Dungeon" tab | BLDG.2 becomes a widget (`app/building_view.py`), not a `Toplevel`. |
 
 After this work the app shows **one** normal window plus the overlays (which are invisible and
@@ -147,6 +150,9 @@ withdrawn when they hold no avatar). The only optional extra is the popped-out c
 
 - Monitor signature: first 12 hex characters of SHA-1 over the sorted list of
   `(rcMonitor, dpi, is_primary)`. No device names, no user data.
+  Canonical text, from WIN-DUNGEON.1: rows sorted by
+  `(left, top, right, bottom, dpi, primary)` with primary as `1` or `0`,
+  each row `left,top,right,bottom,dpi,primary`, rows joined with `;`.
 - Stored per signature: client rect in virtual px, `normal`/`zoomed`, zoom, pan, dock widths,
   open tabs. At most 8 signatures, least recently used dropped.
 - On start and on a layout change: use the stored entry for the current signature. Otherwise
@@ -169,7 +175,7 @@ withdrawn when they hold no avatar). The only optional extra is the popped-out c
 | Drag in | Releasing a dragged desktop avatar with the pointer inside the Dungeon client rect, where no other window covers that point (4.3), starts `returning`. |
 | Walk in | Walking into the Dungeon rect does **not** return an avatar. The Dungeon's top frame edge is a perch, so avatars can sit on the roof of their home. |
 | Call home | Toolbar / tray button: every desktop avatar returns. Right-click menu on one avatar: "Go home". |
-| Auto rules | `dungeon.roam` (decision B): `off`; `attention` (default): an agent that turns `blocked` or `error` escapes to get attention and returns when the state clears; `all` ("let them roam"): agents escape after 30–120 s at their spot and return after a random walk. |
+| Door | Decision B. Daniel opens and closes the Dungeon door. Default **open** (the old recommended `attention` behaviour). **Open:** an agent that turns `blocked` or `error` may escape and returns when that state clears. **Closed:** avatars leave only when dragged out. Drag-out works in both positions. "Let them roam free" is WIN-DUNGEON.8 and does nothing while the door is closed. |
 | Idle | A desktop avatar idle for `dungeon.idle_return_s` (300 s, today's vanish time) returns home instead of vanishing (decision E). |
 | Monitor removed | Avatars on that monitor return home. |
 | Linux / macOS | Always `inside` (5.6). |
@@ -178,9 +184,15 @@ withdrawn when they hold no avatar). The only optional extra is the popped-out c
 
 Uses kit and existing pieces only; no new art required.
 
-- Escape (≤ 1.2 s): walk from the spot to the room's `door.at` (BLDG-SCHEMA) at walk speed,
-  capped at 0.6 s; the door tile swaps to the open arch (`b13-arco-izq` / `b14-arco-der`, matching
-  `door.side`) for the duration; the sprite fades out at the door. On the desktop side,
+- The door is a control as well as a tile (decision B). While Daniel leaves it open, the
+  door shows the open arch (`b13-arco-izq` / `b14-arco-der`, matching `door.side`). While
+  closed, it shows the closed door (`b15-puerta-izq` / `b16-puerta-der`). The toggle itself
+  lands in WIN-DUNGEON.6, not in the monitor step.
+- Escape (≤ 1.2 s) runs for a drag-out in either door position, and for a `blocked` or
+  `error` agent only while the door is open. Walk from the spot to the room's `door.at`
+  (BLDG-SCHEMA) at walk speed, capped at 0.6 s. A drag through a closed door swaps in the
+  open arch for that one crossing, then the door closes again. The sprite fades out at the
+  door. On the desktop side,
   `portal.PortalPlayer` opens just outside the Dungeon client rect at the border point nearest the
   door's screen position; the avatar steps out and falls to the nearest floor.
 - Return: the portal opens at the avatar's position, the avatar shrinks into it (existing burst),
@@ -217,7 +229,8 @@ Uses kit and existing pieces only; no new art required.
 `desktop/monitors.py` (ctypes, guarded like the rest of `desktop/`):
 `EnumDisplayMonitors` + `GetMonitorInfoW` (`rcMonitor`, `rcWork`, primary flag) +
 `GetDpiForMonitor(MDT_EFFECTIVE_DPI)`. Returns plain `Monitor(id, rect, work, dpi, primary)`
-records; `id` is a short hash of the device name, stable while the monitor stays plugged in.
+records; `id` is the first 8 hex characters of SHA-1 over the UTF-8 device name, stable
+while the monitor stays plugged in. The name is not stored.
 
 `world/monitors.py` (pure, no Tk, no ctypes) turns a list of monitors into:
 
@@ -235,6 +248,17 @@ records; `id` is a short hash of the device name, stable while the monitor stays
 Example (section 2): M2→M1 passes on `y 0..1080`, but M2's ground (1080) is 48 px below M1's
 ground (1032, taskbar) so the avatar steps up. M1→M3 passes on `y 0..1080`, step down 48 px.
 Throwing an avatar up off M1 hits a ceiling at `y = 0` (dead zone above).
+
+WIN-DUNGEON.1 builds this in `world/monitors.py` from plain records (no Tk, no ctypes).
+`desktop/monitors.py` enumerates and hashes; it does not import world.
+Grounds run along `work.bottom` from `work.left` to `work.right` (auto-hide means
+`work == rect`). Throw ceilings are `rect.top`, with a gap where another monitor's
+`rect.bottom` touches that top, so a throw can still cross a taskbar band.
+Walkers clamp into `rcWork`. A shared edge needs a real overlap (`lo < hi`); a corner
+point and a 1 px gap are not passable. The step-up limit is `step_up_px` times the
+**destination** factor. Factor is round-half-up of `dpi / 96`, at least 1 (150% is 2,
+250% is 3). Rects are closed, so feet on `y == work.bottom` count as on that monitor.
+A point outside every rect snaps to the nearest rect and an outward velocity flips.
 
 ### 5.2 One overlay per monitor (decision D)
 
@@ -288,7 +312,7 @@ RDP sessions, lock screen and a laptop lid close go through the same path.
 | Linux X11 | Full | Off: no colour-key transparency in Tk; window terrain is partial already | `winfo_vrootwidth` only |
 | Linux Wayland | Full | Off: no global coordinates | — |
 
-Where escape is off, the roam control and "Go home" are hidden and every avatar stays `inside`.
+Where escape is off, the door control and "Go home" are hidden and every avatar stays `inside`.
 This is better than today, where Linux and macOS get an opaque or broken full-screen overlay.
 
 ---
@@ -332,7 +356,7 @@ ignored and replaced with defaults. Nothing here holds titles, paths or chat tex
   "dungeon": {
     "topmost": false,
     "zoom": "auto",
-    "roam": "attention",
+    "door": "open",
     "idle_return_s": 300,
     "escape_anim": true
   },
@@ -349,13 +373,17 @@ ignored and replaced with defaults. Nothing here holds titles, paths or chat tex
 |-----|--------|---------|
 | `dungeon.topmost` | bool | `false` |
 | `dungeon.zoom` | `"auto"`, 1, 2, 3 | `"auto"` |
-| `dungeon.roam` | `"off"`, `"attention"`, `"all"` | `"attention"` |
+| `dungeon.door` | `"open"`, `"closed"` | `"open"` |
 | `dungeon.idle_return_s` | 30–3600 | 300 |
 | `dungeon.escape_anim` | bool | `true` |
 | `desktop.overlay_monitors` | `"all"`, `"primary"`, or a list of monitor ids | `"all"` |
 | `desktop.cross_monitors` | bool; `false` keeps each avatar on the monitor it escaped to | `true` |
 | `desktop.step_up_px` | 0–256 (× monitor factor) | 96 |
 | `desktop.monitor_poll_s` | 0.5–10 | 1.0 |
+
+`dungeon.roam` is not a v1 key. WIN-DUNGEON.8 adds `dungeon.wander` (bool, default `false`):
+while the door is open, agents may also leave after 30–120 s at their spot. A closed door
+ignores wander.
 
 Invalid values fall back to the default, the same way `subskins.skin_settings` treats bad input.
 Window geometry is runtime state, so it goes in 7.1, not in `config.json`. Today `chat.window`
@@ -409,7 +437,7 @@ Follows the layers in `architecture.md` section 3.
 | `cli_avatars/desktop/monitors.py` | desktop | Win32 monitor enumeration, DPI, signature |
 | `cli_avatars/desktop/clickthrough.py` | desktop | `WS_EX_TRANSPARENT` toggle per hwnd |
 | `cli_avatars/world/monitors.py` | world (pure) | Grounds, ceilings, shared edges, step up, clamp |
-| `cli_avatars/model/place.py` | model (pure) | Place state machine and roam rules |
+| `cli_avatars/model/place.py` | model (pure) | Place state machine. Door open: `blocked` / `error` may escape. Door closed: drag-out only. Wander is WIN-DUNGEON.8. |
 | `cli_avatars/app/dungeon_window.py` | app | Root window, docks, toolbar, status bar, geometry store |
 | `cli_avatars/app/building_view.py` | app | BLDG.2 scene renderer as a widget, uses `render.PhotoCache` |
 | `cli_avatars/app/dungeon_map.py` | app (pure math) | Scene ↔ virtual mapping |
@@ -427,13 +455,14 @@ overlay run clean.
 
 | ID | Owner | Size | Work | Done when | Visual check |
 |----|-------|------|------|-----------|--------------|
-| WIN-DUNGEON.1 | @pixel | S | `desktop/monitors.py` and pure `world/monitors.py` (5.1); signature. | Headless tests on fake layouts: section 2 example, monitor above, monitor left with negative origin, different heights, corner-only touch, side taskbar, auto-hide. `python -m cli_avatars.desktop.monitors` prints the live layout. | Screenshot of the smoke output, plus a debug PNG of the layout with grounds and passable edges. |
+| WIN-DUNGEON.1 | @pixel | S | `desktop/monitors.py` and pure `world/monitors.py` (5.1); signature. | Headless tests on fake layouts: section 2 example, monitor above, monitor left with negative origin, different heights, corner-only touch, side taskbar, auto-hide. `python -m cli_avatars.desktop.monitors` prints the live monitors and the signature. `python -m cli_avatars.world.monitors --png layout.png` prints grounds, ceilings and passable edges and writes the debug PNG. Desktop does not import world. | Screenshot of the smoke output, plus a debug PNG of the layout with grounds and passable edges. |
 | WIN-DUNGEON.2 | @pixel | M | One overlay per monitor (5.2–5.5); avatars in virtual px; terrain over all monitors; drag clamp to the monitor union; hot-plug polling. Dungeon not yet involved. | On two monitors an avatar walks across a shared edge, steps up onto a taskbar, stops at a non-shared edge; unplugging a monitor moves its avatars; `desktop.overlay_monitors: "primary"` restores today's behaviour. | GIF of an avatar walking M1→M2 and falling to the lower ground. |
-| WIN-DUNGEON.3 | @pixel | M | Dungeon root window (3.1–3.3): framed, resizable, pin, close = quit, ESC change, tray items; docks for Topics, Chat (with pop out), Settings, Skins; status bar replaces the HUD; geometry per signature in the data dir. Scene area shows an empty dungeon floor. | The app shows one normal window plus overlays; a relaunch restores size and position per monitor setup; text tests (`test_rooms`, `test_chat`, `test_topics`) repointed; selftest builds the Dungeon off-screen. | Screenshot of the Dungeon with all docks; GIF of a relaunch restoring the window on M2. |
+| WIN-DUNGEON.3 | @pixel | M | Dungeon root window (3.1–3.3): framed, resizable, pin, close = quit, ESC change, tray items; docks for Topics, Chat (with pop out), Settings, Skins; status bar replaces the HUD; geometry per signature in the data dir. Scene area shows an empty dungeon floor. The door toggle is not in this step. | The app shows one normal window plus overlays; a relaunch restores size and position per monitor setup; text tests (`test_rooms`, `test_chat`, `test_topics`) repointed; selftest builds the Dungeon off-screen. | Screenshot of the Dungeon with all docks; GIF of a relaunch restoring the window on M2. |
 | WIN-DUNGEON.4 | @agents | M | Scene in the Dungeon: `building_view.py` renders BLDG.1 scene JSON with zoom auto and pan; inside actors at their spots; click opens the chat dock, double-click focuses the console. | 4 rooms render at 2× matching `docs/building/room_layout_tile4.png`; actors change rows and lights with state; scene draw ≤ 6 ms median. | Screenshot next to `room_layout_tile4.png`. |
-| WIN-DUNGEON.5 | @pixel | M | `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. | Unit tests: place transitions, mapping with negative origins and zoom 1–3, occlusion, persistence round trip. Manual: drag out onto M2, drag back in; restart keeps a desktop avatar on M2. | GIF of a drag out and back in, with a subagent following. |
-| WIN-DUNGEON.6 | @agents | S | Escape and return animations (4.2): door, arch swap, portal at the border, size hand-off, child stagger; roam rules; `idle_return_s`; Call home. | A `blocked` agent escapes and returns when it clears, each ≤ 1.2 s; no line crosses the border; `roam: off` keeps everyone inside. | GIF of an auto-escape on `blocked` and the return. |
-| WIN-DUNGEON.7 | @pixel | S | Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. | Clicks pass through empty overlay space on every monitor and still hit avatars; Dungeon text stays the right size when moved between 100 % and 150 %; a Linux run shows the Dungeon with avatars inside and no roam control. | GIF clicking a window behind the overlay; two screenshots of the Dungeon at 100 % and 150 %. |
+| WIN-DUNGEON.5 | @pixel | M | `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. Drag-out works with the door open or closed; the door control does not exist yet. | Unit tests: place transitions, mapping with negative origins and zoom 1–3, occlusion, persistence round trip. Manual: drag out onto M2, drag back in; restart keeps a desktop avatar on M2. | GIF of a drag out and back in, with a subagent following. |
+| WIN-DUNGEON.6 | @agents | S | Door toggle lands here (toolbar and tray), default open. Escape and return animations (4.2): arch while open, brief arch on a drag through a closed door, portal, size hand-off, child stagger. While open, `blocked` and `error` escape and return when the state clears. While closed, only a drag leaves. `idle_return_s`. Call home. Not wander. | Door open: a `blocked` agent escapes and returns when it clears, each ≤ 1.2 s. Door closed: that agent stays inside until dragged out. No line crosses the border. | GIF of the door closing, a blocked agent staying in, then a drag-out. |
+| WIN-DUNGEON.7 | @pixel | S | Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. | Clicks pass through empty overlay space on every monitor and still hit avatars; Dungeon text stays the right size when moved between 100 % and 150 %; a Linux run shows the Dungeon with avatars inside and no door control. | GIF clicking a window behind the overlay; two screenshots of the Dungeon at 100 % and 150 %. |
+| WIN-DUNGEON.8 | @agents | S | Last, low priority. `dungeon.wander` (default false): while the door is open, agents may also leave after 30–120 s at their spot and return after a random walk. A closed door blocks it. | Door open and wander on: an agent idle at its spot leaves and comes back. Door closed: nobody wanders. | GIF of a free roam out and back. |
 
 Dependencies:
 
@@ -447,24 +476,19 @@ Dependencies:
   separate `Toplevel`. WIN-DUNGEON.4 is BLDG.2 retargeted; track them as one piece of work.
 - **CLICK-THROUGH** (`@agents` in TASKS.md) is absorbed by WIN-DUNGEON.7, or done first on the
   single overlay and then adapted in .7.
-- CHAT-BLOCKED feeds the `attention` roam rule; without it, only `error` triggers an escape.
-- Order: .1 → .2 and .3 (parallel after SPLIT.5) → .4 (after BLDG.1) → .5 → .6 → .7.
+- CHAT-BLOCKED feeds the open-door escape rule; without it, only `error` triggers an escape while the door is open.
+- Order: .1 → .2 and .3 (parallel after SPLIT.5) → .4 (after BLDG.1) → .5 → .6 (door toggle) → .7 → .8 (wander, low priority, last).
 
 ---
 
-## 11. Open decisions
+## 11. Decisions
 
-A. **Close button.** Closing the Dungeon quits the app (recommended), or hides it to the tray
-   while desktop avatars keep running.
+Daniel approved these on 23/11/2026. They replace the open list.
 
-B. **Auto-escape default.** `attention`: only `blocked` and `error` agents escape, and return when
-   the state clears (recommended); or `off` (escape only by drag); or `all` (let them roam).
-
-C. **Chat placement.** Docked on the right with a Pop out button (recommended), or always a
-   separate window as today.
-
-D. **Monitors.** Overlays on all monitors with walking across shared edges (recommended), or the
-   primary monitor only.
-
-E. **Idle desktop avatars.** After 5 minutes idle they walk home to the Dungeon (recommended),
-   or vanish with the burst as today.
+| ID | Decision |
+|----|----------|
+| A | Closing the Dungeon quits the app. Desktop avatars vanish with the existing burst. |
+| B | The Dungeon has a door Daniel can open and close. Default **open**, which keeps the old recommended attention behaviour. **Open:** `blocked` and `error` agents may escape to the desktop and return when that state clears. **Closed:** avatars leave only when dragged out. "Let them roam free" is WIN-DUNGEON.8, last and low priority, and a closed door still blocks it. The toggle lands in WIN-DUNGEON.6. |
+| C | Chat is docked as a right tab with a Pop out button. |
+| D | Overlays on all monitors. Avatars cross only where edges touch (5.1). A corner touch and a dead zone are not crossings. |
+| E | A desktop avatar idle for 5 minutes (`dungeon.idle_return_s` = 300) walks home to the Dungeon. |

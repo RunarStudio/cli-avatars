@@ -11,6 +11,12 @@ updated: 2026-11-19
 > Live task list for the `zz_cli_avatars/` overlay project.
 > Full context: [[Project - CLI Avatars]] · Architecture: `CLAUDE.md` · Reference: `AI_OVERLAY.md`
 
+## Scope
+
+CLI Avatars helps Daniel manage tasks, follow the chats tied to each task and juggle many topics without overwhelm. It is not Watchtower and does not use Bitbucket or git PR data. The only PR-related features allowed: (a) reading a PR that Daniel explicitly tags on a task, and (b) an "Update version" button that pulls the latest app version, which comes only after a functional version exists. The Spidey_PR_Dashboard branch assets/dungeon-kit is only a shared workspace for Oscar's agents.
+
+Process items (SYNC-COPY, PORT-AG, MIGRATE-REPO) are team workflow, not product features, and stay in scope.
+
 ---
 
 ## How tasks are tagged
@@ -33,6 +39,9 @@ Every task line is `- [ ] [EPIC][type] ID: description` (or `- [x]` when it is d
 | BOARD | Task board: cards, local and git stores, CLI and MCP tools |
 | WEB | Phone web view: LAN server, pairing, mobile pages |
 | BLDG | Building view: dungeon-kit scene in Tk and on the web |
+| BOOTCHECK | Startup checks on this PC: sprites, config, window, history |
+| INSTALL | Per-user Windows install and the in-app dev update |
+| BOTS | Grok Bot roster: groups in the Topics dock, pull-only status |
 
 ### Types (`[type]`)
 
@@ -55,19 +64,50 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 | Epic | Done | Open |
 |------|------|------|
-| CHAT | 7 | 7 (subtasks 0/7) |
+| CHAT | 7 | 8 (subtasks 4/13) |
 | SRC | 6 | 4 (subtasks 0/3) |
 | MCP | 1 | 3 |
-| OVL | 19 | 8 (subtasks 2/3) |
+| OVL | 22 | 8 (subtasks 2/3) |
 | ART | 7 | 6 (subtasks 4/9) |
 | BUILD | 1 | 2 (subtasks 0/1) |
 | WS | 1 | 1 |
 | DOCS | 6 | 16 (subtasks 0/9) |
 | TAURI | 0 | 4 |
-| BOARD | 0 | 1 (subtasks 0/4) |
+| BOARD | 1 | 2 (subtasks 2/10) |
 | WEB | 0 | 1 (subtasks 0/4) |
 | BLDG | 1 | 3 (subtasks 0/3) |
-| **Total** | 49 | 56 |
+| BOOTCHECK | 1 | 0 |
+| INSTALL | 4 | 0 |
+| BOTS | 5 | 0 |
+| **Total** | 63 | 58 |
+
+## Boot check
+
+Local startup checks during the first two seconds. The Dungeon stays responsive. See `docs/bootcheck.md`.
+
+- [x] [BOOTCHECK][feat] BOOTCHECK: Run read-only startup checks within 2.0 s, show `Boot check N/N ok` on the Dungeon status bar, open the list in the Settings dock, and append `bootcheck_history.jsonl` (cap 200) with a trend against the previous run. `desktop.bootcheck` defaults on. `--bootcheck-only` prints the table and exits 0 or 1.
+  - Windows check 2026-11-23: 655 pass, `test_bootcheck` 8 ok, selftest ok, `--bootcheck-only` 14/14 in 0.6 s (`dungeon_window` about 610 ms in CLI mode). Live status `Boot check 14/14 ok · 0.0 s · faster`. History has no paths.
+
+## Install and update
+
+Per-user Windows install and an in-app update from `dev`. See `docs/install-and-update.md`. The channel is `dev`. Git uses credentials already configured on the machine. The app does not read or store them.
+
+- [x] [INSTALL][feat] INSTALL-PACK: Onedir PyInstaller spec (`packaging/cli_avatars.spec`), Inno Setup per-user installer (`packaging/installer.iss`, `{localappdata}\Programs\CLI Avatars`, Start menu, optional desktop shortcut), and `tools/build_installer.py`. Version comes from `cli_avatars/__version__.py` plus the short commit. App data stays in the existing data directory and is removed on uninstall only when the checkbox is ticked.
+- [x] [INSTALL][feat] INSTALL-UPDATE: `cli_avatars/update/` clones `dev` once under the data directory `src/`, fetches, compares `origin/dev` with the installed commit, and on a fast-forward runs `git pull --ff-only`, selftest, `--bootcheck-only`, and a PyInstaller staging build. A helper swaps the install directory on restart and rolls back to `.old` when the new build fails `--bootcheck-only`. Fixed argv, `shell` false, timeouts, output in `update.log`.
+- [x] [INSTALL][feat] INSTALL-UI: Settings dock shows version, commit, last checked, and Update app. The tray has the same item. Progress is on the status bar. The button is disabled, with a reason, when git or PyInstaller is missing. The boot-check status line includes the version and commit; history already stores both.
+- [x] [INSTALL][chore] INSTALL-WIN: On SpiderHost, build from a temp clone and install only into a temp directory (`/DIR` plus `CLI_AVATARS_DATA_DIR`). Do not install into the real Programs folder unless that run is separate. Needs PyInstaller (`requirements-build.txt`) and Inno Setup 6.6 or newer (`ISCC`) on that machine, and git on `PATH` before Update app enables. The frozen status line should show the short commit from `version.json`.
+  - Windows check 2026-11-23 (86dfce2): 732 pass, 0 fail; official build ok; installed app shows `0.4.0 86dfce25e51b`; Update app enabled; uninstall left app data.
+
+## Bots
+
+Grok Bot cloud assistants in the Topics dock, grouped by topic, with pull-only status. The roster stays in the per-user data directory. See `docs/bot-status.md`.
+
+- [x] [BOTS][feat] BOTS.1 @pixel: Roster `bots/roster.json` (groups and bots), id-free example, Settings editing for add, rename, reorder, collapse, assign, and import.
+- [x] [BOTS][feat] BOTS.2 @pixel: Topics dock Bots area. Collapsible groups, 40×40 hue-shifted skins, name, status dot, and Show group in Dungeon. A floor area is used when the floor exposes one; otherwise the group is a cluster.
+- [x] [BOTS][feat] BOTS.3 @pixel: Pull-only `bots/status_source.py`. Git fetch on an interval (minimum 30 s) with fixed argv, `shell=False`, and existing git credentials. Strict status JSON, redaction, stale offline. No listening port.
+- [x] [BOTS][docs] BOTS.4 @pixel: `docs/bot-status.md` file format and the write contract (one small JSON per bot, only on change, at most once per 2 minutes, generic text).
+- [x] [BOTS][feat] BOTS.5 @pixel: Tests for roster schema and migration, grouping, status clamping and staleness, the fetch scheduler, and the no-network fallback.
+  - Windows check 2026-11-23 (18b5094): 722 pass. BOTS.1 through BOTS.5.
 
 ## 📦 Portable Windows build
 
@@ -380,8 +420,8 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
   - `python -m cli_avatars_mcp install` is a dry-run. `--apply` backs up, then merges the Claude user config and `~/.grok/config.toml`. `uninstall` removes only that registration. Nothing in a tool argument is executed.
   - Docs: `docs/mcp.md`.
 
-- [ ] [MCP][feat] MCP-M2 @agents: Project, requirements, and key-value writes <!-- id: MCP-M2 -->
-- [ ] [MCP][feat] MCP-M3 @agents: Local memories add and search <!-- id: MCP-M3 -->
+- [x] [MCP][feat] MCP-M2 @agents: Project, requirements, and key-value writes (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) (SpiderHost green b688c8f) <!-- id: MCP-M2 -->
+- [x] [MCP][feat] MCP-M3 @agents: Local memories add and search (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) (SpiderHost green b688c8f) <!-- id: MCP-M3 -->
 
 ## 🔵 v0.5 — Tauri Port
 
@@ -391,6 +431,25 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 - [ ] [TAURI][feat] TAURI-SIDECAR: Rust sidecar for window enumeration (faster than pywinctl)
 - [ ] [TAURI][feat] TAURI-BINARY: Cross-platform binary (no Python install required)
 - [ ] [TAURI][feat] TAURI-UPDATE: Auto-update mechanism
+
+---
+
+## BUBBLES
+
+One short sentence above an orchestrator. The words come from structured events. A prompt, a command, a full path, and a person's message are not shown. Icon bubbles stay icon-only.
+
+- [x] [OVL][feat] BUBBLES.1: Local templates from state, tool name, file basename, subagent count, and task id. `redact_secrets` and `sanitize_text` run first. Lines cap at 32 characters. Subagent events roll up to the parent session (first 8 characters).
+- [x] [OVL][feat] BUBBLES.2: Hold about 4 s, one new line per avatar per 3 s, Stop hides at once, overlap steps up or hides. The same sentence follows the avatar in the Dungeon and on the desktop overlay. Overlay bubbles are in the click-through hit test. Optional dots on the spring line.
+- [x] [OVL][feat] BUBBLES.3: Settings dock and tray toggle. `bubbles.activity` defaults on, `bubbles.subagents` defaults off, `bubbles.duration_s` is 1–12 and defaults to 4, `bubbles.spring_dots` defaults on.
+  - Windows check 2026-11-23 (5707b68): 721 pass. BUBBLES.1, BUBBLES.2, and BUBBLES.3.
+  - Windows check 2026-11-23 (2256dbc): layout follow-up. 784 ran, 0 failed, 7 Windows-only skips. Demo first paint and a later shot pass every layout check.
+
+## Out of scope (Daniel 2026-11-23)
+
+Product features only (see Scope). Team process items remain on the board elsewhere.
+
+- [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit, which must also reject absolute paths (drive letters, `/home/`, `/Users/`, UNC) like the BOARD.1 redactor and the harness path scrub. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
+- [ ] [SRC][feat] NOTIFY.2 @agents: Machine id in the data dir; agents addressed as agent@machine; the git store relays notes for other machines on their next Sync. (M) (pending Daniel confirmation: git used only as storage/sync, not PR data)
 
 ---
 
@@ -468,7 +527,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
   - [ ] [DOCS][chore] SYNC-COPY.4 @pixel: after the batch 2 ports. (S)
 - [ ] [DOCS][chore] PORT-AG @pixel: Recurring: one run per merged Agents PR. Opus review as untrusted data (never run its scripts; check secrets, paths, network/process code, shell=True, prompts in argv, CLI starts without user action, license, PNG size/palette, JSON vs BLDG-SCHEMA), port branch off dev, Windows test, PR to dev. Ports that add process launching, network listeners or git push/pull wait for a manual merge.
   - [x] [DOCS][chore] PORT-AG1 @pixel: Review and port AG-1 (Spidey PR #23) into docs/building/. (S) (daily 2026-11-23)
-  - [ ] [DOCS][chore] PORT-AG2 @pixel: Review and port AG-2..AG-4 assets and data. (S)
+  - [x] [DOCS][chore] PORT-AG2 @pixel: Review and port AG-2..AG-4 assets and data. (S) (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) (SpiderHost green b688c8f)
 - [ ] [DOCS][decision] MIGRATE-REPO: Move Agents' workspace from Spidey assets/dungeon-kit to a new private repo. Daniel decides when and where.
   - [ ] [DOCS][chore] MIGRATE-REPO.1 @pixel: Once the repo exists and Agents has access: copy cli-avatars/, update AGENTS_BRIEF.md, the PORT and SYNC paths and the loop routine; leave a pointer in the old folder. (S)
 - [ ] [DOCS][decision] JUANJO-ACCESS: Read access to JuanjoAvila/Edificio-de-IAs-beta (or a zip) and a license line from Juanjo. Ideas only until then.
@@ -481,7 +540,7 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 
 ### 💬 Chat tree and sending
 
-- [ ] [CHAT][feat] CHAT-HARNESS-READ @agents: Read agent specs from each harness (Claude Code user and project agents, hooks config; Grok harness) read-only, as data. New module harness.py, with tests. (M)
+- [x] [CHAT][feat] CHAT-HARNESS-READ @agents: Read agent specs from each harness (Claude Code user and project agents, hooks config; Grok harness) read-only, as data. New module harness.py, with tests. (M) (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) (SpiderHost green b688c8f)
 - [x] [CHAT][feat] CHAT-TREE @pixel: Recursive tree project → orchestrator → agents → subagents at any depth, built from live sessions, with a pluggable spec source that CHAT-HARNESS-READ fills; stable node ids; one API for rooms, Building and web. (M) (daily 2026-11-23)
 - [x] [CHAT][feat] CHAT-BLOCKED @pixel: New 'blocked' agent state (waiting on a decision, permission or reply), emitted on the bus and shown in the HUD and rooms. (S) (daily 2026-11-23)
 - [ ] [CHAT][feat] CHAT-COUNTS @agents: Counts of orchestrators, agents, subagents, conversations and open topics per project and in total, from CHAT-TREE. (S)
@@ -503,13 +562,11 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
 ### 📋 Board (no Slack)
 
 - [ ] [BOARD][feat] BOARD: Local task board of cards linked to topics. No Slack.
-  - [ ] [BOARD][feat] BOARD.1 @agents: board/ package, Card model and LocalStore in the per-user data dir (owner-only ACL, directory lock, atomic writes), tests. (M)
-  - [ ] [BOARD][feat] BOARD.2 @agents: GitStore (one JSON file per card, union-merged events.jsonl), store auto-detect, local commits, pull/push only on explicit Sync, secret scan before commit. (M)
+  - [x] [BOARD][feat] BOARD.1 @agents: board/ package, Card model and LocalStore in the per-user data dir (owner-only ACL, directory lock, atomic writes), tests. Optional `pr` field: GitHub URL Daniel tags on the card only; read that tagged PR when implemented — no automatic forge/CI fetch. (M) (wip/integrate-27: Spidey #27 @ dbc7374 plus Opus fixes — event-append rollback mapped to `EventRejected('io')`, shared top-level `redaction.py`, 64 KiB + 1 line dropped, AWS secret and password-prose redaction)
   - [ ] [BOARD][feat] BOARD.3 @agents: cli-avatars-emit board add|list|show|move|assign, and MCP tools board_list, card_get, card_add, card_move. (M)
   - [ ] [BOARD][feat] BOARD.4 @agents: Board tab in ChatWindow: columns, filter by topic and project, move a card (after SPLIT.4). (M)
 - [ ] [SRC][feat] NOTIFY: Grok and Claude on this machine get board, inbox and decision news.
   - [ ] [SRC][feat] NOTIFY.1 @agents: The chat hook adds the agent's open cards to the SessionStart / UserPromptSubmit context block (capped at 2,000 chars). (S)
-  - [ ] [SRC][feat] NOTIFY.2 @agents: Machine id in the data dir; agents addressed as agent@machine; the git store relays notes for other machines on their next Sync. (M)
   - [ ] [SRC][feat] NOTIFY.3 @agents: cli-avatars-emit doctor: dry-run check of the hook, MCP registration, token and UDP port. Prints fixes, writes nothing. (S)
 
 ### 📱 Phone view
@@ -527,21 +584,46 @@ Owners since 23/11/2026: `@pixel` (organization, specs, prerequisites, security-
   - [ ] [BLDG][feat] BLDG.2 @agents: Tk Building window (a Toplevel): 2x integer scale, cached room bitmaps with lights prebaked by Pillow, avatars redrawn on top (after SPLIT.4). (L)
   - [ ] [BLDG][feat] BLDG.3 @agents: Web Building view: canvas renderer of the same scene JSON, additive lights, live over SSE. (M)
 - [x] [BLDG][docs] AG-1 @agents: Room layout and state→kit map (Spidey PR #23). Port pending: PORT-AG1.
-- [ ] [ART][art] AG-2 @agents: Five sprites: counts wall plaque, 4 small state halos, +n badge, avatar rows for error and blocked.
-- [ ] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format.
-- [ ] [ART][docs] AG-4 @agents: Sprites/dungeon_kit/manifest.json: anchor, footprint, category and light flag for each piece.
+- [x] [ART][art] AG-2 @agents: Five sprites: counts wall plaque, 4 small state halos, +n badge, avatar rows for error and blocked. (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) (SpiderHost green b688c8f)
+- [x] [BLDG][docs] AG-3 @agents: 4-room and 16-room building layouts as JSON in the BLDG-SCHEMA format. The Dungeon floor pane now draws compact.json with the kit (structure only: no state lights, plaque counts or badges yet). On the rooms floor an avatar's visible body fits 40·s px (subagent markers 32·s), s = rooms scale; the desktop size is unchanged. (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) (SpiderHost green b688c8f)
+- [x] [ART][docs] AG-4 @agents: Sprites/dungeon_kit/manifest.json: anchor, footprint, category and light flag for each piece. (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) (SpiderHost green b688c8f)
+
+### 🗂️ Task backend and memory map
+
+See [`docs/task-backend-and-memory-map.md`](docs/task-backend-and-memory-map.md) (design, mockup `docs/img/dungeon-tasks-memmap-mockup.png`). Order and fit with WIN-DUNGEON.4–.8: section 5.1 of that doc.
+
+- [x] [BOARD][decision] TASKBACK-DEC: Daniel approved every recommended default A–M in section 6 of docs/task-backend-and-memory-map.md (2026-11-23).
+- [ ] [BOARD][feat] TASKBACK: One registry owns tasks (board cards), topics and chats; AIs only change status and progress through a narrow Agent API; chat dock calls one CLI or the topic orchestrator.
+  - [x] [BOARD][chore] TASKBACK.1 @pixel: Port BOARD.1 (board/model.py, board/store.py, tests) from Spidey PR #27 via PORT-AG; amend docs/board.md with `progress`, `status_note`, kinds `progress`/`status`, optional `via`. Done when the ported and new board tests pass and bad progress/via values are rejected. (S) (wip/integrate-27, on the dbc7374 board)
+  - [x] [BOARD][feat] TASKBACK.2 @pixel: `registry/` package: full API, AgentApi, policy (agent transitions, ownership, rate limits), lock order. Security-critical. Done when tests prove agents cannot create (switch off), delete, retitle, reassign, reach `done` or touch cards they do not own, and two processes serialise on one card. (after TASKBACK.1) (M) (wip/integrate-27, rebased onto the dbc7374 board; tick after the Windows check) (SpiderHost green b688c8f)
+  - [ ] [BOARD][feat] TASKBACK.3 @agents: MCP tools task_list, task_get, task_status, task_progress, task_check, topic_state; emit `task status|progress|check`; task_propose behind `registry.agents_may_create`. Replaces the MCP half of BOARD.3. Done when every tool is tested, calls AgentApi only, and docs/mcp.md lists them. (after TASKBACK.2 and the MCP-M2 port) (M)
+  - [ ] [BOARD][feat] TASKBACK.4 @agents: Repoint emit, MCP say, the hook note and chat send to the registry; agent updates show as one `emit:registry` thread line; folds in NOTIFY.1 (open cards with progress in the hook context, 2,000 chars). Done when existing tests stay green and a progress call shows one line. (after TASKBACK.2) (S)
+  - [ ] [BOARD][feat] TASKBACK.5 @agents: Tasks centre tab in the Dungeon (BOARD.4 retargeted): columns, filters, Daniel's edits and drag, live agent updates, card click opens Chat. Done when selftest builds it off-screen, a move writes one `moved` event, and draw is ≤ 2 ms. (after TASKBACK.2 and WIN-DUNGEON.4) (M)
+  - [ ] [BOARD][feat] TASKBACK.6 @agents: Chat dock task card and target chip (Orchestrator via inbox or resume, one-shot Claude/Grok, Both); `prompt` event carries the card id; runner header gains the task lines. Done when fake-CLI tests show constant argv, the card line in the header, and no process from the inbox path or a status update. (after ROOM-CHAT.1/.3/.4, CHAT-SEND-CLAUDE) (M)
+- [ ] [CHAT][feat] MEMMAP: Memory map in the left dock: an Obsidian-like graph of which .md files each session reads and how often, with metrics to check memory is optimised. Relative paths only, never content, local only.
+  - [x] [CHAT][feat] MEMMAP.1 @pixel: Pure memmap/model.py: path normaliser (relative, outside-root tokens, hashing), kind classifier, record validator, project root finder. Done when tests cover Windows/POSIX/UNC/`..`/drive paths and no absolute path survives. (S)
+  - [x] [CHAT][feat] MEMMAP.2 @pixel: Hook capture of PostToolUse Read on *.md/*.mdc, UserPromptSubmit turn markers, SessionStart inferred auto-loads into memmap/<project>/reads.jsonl (lock, caps, rotation, retention, `memmap.enabled`); update docs/claude-hooks.md. Done when fake payload tests show one record per .md Read, no content stored, and the hook stays in budget. (after MEMMAP.1; live check after CLAUDE-HOOK-INSTALL) (S)
+  - [x] [CHAT][feat] MEMMAP.3 @agents: Aggregator (pure): nodes, co-read and link edges, recency fade, window and topic filters, metrics (reads per task, duplicates, never read, hot large files, token estimate). Done when fixture tests pass and 10,000 records aggregate in < 20 ms. (after MEMMAP.1) (M)
+    - Windows check 2026-11-23 (7be67f3): Budget ok x3, best 14.4–14.9 ms per 10,000 records (budget 20); 669 pass, selftest ok, live ok. Linux best about 8.8 ms.
+  - [x] [CHAT][feat] MEMMAP.4 @agents: Collapsible memory map section under Topics in the left dock: force layout on a worker thread, kind colours, read-count size, hover, click highlight, metrics strip. Done when selftest builds it with fixture data, collapse state survives a relaunch, and draw is ≤ 2 ms. (after MEMMAP.3) (M)
+    - Windows check 2026-11-23 (18a2ec1): 709 pass, 0 fail, 7 skipped; panel probe ok (first build 6.1–6.8 ms, warm redraw 0 ms, update 1.7–2.0 ms, 11 Tcl calls); aggregate budget 14.2–16.3 ms; bootcheck 14/14. Draw budgets in docs/task-backend-and-memory-map.md 4.9.
+  - [ ] [CHAT][feat] MEMMAP.5 @agents: Per-task memory metrics on the task card and Tasks tab, joined through the registry's task-topic-session links. Done when two cards in two topics get separate counts. (after MEMMAP.3 and TASKBACK.2) (S)
+    - Groundwork merged 2026-11-23 (731b059): project-dir fix — live session cwds kept in memory in sessions.py feed the memory-map project root, so link edges and the never-read count work. Windows check: 728 ok, test_memmap_roots 6 ok, panel probe ok, bootcheck 14/14. Per-task counts still wait for TASKBACK.2.
+  - [ ] [CHAT][feat] MEMMAP.6 @agents: MemReadSource adapter protocol, Grok adapter, MCP-M3 memories as a virtual node (counts only). Done when a fake Grok payload yields the same record and memory_search stores no query. (after MEMMAP.2, GROK-LOGIN, MCP-M3 port) (S)
 
 ### Windowed dungeon
 
 See [`docs/windowed-dungeon.md`](docs/windowed-dungeon.md).
 
-- [ ] [OVL][feat] WIN-DUNGEON.1 @pixel: `desktop/monitors.py` and pure `world/monitors.py` (5.1); signature. (S)
-- [ ] [OVL][feat] WIN-DUNGEON.2 @pixel: One overlay per monitor (5.2–5.5); avatars in virtual px; terrain over all monitors; drag clamp to the monitor union; hot-plug polling. Dungeon not yet involved. (M)
-- [ ] [OVL][feat] WIN-DUNGEON.3 @pixel: Dungeon root window (3.1–3.3): framed, resizable, pin, close = quit, ESC change, tray items; docks for Topics, Chat (with pop out), Settings, Skins; status bar replaces the HUD; geometry per signature in the data dir. Scene area shows an empty dungeon floor. (M)
+- [x] [OVL][feat] WIN-DUNGEON.1 @pixel: `desktop/monitors.py` and pure `world/monitors.py` (5.1); signature. (S)
+- [x] [OVL][feat] WIN-DUNGEON.2 @pixel: One overlay per monitor (5.2–5.5); avatars in virtual px; terrain over all monitors; drag clamp to the monitor union; hot-plug polling. Dungeon not yet involved. (M)
+- [x] [OVL][feat] WIN-DUNGEON.3 @pixel: Dungeon root window (3.1–3.3): framed, resizable, pin, close = quit, ESC change, tray items; docks for Topics, Chat (with pop out), Settings, Skins; status bar replaces the HUD; geometry per signature in the data dir. Scene area shows an empty dungeon floor. Door toggle is not in this step. (M)
 - [ ] [BLDG][feat] WIN-DUNGEON.4 @agents: Scene in the Dungeon: `building_view.py` renders BLDG.1 scene JSON with zoom auto and pan; inside actors at their spots; click opens the chat dock, double-click focuses the console. (M)
-- [ ] [OVL][feat] WIN-DUNGEON.5 @pixel: `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. (M)
-- [ ] [OVL][feat] WIN-DUNGEON.6 @agents: Escape and return animations (4.2): door, arch swap, portal at the border, size hand-off, child stagger; roam rules; `idle_return_s`; Call home. (S)
-- [ ] [OVL][feat] WIN-DUNGEON.7 @pixel: Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. (S)
-- Door: when open, blocked/error agents may escape; when closed, drag only. All-roam is the last, low-priority step. Defaults A close=quit, C chat docked + pop-out, D all monitors, E idle 5 min -> walk home.
+- [x] [OVL][feat] WIN-DUNGEON.5 @pixel: `model/place.py`, `app/dungeon_map.py`, drag out / drag in with grab hand-off and the occlusion check, subagents follow their parent, `ui/avatar_places.json`, overlays withdrawn when empty. Drag-out works with the door open or closed. (M)
+- [x] [OVL][feat] WIN-DUNGEON.6 @agents: Door toggle lands here (toolbar and tray, default open). Escape and return animations (4.2). Door open: blocked/error may escape and return when it clears. Door closed: drag-out only. `idle_return_s`. Call home. (S)
+- [x] [OVL][feat] WIN-DUNGEON.7 @pixel: Click-through per overlay (8.3), per-monitor sprite scale and Dungeon `tk scaling` (5.4), Linux/macOS dungeon-only fallback (5.6), README controls and the `architecture.md` extension table. (S)
+  - Windows check 2026-11-23 (d43686e): 699 pass, clickthrough+monitors 42 ok, bootcheck 14/14 dpi system, overlay exstyle TRANSPARENT+LAYERED+TOOLWINDOW, text normal size at 125%, close 0.18 s. Manual click-through feel on a desktop avatar still to be tried by Daniel.
+- [ ] [OVL][feat] WIN-DUNGEON.8 @agents: Last, low priority. `dungeon.wander` (default off): while the door is open, agents may leave after 30–120 s and return after a random walk. A closed door blocks it. (S)
+- [ ] [BUILD][chore] UPDATE-VERSION: 'Update version' button that pulls the latest release. Blocked until a functional version exists.
 
 - [x] [DOCS][docs] TASKS-EPICS: tag TASKS.md with epics and workflow types

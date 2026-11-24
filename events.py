@@ -104,6 +104,15 @@ class StateEvent:
     state: str
     ts: float
     origin: str
+    # Optional activity fields. Empty means the packet did not carry them.
+    # They are short tokens. A prompt is not stored here.
+    hook: str = ""
+    tool: str = ""
+    file: str = ""
+    task: str = ""
+    kind: str = ""
+    outcome: str = ""
+    count: int = 0
 
 
 @dataclass(frozen=True)
@@ -116,7 +125,24 @@ class ChatEvent:
     origin: str = ORIGIN_UDP
 
 
-Event = StateEvent | ChatEvent
+@dataclass(frozen=True)
+class ActivityEvent:
+    """Bubble facts with no avatar-state change. SubagentStop uses this."""
+
+    source: str
+    session_id: str
+    hook: str = ""
+    tool: str = ""
+    file: str = ""
+    task: str = ""
+    kind: str = ""
+    outcome: str = ""
+    count: int = 0
+    ts: float = 0.0
+    origin: str = ORIGIN_UDP
+
+
+Event = StateEvent | ChatEvent | ActivityEvent
 
 
 def worst_state(states) -> str:
@@ -322,6 +348,13 @@ def _restricted_key(path: Path) -> str:
         return os.path.normcase(str(path.resolve()))
     except OSError:
         return os.path.normcase(str(path))
+
+
+def write_all(fd: int, data: bytes) -> None:
+    """``os.write`` until every byte is written; a short write is not an error."""
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view):]
 
 
 def _restrict_to_user(path: Path) -> None:
@@ -551,6 +584,54 @@ def _require(obj: Mapping[str, object], key: str, pattern: re.Pattern[str]) -> s
     return value
 
 
+_ACTIVITY_HOOK = re.compile(
+    r"^(PreToolUse|PostToolUse|Notification|Stop|SubagentStop|SubagentStart|UserPromptSubmit|SessionStart)$"
+)
+_ACTIVITY_KIND = re.compile(
+    r"^(request_received|task_created|waiting|result_posted|hide|subagent_stop)$"
+)
+_ACTIVITY_OUTCOME = re.compile(r"^(done|failed|lost)$")
+_ACTIVITY_TOOL = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,23}$")
+_ACTIVITY_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,24}$")
+_ACTIVITY_TASK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,16}$")
+
+
+def _opt_token(obj: Mapping[str, object], key: str, pattern: re.Pattern[str]) -> str:
+    """A short token, or empty when the field is missing or not a token.
+
+    A sentence, a path, or a command is dropped. The rest of the packet stands.
+    """
+    if key not in obj or obj[key] is None:
+        return ""
+    value = obj[key]
+    if not isinstance(value, str) or pattern.fullmatch(value) is None:
+        return ""
+    return value
+
+
+def _opt_count(obj: Mapping[str, object], key: str = "count") -> int:
+    if key not in obj or obj[key] is None:
+        return 0
+    value = obj[key]
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    if value < 0 or value > 32:
+        return 0
+    return value
+
+
+def _activity_kwargs(obj: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "hook": _opt_token(obj, "hook", _ACTIVITY_HOOK),
+        "tool": _opt_token(obj, "tool", _ACTIVITY_TOOL),
+        "file": _opt_token(obj, "file", _ACTIVITY_FILE),
+        "task": _opt_token(obj, "task", _ACTIVITY_TASK),
+        "kind": _opt_token(obj, "kind", _ACTIVITY_KIND),
+        "outcome": _opt_token(obj, "outcome", _ACTIVITY_OUTCOME),
+        "count": _opt_count(obj),
+    }
+
+
 def parse_packet(obj: object, expected_token: str) -> tuple[Event, str]:
     """Validate one JSON object. Unknown fields are dropped. Returns (event, note).
 
@@ -575,8 +656,18 @@ def parse_packet(obj: object, expected_token: str) -> tuple[Event, str]:
             state=str(state),
             ts=0.0,
             origin=ORIGIN_UDP,
+            **_activity_kwargs(obj),
         )
         return event, note
+    if kind == "activity":
+        source = _require(obj, "source", _SOURCE)
+        session_id = _require(obj, "id", _SESSION_ID)
+        return ActivityEvent(
+            source=source,
+            session_id=session_id,
+            origin=ORIGIN_UDP,
+            **_activity_kwargs(obj),
+        ), note
     if kind == "chat":
         sender = _require(obj, "from", _ACTOR)
         recipient = _require(obj, "to", _ACTOR)
@@ -599,9 +690,7 @@ def parse_packet(obj: object, expected_token: str) -> tuple[Event, str]:
 
 
 def stamp(event: Event, ts: float, origin: str) -> Event:
-    if isinstance(event, StateEvent):
-        return StateEvent(event.source, event.session_id, event.state, ts, origin)
-    return ChatEvent(event.sender, event.recipient, event.channel, event.icon, ts, origin)
+    return replace(event, ts=ts, origin=origin)
 
 
 def room_file_name(room: str) -> str:
@@ -622,6 +711,27 @@ def channel_path(directory: Path, room: str) -> Path:
     if resolved.parent != root:
         raise EventRejected("schema")
     return resolved
+
+
+_SECRET_ASSIGN = re.compile(
+    r"(?i)(?<![a-z0-9])(api[_-]?key|access[_-]?key|token|secret|password|passwd"
+    r"|authorization|credential)(?![a-z0-9])[\"']?\s*[=:]\s*"
+    r"(?:(?:bearer|basic|token)\s+)?[\"']?[^\s\"',;]+"
+)
+_SECRET_BEARER = re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}")
+_SECRET_VALUE = re.compile(
+    r"\b(?:sk-[A-Za-z0-9_\-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}"
+    r"|github_pat_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{16})\b"
+)
+
+
+def redact_secrets(text: str) -> str:
+    """Mask token-shaped snippets. The runner uses this before stderr is shown."""
+    if not text:
+        return ""
+    cleaned = _SECRET_ASSIGN.sub(lambda match: match.group(1) + "=[redacted]", text)
+    cleaned = _SECRET_BEARER.sub(lambda match: match.group(1) + " [redacted]", cleaned)
+    return _SECRET_VALUE.sub("[redacted]", cleaned)
 
 
 def sanitize_text(value: object, limit: int = DISPLAY_NOTE_LIMIT) -> str:
@@ -1139,11 +1249,10 @@ class EventSource(SessionSource):
                 self._bump("rejected_schema")
                 self.log.info("rejected schema")
             return False
-        sender_key = (
-            f"{event.source}:{event.session_id}"
-            if isinstance(event, StateEvent)
-            else event.sender
-        )
+        if isinstance(event, ChatEvent):
+            sender_key = event.sender
+        else:
+            sender_key = f"{event.source}:{event.session_id}"
         if not self._sender_limit.allow(sender_key):
             self._bump("rejected_rate")
             self.log.info("rejected rate")
@@ -1155,6 +1264,11 @@ class EventSource(SessionSource):
             self.log.info(
                 "accepted state source=%s id=%s state=%s",
                 stamped.source, stamped.session_id, stamped.state,
+            )
+        elif isinstance(stamped, ActivityEvent):
+            self.log.info(
+                "accepted activity source=%s id=%s hook=%s",
+                stamped.source, stamped.session_id, stamped.hook or stamped.kind,
             )
         else:
             self.log.info(

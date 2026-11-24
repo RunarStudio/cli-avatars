@@ -40,6 +40,7 @@ HOOK_EVENTS = (
     "PreToolUse",
     "PostToolUse",
     "Notification",
+    "SubagentStop",
 )
 
 # Notification types that mean the agent is waiting on a person.
@@ -451,10 +452,12 @@ def _emit_state(
     port: int,
     state: str,
     source: str = "claude",
+    fields: dict | None = None,
 ) -> None:
     """One state packet. A failure is ignored so the hook still exits 0.
 
-    The packet is the allowlisted state only. Hook payload text is not copied.
+    The packet is the allowlisted state, plus short activity tokens when
+    ``fields`` has them. Hook payload text is not copied.
     """
     import cli_avatars_emit
     from events import EventRejected
@@ -466,13 +469,25 @@ def _emit_state(
             id=agent_id,
             state=state,
             port=port,
+            activity=fields or None,
         ))
     except (EventRejected, OSError):
         return
 
 
+def _emit_activity(directory: Path, agent_id: str, port: int, source: str, fields: dict) -> None:
+    """Bubble facts that do not change the avatar state. Text is not copied."""
+    import cli_avatars_emit
+    from events import EventRejected
+
+    try:
+        cli_avatars_emit.emit_activity(directory, source, agent_id, port, fields)
+    except (EventRejected, OSError):
+        return
+
+
 def _emit_idle(directory: Path, agent_id: str, port: int, source: str = "claude") -> None:
-    _emit_state(directory, agent_id, port, "idle", source)
+    _emit_state(directory, agent_id, port, "idle", source, {"hook": "Stop"})
 
 
 def _post_note(
@@ -529,6 +544,31 @@ def handle_stop(
         return
 
 
+def _record_memmap(
+    directory: Path,
+    payload: dict,
+    event: str,
+    session: str,
+    source: str,
+    config_path: Path | None,
+) -> None:
+    """Memory map capture (MEMMAP.2): relative ``.md`` paths and lengths, never content."""
+    try:
+        from memmap.capture import record_hook_event
+
+        record_hook_event(
+            payload,
+            event,
+            directory=directory,
+            session=session,
+            cli=source,
+            config_path=config_path,
+            timeout=HOOK_LOCK_TIMEOUT,
+        )
+    except Exception:
+        return
+
+
 def handle_payload(
     payload: object,
     *,
@@ -562,9 +602,18 @@ def handle_payload(
         return ""
     # Notification sets blocked. The next tool or prompt event clears it.
     # The notification message is not printed and not stored.
+    from activity import activity_fields
+
+    fields = activity_fields(payload)
     state = state_for_hook(event, payload.get("notification_type"))
+    # Auth and other non-wait notices stay quiet. SubagentStop has no avatar state.
+    if event == "Notification" and not state:
+        fields = {}
     if state:
-        _emit_state(directory, agent_id, port, state, source)
+        _emit_state(directory, agent_id, port, state, source, fields or None)
+    elif event == "SubagentStop" and fields:
+        _emit_activity(directory, agent_id, port, source, fields)
+    _record_memmap(directory, payload, event, f"{source}:{agent_id}", source, config_path)
     if event in _CONTEXT_EVENTS:
         return context_block(directory, store_id, topic_id)
     return ""

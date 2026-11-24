@@ -2,6 +2,7 @@
 
 # DPI awareness runs at import, before tkinter and before any tk.Tk().
 import cli_avatars.desktop.capabilities  # noqa: F401  # isort: skip
+import os
 import sys
 import tkinter as tk
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Optional
 from bubbles import BubbleBoard
 from bundle_paths import asset_path
 from chat_window import ChatWindow
+from cli_avatars.app.bootcheck import run_bootcheck_only
 from cli_avatars.app.shell import OverlayApp
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.sprites.registry import load_sprites as _load_sprites
@@ -44,6 +46,17 @@ def run_selftest() -> int:
         else:
             if not REGISTRY.has("caine"):
                 problems.append("caine sheet did not load")
+    try:
+        from activity import line_from_agent
+        from bubbles import render_text_frame
+
+        if line_from_agent("busy", "Read", "TASKS.md", 0) != "Reading TASKS.md":
+            problems.append("activity line")
+        frame = render_text_frame(48, 12)
+        if frame.size[0] < 16 or frame.size[1] < 16:
+            problems.append("activity frame")
+    except Exception as exc:
+        problems.append("activity: " + type(exc).__name__)
     root = None
     try:
         root = tk.Tk()
@@ -58,17 +71,32 @@ def run_selftest() -> int:
         host._rooms_btn = None
         host._chat_btn = None
         host._hud_drag_origin = None
-        host._create_hud_win()
+        host.config = {}
+        host._decision_count = 0
+        host._config_path = None
+        from cli_avatars.app.dungeon_window import DungeonWindow
+
+        host.dungeon = DungeonWindow(host)
+        host.dungeon.build(offscreen=True)
         root.update_idletasks()
-        hud = getattr(host, "_hud_win", None)
-        if hud is None or not hud.winfo_exists():
-            problems.append("HUD window was not created")
+        scene = getattr(host.dungeon, "scene", None)
+        if scene is None or not scene.winfo_exists():
+            problems.append("Dungeon was not created")
         else:
-            hud.withdraw()
+            try:
+                if int(root.overrideredirect() or 0):
+                    problems.append("Dungeon is borderless")
+                minimum = root.minsize()
+                if int(minimum[0]) < 720 or int(minimum[1]) < 480:
+                    problems.append("Dungeon minsize is below 720x480")
+            except tk.TclError as exc:
+                problems.append("dungeon: " + str(exc))
         import tempfile
 
         from chat_window import seed_simulated, simulated_agents
         from events import close_logging
+
+        problems += _selftest_memmap(host)
 
         data = tempfile.TemporaryDirectory()
         try:
@@ -110,8 +138,42 @@ def run_selftest() -> int:
     return 0
 
 
+def _selftest_memmap(host) -> list[str]:
+    """Memory map section under Topics, filled from fixture records in a temp data dir."""
+    import tempfile
+    import time
+
+    from cli_avatars.app.memmap_feed import Request
+    from cli_avatars.app.memmap_panel import MemmapPanel
+    from memmap import store
+    from memmap.demo import records
+
+    left = getattr(host.dungeon, "_left", None)
+    topics = getattr(host.dungeon, "_topics", None)
+    if left is None or topics is None:
+        return ["memmap: no left dock"]
+    with tempfile.TemporaryDirectory() as tmp:
+        store.append_records(tmp, "selftest", records(time.time()))
+        panel = MemmapPanel(host, directory=tmp, threaded=False)
+        panel.mount(left, topics)
+        host.root.update_idletasks()
+        result = panel.compute_now(Request(window="today"))
+        if result is None or not result.graph.nodes or not panel._nodes:
+            return ["memmap: panel drew no nodes"]
+        if panel.last_draw_ms > 16.0:
+            return [f"memmap: first build {panel.last_draw_ms:.2f} ms over 16 ms"]
+        best = min(panel.draw(force=True) for _ in range(3))
+        if best > 2.0:
+            return [f"memmap: redraw {best:.2f} ms over 2 ms"]
+    return []
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     args = sys.argv[1:] if argv is None else list(argv)
+    if "--activity-demo" in args:
+        os.environ["CLI_AVATARS_ACTIVITY_DEMO"] = "1"
+    if "--bootcheck-only" in args:
+        return run_bootcheck_only()
     if "--selftest" in args:
         return run_selftest()
     app = OverlayApp()

@@ -307,18 +307,19 @@ class TestPreview(unittest.TestCase):
 
 
 class TestOverlayWiring(unittest.TestCase):
-    def test_hud_button_sits_with_skins_and_config(self):
+    def test_topics_dock_sits_in_the_dungeon(self):
         root = Path(__file__).resolve().parent.parent
-        hud = (root / "cli_avatars" / "app" / "hud_window.py").read_text(encoding="utf-8")
+        dungeon = (root / "cli_avatars" / "app" / "dungeon_panes.py").read_text(encoding="utf-8")
         rooms = (root / "cli_avatars" / "app" / "rooms_panel.py").read_text(encoding="utf-8")
         pool = (root / "cli_avatars" / "app" / "pool.py").read_text(encoding="utf-8")
-        skins = hud.index('text="Skins"')
-        config = hud.index('text="Config"')
-        rooms_btn = hud.index('text="Rooms"')
-        self.assertLess(skins, config)
-        self.assertLess(config, rooms_btn)
+        topics = dungeon.index('text="Topics"')
+        chat = dungeon.index('text="Chat"')
+        self.assertLess(topics, chat)
+        self.assertIn('text="Skins"', dungeon)
+        self.assertIn('text="Settings"', dungeon)
         self.assertIn("build_rooms(", rooms)
         self.assertIn("save_rooms_pref", rooms)
+        self.assertNotIn("tk.Toplevel", rooms)
         self.assertIn("av.draw(self.canvas, canvas_photos(self))", pool)
 
 

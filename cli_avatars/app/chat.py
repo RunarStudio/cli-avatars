@@ -26,6 +26,11 @@ def _chat_directory(self) -> Path:
 
 
 def _remember_chat_box(self, box) -> None:
+    """Popped-out chat box. The Dungeon file keeps it; ``config.json`` is not rewritten."""
+    dungeon = getattr(self, "dungeon", None)
+    if dungeon is not None:
+        dungeon.remember_chat_box(box)
+        return
     self.config = config_with_window_box(self.config, box)
     try:
         save_window_box(self._config_path, box)
@@ -48,9 +53,19 @@ def _ensure_chat_window(self) -> ChatWindow:
         config=lambda: self.config,
         config_path=self._config_path,
         on_box=self._remember_chat_box,
+        container=getattr(self, "_chat_host", None),
+        on_show=lambda: _chat_dock_show(self),
     )
     self._chat_window = window
     return window
+
+
+def _chat_dock_show(self) -> None:
+    """Avatar click and the Chat button open the dock, not a new window."""
+    dungeon = getattr(self, "dungeon", None)
+    if dungeon is None or getattr(self, "_chat_popped", False):
+        return
+    dungeon.set_right(True, "chat")
 
 
 def _show_chat(self, topic_id: str | None = None, address_id: str | None = None) -> None:

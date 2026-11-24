@@ -86,7 +86,7 @@ One call per frame at `OVERLAY_FPS` via `root.after`. Order matters; keep it.
 8. Lingering subagents (float away 30 s after task done).
 9. Dying subagents (`_release_finished_dying`).
 10. Bursts and glitches.
-11. Portal, talk bubbles, decision bubbles.
+11. Portal, talk bubbles, decision bubbles, and activity sentences.
 12. HUD, rooms panel, chat panel refresh (each guarded by `try/except` + logging).
 13. Schedule the next tick.
 
@@ -424,10 +424,13 @@ exists (see also `app/input.py`), not from the tick.
 | `blocked` state | CHAT-BLOCKED | see 6.2 | model + core | |
 | Building scene | BLDG.1 | `cli_avatars/building/scene.py` | pure | Tree + BLDG-SCHEMA layout → scene JSON shared by Tk and web |
 | Building window | BLDG.2 | `cli_avatars/app/building_window.py` | app | A `Toplevel`; uses `render.PhotoCache` |
-| Board | BOARD.1–.3 | `cli_avatars/board/{card,local_store,git_store}.py` | pure + store | No Tk. Git calls go through `cli_runner` with a fixed argv; pull/push only on explicit Sync |
+| Board | BOARD.1–.3 | `cli_avatars/board/{card,local_store,git_store}.py` | pure + store | No Tk. **Scope (Daniel 2026-11-23):** `git_store` / forge PR–CI ingestion is out of product scope (`TASKS.md` § Out of scope); local store + tagged-PR read only. If GitStore ships later, git argv goes through `cli_runner`; pull/push only on explicit Sync |
 | Board tab | BOARD.4 | `chat_window.py` tab, wired from `app/chat.py` | app | |
 | Web view | WEB.* | `cli_avatars/web/` | beside `app`, never imported by it | Reads the tree and scene JSON. Listener binds to loopback unless LAN opt-in |
-| Click-through, poses, interactions, sounds | CLICK-THROUGH, POSE-MAP, AVATAR-INTERACT, SOUNDS | `desktop/` (Win32 bits), `world/avatar.py` (pose), `app/` (wiring) | | |
+| Dungeon window | WIN-DUNGEON.3 | `cli_avatars/app/dungeon_window.py` | app | Framed root. Close quits. ESC cancels a drag or closes a dock |
+| Places and door | WIN-DUNGEON.5/.6 | `model/place.py`, `app/places.py`, `app/crossing.py` | model + app | Door and Call home. Desktop escape is Windows only |
+| Overlays | WIN-DUNGEON.2/.7 | `cli_avatars/app/overlays.py` | app | One topmost `Toplevel` per monitor on Windows, withdrawn when empty. Linux and macOS keep that window withdrawn and unmapped (`desktop_escape` is false) |
+| Click-through, DPI, poses, interactions, sounds | WIN-DUNGEON.7, POSE-MAP, AVATAR-INTERACT, SOUNDS | `desktop/clickthrough.py` (Win32 bits), `app/desktop_follow.py` (33 ms timer), `world/avatar.py` (pose) | desktop + app | Empty overlay pixels set `WS_EX_TRANSPARENT`; a sprite clears it. `tk scaling` is `dpi/72` (96 → 1.333, 120 → 1.667, 144 → 2). Wired from the shell, not the tick |
 
 ### 6.1 cli_runner rules
 
@@ -435,7 +438,9 @@ Security-critical. Owned by `@pixel`. Matches AGENTS.md rule 4 as updated
 by ROOM-CHAT.0 (a CLI starts only on Daniel's explicit action).
 
 - One module, `cli_avatars/runner/cli_runner.py`, holds every `subprocess`
-  call that starts a CLI or git. `tests/test_layers.py` fails if any other
+  call that starts a CLI or git (board Sync only when in scope — not automatic
+  PR/Bitbucket/CI/review fetch; see `README.md` / `TASKS.md` § Scope).
+  `tests/test_layers.py` fails if any other
   file under `cli_avatars/` imports `subprocess`, `os.system`, `os.exec*`,
   `os.spawn*` or `asyncio.create_subprocess_*`. The existing
   `events._run_icacls` (fixed `icacls` argv for ACLs) is the one listed
@@ -479,8 +484,8 @@ python overlay.py
   pass on Windows (they skip only where Tk is missing).
 - `--selftest`: must print `selftest: ok` and exit 0.
 - Overlay run: let it run ~15 s with at least one Claude or Grok session (or
-  demo mode), drag an avatar, open Rooms and Chat from the HUD, open Skins
-  and Config, then quit with ESC. stderr must have no traceback.
+  demo mode), drag an avatar, open Topics and Chat, open Skins
+  and Config, then quit by closing the Dungeon. ESC does not quit. stderr must have no traceback.
 - After SPLIT.4 and SPLIT.5, also check: avatars stand on window tops,
   subagents hang/fly on the spring, a closing subchat plays dying once, the
   portal and bubbles draw behind/above the right sprites, and Config → Apply

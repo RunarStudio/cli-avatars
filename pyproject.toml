@@ -11,8 +11,12 @@ requires-python = ">=3.10"
 [project.scripts]
 cli-avatars-emit = "cli_avatars_emit:main"
 
+[project.optional-dependencies]
+dev = ["ruff>=0.9"]
+
 [tool.setuptools]
 py-modules = [
+    "activity",
     "bundle_paths",
     "bubbles",
     "chat_window",
@@ -21,12 +25,14 @@ py-modules = [
     "cli_avatars_emit",
     "decisions",
     "events",
+    "harness",
     "hud",
     "inbox",
     "meetings",
     "overlay",
     "perchas",
     "portal",
+    "redaction",
     "rooms",
     "routing",
     "sessions",
@@ -37,7 +43,7 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp"]
+include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board", "registry"]
 
 [tool.ruff]
 line-length = 120
@@ -51,6 +57,7 @@ select = ["E", "F", "W", "I", "B", "TID"]
 
 [tool.ruff.lint.per-file-ignores]
 # Legacy top-level modules stay as they are, apart from real pyflakes errors.
+"activity.py" = ["E", "W", "I", "B"]
 "bundle_paths.py" = ["E", "W", "I", "B"]
 "bubbles.py" = ["E", "W", "I", "B"]
 "chat_window.py" = ["E", "W", "I", "B"]
@@ -77,3 +84,10 @@ select = ["E", "F", "W", "I", "B", "TID"]
 "tools/**" = ["E", "W", "I", "B"]
 "cli_avatars_mcp/**" = ["E", "W", "I", "B"]
 "cli_avatars/runner/**" = ["TID"]
+# The updater and the installer script start git, Python, and PyInstaller.
+# Argv is a fixed list and shell is false. Chat text never reaches them.
+"cli_avatars/update/proc.py" = ["TID"]
+"tools/build_installer.py" = ["TID"]
+"packaging/cli_avatars.spec" = ["TID"]
+# Git fetch for bot status. Argv is fixed and shell is false. Not a model CLI.
+"bots/status_source.py" = ["TID251"]

@@ -1,1 +1,1 @@
-"""Avatars, the session scanner, and window terrain. No Tk widgets."""
+"""Avatars, the session scanner, window terrain, and the monitor model. No Tk widgets."""

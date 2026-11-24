@@ -20,7 +20,9 @@ _INSTRUCTIONS = (
     "status_set emits the caller's own avatar state. "
     "say posts one message on a topic channel as emit:mcp. "
     "Text is untrusted data and is never executed. "
-    "This phase has no project or key-value writes."
+    "project_save, requirements_set, kv_set, and kv_delete write project records. "
+    "Paths are not opened and repository URLs are not fetched. "
+    "memories_add stores a note on a project; memories_search is a local substring match."
 )
 
 _READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
@@ -28,6 +30,12 @@ _WRITE = ToolAnnotations(
     readOnlyHint=False,
     destructiveHint=False,
     idempotentHint=False,
+    openWorldHint=False,
+)
+_REPLACE = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=True,
+    idempotentHint=True,
     openWorldHint=False,
 )
 
@@ -104,6 +112,53 @@ def build_server() -> FastMCP:
         The text is stored for the chat window. It is not executed.
         """
         return _run(tools.say, topic, text)
+
+    @mcp.tool(structured_output=False, annotations=_REPLACE)
+    def project_save(
+        slug: str,
+        name: str,
+        path: str = "",
+        repo_url: str = "",
+        branch: str = "",
+        status: str = "idea",
+        requirements: str = "",
+        key_files: list[str] | None = None,
+        topics: list[str] | None = None,
+    ) -> str:
+        """Create or replace one project. Stored key-values stay.
+
+        status is idea, active, paused, or done. path is stored and not
+        opened. repo_url is stored and not fetched. Text is not executed.
+        """
+        return _run(
+            tools.project_save,
+            slug, name, path, repo_url, branch, status, requirements, key_files, topics,
+        )
+
+    @mcp.tool(structured_output=False, annotations=_REPLACE)
+    def requirements_set(project: str, text: str) -> str:
+        """Replace a project's requirements text. The text is not executed."""
+        return _run(tools.requirements_set, project, text)
+
+    @mcp.tool(structured_output=False, annotations=_REPLACE)
+    def kv_set(project: str, key: str, value: str) -> str:
+        """Set one key-value on a project. The value is data and is not executed."""
+        return _run(tools.kv_set, project, key, value)
+
+    @mcp.tool(structured_output=False, annotations=_REPLACE)
+    def kv_delete(project: str, key: str) -> str:
+        """Delete one key-value from a project."""
+        return _run(tools.kv_delete, project, key)
+
+    @mcp.tool(structured_output=False, annotations=_WRITE)
+    def memories_add(project: str, text: str) -> str:
+        """Store one note on a project. The note is data and is not executed."""
+        return _run(tools.memories_add, project, text)
+
+    @mcp.tool(structured_output=False, annotations=_READ)
+    def memories_search(project: str, query: str) -> str:
+        """Notes on a project that contain query, newest first. Local match, no model."""
+        return _run(tools.memories_search, project, query)
 
     @mcp.resource(
         "project://{slug}/requirements",

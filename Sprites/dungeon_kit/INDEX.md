@@ -1,4 +1,4 @@
-# Kit de mazmorra: 60 sprites
+# Kit de mazmorra: 67 sprites
 
 Rejilla isométrica 2:1. Una casilla mide 32x16 px; una unidad de altura, 16 px. Fondo transparente.
 Ancla = píxel del sprite que cae sobre el vértice superior (norte) de su casilla (u,v) a la altura z:
@@ -8,6 +8,10 @@ Huella "muro": se coloca en la casilla de un muro der. (grilletes, antorcha der.
 Huella "luz": ancla en su centro, mezcla aditiva; la luz de sala va en el centro de la sala, el halo sobre la llama.
 Estantería y estante de pociones miran a la derecha: van contra el muro izq.
 `4x/` guarda cada sprite ampliado cuatro veces.
+Placa (b31): campo de texto oscuro en (4,6), 32x5; la app escribe los recuentos encima. Va en un muro der. entre las antorchas.
+Halos de estado (b32-b35): a los pies del nodo, como luz; verde busy, azul thinking, rojo error, ámbar blocked.
+Insignia +n (b36): ancla en su centro; la cifra va en (6,2), copiada de `b37-cifras.png` (celdas 3x5, paso 4 px, 0-9).
+Filas de avatar: `avatar-rows/error.png` y `avatar-rows/blocked.png`, 160x40 (4 cuadros de 40x40), ver README.md.
 
 | archivo | nombre | grupo | tamaño px | huella | ancla x,y |
 |---|---|---|---|---|---|
@@ -41,6 +45,13 @@ Estantería y estante de pociones miran a la derecha: van contra el muro izq.
 | b28-luz-verde.png | luz verde | base | 185x101 | luz | 92,49 |
 | b29-luz-roja.png | luz roja | base | 185x101 | luz | 92,49 |
 | b30-luz-azul.png | luz azul | base | 185x101 | luz | 92,49 |
+| b31-placa-recuentos.png | placa de recuentos | base | 40x14 | muro | 17,12 |
+| b32-halo-verde.png | halo verde | base | 25x23 | luz | 12,11 |
+| b33-halo-azul.png | halo azul | base | 25x23 | luz | 12,11 |
+| b34-halo-rojo.png | halo rojo | base | 25x23 | luz | 12,11 |
+| b35-halo-ambar.png | halo ámbar | base | 25x23 | luz | 12,11 |
+| b36-insignia-mas-n.png | insignia +n | base | 12x9 | marca | 6,4 |
+| b37-cifras.png | cifras 0-9 | base | 39x5 | marca | 0,0 |
 | o01-jaula-de-hierro.png | jaula de hierro | objeto · mazmorra | 28x38 | 1x1 | 14,22 |
 | o02-cofre.png | cofre | objeto · mazmorra | 24x20 | 1x1 | 12,5 |
 | o03-grilletes.png | grilletes | objeto · mazmorra | 9x17 | muro | 1,12 |
