@@ -10,6 +10,7 @@ import tkinter as tk
 from types import SimpleNamespace
 
 from cli_avatars.app.bots_ui import bot_signature, render_bot_sections
+from cli_avatars.app.toolbar_widgets import paint
 from cli_avatars.desktop.capabilities import HAS_PIL
 from cli_avatars.model.agent import AGENT_STATUS_COLOR as STATUS_COLOR
 from decisions import open_counts_by_room
@@ -51,10 +52,7 @@ def _paint_rooms_button(self) -> None:
             return
     except Exception:
         return
-    if self._rooms_shown:
-        btn.config(bg="#334477", fg="white")
-    else:
-        btn.config(bg="#223366", fg="#aaccff")
+    paint(btn, self._rooms_shown)
 
 
 def _toggle_rooms(self) -> None:
@@ -453,4 +451,7 @@ class RoomsPanel:
         panel = getattr(self.app, "_memmap_panel", None)
         if panel is not None:
             panel.refresh()
+        tasks = getattr(self.app, "_tasks_panel", None)
+        if tasks is not None:
+            tasks.refresh()
         return _update_rooms_win(self.app)
