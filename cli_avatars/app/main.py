@@ -158,7 +158,7 @@ def _selftest_memmap(host) -> list[str]:
         panel = MemmapPanel(host, directory=tmp, threaded=False)
         panel.mount(left, topics)
         host.root.update_idletasks()
-        result = panel.compute_now(Request(window="today"))
+        result = panel.compute_now(Request(window="7d"))
         if result is None or not result.graph.nodes or not panel._nodes:
             return ["memmap: panel drew no nodes"]
         if panel.last_draw_ms > 16.0:

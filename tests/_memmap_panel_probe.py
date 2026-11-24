@@ -53,7 +53,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 store.append_records(TMP / "demo", "proj", demo.records(time.time()))
 p = panel("demo")
-result = p.compute_now(Request(window="today"))
+result = p.compute_now(Request(window="7d"))
 check("fixture drawn", result is not None and bool(result.graph.nodes) and len(p._nodes) == len(result.graph.nodes))
 items = set(p.canvas.find_all())
 p.draw()
