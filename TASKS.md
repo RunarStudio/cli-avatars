@@ -576,7 +576,8 @@ Product features only (see Scope). Team process items remain on the board elsewh
   - [ ] [WEB][feat] WEB.2 @agents: Mobile pages in vanilla JS, no build step: topics, chat timeline, board, decisions, agents. Read-only. (M)
   - [x] [WEB][feat] WEB.3 @agents: LAN opt-in: one interface IP, QR pairing link in the HUD, rotate token, firewall doc (after SPLIT.4). (S) (PHONE.1: Settings, Phone tab; Tailscale named in the interface list, `tailscale serve` preferred; docs/phone-view.md; tick after the Windows check)
   - [x] [WEB][feat] PHONE.1 @agents: Phone view over Tailscale: the Dungeon map on top (kit pixels, pinch and zoom), tasks with status badges below, tap a task to zoom to its room, the room chat with the latest history under it; side by side from 1024 px. Live over SSE. `python -m webui --demo` for made-up data. Tests: `tests/test_webui.py`. Docs: `docs/phone-view.md`. (tick after the Windows check)
-  - [ ] [WEB][feat] WEB.4 @agents: Writes behind web.allow_writes: send, answer a decision, move a card; CSRF header, rate limit, same sanitisers. (M)
+  - [ ] [WEB][feat] WEB.4 @agents: Writes behind web.allow_writes: send, answer a decision, move a card; CSRF header, rate limit, same sanitisers. (M) (PHONE.2: send and open/end a session done; answer a decision, move a card open)
+  - [x] [WEB][feat] PHONE.2 @agents: Use the Dungeon from the phone: open/end a session, send a prompt to a room's chat on your own CLI (the Dungeon chat's launch), replies live, images and videos the turn wrote shown inline with a full view; every avatar on the phone map (the Apothecary's roamers too), moving over SSE. Behind `web.allow_writes`. Tests: `tests/test_phone_scene.py`, `tests/test_phone_writes.py`, `tests/test_phone_media.py`. (tick after the Windows check)
 
 ### 🏰 Building view
 

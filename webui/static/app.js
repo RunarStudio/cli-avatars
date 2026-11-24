@@ -372,7 +372,7 @@ async function showChat(topic, title) {
     const head = el("div", "who", who || "?");
     const t = el("time", "", clock(m.ts));
     head.append(t);
-    li.append(el("span", "pip"), head, el("div", "text", m.text));
+    li.append(el("span", "pip"), head, m.media ? shot(m.media) : el("div", "text", m.text));
     list.append(li);
     if (who !== "user") reply = key;
   }
@@ -384,6 +384,62 @@ async function showChat(topic, title) {
   paintComposer(false);
   if (stick || seen.size === 0) list.scrollTop = list.scrollHeight;
 }
+
+// --- media a turn made: inline, tap for the full view ------------------------------------------------
+function mediaNode(media, full) {
+  const src = "/api/media/" + encodeURIComponent(media.id);
+  if (media.type === "video") {
+    const v = document.createElement("video");
+    v.src = src;
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.setAttribute("playsinline", "");
+    v.preload = "metadata";
+    v.controls = !!full;
+    if (full) v.autoplay = true;
+    return v;
+  }
+  const img = new Image();
+  img.alt = media.name;
+  img.decoding = "async";
+  img.onload = () => {
+    if (img.naturalWidth > 256 && img.naturalHeight > 256) return;
+    img.classList.add("pixel");
+    // whole-number zoom keeps pixel art crisp
+    const room = full ? Math.min(window.innerWidth - 24, window.innerHeight * 0.78) : 132;
+    const k = Math.max(1, Math.floor(room / Math.max(img.naturalWidth, img.naturalHeight)));
+    img.style.width = img.naturalWidth * k + "px";
+    img.style.maxWidth = "none";
+    img.style.maxHeight = "none";
+  };
+  img.src = src;
+  return img;
+}
+
+const shots = new Map();
+function shot(media) {
+  if (shots.has(media.id)) return shots.get(media.id);
+  const b = el("button", "shot");
+  b.type = "button";
+  b.title = media.name;
+  const node = mediaNode(media, false);
+  b.append(node);
+  if (node.tagName === "VIDEO") node.addEventListener("loadeddata", () => node.play().catch(() => {}), { once: true });
+  b.addEventListener("click", () => openViewer(media));
+  shots.set(media.id, b);
+  return b;
+}
+
+function openViewer(media) {
+  $("viewerStage").replaceChildren(mediaNode(media, true));
+  $("viewerName").textContent = media.name;
+  $("viewer").hidden = false;
+}
+function closeViewer() { $("viewer").hidden = true; $("viewerStage").replaceChildren(); }
+$("viewerClose").addEventListener("click", closeViewer);
+$("viewer").addEventListener("click", (e) => { if (e.target === $("viewer") || e.target === $("viewerStage")) closeViewer(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("viewer").hidden) closeViewer(); });
 
 // --- writes: composer and sessions sheet -----------------------------------------------------------
 function paintComposer(busy) {

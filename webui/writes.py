@@ -21,6 +21,7 @@ from cli_avatars.model.room import PARTICIPANTS, ROOM_DIR_NAME, add_participant,
 from events import EventRejected
 from rooms import project_folder
 from topics import get_topic, valid_topic_id
+from webui import media
 
 MAX_PROMPT = 8000
 MAX_FOLDERS = 50
@@ -103,6 +104,7 @@ class Actions:
             self.running.add(topic)
         title, cards = room_log.context(self.directory, topic)
         turn = room_log.new_turn(cli)
+        before = media.snapshot(room.working_dir)
         try:
             room_log.post_prompt(self.directory, topic, cli, text)
         except (EventRejected, OSError):
@@ -119,6 +121,7 @@ class Actions:
 
         def on_done(result) -> None:
             try:
+                media.collect(self.directory, topic, room.working_dir, before, room_log.cli_sender(cli))
                 room_log.finish_turn(self.directory, room, cli, turn, result.outcome, result.stderr)
             except (EventRejected, OSError):
                 pass

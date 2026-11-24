@@ -26,6 +26,7 @@ Pick the address marked **Tailscale** in **Listen on**. The server then listens 
 2. Once per room, in the Dungeon's chat: pick the room's folder (**Folder…**) and confirm the Claude binary. The phone never picks a folder or a binary; it only offers rooms that already have one.
 3. On the phone: **+** in the Room chat bar opens Sessions. Pick Simple room or Main: throne, Claude or Grok, and a room; **Open session** adds its room to the map, as the Dungeon's Sessions panel does. **End** walks its avatars back to the Apothecary.
 4. Type in the box at the bottom and tap **Send**. It runs your own CLI on this PC, in that room's folder, exactly as Enter in the Dungeon's chat does (same launch, fixed command line, prompt on stdin, plan mode unless you switched the room). The reply appears as it comes; dots show while it answers.
+5. Images and videos the run wrote in the room's folder (PNG, GIF, WebP, JPEG, MP4, WebM) show in the chat; pixel art stays crisp. Tap one for the full view.
 
 Grok rooms open, but Grok cannot run prompts yet (as in the Dungeon).
 
@@ -53,6 +54,7 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `POST /api/sessions` | Writes on: open a session `{"kind", "cli", "topic"}` on a room whose folder was picked in the Dungeon. |
 | `POST /api/sessions/<topic>/end` | Writes on: end it; its avatars walk back to the Apothecary. |
 | `POST /api/chat/<topic>` | Writes on: `{"text"}` (at most 8,000 characters) runs the room's CLI once; 202, or 409 with why not. |
+| `/api/media/<id>` | A picture or video a phone-sent turn wrote in the room's folder, by its id; byte ranges for video. |
 
 The page keeps the Send box above the phone's keyboard: while you type, the task list folds away and the map shrinks.
 
@@ -66,6 +68,7 @@ The avatars are the Dungeon's own: while the Dungeon window runs, the page shows
 - A token of its own (`web/token` in the data folder, owner-only). The pairing link carries it once; the page then holds an HttpOnly, SameSite=Lax cookie derived from it, not the token. No cookie: 401.
 - Writes are off by default (`web.allow_writes`): then every write method answers 405 and a request body is refused. On, a write also needs the `X-CLI-Avatars-CSRF` header (an HMAC of the token, handed to the paired page by `/api/sessions`, compared in constant time), a JSON body of at most 16 KiB, and stays under 10 writes a minute for every phone together (429). The cookie is SameSite=Lax, so another site's form cannot send it. URLs over 2 KiB answer 414.
 - A Send tap is the user's Enter: the phone server calls the Dungeon chat's own launch (`chat_window.launch_cli`), one run per room at a time. The command line is fixed in code and the prompt goes on stdin, never a shell; the folder, binary and permission mode come from the room file the Dungeon wrote. See [room-chat.md](room-chat.md).
+- Media: a turn's new or changed files are listed before and after the run, inside the room's folder only (no hidden folders, no symlinks, 4 levels, 5,000 entries). A file is served only when its name ends in an allowed type, its first bytes match it, it is at most 50 MiB, and it still resolves inside the folder. The URL holds a random id from `web/media.json`, never a path.
 - Routes are fixed names. Topics must be slugs, card ids UUIDs, skins a fixed list; `..`, encoded slashes and backslashes answer 400. Nothing in a URL becomes a file path.
 - Card and chat text are data: the page sets them with `textContent`, never as HTML. A strict Content-Security-Policy allows only the page's own script and style; `Referrer-Policy: no-referrer` keeps the pairing link out of referrers.
 

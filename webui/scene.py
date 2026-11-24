@@ -255,12 +255,13 @@ def chat(directory: Path | str, topic: str, tail: int) -> list[dict] | None:
     if not valid_topic_id(topic):
         return None
     from topics import topic_messages
+    from webui.media import as_messages
 
     try:
         messages = topic_messages(directory, topic)
     except EventRejected:
         return None
-    messages = messages[-tail:]
+    messages = sorted(messages + as_messages(directory, topic), key=lambda m: float(m["ts"]))[-tail:]
     full = _full_notes(directory, topic)
     for message in messages:
         message["text"] = full.get((message["ts"], message["from"]), message["text"])
@@ -298,7 +299,7 @@ def stamp(directory: Path | str) -> tuple:
     """Sizes and mtimes of what the page shows: session rooms, boards, chat, topics."""
     root = Path(directory)
     paths = [root / "ui" / "session_rooms.json"]
-    for pattern in ("board/*/events.jsonl", "board/*/cards", "channel/*.jsonl", "topics"):
+    for pattern in ("board/*/events.jsonl", "board/*/cards", "channel/*.jsonl", "topics", "web/media.json"):
         try:
             paths.extend(sorted(root.glob(pattern)))
         except OSError:

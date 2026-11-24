@@ -22,7 +22,7 @@ from board.model import clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
 from topics import valid_topic_id
-from webui import auth, scene, writes
+from webui import auth, media, scene, writes
 
 STATIC = asset_path("webui", "static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -37,6 +37,8 @@ WRITE_BURST, WRITE_WINDOW = 10, 60.0
 CSRF_HEADER = "X-CLI-Avatars-CSRF"
 AVATAR_TICK = 0.25
 _BAD_PATH = re.compile(r"\.\.|%2e|%2f|%5c|\\|//", re.IGNORECASE)
+_RANGE = re.compile(r"^bytes=(\d{0,15})-(\d{0,15})$")
+CHUNK = 64 * 1024
 _END = re.compile(r"^/api/sessions/([^/]{1,40})/end$")
 _SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
 HEADERS = {
@@ -217,7 +219,50 @@ class Handler(BaseHTTPRequestHandler):
                 else self._error(404)
         if path == "/api/events":
             return self._events()
+        if path.startswith("/api/media/"):
+            return self._media(path[len("/api/media/"):])
         self._error(404)
+
+    def _media(self, media_id: str) -> None:
+        """A file a turn wrote, by its id; one byte range for video players."""
+        found = media.resolve(self.server.directory, media_id)
+        if found is None:
+            return self._error(404)
+        real, ctype, size = found
+        start, end, status = 0, size - 1, 200
+        asked = self.headers.get("Range")
+        if asked:
+            match = _RANGE.match(asked.strip())
+            if not match or not (match.group(1) or match.group(2)):
+                return self._send(416, b"", "text/plain", {"Content-Range": f"bytes */{size}"})
+            if match.group(1):
+                start = int(match.group(1))
+                end = min(int(match.group(2)), size - 1) if match.group(2) else size - 1
+            else:
+                start = max(0, size - int(match.group(2)))
+            if start > end or start >= size:
+                return self._send(416, b"", "text/plain", {"Content-Range": f"bytes */{size}"})
+            status = 206
+        self.send_response(status)
+        extra = {"Content-Disposition": "inline", "Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600"}
+        if status == 206:
+            extra["Content-Range"] = f"bytes {start}-{end}/{size}"
+        for key, value in {**HEADERS, **extra}.items():
+            self.send_header(key, value)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(end - start + 1))
+        self.end_headers()
+        if self.command == "HEAD":
+            return
+        with open(real, "rb") as handle:
+            handle.seek(start)
+            left = end - start + 1
+            while left > 0:
+                block = handle.read(min(CHUNK, left))
+                if not block:
+                    break
+                self.wfile.write(block)
+                left -= len(block)
 
     def _chat(self, topic: str, query) -> None:
         raw = (query.get("tail") or [str(DEFAULT_TAIL)])[0]
