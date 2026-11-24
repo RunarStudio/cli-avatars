@@ -77,7 +77,19 @@ def repack(view) -> None:
 def show_center(view, name: str) -> None:
     view.scene.pack_forget()
     view._skins.pack_forget()
-    if name == "skins":
+    throne = getattr(view, "_throne", None)
+    if throne is not None:
+        throne.pack_forget()
+        if getattr(view, "throne", None) is not None:
+            view.throne.hide()
+    if name == "throne" and throne is not None:
+        from cli_avatars.app.throne_panel import ensure
+
+        view.app._picker_live = False
+        throne.pack(fill="both", expand=True)
+        ensure(view).show()
+        view._center = "throne"
+    elif name == "skins":
         view._ensure_skins()
         view._skins.pack(fill="both", expand=True)
         view.app._picker_live = True
@@ -91,6 +103,7 @@ def show_center(view, name: str) -> None:
         view._center = "dungeon"
     mark(view._tab_dungeon, view._center == "dungeon")
     mark(view._tab_skins, view._center == "skins")
+    mark(getattr(view, "_tab_throne", None), view._center == "throne")
 
 
 def show_right(view) -> None:
@@ -173,10 +186,13 @@ def _body(view, root) -> None:
     strip.pack(fill="x")
     view._tab_dungeon = _btn(strip, text="Dungeon", command=lambda: view.show_center("dungeon"))
     view._tab_dungeon.pack(side="left", padx=(6, 2), pady=3)
+    view._tab_throne = _btn(strip, text="Throne", command=lambda: view.show_center("throne"))
+    view._tab_throne.pack(side="left", padx=2, pady=3)
     view._tab_skins = _btn(strip, text="Skins", command=lambda: view.show_center("skins"))
     view._tab_skins.pack(side="left", padx=2, pady=3)
     view.scene = tk.Canvas(view._mid, bg=_FLOOR, highlightthickness=0, bd=0)
     view._skins = tk.Frame(view._mid, bg=_BG)
+    view._throne = tk.Frame(view._mid, bg=_BG)
     view.scene.bind("<Configure>", lambda _e: paint_floor(view.scene))
     rstrip = tk.Frame(view._right, bg=_BAR)
     rstrip.pack(fill="x")
