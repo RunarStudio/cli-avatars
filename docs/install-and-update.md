@@ -1,5 +1,7 @@
 # Install and update
 
+An agent checking, restarting or updating the running app: [agent-ops.md](agent-ops.md).
+
 CLI Avatars installs per user on Windows and can rebuild itself from the `dev` branch. The installer does not need an administrator account. Updating uses the git credentials already on the machine. The app does not read those credentials, does not store tokens, and does not put them on a command line.
 
 ## First install on your PC

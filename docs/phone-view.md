@@ -37,6 +37,8 @@ Grok rooms open, but Grok cannot run prompts yet (as in the Dungeon).
 3. Tap **Update app**, then **Update** in the sheet that asks (the Dungeon restarts; the page reconnects). It is the Dungeon's own Update (toolbar, Settings, tray): same steps, same log, see [install-and-update.md](install-and-update.md#update).
 4. The steps light up as they run (Check, Pull, Selftest, Boot, Build, Restart) with the status line under them. While the app restarts the page retries with backoff and, once the new build answers, shows **Updated to** its commit, or that the new build failed its boot check and the old one is back.
 
+**Restart** beside it (same switch, confirm) quits and relaunches the Dungeon without updating; the page reconnects and shows **Back up at** the time it answered (OPS.1, [agent-ops.md](agent-ops.md)).
+
 When Update cannot run the button is disabled and the reason shows under it: Running from source, git or PyInstaller missing, an update already running, or sending from the phone off.
 
 ## Build and customize rooms from the phone (PHONE.3)

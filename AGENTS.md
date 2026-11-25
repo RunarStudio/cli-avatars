@@ -1,5 +1,7 @@
 # AGENTS.md — guide for AI coding agents
 
+Managing or restarting the app: docs/agent-ops.md
+
 CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on screen for each live AI coding session (Claude Code, Grok Build, demo). Data flows from session scanners and localhost UDP into `overlay.py`; chat, inbox, and MCP live beside it. Full product context: `README.md`, architecture: `CLAUDE.md`, task board: `TASKS.md`.
 
 ## Module map (main Python)
@@ -27,6 +29,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `topics.py` | Topic summaries, pins, previews |
 | `routing.py` | Composer → orchestrator routing |
 | `cli_avatars_emit.py` | `python -m cli_avatars_emit` — state, say, inbox, hooks installer |
+| `emit_app.py` | `cli-avatars-emit app status\|restart\|update\|logs` — manage the running app (OPS.1, `docs/agent-ops.md`) |
 | `emit_tasks.py` | `cli-avatars-emit task status|progress|check` — agent card updates through `registry.AgentApi` |
 | `claude_chat_hooks.py` | Merge chat hooks into Claude `settings.json` |
 | `hooks/claude_chat_hook.py` | Stdlib Claude Code hook (chat context + idle) |
@@ -102,5 +105,6 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Task chats | `docs/task-chats.md` |
 | Phone view | `docs/phone-view.md` |
 | Bot roster and status | `docs/bot-status.md` |
+| Check, restart, update the running app | `docs/agent-ops.md` |
 
 Hooks: install with `python -m cli_avatars_emit hooks install --apply`; do not rely on removed `claude_hooks_example.py`.

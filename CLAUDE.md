@@ -1,5 +1,7 @@
 # CLI Avatars — Claude Code Project Guide
 
+Managing or restarting the app: docs/agent-ops.md
+
 Standalone Python desktop overlay. Animated pixel-art avatars walk on screen for each active AI agent session.
 
 **Full reference:** `AI_OVERLAY.md` — contains all architecture, sprite spec, and roadmap. Read it first.
