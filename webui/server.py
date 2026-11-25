@@ -61,6 +61,7 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/boss.css": ("boss.css", "text/css; charset=utf-8"),
          "/static/voice.js": ("voice.js", "text/javascript; charset=utf-8"),
          "/static/voice.css": ("voice.css", "text/css; charset=utf-8"),
+         "/static/rise.js": ("rise.js", "text/javascript; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048

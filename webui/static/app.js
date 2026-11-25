@@ -207,6 +207,7 @@ function frame(now) {
     ctx.shadowBlur = 0;
     drawFlare(now);
     drawGlow(now);
+    if (typeof drawRise === "function") drawRise(now);
     const lapsing = typeof drawLapse === "function" && drawLapse(now);
     if (!lapsing && typeof drawBodyUnder === "function") drawBodyUnder(now);
     if (!lapsing) drawAvatars(now);
