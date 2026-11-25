@@ -212,6 +212,14 @@ class TasksPanel:
             self._cue("move")
         return out
 
+    def flash(self, card_id: str) -> None:
+        """QUICK-CAPTURE: a gold edge on a new card for a moment, so the eye finds where it landed."""
+        box = self.cards.get(card_id)
+        if box is None:
+            return
+        box.config(highlightbackground=GOLD, highlightthickness=2)
+        box.after(1400, lambda: box.winfo_exists() and box.config(highlightbackground="#8a6a3a", highlightthickness=1))
+
     def column_of(self, card_id: str) -> str | None:
         tile = self._tiles.get(card_id)
         return tile[0].column if tile else None
@@ -244,7 +252,7 @@ class TasksPanel:
             self.move(card_id, COLUMNS[COLUMNS.index(here) + delta])
             box = self.cards.get(card_id)
             if box is not None:
-                box.focusset_text()
+                box.focus_set()
         return "break"
 
     def _draw(self, board: Board) -> None:
@@ -351,7 +359,7 @@ class TasksPanel:
         self._drag = {"card": card_id, "x": event.x_root, "y": event.y_root, "moved": False}
         box = self.cards.get(card_id)
         if box is not None:
-            box.focusset_text()
+            box.focus_set()
 
     def _motion(self, event) -> None:
         drag = self._drag

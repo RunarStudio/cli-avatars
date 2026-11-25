@@ -5,6 +5,7 @@ a fixed list. ``/pair?t=<token>`` turns the web token into an HttpOnly cookie; e
 needs that cookie. Binds 127.0.0.1 unless one local interface IP is passed; never every interface.
 WEB.4 writes (``web.allow_writes``, off by default) also need the CSRF header, a JSON body under
 ``MAX_BODY`` and the rate limit; ``/api/cards/<id>/move`` is the board's move (TASKBACK.5).
+QUICK-CAPTURE: ``/api/capture/suggest`` ranks topics locally (read-only); ``POST /api/capture`` is a write.
 WEB-PUSH: ``/sw.js`` and the push routes; the manifest and its icon load unpaired (they hold no data).
 """
 
@@ -20,7 +21,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import needs_you
-from board.model import COLUMNS, clean_board_project, valid_uuid
+from board.model import BODY_LIMIT, COLUMNS, clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
 from topics import valid_topic_id
@@ -40,6 +41,7 @@ KEEPALIVE = 15.0
 WRITE_BURST, WRITE_WINDOW = 10, 60.0
 CSRF_HEADER = "X-CLI-Avatars-CSRF"
 AVATAR_TICK = 0.25
+SUGGEST_MAX = 12
 _BAD_PATH = re.compile(r"\.\.|%2e|%2f|%5c|\\|//", re.IGNORECASE)
 _RANGE = re.compile(r"^bytes=(\d{0,15})-(\d{0,15})$")
 CHUNK = 64 * 1024
@@ -192,6 +194,8 @@ class Handler(BaseHTTPRequestHandler):
             if why == "missing":
                 return self._error(404)
             return self._json({"why": why}, 409) if why else self._json({"room": room})
+        if path == "/api/capture":
+            return self._capture(body)
         move = _MOVE.match(path)
         if move:
             if set(body) != {"column"} or body["column"] not in COLUMNS:
@@ -209,6 +213,19 @@ class Handler(BaseHTTPRequestHandler):
             why = actions.send(topic, text)
             return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
         self._error(404)
+
+    def _capture(self, body: dict) -> None:
+        """QUICK-CAPTURE: ``{"text", "topic", "chat"}`` makes one todo card, with ``chat`` a task chat on it."""
+        text, topic, chat = body.get("text"), body.get("topic"), body.get("chat")
+        if set(body) != {"text", "topic", "chat"} or not isinstance(text, str) or not isinstance(chat, bool) \
+                or not isinstance(topic, str) or not valid_topic_id(topic) or not text.strip():
+            return self._error(400)
+        if len(text) > BODY_LIMIT:
+            return self._error(413)
+        card, room, why = self.server.actions.capture(text, topic, chat)
+        if why:
+            return self._error({"missing": 404, "empty": 400, "schema": 400}.get(why, 409))
+        return self._json({"id": card["id"], "topic": card["topic"], "room": room})
 
     def _decide(self, decision_id: str, body: dict) -> None:
         """DECIDE.1: answer a decision with ``choice`` (a letter), ``text``, or both."""
@@ -306,6 +323,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/needs-you":
             items = [{k: row[k] for k in NEEDS_KEYS} for row in needs_you.pending(directory)]
             return self._json({"items": items, "count": len(items)})
+        if path == "/api/capture/suggest":
+            return self._suggest(query)
         if path == "/api/push":
             return self._json({"key": push.public_key(directory), "count": len(push.subscriptions(directory))})
         if path == "/api/sessions":
@@ -342,6 +361,17 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/media/"):
             return self._media(path[len("/api/media/"):])
         self._error(404)
+
+    def _suggest(self, query) -> None:
+        """QUICK-CAPTURE: topics for ``q`` best first (local ranker), ``current`` when nothing matches."""
+        from registry import capture
+
+        text = (query.get("q") or [""])[0][:BODY_LIMIT]
+        current = (query.get("current") or [""])[0]
+        index = capture.build_index(self.server.directory)
+        ranked = index.rank(text, current if valid_topic_id(current) else "")[:SUGGEST_MAX]
+        return self._json({"writes": self.server.writes(),
+                           "topics": [{"id": t, "title": index.title(t)} for t in ranked]})
 
     def _media(self, media_id: str) -> None:
         """A file a turn wrote, by its id; one byte range for video players."""

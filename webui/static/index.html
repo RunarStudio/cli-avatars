@@ -177,6 +177,22 @@
     </div>
   </div>
 </div>
+<div id="cap" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="capTitle">
+  <div class="sheet-card">
+    <header class="bar"><h2 id="capTitle"><span class="quill" aria-hidden="true"></span>Quick capture</h2><button id="capClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <form id="capForm" class="sheet-body" autocomplete="off">
+      <input id="capText" class="cap-text" maxlength="4000" enterkeyhint="done" placeholder="Drop a thought" aria-label="Thought">
+      <h3>Topic <small>suggested from your words</small></h3>
+      <div id="capTopics" class="cap-topics" role="radiogroup" aria-label="Topic"></div>
+      <select id="capMore" class="cap-more" aria-label="Another topic"></select>
+      <div id="capMode" class="seg" role="radiogroup" aria-label="Save as"><button type="button" data-mode="card" class="on">Card</button><button type="button" data-mode="chat">Task chat</button></div>
+      <button id="capSave" class="send wide" type="submit">Save</button>
+      <p id="capNote" class="hint" aria-live="polite"></p>
+    </form>
+  </div>
+</div>
+<button id="capBtn" class="fab" type="button" title="Quick capture" aria-haspopup="dialog"><span class="quill" aria-hidden="true"></span><b>+</b></button>
+<p id="capToast" class="cap-toast" hidden aria-live="polite"></p>
 <button id="notice" class="notice" type="button" hidden aria-live="assertive"><span class="seal" aria-hidden="true"></span><span><b id="noticeTitle"></b><span id="noticeText"></span></span></button>
 <div id="viewer" class="viewer" hidden role="dialog" aria-modal="true" aria-label="Full view">
   <button id="viewerClose" class="icon" type="button" title="Close">&#10005;</button>

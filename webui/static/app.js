@@ -4,6 +4,7 @@
 // WEB-PUSH: alerts with the page closed (App sheet toggle, service worker); a tap opens the item.
 // TASKBACK.5: the Board view: columns as swipeable lanes, project and topic filters, each card's chat count and
 // last reply; with writes on, a long-press or Move opens "Move to".
+// QUICK-CAPTURE: the floating + drops a thought as a card or a task chat in the topic the local ranker suggests.
 // Every text goes in with textContent.
 "use strict";
 
@@ -343,7 +344,7 @@ function renderTasks() {
   const rooms = new Map((state.scene ? state.scene.rooms : []).map((r) => [r.name, r.title]));
   for (const c of state.cards) {
     const li = el("li");
-    const b = el("button", "task" + (c.id === state.sel ? " sel" : ""));
+    const b = el("button", "task" + (c.id === state.sel ? " sel" : "") + (c.id === state.fresh ? " fresh" : ""));
     b.type = "button";
     b.append(el("span", "badge " + c.column, LABELS[c.column] || c.column), el("span", "title", c.title));
     if (c.summary) b.append(whereSlip(c));
@@ -424,7 +425,7 @@ function renderBoard() {
 }
 
 function boardCard(c) {
-  const li = el("li", "bcard" + (c.id === state.sel ? " sel" : ""));
+  const li = el("li", "bcard" + (c.id === state.sel ? " sel" : "") + (c.id === state.fresh ? " fresh" : ""));
   li.dataset.id = c.id;
   const top = el("div", "bc-top");
   top.append(el("span", "title", c.title));
@@ -508,6 +509,113 @@ $("bTopic").addEventListener("change", (e) => { state.filter.topic = e.target.va
 $("lanes").addEventListener("scroll", paintDots, { passive: true });
 $("moveClose").addEventListener("click", () => { $("moveSheet").hidden = true; });
 $("moveSheet").addEventListener("click", (e) => { if (e.target === $("moveSheet")) $("moveSheet").hidden = true; });
+
+// --- QUICK-CAPTURE ---------------------------------------------------------------------------------
+state.cap = { topics: [], picked: "", manual: false, chat: false, timer: null, seq: 0 };
+
+function capCurrent() {
+  const sel = state.cards.find((c) => c.id === state.sel);
+  const chat = state.chatKey && !state.chatKey.startsWith("task-") ? state.chatKey : "";
+  return state.filter.topic || (sel && sel.topic) || chat || "";
+}
+
+async function openCapture() {
+  const cap = state.cap;
+  cap.manual = false;
+  $("capText").value = "";
+  $("capNote").textContent = "";
+  setCapMode(false);
+  $("cap").hidden = false;
+  setTimeout(() => $("capText").focus(), 60);
+  await Promise.all([suggestCapture(), loadWrites()]);
+  paintCapWrites();
+}
+function closeCapture() { $("cap").hidden = true; }
+
+function paintCapWrites() {
+  $("capSave").disabled = !state.writes.writes;
+  if (!state.writes.writes) $("capNote").textContent = "Capture is off: turn on phone writes in the Dungeon's Settings.";
+}
+
+async function suggestCapture() {
+  const cap = state.cap, seq = ++cap.seq;
+  const q = $("capText").value.slice(0, 200);
+  const data = await getJSON("/api/capture/suggest?q=" + encodeURIComponent(q) + "&current=" + encodeURIComponent(capCurrent())).catch(() => null);
+  if (!data || seq !== cap.seq) return;
+  cap.topics = data.topics;
+  if (!cap.manual || !data.topics.some((t) => t.id === cap.picked)) {
+    cap.picked = data.topics.length ? data.topics[0].id : "";
+    cap.manual = false;
+  }
+  paintCapTopics();
+}
+
+function paintCapTopics() {
+  const cap = state.cap, top = cap.topics.slice(0, 3);
+  if (cap.picked && !top.some((t) => t.id === cap.picked)) top.splice(2, 1, cap.topics.find((t) => t.id === cap.picked));
+  $("capTopics").replaceChildren(...top.map((t, i) => {
+    const b = el("button", "cap-chip" + (t.id === cap.picked ? " on" : ""), t.title);
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", t.id === cap.picked ? "true" : "false");
+    if (i === 0 && !cap.manual) b.append(el("small", "", "suggested"));
+    b.addEventListener("click", () => { cap.picked = t.id; cap.manual = true; paintCapTopics(); });
+    return b;
+  }));
+  if (!top.length) $("capTopics").append(el("p", "hint", "No topics yet: make one in the Dungeon."));
+  const rest = cap.topics.filter((t) => !top.includes(t));
+  const more = $("capMore");
+  more.hidden = !rest.length;
+  const head = el("option", "", "Another topic\u2026");
+  head.value = "";
+  more.replaceChildren(head, ...rest.map((t) => { const o = el("option", "", t.title); o.value = t.id; return o; }));
+  more.value = "";
+}
+
+function setCapMode(chat) {
+  state.cap.chat = chat;
+  for (const b of $("capMode").children) b.classList.toggle("on", (b.dataset.mode === "chat") === chat);
+}
+
+async function saveCapture() {
+  const cap = state.cap, text = $("capText").value;
+  if (!text.trim()) { $("capNote").textContent = "Write the thought first."; tone("failed"); return; }
+  if (!cap.picked) { $("capNote").textContent = "Pick a topic."; return; }
+  $("capSave").disabled = true;
+  const res = await postJSON("/api/capture", { text, topic: cap.picked, chat: cap.chat }).catch(() => ({ ok: false, data: {} }));
+  $("capSave").disabled = false;
+  if (!res.ok) {
+    $("capNote").textContent = res.status === 429 ? "Too many writes: wait a minute." : res.status === 404 ? "That topic is gone; pick another." : "Not saved (" + (res.status || "offline") + ").";
+    tone("failed");
+    return;
+  }
+  closeCapture();
+  tone("capture");
+  const where = (cap.topics.find((t) => t.id === cap.picked) || {}).title || cap.picked;
+  capToast((res.data.room ? "\u2713 Chat saved in " : "\u2713 Card saved in ") + where);
+  state.fresh = res.data.id;
+  setTimeout(() => { if (state.fresh === res.data.id) { state.fresh = null; renderTasks(); } }, 2600);
+  await load().catch(() => {});
+  for (const node of document.querySelectorAll(".fresh")) if (node.offsetParent) node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (res.data.room) showChat(res.data.room, text.trim().split("\n")[0].slice(0, 60) + " \u00b7 chat");
+}
+
+function capToast(text) {
+  const t = $("capToast");
+  t.textContent = text;
+  t.hidden = false;
+  clearTimeout(state.cap.toast);
+  state.cap.toast = setTimeout(() => { t.hidden = true; }, 2400);
+}
+
+$("capBtn").addEventListener("click", openCapture);
+$("capClose").addEventListener("click", closeCapture);
+$("cap").addEventListener("click", (e) => { if (e.target === $("cap")) closeCapture(); });
+$("capForm").addEventListener("submit", (e) => { e.preventDefault(); saveCapture(); });
+$("capText").addEventListener("input", () => { clearTimeout(state.cap.timer); state.cap.timer = setTimeout(suggestCapture, 180); });
+$("capMore").addEventListener("change", (e) => { if (e.target.value) { state.cap.picked = e.target.value; state.cap.manual = true; paintCapTopics(); } });
+for (const b of $("capMode").children) b.addEventListener("click", () => setCapMode(b.dataset.mode === "chat"));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("cap").hidden) closeCapture(); });
 
 // TASK-SUMMARY: the AI's three lines on where the task is, with their age; read-only
 function whereSlip(c) {
@@ -1632,6 +1740,7 @@ function tone(kind) {
     const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : kind === "done" ? [[523.25, 0], [659.25, 0.09], [783.99, 0.18]]
       : kind === "build" ? [[130.81, 0], [196.0, 0.16], [261.63, 0.34], [392.0, 0.52]]
       : kind === "failed" ? [[329.63, 0], [261.63, 0.12]] : kind === "move" ? [[293.66, 0], [440.0, 0.07]]
+      : kind === "capture" ? [[987.77, 0], [783.99, 0.05], [1174.66, 0.12]]
       : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {
       const o = audio.createOscillator();

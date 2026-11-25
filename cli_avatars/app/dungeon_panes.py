@@ -61,6 +61,9 @@ def mount(view) -> None:
     view.app._create_hud_win()
     root.bind("<Escape>", view.on_escape)
     root.bind("<Configure>", view._on_configure)
+    from cli_avatars.app.capture_strip import mount as mount_capture
+
+    view.capture = mount_capture(view)
 
 
 def repack(view) -> None:

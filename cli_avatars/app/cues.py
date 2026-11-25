@@ -3,6 +3,7 @@
 ``config.json`` key ``sound.cues`` (true unless set false). ``arrive``: two soft footsteps and a low door
 knock when a guest orchestrator reaches the host's room. ``decide``: a rising three-note bell when an agent
 asks Daniel a decision (DECIDE.1). ``move``: a card slid across the board and set down (TASKBACK.5).
+``capture``: a quill's quick scratch and a soft pinned-note pluck when a thought is saved (QUICK-CAPTURE).
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -31,13 +32,15 @@ def play(app, name: str) -> None:
         _player(name, app)
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=8)
 def wav(name: str) -> bytes:
     """16-bit mono WAV of the cue: thuds of filtered noise under a short decay. Same bytes every run."""
     if name == "decide":
         return _pcm(_bell())
     if name == "move":
         return _pcm(_slide())
+    if name == "capture":
+        return _pcm(_quill())
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):
@@ -75,6 +78,25 @@ def _slide() -> np.ndarray:
     tap = np.sin(2 * np.pi * 180.0 * t) * np.exp(-t * 45) + np.sin(2 * np.pi * 410.0 * t) * np.exp(-t * 80) * 0.4
     start = int(RATE * 0.15)
     out[start:start + n] += tap.astype(np.float32)
+    return out
+
+
+def _quill() -> np.ndarray:
+    """Three quick quill strokes (bright filtered noise) and a soft two-note pluck as the note is pinned."""
+    rng = np.random.default_rng(23)
+    out = np.zeros(int(RATE * 0.5), np.float32)
+    for at, length, gain in ((0.0, 0.05, 0.5), (0.06, 0.04, 0.4), (0.11, 0.07, 0.55)):
+        n = int(RATE * length)
+        t = np.arange(n) / RATE
+        grit = np.diff(rng.standard_normal(n + 1)) * np.sin(np.pi * t / t[-1]) * gain * 0.4
+        start = int(RATE * at)
+        out[start:start + n] += grit.astype(np.float32)
+    for at, pitch in ((0.2, 783.99), (0.27, 1046.5)):
+        n = int(RATE * 0.22)
+        t = np.arange(n) / RATE
+        pluck = (np.sin(2 * np.pi * pitch * t) + 0.25 * np.sin(2 * np.pi * pitch * 3 * t)) * np.exp(-t * 22)
+        start = int(RATE * at)
+        out[start:start + n] += (pluck * np.minimum(1.0, t * 600) * 0.7).astype(np.float32)
     return out
 
 
