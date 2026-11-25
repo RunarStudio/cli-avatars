@@ -24,6 +24,19 @@ class Dock(unittest.TestCase):
                      "scroll survives a rebuild"):
             self.assertIn(f"ok {name}", proc.stdout)
 
+    def test_orch_row_ages_do_not_rebuild(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = subprocess.run(
+                [sys.executable, str(ROOT / "tests" / "_rooms_dock_orch_probe.py"), str(ROOT), tmp],
+                cwd=ROOT, capture_output=True, text=True, timeout=120, shell=False,
+            )
+        if proc.returncode == 77:
+            self.skipTest("tkinter has no display")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        for name in ("orch row, bots and decisions present", "180 s of ticks keep every widget",
+                     "orch age text moves", "rebuild on an orch row change"):
+            self.assertIn(f"ok {name}", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

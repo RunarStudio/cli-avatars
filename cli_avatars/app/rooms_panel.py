@@ -220,9 +220,10 @@ def _update_rooms_win(self, force: bool = False) -> None:
     topic_sig = tuple((name, tuple(row.get("id") for row in rows)) for name, rows in topics)
     self._orch_rows = orch_dock.rows(self)
     sig = (tuple(_steady(card) for card in cards), topic_sig, tuple(sorted(counts.items())), bot_signature(self),
-           tuple(self._orch_rows))
+           orch_dock.steady(self._orch_rows))
     if not force and sig == self._rooms_sig:
         _set_ages(self, cards)
+        orch_dock.set_ages(self, self._orch_rows)
         return
     self._rooms_sig = sig
     self._render_topic_groups(topics, cards, counts)

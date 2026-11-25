@@ -2,14 +2,29 @@
 
 import time
 import tkinter as tk
+from dataclasses import replace
 
 
 def render(self, parent, rows) -> None:
+    self._orch_ages = {}
     if rows:
         tk.Label(parent, text="Orchestrator rooms", bg="#0d0d1a", fg="#e0aa3e",
                  font=("Courier", 10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
     for row in rows:
         render_row(self, parent, row)
+
+
+def steady(rows) -> tuple:
+    """The rows without their age line ("seen 3m ago"), which moves with the clock and is set in place."""
+    return tuple(replace(row, last=bool(row.last)) for row in rows)
+
+
+def set_ages(self, rows) -> None:
+    labels = getattr(self, "_orch_ages", {})
+    for row in rows:
+        label = labels.get(row.topic)
+        if label is not None and label.cget("text") != row.last:
+            label.configure(text=row.last)
 
 
 def rows(self) -> list:
@@ -51,12 +66,15 @@ def render_row(self, parent, row) -> None:
     frame = tk.Frame(parent, bg=bg, highlightbackground=edge, highlightthickness=1, padx=8, pady=5, cursor="hand2")
     frame.pack(fill="x", padx=10, pady=3)
     lines = row_lines(row)
+    ages = getattr(self, "_orch_ages", None)
     for index, text in enumerate(lines):
         amber = row.amber and row.note and text == row.note
         fg = "#ffbe3c" if amber else "#e0aa3e" if index == 0 else "#e8e6f4" if index == 1 else "#9a98b8"
         font = ("Courier", 10, "bold") if index == 0 else ("Courier", 9)
-        tk.Label(frame, text=text, bg=bg, fg=fg, font=font, anchor="w", justify="left",
-                 cursor="hand2").pack(anchor="w", fill="x")
+        label = tk.Label(frame, text=text, bg=bg, fg=fg, font=font, anchor="w", justify="left", cursor="hand2")
+        label.pack(anchor="w", fill="x")
+        if ages is not None and row.last and index == len(lines) - 1:
+            ages[row.topic] = label
     frame.bind("<Button-1>", lambda _e, topic=row.topic: pick(self, topic))
     for child in frame.winfo_children():
         child.bind("<Button-1>", lambda _e, topic=row.topic: pick(self, topic))
