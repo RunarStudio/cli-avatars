@@ -9,8 +9,6 @@ narrow window shrinks the columns so the map keeps room, a wide one gives the pi
 
 from __future__ import annotations
 
-import tkinter as tk
-
 from cli_avatars.app.dungeon_geom import DEFAULT_LEFT, DEFAULT_RIGHT, SCENE_MIN, fit_dock_widths
 
 SASH_W = 6
@@ -62,6 +60,8 @@ def reset(view, side: str) -> None:
 
 def reflow(view) -> None:
     """Shown widths for the body's width now: the picked ones, shrunk while the map would get too little."""
+    import tkinter as tk
+
     try:
         body_w = int(view._mid.master.winfo_width())
     except (tk.TclError, AttributeError):
@@ -79,6 +79,8 @@ def reflow(view) -> None:
 
 def make(view, body, side: str):
     """One splitter: a thin stone edge with an ember grip, drawn in code."""
+    import tkinter as tk
+
     sash = tk.Canvas(body, width=SASH_W, bg=_EDGE, highlightthickness=0, bd=0, cursor="sb_h_double_arrow")
     frame = view._left if side == "left" else view._right
     low, high = LIMITS[side]

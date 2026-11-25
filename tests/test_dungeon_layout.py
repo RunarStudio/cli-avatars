@@ -1,6 +1,6 @@
 """LAYOUT.1: resizable side columns. The right splitter used to stick at its minimum; the docks did not reflow.
 
-Splitter drags are fed plain events (no Tk). Window resizes run in a child process with a real Tk root.
+Splitter drags are fed plain events (no Tk in this process). Window resizes run in a child with a real Tk root.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from cli_avatars.app.dungeon_window import DungeonWindow  # noqa: E402
+from cli_avatars.app import dungeon_sash  # noqa: E402
 
 BODY_W = 1360
 
@@ -37,9 +37,8 @@ class _Frame:
 
 def _view():
     body = _Frame(None, 0, BODY_W)
-    view = DungeonWindow.__new__(DungeonWindow)
+    view = SimpleNamespace(_schedule_save=lambda: None)
     view.app = SimpleNamespace(_rooms_shown=True)
-    view._offscreen, view._placed, view._save_job = True, False, None
     view._right_open = True
     view._left = _Frame(body, 0, 280)
     view._right = _Frame(body, BODY_W - 360, 360)
@@ -57,33 +56,33 @@ def _at(x):
 class SplitterDrag(unittest.TestCase):
     def test_the_right_splitter_follows_the_pointer_both_ways(self):
         view = _view()
-        view.drag_dock(view._right, _at(BODY_W - 460), 200, 720)
+        dungeon_sash.drag(view, view._right, _at(BODY_W - 460), 200, 720)
         self.assertEqual(view._right.width, 460)
-        view.drag_dock(view._right, _at(BODY_W - 250), 200, 720)
+        dungeon_sash.drag(view, view._right, _at(BODY_W - 250), 200, 720)
         self.assertEqual(view._right.width, 250)
 
     def test_the_left_splitter_follows_the_pointer(self):
         view = _view()
-        view.drag_dock(view._left, _at(400), 160, 640)
+        dungeon_sash.drag(view, view._left, _at(400), 160, 640)
         self.assertEqual(view._left.width, 400)
 
     def test_widths_stay_within_min_and_max_and_leave_the_map_room(self):
         view = _view()
-        view.drag_dock(view._left, _at(150), 160, 640)
+        dungeon_sash.drag(view, view._left, _at(150), 160, 640)
         self.assertEqual(view._left.width, 160)
-        view.drag_dock(view._right, _at(BODY_W - 2000), 200, 720)
+        dungeon_sash.drag(view, view._right, _at(BODY_W - 2000), 200, 720)
         self.assertEqual(view._right.width, 720)
-        view.drag_dock(view._left, _at(1200), 160, 640)
+        dungeon_sash.drag(view, view._left, _at(1200), 160, 640)
         self.assertLessEqual(view._left.width + view._right.width + 12, BODY_W - 200)
 
     def test_dragging_a_column_almost_shut_collapses_it_to_its_edge(self):
         view = _view()
-        view.drag_dock(view._right, _at(BODY_W - 40), 200, 720)
+        dungeon_sash.drag(view, view._right, _at(BODY_W - 40), 200, 720)
         self.assertFalse(view._right_open)
-        view.drag_dock(view._right, _at(BODY_W - 300), 200, 720)
+        dungeon_sash.drag(view, view._right, _at(BODY_W - 300), 200, 720)
         self.assertTrue(view._right_open)
         self.assertEqual(view._right.width, 300)
-        view.drag_dock(view._left, _at(30), 160, 640)
+        dungeon_sash.drag(view, view._left, _at(30), 160, 640)
         self.assertFalse(view.app._rooms_shown)
 
 
