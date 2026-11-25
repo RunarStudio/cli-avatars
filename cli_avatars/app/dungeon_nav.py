@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from cli_avatars.app import cues, focus_mode
+from cli_avatars.app import cues, focus_mode, you_view
 from cli_avatars.app.dungeon_camera import Camera, key_pan
 from cli_avatars.app.nav_widget import widget_for
 
@@ -29,6 +29,7 @@ def attach(view) -> None:
     scene.bind("<Button-4>", lambda e: on_wheel(view, e), add="+")
     scene.bind("<Button-5>", lambda e: on_wheel(view, e), add="+")
     scene.bind("<KeyPress>", lambda e: on_key(view, e), add="+")
+    scene.bind("<KeyRelease>", lambda e: you_view.key_up(view.app, e), add="+")
 
 
 def restore(view, zoom: object, pan) -> None:
@@ -60,6 +61,8 @@ def on_key(view, event):
     if camera is None:
         return None
     keysym = str(getattr(event, "keysym", ""))
+    if you_view.key(getattr(view, "app", None), event):
+        return "break"
     if keysym in ZOOM_KEYS:
         camera.zoom_by(ZOOM_KEYS[keysym])
     elif keysym in HOME_KEYS:

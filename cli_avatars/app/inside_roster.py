@@ -225,8 +225,9 @@ class Hall:
         self.hues = bot_hues(aid for aid, agent in agents.items() if kind_of(agent) == GROK)
         self._meet(agents, now)
         topics, cards = self._rooms()
-        from cli_avatars.app import body_view, boss_view, courier_view
+        from cli_avatars.app import body_view, boss_view, courier_view, you_view
 
+        you_view.update(self.book, self, plan, agents, topics, cards, now)
         posed = body_view.update(self.book, self, plan, agents, topics, cards, now)
         courier_view.update(self.book, self, plan, now)
         boss_view.update(self.book, self, plan, now)
@@ -324,6 +325,9 @@ class Hall:
         rooms = {aid: plan.room_at(*spot) for aid, spot in feet.items()}
         view = getattr(self.book, "_body", None)
         body = view.public({aid: self.room_of(aid) for aid in feet}) if view is not None else None
+        from cli_avatars.app.you_view import public as you_public
+
+        body = you_public(self.book, body)
         from cli_avatars.app.courier_view import rows as courier_rows
 
         found = roster_rows(feet, self.book.app._inside, rooms, self.hues, walking, body, mapping(self.book.app))
@@ -345,7 +349,9 @@ class Hall:
     def _rest_at(self, plan: Plan, aid: str, now: float) -> tuple[tuple[float, float], int]:
         floor = plan.floor(self.room_of(aid))
         if aid == USER_ID:
-            return (floor.centre(), 1)
+            from cli_avatars.app.you_view import rest as you_rest
+
+            return you_rest(self.book, floor)
         from cli_avatars.app.body_view import rest
 
         return rest(self.book, floor, aid, now)
@@ -407,6 +413,10 @@ class Hall:
             agent = AgentInfo(USER_ID, "You", source="user", skin="ember_mage")
             self.user = Avatar(agent, 800, 600, 0, REGISTRY, spring_mode=True)
         av = self.user
+        from cli_avatars.app.you_view import paint as you_paint
+
+        if self.plan() is not None and you_paint(self.book, scene, self, now):
+            return
         av.frame = int(now * 5)
         shown, look = dress(av, photos, self._scale(), {})
         feet = self.user_feet(now) if self.plan() is not None else None

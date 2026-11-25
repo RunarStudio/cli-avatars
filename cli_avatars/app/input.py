@@ -210,6 +210,11 @@ class InputController:
             feet = (dragged.x + dragged.aw / 2.0, dragged.y + dragged.ah - FEET_UP * dragged.ah)
             hall(book).drop(dragged.agent.agent_id, *feet, time.time())
             return
+        if kind == "click":
+            from cli_avatars.app import you_view
+
+            if you_view.click(app, event, inside):
+                return
         if kind == "click" and inside is not None:
             from cli_avatars.app.avatar_menu import open_for
 
