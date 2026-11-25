@@ -61,6 +61,10 @@ CLI_ALLOWLIST: dict[str, bool] = {
 }
 BINARY_NAMES: dict[str, tuple[str, ...]] = {CLI_CURSOR: ("cursor-agent", "agent")}
 SESSION_SLOT = "{session}"
+# HIERARCHY.1: a tier's model and effort. Claude's flags and levels are from `claude --help`.
+TIER_SLOTS = {"model": "{model}", "effort": "{effort}"}
+CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+TIER_VALUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$")
 TEMPLATE_MAX_ARGS = 16
 _TEMPLATE_ARG = re.compile(r"^(?:-{1,2}[A-Za-z][A-Za-z0-9-]*(?:=[A-Za-z0-9._:-]+)?|[A-Za-z0-9][A-Za-z0-9._:-]*)$")
 _TEMPLATE_RESUME = re.compile(r"^(?:-{1,2}[A-Za-z][A-Za-z0-9-]*=)?\{session\}$")
@@ -652,11 +656,14 @@ def confirm_binary(resolved: ResolvedBinary) -> ConfirmedBinary:
     )
 
 
-def build_argv(binary: str, permission_mode: str, session_id: str | None) -> list[str]:
+def build_argv(
+    binary: str, permission_mode: str, session_id: str | None, model: str | None = None, effort: str | None = None
+) -> list[str]:
     """Fixed command line. User text is not accepted here.
 
     A missing ``session_id`` omits ``--resume``. A value that is present
-    and is not a lowercase session UUID is rejected.
+    and is not a lowercase session UUID is rejected. ``model`` and ``effort``
+    (HIERARCHY.1) are checked tier values; a missing one omits its flag.
     """
     if (
         not isinstance(binary, str)
@@ -676,6 +683,12 @@ def build_argv(binary: str, permission_mode: str, session_id: str | None) -> lis
         "--permission-mode",
         permission_mode,
     ]
+    if model is not None:
+        argv.extend(["--model", check_tier_value(model)])
+    if effort is not None:
+        if check_tier_value(effort) not in CLAUDE_EFFORTS:
+            raise CliRejected("effort is not a Claude level")
+        argv.extend(["--effort", effort])
     if session_id is not None:
         if type(session_id) is not str or SESSION_ID_RE.fullmatch(session_id) is None:
             raise CliRejected("resume id is not a session UUID")
@@ -692,13 +705,22 @@ def check_template(template: object) -> dict[str, list[str]]:
     """A config argv template: ``argv`` (fixed flags) and ``resume`` (with one ``{session}``). Raises ``CliRejected``.
 
     Only flag-shaped constants pass: no path, no shell character, no prompt slot, no skip-permission flag.
+    ``model`` and ``effort`` (HIERARCHY.1, optional) are pieces with one ``{model}`` or ``{effort}`` slot each.
     """
     if not isinstance(template, Mapping):
         raise CliRejected("argv template is not an object")
     argv, resume = template.get("argv"), template.get("resume", [])
-    if not isinstance(argv, list) or not isinstance(resume, list) or len(argv) + len(resume) > TEMPLATE_MAX_ARGS:
+    pieces = {name: template[name] for name in TIER_SLOTS if name in template}
+    lists = [argv, resume, *pieces.values()]
+    if not all(isinstance(x, list) for x in lists) or sum(len(x) for x in lists) > TEMPLATE_MAX_ARGS:
         raise CliRejected("argv template is not a short list")
-    for part in argv + resume:
+    for name, piece in pieces.items():
+        slot = TIER_SLOTS[name]
+        filled = [p.replace(slot, "x") if isinstance(p, str) else p for p in piece]
+        if sum(p.count(slot) for p in piece if isinstance(p, str)) != 1 \
+                or not all(isinstance(p, str) and _TEMPLATE_ARG.fullmatch(p) for p in filled):
+            raise CliRejected(f"{name} piece needs one {slot} slot")
+    for part in argv + resume + [p for piece in pieces.values() for p in piece]:
         if not isinstance(part, str) or len(part) > 64:
             raise CliRejected("argv template part is not usable")
         if any(word in part.casefold() for word in _TEMPLATE_FORBIDDEN) or part in _ARGV_FORBIDDEN:
@@ -709,16 +731,24 @@ def check_template(template: object) -> dict[str, list[str]]:
     if resume and (len(slots) != 1 or not _TEMPLATE_RESUME.fullmatch(slots[0])
                    or not all(_TEMPLATE_ARG.fullmatch(p) for p in resume if p not in slots)):
         raise CliRejected("resume template needs one {session} slot")
-    return {"argv": list(argv), "resume": list(resume)}
+    return {"argv": list(argv), "resume": list(resume), **{name: list(p) for name, p in pieces.items()}}
 
 
-def build_template_argv(binary: str, template: object, session_id: str | None) -> list[str]:
-    """Fixed command line from a checked template; the session id fills ``{session}`` after the UUID check."""
+def build_template_argv(
+    binary: str, template: object, session_id: str | None, model: str | None = None, effort: str | None = None
+) -> list[str]:
+    """Fixed command line from a checked template; the session id fills ``{session}`` after the UUID check.
+
+    A checked ``model`` or ``effort`` fills its piece; a template without that piece leaves it out.
+    """
     if not isinstance(binary, str) or not binary or any(ord(ch) < 32 or ord(ch) == 127 for ch in binary):
         raise CliRejected("binary path is not usable")
     _check_shim_path(binary)
     checked = check_template(template)
     argv = [binary, *checked["argv"]]
+    for name, value in (("model", model), ("effort", effort)):
+        if value is not None and name in checked:
+            argv.extend(part.replace(TIER_SLOTS[name], check_tier_value(value)) for part in checked[name])
     if session_id is not None:
         if type(session_id) is not str or SESSION_ID_RE.fullmatch(session_id) is None:
             raise CliRejected("resume id is not a session UUID")
@@ -726,6 +756,14 @@ def build_template_argv(binary: str, template: object, session_id: str | None) -
             raise CliRejected("this CLI has no resume template")
         argv.extend(part.replace(SESSION_SLOT, session_id) for part in checked["resume"])
     return argv
+
+
+def check_tier_value(value: object) -> str:
+    """A model or effort name: a plain word, never a flag, path or shell text."""
+    if type(value) is not str or not TIER_VALUE.fullmatch(value) \
+            or any(word in value.casefold() for word in _TEMPLATE_FORBIDDEN):
+        raise CliRejected("model or effort is not a plain name")
+    return value
 
 
 def build_context_header(topic_title: object, open_cards: Sequence[object] = ()) -> str:
@@ -936,6 +974,8 @@ def start(
     stdout_cap_bytes: int = DEFAULT_STDOUT_CAP_BYTES,
     stderr_cap_bytes: int = DEFAULT_STDERR_CAP_BYTES,
     argv_template: Mapping[str, object] | None = None,
+    model: str | None = None,
+    effort: str | None = None,
 ) -> RoomProcess:
     """Start one allowlisted CLI for one explicit UI action.
 
@@ -951,6 +991,7 @@ def start(
     A second call for the same room and CLI, while the first is running,
     raises ``CliRejected`` and starts nothing. Grok and Cursor need
     ``argv_template`` (CHAT-CTX.1); Claude refuses one and keeps its own argv.
+    ``model`` and ``effort`` are the launch's tier (HIERARCHY.1), checked like every other argv part.
     """
     _consume_user_action(user_action)
     key_cli = _known_cli(cli)
@@ -959,10 +1000,10 @@ def start(
 
     def argv_for(path: str) -> list[str]:
         if argv_template is None:
-            return build_argv(path, mode, session_id)
+            return build_argv(path, mode, session_id, model, effort)
         if type(mode) is not str or mode not in PERMISSION_MODES:
             raise CliRejected("permission mode is not allowlisted")
-        return build_template_argv(path, argv_template, session_id)
+        return build_template_argv(path, argv_template, session_id, model, effort)
 
     if not isinstance(binary, ConfirmedBinary) or binary.cli != key_cli:
         raise CliRejected("binary was not confirmed for this cli")

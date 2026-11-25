@@ -23,8 +23,9 @@ INBOX = "inbox"
 NAMES = {"claude": "Claude", "grok": "Grok", "cursor": "Cursor"}
 COLORS = {INBOX: "#a8a6c8", "claude": "#e07a4a", "grok": "#7aa7e0", "cursor": "#c8d0e8"}
 # From Cursor's CLI docs (parameters, output format); prompt on stdin is assumed, so config may override it.
+# HIERARCHY.1: ``--model`` is in those docs; no effort flag is, so ``effort`` stays a piece config may add.
 DEFAULTS = {"cursor": {"argv": ["-p", "--output-format", "stream-json", "--mode", "plan"],
-                       "resume": ["--resume", "{session}"]}}
+                       "resume": ["--resume", "{session}"], "model": ["--model", "{model}"]}}
 
 
 def targets() -> tuple[str, ...]:

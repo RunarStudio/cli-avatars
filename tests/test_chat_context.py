@@ -44,7 +44,7 @@ class TemplateTest(unittest.TestCase):
         self.assertIsNone(chat_clis.template({}, "claude"))
         self.assertEqual(chat_clis.template({}, "cursor"),
                          {"argv": ["-p", "--output-format", "stream-json", "--mode", "plan"],
-                          "resume": ["--resume", "{session}"]})
+                          "resume": ["--resume", "{session}"], "model": ["--model", "{model}"]})
         self.assertIsNone(chat_clis.template({}, "grok"))
         self.assertEqual(chat_clis.template({"chat": {"clis": {"grok": GROK}}}, "grok"), GROK)
 
