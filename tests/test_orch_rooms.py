@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,11 +18,14 @@ from cli_avatars.app import inside_roster  # noqa: E402
 from cli_avatars.app import orch_rooms as orch  # noqa: E402
 from cli_avatars.app import session_rooms as sr  # noqa: E402
 from cli_avatars.app import session_walks as sw  # noqa: E402
+from cli_avatars.app import throne_model as tm  # noqa: E402
 from cli_avatars.app.dungeon_rooms import RoomsPainter  # noqa: E402
 from cli_avatars.app.places import PlaceBook  # noqa: E402
 from cli_avatars.model.agent import AgentInfo  # noqa: E402
 from cli_avatars.model.place import INSIDE, Place  # noqa: E402
 from cli_avatars.world.avatar import Avatar  # noqa: E402
+from registry.facade import Registry  # noqa: E402
+from topics import ensure_topic  # noqa: E402
 
 TICK = 0.05
 ROOMS = {"orrin": "release-train", "vessa": "harbor-map", "quill": "lantern-docs"}
@@ -80,6 +85,62 @@ class Meetings(unittest.TestCase):
         self.assertEqual(orch.bare("a1b2c3d4"), "a1b2c3d4")
 
 
+def _card(title, column, note="", updated="2026-11-25T06:00:00Z", history=()):
+    return {"id": title, "title": title, "column": column, "topic": "release-train", "status_note": note,
+            "updated": updated, "labels": [], "history": list(history)}
+
+
+class Tracker(unittest.TestCase):
+    CARDS = [
+        _card("Cut the branch", "todo"), _card("Tag the build", "todo"),
+        _card("Mend the gate", "doing", note="step 2 of 3: hinges oiled", updated="2026-11-25T06:10:00Z",
+              history=[{"ts": "2026-11-25T06:10:00Z", "actor": "claude:a1b2c3d4", "kind": "moved",
+                        "from": "todo", "to": "doing"}]),
+        _card("Write notes", "review"),
+        _card("Old one", "done"),
+    ]
+
+    def test_a_topics_row_says_who_what_where_and_the_counts(self):
+        row = orch.topic_row("release-train", "Orrin", "claude", self.CARDS, last_seen=0.0,
+                             now=orch.iso_ts("2026-11-25T06:12:00Z"))
+        self.assertEqual(orch.row_lines(row), [
+            "Orrin · release-train · Claude",
+            "doing: Mend the gate",
+            "step 2 of 3: hinges oiled",
+            "todo 2 · doing 1 · review 1 · blocked 0",
+            "moved Mend the gate to doing · 2m ago",
+        ])
+        self.assertFalse(row.amber)
+
+    def test_a_row_with_no_session_and_no_cards(self):
+        row = orch.topic_row("harbor-map", "", "grok", [], last_seen=0.0, now=1000.0)
+        self.assertEqual(orch.row_lines(row)[:2], ["no session · harbor-map · Grok", "doing: nothing yet"])
+
+    def test_the_door_sign_shows_topic_doing_card_and_note_amber_when_blocked(self):
+        lines, amber = orch.door_sign("release-train", self.CARDS)
+        self.assertEqual(lines, ("RELEASE-TRAIN", "MEND THE GATE", "STEP 2 OF 3: HINGES OILED"))
+        self.assertFalse(amber)
+        blocked = [*self.CARDS, _card("Find the key", "blocked", note="needs the vault code",
+                                      updated="2026-11-25T06:11:00Z")]
+        lines, amber = orch.door_sign("release-train", blocked)
+        self.assertEqual(lines[2], "NEEDS THE VAULT CODE")
+        self.assertTrue(amber)
+        self.assertTrue(orch.topic_row("release-train", "Orrin", "claude", blocked, 0.0, 0.0).amber)
+
+    def test_the_throne_shows_the_selected_rooms_lord(self):
+        model = sr.SessionRooms()
+        model.open(sr.MAIN, "claude", "release-train")
+        model.open(sr.SIMPLE, "claude", "harbor-map")
+        agents = {"zz": AgentInfo("zz", "Late", source="claude", project="release-train", last_seen=50.0),
+                  "aa": AgentInfo("aa", "Early", source="claude", project="release-train", last_seen=10.0),
+                  "hh": AgentInfo("hh", "Harbor", source="claude", project="harbor-map", last_seen=99.0)}
+        shown, lord = orch.room_agents(model.layout(0.0), agents, "release-train")
+        self.assertEqual((sorted(shown), lord), (["aa", "zz"], "zz"))
+        seating = tm.seat(tm.actors_from(shown), lord=lord)
+        self.assertEqual(seating.placed[0].actor.id, "zz")
+        self.assertEqual(orch.room_agents(model.layout(0.0), agents, "nowhere"), (agents, ""))
+
+
 class _Scene:
     def __init__(self, model, clock):
         painter = RoomsPainter(source=lambda: model.layout(clock[0]))
@@ -119,6 +180,7 @@ class HallMeetings(unittest.TestCase):
                    patch.object(cues, "_player", lambda name, app: self.played.append(name)),
                    patch("cli_avatars.app.nameplates.seat_inside", lambda *a: None),
                    patch("cli_avatars.app.places.canvas_photos", lambda _app: None),
+                   patch("cli_avatars.app.door_signs.paint", lambda *a: None),
                    patch.object(inside_roster.Hall, "paint_marks", lambda *a: None),
                    patch.object(inside_roster.Hall, "paint_user", lambda *a: None),
                    patch.object(RoomsPainter, "paint", lambda own, _canvas: setattr(own, "_photo", object()) or True))
@@ -200,6 +262,85 @@ class Cues(unittest.TestCase):
         self.assertLess(len(blob), 64 * 1024)
 
 
+class PhoneSigns(unittest.TestCase):
+    def test_each_session_room_on_the_phone_map_carries_its_door_sign(self):
+        from webui import scene
+
+        data = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, data, True)
+        sr.SessionRooms(data / "ui" / "session_rooms.json").open(sr.SIMPLE, "claude", "release-train")
+        reg = Registry(data)
+        ensure_topic(data, "release-train", ts=1)
+        card = reg.task_create("release-train", "Mend the gate", topic="release-train")
+        reg.task_move(card["id"], "doing")
+        rooms = {r["name"]: r for r in scene.build_scene(data)["rooms"]}
+        self.assertEqual(rooms["release-train"]["sign"], {"lines": ["RELEASE-TRAIN", "MEND THE GATE", ""],
+                                                          "amber": False})
+        self.assertNotIn("sign", rooms[sr.APOTHECARY])
+
+
+def _dock_probe() -> None:
+    """Child process: Topics rows come from the open rooms; a click selects the topic and frames the room."""
+    import tkinter as tk
+
+    from cli_avatars.app import orch_dock
+    from cli_avatars.app.room_glow import glow_for
+
+    root = tk.Tk()
+    root.withdraw()
+    data = Path(tempfile.mkdtemp())
+    try:
+        picked = []
+        agents = {"a1b2c3d4": AgentInfo("a1b2c3d4", "Orrin", source="claude", project="release-train",
+                                        last_seen=1.0)}
+        app = SimpleNamespace(dungeon=SimpleNamespace(_offscreen=True), _chat_directory=lambda: data,
+                              scanner=SimpleNamespace(get_agents=lambda: agents), places=SimpleNamespace(),
+                              _select_topic=picked.append)
+        model = sr.model_for(app)
+        model.open(sr.MAIN, "claude", "release-train")
+        model.open(sr.SIMPLE, "grok", "harbor-map")
+        ensure_topic(data, "release-train", ts=1)
+        reg = Registry(data)
+        reg.task_move(reg.task_create("release-train", "Mend the gate", topic="release-train")["id"], "doing")
+        rows = orch_dock.rows(app)
+        assert [(r.topic, r.name, r.cli, r.doing) for r in rows] == [
+            ("release-train", "Orrin", "claude", "Mend the gate"), ("harbor-map", "", "grok", "")], rows
+        parent = tk.Frame(root)
+        parent.pack()
+        orch_dock.render_row(app, parent, rows[0])
+        root.deiconify()
+        root.update()
+        frame = parent.winfo_children()[0]
+        texts = [w.cget("text") for w in frame.winfo_children()]
+        assert texts[:2] == ["Orrin · release-train · Claude", "doing: Mend the gate"], texts
+        frame.winfo_children()[1].event_generate("<Button-1>")
+        root.update()
+        assert picked == ["release-train"], picked
+        assert glow_for(app.places).lit == "release-train"
+    finally:
+        shutil.rmtree(data, ignore_errors=True)
+        root.destroy()
+
+
+class Dock(unittest.TestCase):
+    def test_topics_rows_for_the_open_rooms_and_a_click_frames_the_room(self):
+        import subprocess  # noqa: TID251  # the Tk probe runs in a child so this process never imports tkinter
+
+        proc = subprocess.run([sys.executable, str(Path(__file__).resolve()), "dock"], cwd=str(ROOT),
+                              capture_output=True, text=True, timeout=60, shell=False)
+        if proc.returncode == 77:
+            self.skipTest("no display")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["dock"]:
+        import tkinter as tk
+
+        try:
+            tk.Tk().destroy()
+        except tk.TclError:
+            sys.exit(77)
+        _dock_probe()
+        sys.exit(0)
     unittest.main()

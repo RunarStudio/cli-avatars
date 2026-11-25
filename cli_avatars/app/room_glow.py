@@ -16,6 +16,7 @@ from cli_avatars.app.room_floor import Plan
 from cli_avatars.app.throne_px import BAYER
 
 TAG = "room-glow"
+FRAME_S = 2.4
 FADE_IN, FADE_OUT = 0.25, 0.45
 STEPS = 4
 FLICKER = (1.0, 0.9, 0.96, 0.86)
@@ -45,6 +46,7 @@ class RoomGlow:
         self._on = False
         self._t0 = 0.0
         self._from = 0.0
+        self._until = 0.0
         self._items: dict[str, int] = {}
         self._keys: dict[str, tuple] = {}
         self._photos: dict[tuple, object] = {}
@@ -54,6 +56,12 @@ class RoomGlow:
         if self._on:
             return min(1.0, self._from + dt / FADE_IN)
         return max(0.0, self._from - dt / FADE_OUT)
+
+    def frame(self, room: str, now: float) -> None:
+        """ORCH.ROOM: light ``room`` for ``FRAME_S`` (a Topics row was clicked), then fade."""
+        self._from = self.level(now) if room == self.room else 0.0
+        self._t0, self._on, self._aid, self._until = now, True, None, now + FRAME_S
+        self.lit = self.room = room
 
     def paint(self, scene, hall, dragging, now: float) -> None:
         if dragging is None and self.room is None:
@@ -76,7 +84,7 @@ class RoomGlow:
                 self._from = self.level(now) if room == self.room else 0.0
                 self._t0, self._on, self._aid = now, True, aid
                 self.lit = self.room = room
-        elif aid is None and self._on:
+        elif aid is None and self._on and now >= self._until:
             self._from, self._t0, self._on = self.level(now), now, False
             self.lit, self._aid = None, None
         under = _under(hall, dragging) if self.lit is not None else None

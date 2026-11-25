@@ -10,6 +10,7 @@ import tkinter as tk
 from dataclasses import replace
 from types import SimpleNamespace
 
+from cli_avatars.app import orch_dock
 from cli_avatars.app.bots_ui import bot_signature, render_bot_sections
 from cli_avatars.app.toolbar_widgets import paint
 from cli_avatars.desktop.capabilities import HAS_PIL
@@ -217,7 +218,9 @@ def _update_rooms_win(self, force: bool = False) -> None:
     except EventRejected:
         counts = {}
     topic_sig = tuple((name, tuple(row.get("id") for row in rows)) for name, rows in topics)
-    sig = (tuple(_steady(card) for card in cards), topic_sig, tuple(sorted(counts.items())), bot_signature(self))
+    self._orch_rows = orch_dock.rows(self)
+    sig = (tuple(_steady(card) for card in cards), topic_sig, tuple(sorted(counts.items())), bot_signature(self),
+           tuple(self._orch_rows))
     if not force and sig == self._rooms_sig:
         _set_ages(self, cards)
         return
@@ -266,6 +269,7 @@ def _render_topic_groups(self, groups, cards, counts) -> None:
     for child in parent.winfo_children():
         child.destroy()
     bg = "#0d0d1a"
+    orch_dock.render(self, parent, getattr(self, "_orch_rows", None) or [])
     if not groups:
         tk.Label(parent, text="No topics", bg=bg, fg="#9a98b8",
                  font=("Courier", 10), anchor="w").pack(anchor="w", padx=12, pady=8)

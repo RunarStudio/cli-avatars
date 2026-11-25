@@ -243,6 +243,9 @@ class Hall:
             av.frame, av.dir = int(now * 5), face
             moved[aid] = self._spot(feet, av)
         self._publish(plan)
+        from cli_avatars.app import door_signs
+
+        door_signs.paint(self.book, self.book._scene(), self, now)
         return moved
 
     def _meet(self, agents: dict, now: float) -> None:

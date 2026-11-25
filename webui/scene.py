@@ -213,6 +213,7 @@ def build_scene(directory: Path | str) -> dict:
         return {"map": None, "rooms": [], "avatars": [], "sprites": {}, "tasks": {}}
     _png, (w, h), (left, top) = found
     rooms = []
+    board = None
     for room in lay["rooms"]:
         if room.get("corridor"):
             continue
@@ -236,6 +237,12 @@ def build_scene(directory: Path | str) -> dict:
         rooms.append({"name": name, "title": title, "kind": kind, "cli": room.get("cli"), "poly": poly, "box": box,
                       "id": room.get("custom") or room.get("session") or name, "topic": room.get("topic") or "",
                       "build": room.get("build") or ""})
+        if room.get("session"):
+            from cli_avatars.app.orch_rooms import board_cards, door_sign
+
+            board = board_cards(directory) if board is None else board
+            lines, amber = door_sign(name, board)
+            rooms[-1]["sign"] = {"lines": list(lines), "amber": amber}
     avatars = public_avatars(lay, (left, top), time.time())
     sprites = {}
     for key in sorted({a["sprite"] for a in avatars}):

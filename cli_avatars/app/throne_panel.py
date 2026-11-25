@@ -79,9 +79,9 @@ class ThronePanel:
 
     # Data
     def scene(self) -> RoomScene:
-        agents = self._agents()
+        agents, lord = self._room_agents(self._agents())
         actors = tm.actors_from(agents, self._registry_obj())
-        seating = tm.seat(actors)
+        seating = tm.seat(actors, lord)
         topics, cards = self._read_rooms()
         seating, marked = self._errands.step(seating, at.needing_guest(topics, cards, agents), time.monotonic())
         project = tm.lord_project(agents, seating)
@@ -97,6 +97,18 @@ class ThronePanel:
         if guest is not None:
             sprites[at.GUEST_ID] = guest
         return RoomScene(seating, tm.board_columns(self._cards), tm.lights(a.state for a in actors), sprites, marked)
+
+    def _room_agents(self, agents: dict) -> tuple[dict, str]:
+        """ORCH.ROOM: the selected topic's room and its lord; every agent when no orchestrator room is selected."""
+        from cli_avatars.app.orch_rooms import room_agents
+        from cli_avatars.app.session_rooms import model_for
+        from cli_avatars.app.tasks_view import selected_topic
+
+        try:
+            layout = model_for(self.app).layout(time.time())
+        except Exception:
+            return agents, ""
+        return room_agents(layout, agents, selected_topic(self.app))
 
     def _agents(self) -> dict:
         app, agents = self.app, {}

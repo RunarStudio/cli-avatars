@@ -168,15 +168,17 @@ def lights(states) -> tuple[Light, ...]:
     )
 
 
-def seat(actors) -> Seating:
+def seat(actors, lord: str = "") -> Seating:
     """Lord on the throne, other top agents on the hall spots, subagents beside their parent.
 
-    The lord is the first top-level actor by id. Agents past the last spot are counted in
-    ``more``. Subagents past the parent's spots, and anything deeper, add to its ``badge_more``.
+    The lord is ``lord`` when it is a top-level actor, else the first top-level actor by id.
+    Agents past the last spot are counted in ``more``. Subagents past the parent's spots, and anything
+    deeper, add to its ``badge_more``.
     """
     actors = [a for a in actors or () if isinstance(a, Actor)]
     ids = {a.id for a in actors}
-    roots = sorted((a for a in actors if not a.parent or a.parent not in ids), key=lambda a: a.id)
+    roots = sorted((a for a in actors if not a.parent or a.parent not in ids),
+                   key=lambda a: (a.id != lord, a.id))
     kids: dict[str, list[Actor]] = {}
     for a in actors:
         if a.parent and a.parent in ids:

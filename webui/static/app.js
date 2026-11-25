@@ -311,8 +311,23 @@ function drawLabels() {
     ctx.strokeRect(Math.round(x - tw / 2) + 1, Math.round(y - th / 2) + 1, Math.round(tw) - 2, Math.round(th) - 2);
     ctx.fillStyle = on ? "#ffd27a" : "#e9dcbc";
     ctx.fillText(text, Math.round(x), Math.round(y) + 1);
+    if (r.sign) drawSign(r.sign, x, y + th, px);
   }
   ctx.globalAlpha = 1;
+}
+
+// ORCH.ROOM door sign: the doing card and its note under the room's name, amber while a card is blocked
+function drawSign(sign, x, y, px) {
+  const words = [sign.lines[1], sign.lines[2]].filter(Boolean).join(" · ");
+  const text = words.length > 34 ? words.slice(0, 33) + "\u2026" : words;
+  const tw = ctx.measureText(text).width + px * 1.2, th = px * 1.5;
+  ctx.fillStyle = "rgba(23,16,34,.9)";
+  ctx.fillRect(Math.round(x - tw / 2), Math.round(y - th / 2), Math.round(tw), Math.round(th));
+  ctx.strokeStyle = sign.amber ? "#ffbe3c" : "#8a5a34";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(Math.round(x - tw / 2) + 1, Math.round(y - th / 2) + 1, Math.round(tw) - 2, Math.round(th) - 2);
+  ctx.fillStyle = sign.amber ? "#ffbe3c" : "#f0e6c8";
+  ctx.fillText(text, Math.round(x), Math.round(y) + 1);
 }
 
 // --- tasks and chat ------------------------------------------------------------------------------
