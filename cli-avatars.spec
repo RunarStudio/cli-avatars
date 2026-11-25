@@ -30,6 +30,7 @@ hiddenimports = [
     "claude_chat_hooks",
     "cli_avatars_emit",
     "decisions",
+    "emit_app",
     "emit_tasks",
     "events",
     "harness",

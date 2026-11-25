@@ -177,10 +177,31 @@ def main(argv: Optional[list[str]] = None) -> int:
         return run_bootcheck_only()
     if "--selftest" in args:
         return run_selftest()
-    app = OverlayApp()
+    from cli_avatars.app import ops
+    from events import app_data_dir
+
+    data = app_data_dir()
+    if "--wait-pid" in args:
+        # OPS.1 restart: the old Dungeon still holds the event port until it exits
+        try:
+            old = int(args[args.index("--wait-pid") + 1])
+        except (IndexError, ValueError):
+            old = 0
+        if not ops.wait_for_exit(old):
+            ops.log_line(data, f"pid {old} still running after 30 s; starting anyway")
+    try:
+        app = OverlayApp()
+    except Exception as exc:
+        ops.log_crash(data, "start", exc)
+        raise
+    ops.attach(app, data)
     phone_ui.start_from_config(app)
     try:
         app.run()
+    except Exception as exc:
+        ops.log_crash(data, "run", exc)
+        raise
     finally:
         phone_ui.stop(app)
+        ops.log_line(data, f"stopped pid {os.getpid()}")
     return 0

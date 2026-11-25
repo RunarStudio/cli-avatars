@@ -13,6 +13,8 @@ Examples:
     cli-avatars-emit topic summary hooks --note "Meet on the same window."
     cli-avatars-emit hooks install
     cli-avatars-emit hooks install --apply
+    cli-avatars-emit app status --json
+    cli-avatars-emit app restart
 
 State and say also send one UDP packet to 127.0.0.1. Say appends the channel
 queue under the per-user data directory (cli-avatars/channel/<room>.jsonl).
@@ -40,6 +42,7 @@ import time
 from pathlib import Path
 from typing import Optional, Sequence
 
+from emit_app import add_app_parser
 from emit_tasks import add_board_parser, add_task_parser
 from events import (
     DEFAULT_PORT,
@@ -445,6 +448,7 @@ def build_parser() -> argparse.ArgumentParser:
     leave.set_defaults(func=cmd_topic_leave)
     add_task_parser(sub, common)
     add_board_parser(sub, common)
+    add_app_parser(sub, common)
 
     hooks = sub.add_parser(
         "hooks",

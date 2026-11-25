@@ -142,7 +142,16 @@ class ActivityEvent:
     origin: str = ORIGIN_UDP
 
 
+@dataclass(frozen=True)
+class ControlEvent:
+    """OPS.1 ``app status|restart|update`` request. Answered to the sender, never put on the bus."""
+
+    verb: str
+    request_id: str = ""
+
+
 Event = StateEvent | ChatEvent | ActivityEvent
+CONTROL_VERBS = ("status", "restart", "update")
 
 
 def worst_state(states) -> str:
@@ -686,6 +695,11 @@ def parse_packet(obj: object, expected_token: str) -> tuple[Event, str]:
             ts=0.0,
             origin=ORIGIN_UDP,
         ), note
+    if kind == "control":
+        verb = obj.get("verb")
+        if verb not in CONTROL_VERBS:
+            raise EventRejected("schema")
+        return ControlEvent(verb=str(verb), request_id=_opt_token(obj, "id", _SESSION_ID)), note
     raise EventRejected("schema")
 
 
@@ -1159,6 +1173,8 @@ class EventSource(SessionSource):
         self._states: dict[tuple[str, str], StateEvent] = {}
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        # OPS.1: verb -> reply dict, set by the app once it can answer.
+        self.on_control: Optional[Callable[[str], dict]] = None
         self.stats = {
             "accepted": 0,
             "rejected_host": 0,
@@ -1210,6 +1226,9 @@ class EventSource(SessionSource):
                 data, addr = self._sock.recvfrom(65535)
             except socket.timeout:
                 continue
+            except ConnectionResetError:
+                # Windows: a control asker closed before its reply arrived.
+                continue
             except OSError:
                 break
             try:
@@ -1251,12 +1270,16 @@ class EventSource(SessionSource):
             return False
         if isinstance(event, ChatEvent):
             sender_key = event.sender
+        elif isinstance(event, ControlEvent):
+            sender_key = "control"
         else:
             sender_key = f"{event.source}:{event.session_id}"
         if not self._sender_limit.allow(sender_key):
             self._bump("rejected_rate")
             self.log.info("rejected rate")
             return False
+        if isinstance(event, ControlEvent):
+            return self._answer(event, addr)
         stamped = stamp(event, time.time(), ORIGIN_UDP)
         if isinstance(stamped, StateEvent):
             with self._lock:
@@ -1282,6 +1305,24 @@ class EventSource(SessionSource):
             self.log.info("local-only text: %s", note)
         self._bump("accepted")
         self.bus.publish(stamped)
+        return True
+
+    def _answer(self, event: ControlEvent, addr: tuple) -> bool:
+        """Reply to a control request on the same loopback socket."""
+        handler = self.on_control
+        try:
+            reply = dict(handler(event.verb)) if handler is not None else {
+                "ok": False, "why": "The Dungeon is still starting. Try again in a few seconds."}
+        except Exception:
+            self.log.exception("control failed")
+            reply = {"ok": False, "why": "The Dungeon could not answer."}
+        reply["id"] = event.request_id
+        try:
+            self._sock.sendto(json.dumps(reply, separators=(",", ":")).encode("utf-8"), addr)
+        except OSError:
+            self.log.info("control reply not sent")
+        self.log.info("accepted control verb=%s", event.verb)
+        self._bump("accepted")
         return True
 
     def scan(self, now: Optional[float] = None) -> list[SessionInfo]:
