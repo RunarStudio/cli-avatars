@@ -53,8 +53,8 @@ If your build needs the prompt as `-p`'s value, Grok cannot run from the app: th
 
 - **Phone in:** the rune mic on the Grok bar: hold, speak, read the caption, one **Send** tap (the tap is Daniel's
   Enter). Text stays available: type in the composer instead.
-- **Phone out:** **Read aloud** speaks Grok's last reply with the browser's speech synthesis; **Auto-read** speaks
-  each new reply when it lands (kept per browser).
+- **Phone out:** **Read aloud** speaks Grok's last reply with the browser's speech synthesis; **Auto** (auto-read) speaks
+  each new reply when it lands (kept per browser). On a narrow screen a Grok chat hides the task list for room.
 - **PC:** **Read aloud** and **Auto-read** on the Grok strip speak with Windows' built-in voice (SAPI). There is no PC
   mic: speak from the phone or browser view. Off Windows the button says so.
 

@@ -26,6 +26,12 @@
 .grok-bar[hidden] { display: none; }
 .grok-tag { flex: 1; min-width: 0; color: var(--grok); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grok-bar .rune-mic { width: 40px; height: 40px; }
+@media (max-width: 699px) {
+  body.grokking #app { grid-template-rows: minmax(140px, 26%) minmax(0, 1fr); }
+  body.grokking .tasks-pane { display: none; }
+  .grok-bar { margin-right: 64px; }
+  .grok-tag { display: none; }
+}
 .grok-auto { min-height: 36px; padding: 0 10px; font: 700 11px var(--mono); letter-spacing: .06em; color: #9db4d8;
   background: #161c2a; border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px #2a3a5a; cursor: pointer; }
 .grok-auto.on { color: #e8f2ff; box-shadow: inset 0 0 0 1px var(--grok), 0 0 10px #7aa7e055; }

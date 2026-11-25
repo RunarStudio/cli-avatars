@@ -82,8 +82,9 @@ function grokSpeak(text) {
 function grokPaintBar() {
   const on = state.chatCli === "grok" && state.chatKey === state.grok.room;
   $("grokBar").hidden = !on;
+  document.body.classList.toggle("grokking", on);
   if (!on) return;
-  $("grokAuto").textContent = "Auto-read: " + (state.grok.auto ? "on" : "off");
+  $("grokAuto").textContent = "Auto: " + (state.grok.auto ? "on" : "off");
   $("grokAuto").classList.toggle("on", state.grok.auto);
   $("grokRoom").textContent = state.grok.title || state.grok.room;
   if (state.running) return;
