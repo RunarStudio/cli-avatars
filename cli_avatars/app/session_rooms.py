@@ -19,7 +19,7 @@ import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from cli_avatars.app import custom_rooms
+from cli_avatars.app import custom_rooms, sandbox_rooms
 from cli_avatars.app import room_place as rp
 from cli_avatars.app.custom_rooms import (
     APOTHECARY,
@@ -108,6 +108,7 @@ class SessionRooms:
         if self.path is not None:
             self.rooms, self.looks = load_custom(self.path)
         self._cache: tuple = (None, None)
+        self.sandboxes = lambda now: ()
 
     def open(self, kind: str, cli: str, topic: str) -> str:
         """Add a session; ``""`` when its room is placed, else why not."""
@@ -141,11 +142,13 @@ class SessionRooms:
         return list(self.sessions)
 
     def layout(self, now: float) -> dict | None:
-        """The Apothecary, one room per live session and your rooms; the same object while nothing changed."""
+        """The Apothecary, a room per live session, your rooms, the sandboxes; the same object while unchanged."""
+        extra = self.sandboxes(now)
         key = (tuple((s.sid, s.kind, s.cli, s.slot, s.skin, s.size) for s in self.live(now)),
-               tuple(self.rooms), json.dumps(self.looks, sort_keys=True))
+               tuple(self.rooms), json.dumps(self.looks, sort_keys=True), extra)
         if self._cache[0] != key:
-            self._cache = (key, build_layout(load_layout(), self.live(now), self.rooms, self.looks))
+            built = build_layout(load_layout(), self.live(now), self.rooms, self.looks)
+            self._cache = (key, sandbox_rooms.extend(built, extra, self._taken()))
         return self._cache[1]
 
     def add_room(self, name: object, topic: object, size: object, skin: object, at: object, point: object) -> str:
@@ -489,5 +492,7 @@ def model_for(app) -> SessionRooms:
             except OSError:
                 path = None
         found = SessionRooms(path)
+        if callable(getattr(app, "_chat_directory", None)):
+            found.sandboxes = sandbox_rooms.feed(app._chat_directory)
         app._session_rooms = found
     return found

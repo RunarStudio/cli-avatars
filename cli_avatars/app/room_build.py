@@ -124,6 +124,7 @@ def _layers(painter, sid: str):
     """The room's pixels, what is behind them without the room, the room's mask, its top-left."""
     from PIL import Image
 
+    from cli_avatars.app.sandbox_art import stamp as stamp_sandboxes
     from cli_avatars.app.throne_stamp import stamp_thrones
 
     base, layout, manifest = painter.base(), painter.layout, load_manifest()
@@ -134,6 +135,7 @@ def _layers(painter, sid: str):
     canvas = Image.new("RGBA", base.size, (0, 0, 0, 0))
     if other is not None:
         stamp_thrones(other, rest)
+        stamp_sandboxes(other, rest)
         left, top = base.info.get("origin", (0, 0))
         ol, ot = other.info.get("origin", (0, 0))
         canvas.alpha_composite(other, (ol - left, ot - top))

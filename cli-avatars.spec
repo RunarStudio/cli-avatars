@@ -49,6 +49,7 @@ hiddenimports = [
     "redaction",
     "rooms",
     "routing",
+    "sandbox",
     "sessions",
     "sprite_loader",
     "standup",

@@ -14,6 +14,9 @@ Mailroom letters. ``filed``: a wax seal pressed (a low thud, a knock) and a smal
 ``blip``: one soft wooden blip as each standup bubble opens (STANDUP).
 ``pack``: a leather satchel flap set down (a soft low thump) and its brass buckle clicked shut, when a task chat
 starts with its context pack (CONTEXT-PACKS).
+SANDBOX (``sandbox_cues``): ``risky``: stone cracking and a warning brazier catching, when a sandbox is made;
+``seal``: a stone slab sliding shut and a warm rune chime, when one is promoted; ``trapdoor``: a latch, a creaking
+hinge and a thud far below, when one is binned.
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -67,6 +70,10 @@ def wav(name: str) -> bytes:
         return _pcm(_blip())
     if name == "pack":
         return _pcm(_satchel())
+    if name in ("risky", "seal", "trapdoor"):
+        from cli_avatars.app.sandbox_cues import sound
+
+        return _pcm(sound(name))
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):

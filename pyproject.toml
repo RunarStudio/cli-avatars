@@ -47,6 +47,7 @@ py-modules = [
     "redaction",
     "rooms",
     "routing",
+    "sandbox",
     "sessions",
     "sprite_loader",
     "standup",

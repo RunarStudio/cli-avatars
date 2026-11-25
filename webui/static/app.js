@@ -9,6 +9,7 @@
 // MAILROOM (mailroom.js): letters to sort; the capture sheet's Mailroom mode sends a thought there unfiled.
 // STANDUP (standup.js): the day's standup, one line per agent; a low "gather" horn when a new one comes in.
 // CONTEXT-PACKS (pack.js): the selected task's pack under it; pin and unpin with writes on.
+// SANDBOX (sandbox.js): the selected task's sandbox under it; promote and bin with writes on.
 // Every text goes in with textContent.
 "use strict";
 
@@ -466,6 +467,7 @@ function renderTasks() {
     li.append(b);
     if (c.id === state.sel) li.append(taskChats(c), focusButton(c));
     if (c.id === state.sel && typeof packBox === "function") li.append(packBox(c));
+    if (c.id === state.sel && typeof sandboxBox === "function") li.append(sandboxBox(c));
     list.append(li);
   }
   renderBoard();
@@ -2031,6 +2033,8 @@ function live() {
   src.addEventListener("standup", () => { if (typeof standupEvent === "function") standupEvent(); });
   src.addEventListener("pack", () => { if (typeof packEvent === "function") packEvent(); });
   src.addEventListener("change", () => { if (typeof packEvent === "function") packEvent(); });
+  src.addEventListener("sandbox", () => { if (typeof sandboxEvent === "function") sandboxEvent(); });
+  src.addEventListener("change", () => { if (typeof sandboxEvent === "function") sandboxEvent(); });
   src.addEventListener("avatars", (e) => {
     if (!state.scene) return;
     let data;

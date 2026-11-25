@@ -122,6 +122,11 @@ def launch_cli(request, prompt: str, event=None):
     return process
 
 
+def sandbox_git(cwd, *args: str) -> tuple[int, str]:
+    """SANDBOX: the runner's allow-listed git call (worktree, branch -D sandbox/…, rev-parse, status)."""
+    return _runner().run_git(cwd, *args)
+
+
 def room_tools() -> SimpleNamespace:
     """The runner's checks the room pane may call. None of them starts a process."""
     runner = _runner()

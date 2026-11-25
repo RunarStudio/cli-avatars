@@ -158,23 +158,26 @@ def preamble(directory: Path | str, room: str, fresh: bool = False) -> str:
     Empty for a room that is not a task chat.
     """
     import context_packs
+    import sandbox
 
     card = task_for(directory, room)
     if card is None:
         return ""
-    return (context_packs.opening(directory, card, room) if fresh else "") + context(directory, card)
+    pack = context_packs.opening(directory, card, room) if fresh else ""
+    return pack + sandbox.line(directory, room) + context(directory, card)
 
 
 def shown(directory: Path | str, room: str) -> str:
     """What the transcript shows on top: the pack when the chat started with it, then the task context."""
     import context_packs
+    import sandbox
 
     card = task_for(directory, room)
     if card is None:
         return ""
     pack = context_packs.block(context_packs.build(directory, card)) if context_packs.started_with(directory, room) \
         else ""
-    return pack + context(directory, card)
+    return pack + sandbox.line(directory, room) + context(directory, card)
 
 
 def chat_sessions(directory: Path | str, card: dict) -> list[str]:
@@ -192,11 +195,18 @@ def chat_sessions(directory: Path | str, card: dict) -> list[str]:
 
 
 def with_folder(directory: Path | str, room):
-    """A task chat without its own folder works in its card topic's folder (Daniel picked it there). Not stored."""
+    """A task chat without its own folder works in its card topic's folder (Daniel picked it there). Not stored.
+
+    A sandbox chat (SANDBOX) works in its worktree, and has no folder once that is gone.
+    """
+    import sandbox
     from cli_avatars.model.room import load_room
 
     if room.working_dir:
         return room
+    own = sandbox.folder(directory, room.room_id)
+    if own is not None:
+        return replace(room, working_dir=own)
     card = task_for(directory, room.room_id)
     if card is None or not card.get("topic"):
         return room
@@ -350,6 +360,16 @@ def _topic_title(directory: Path | str, topic: str) -> str:
     except (EventRejected, OSError):
         entry = {}
     return str(entry.get("title") or topic)
+
+
+def topic_dir(directory: Path | str, topic: str) -> str:
+    """The folder Daniel picked in the topic's room, or ""."""
+    from cli_avatars.model.room import load_room
+
+    try:
+        return load_room(directory, topic).working_dir if topic else ""
+    except (EventRejected, OSError):
+        return ""
 
 
 def _folder(directory: Path | str, topic: str) -> str:

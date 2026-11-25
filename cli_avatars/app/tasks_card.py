@@ -63,11 +63,12 @@ class CardPanel:
     """``act(name, *args, **kw)`` returns an ``Outcome``; ``choices()`` lists ``(value, label)`` assignees.
 
     ``chats(card)`` lists the card's chat rows; ``open_chat(room, new)`` shows one in the chat dock.
-    ``decisions(card)`` lists the card's decision rows (DECIDE.1); ``pack_dir()`` is the data dir of the Pack slip.
+    ``decisions(card)`` lists the card's decision rows (DECIDE.1); ``pack_dir()`` is the data dir of the Pack slip
+    and the Sandbox slip (SANDBOX); ``cue(name)`` plays a sound cue.
     """
 
     def __init__(self, parent, act, choices, close, chats=lambda card: [], open_chat=lambda room, new: None,
-                 decisions=lambda card: [], pack_dir=None) -> None:
+                 decisions=lambda card: [], pack_dir=None, cue=lambda name: None) -> None:
         self._act = act
         self._choices = choices
         self._close = close
@@ -75,7 +76,9 @@ class CardPanel:
         self._open_chat = open_chat
         self._decisions = decisions
         self._pack_dir = pack_dir
+        self._cue = cue
         self.pack = None
+        self.sandbox = None
         self._decide_sig: tuple | None = None
         self.decide_rows: dict[str, dict] = {}
         self.decide_entries: dict[str, tk.Entry] = {}
@@ -190,6 +193,11 @@ class CardPanel:
         button(row, "Comment", self._comment).pack(side="left", padx=(4, 0))
         self._error("comment")
         self._chats_section()
+        if self._pack_dir is not None:
+            from cli_avatars.app.sandbox_card import SandboxSection
+
+            self.sandbox = SandboxSection(self.sheet, self._pack_dir, self.chat_list,
+                                          lambda room, new: self._open_chat(room, new), lambda name: self._cue(name))
         self.history = tk.Label(self.sheet, bg=PARCH, fg=SOFT, font="DungeonBubble", anchor="nw", justify="left",
                                 wraplength=300)
         self.history.pack(fill="both", expand=True, padx=8, pady=(4, 0))
@@ -233,11 +241,15 @@ class CardPanel:
         self._fill_decisions(card)
         if self.pack is not None:
             self.pack.fill(card)
+        if self.sandbox is not None:
+            self.sandbox.fill(card)
 
     def tick(self, now: float | None = None) -> None:
         """Keep "updated Nm ago" current, touching one label only when its text changes; the Pack checks its store."""
         if self.pack is not None:
             self.pack.tick()
+        if self.sandbox is not None:
+            self.sandbox.tick()
         if self.card is None or self.where_ts is None:
             return
         age = summary_age(self.card.get("summary_at"), now)
@@ -430,6 +442,7 @@ class CardPanel:
         self.errors = {}
         self.status_badge = None
         self.pack = None
+        self.sandbox = None
 
     def _head(self, title: str, sub: str) -> None:
         self.head = head = tk.Frame(self.sheet, bg=WINE)

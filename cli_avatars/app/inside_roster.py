@@ -243,9 +243,10 @@ class Hall:
             av.frame, av.dir = int(now * 5), face
             moved[aid] = self._spot(feet, av)
         self._publish(plan)
-        from cli_avatars.app import door_plaque, door_signs, focus_veil
+        from cli_avatars.app import door_plaque, door_signs, focus_veil, sandbox_view
 
         door_signs.paint(self.book, self.book._scene(), self, now)
+        sandbox_view.paint(self.book, self.book._scene(), self, now)
         door_plaque.paint(self.book, self.book._scene(), self, now)
         focus_veil.paint(self.book, self.book._scene(), self, now)
         return moved

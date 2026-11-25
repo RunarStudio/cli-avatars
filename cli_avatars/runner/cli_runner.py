@@ -761,6 +761,30 @@ def redact_secrets(text: str) -> str:
     return _redact_secrets(text)
 
 
+GIT_TIMEOUT_S = 30.0
+
+
+def run_git(cwd: Path | str, *args: str) -> tuple[int, str]:
+    """SANDBOX: ``git -C <cwd> <args>`` for an allow-listed call; exit code and output (stdout, then stderr).
+
+    Fixed argv, no shell, no terminal prompt, a 30 s timeout. Anything outside ``sandbox_git.allowed`` raises
+    ``ValueError`` before git starts.
+    """
+    from cli_avatars.runner.sandbox_git import allowed
+
+    if not allowed(args):
+        raise ValueError(f"git {' '.join(args[:2])} is not a sandbox call")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_") or k == "GIT_CONFIG_NOSYSTEM"}
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        done = subprocess.run(["git", "-C", str(cwd), *args], stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, timeout=GIT_TIMEOUT_S, env=env, shell=False, check=False,
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return 1, str(exc)
+    return done.returncode, (done.stdout + done.stderr).strip()
+
+
 def validate_working_dir(
     raw: str | Path,
     *,
