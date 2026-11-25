@@ -34,6 +34,7 @@ One list, on the desktop and the phone, of what waits on Daniel. Each row names 
 - A bell button in the map bar, lit with a count while anything waits; it rings when an item enters and the soft reply tone plays (the note button).
 - The bell opens the **Needs you** sheet: one row per item, kind colour, title, age, detail. A tap opens it (a decision opens its slip, a card its task, a room its chat).
 - **Clear** needs **Allow the phone to open sessions and send prompts** (`web.allow_writes`); reading works without it.
+- With the page closed: decisions and blocked tasks also come as a system notification once **Alerts when closed** is on ([phone-view.md](phone-view.md#web-push-alerts-with-the-page-closed)).
 - Live: a change of any source or of `needs_you.json` sends the SSE `change`, and the page reloads the list.
 
 | Route | Answer |

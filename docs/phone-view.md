@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -58,11 +58,37 @@ A new or changed room builds in on the phone map and in the Dungeon at once, wit
 2. Tap ◆ for **Decisions**, then tap one: its chat opens with the question on top.
 3. Tap an option, or type and tap **Answer** (needs the same switch as above; reading works without it). The agent gets it; a task chat answers at once.
 
-Over https a tap on ◆ asks for notification permission; then a decision also notifies while the tab is in the background. With the page closed nothing arrives (Web Push is not built). Details: [decisions.md](decisions.md#phone).
+Over https a tap on ◆ asks for notification permission; then a decision also notifies while the tab is in the background. With the page closed, turn on [Web Push](#web-push-alerts-with-the-page-closed). Details: [decisions.md](decisions.md#phone).
 
 ## What needs you (NEEDS-YOU.1)
 
 The bell in the map bar lights with a count when something waits on you: a decision, a blocked task, a reply you have not answered, a run that ended. Tap it for the list, tap a row to open it, **Clear** to hide it until it changes (clearing needs the same switch as above). Details: [needs-you.md](needs-you.md).
+
+## Web Push: alerts with the page closed
+
+A new decision or a newly blocked task reaches the phone as a system notification (the phone's own sound) even when the page is shut. It names the kind and the task (`Decision · Lantern room`, `Blocked · Polish the lantern glass`); a tap opens the page on that item. Replies and ended runs stay in the bell list only.
+
+Needs:
+
+- The https address from `tailscale serve` (steps above). Browsers allow push only over https.
+- **Allow the phone to open sessions and send prompts** on, to turn alerts on (turning them off always works).
+- iPhone and iPad: iOS 16.4 or later, and the page on the Home Screen: in Safari, Share › **Add to Home Screen**, then open the Dungeon from that icon. In Safari's tab it cannot get alerts.
+
+Turn on: the gear in the map bar opens **App**; tick **Alerts when closed** and allow notifications. Each phone or browser turns it on for itself. Untick to stop.
+
+How it works: the list is the [needs-you](needs-you.md) list, no second store. Each item is pushed once to every phone that turned alerts on; a cleared item is not pushed again, even when it changes; a task that leaves `blocked` and comes back is pushed again. What already waited when the first phone turned alerts on is not pushed. A phone whose push service answers that the subscription is gone (404 or 410) is dropped. Pushes go through the phone's own push service (Google, Apple, Mozilla), end-to-end encrypted (RFC 8291) and signed with this PC's key (VAPID, RFC 8292); the push service sees neither text nor title.
+
+Keys and files (data folder, owner-only, never in the repo, never logged): `web/vapid.pem` (the signing key, made on first use), `web/push.json` (subscriptions and what was sent). Subscriptions survive a restart.
+
+Reset the keys: quit the app, delete `web/vapid.pem` and `web/push.json`, start it, then on each phone untick and tick **Alerts when closed** again.
+
+| Route | What |
+|-------|------|
+| `/sw.js` | The service worker: shows the notification, a tap opens `/#need=<key>`. |
+| `/manifest.webmanifest`, `/static/icon.png` | The Home Screen manifest and its code-drawn bell icon; load without pairing (no data). |
+| `/api/push` | `{"key", "count"}`: the public key the page subscribes with, and how many phones have alerts on. |
+| `POST /api/push/subscribe` | Writes on: the browser's subscription JSON (`endpoint` https, `keys.p256dh`, `keys.auth`); 400 when malformed. At most 10 phones; the oldest goes. |
+| `POST /api/push/unsubscribe` | Writes on: `{"endpoint"}`. |
 
 ## Try it with made-up data
 

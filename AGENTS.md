@@ -39,7 +39,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `harness.py` | Read-only view of Claude agent and hook specs (CHAT-HARNESS-READ); never runs a hook |
 | `redaction.py` | Shared secret redactor for hook commands and board text |
 | `board/`, `registry/` | Task cards (model, `LocalStore`) and the registry: full API, narrow `AgentApi`, policy, rate limits |
-| `webui/` | PHONE.1 phone view: `server` (read-only routes, SSE, pairing cookie), `scene` (map, rooms, tasks, chat), `auth`, `config` (`web` key, interfaces), `qr`, `phone_ui` (Settings, Phone tab), `demo`, `static/` (page). `python -m webui` |
+| `webui/` | PHONE.1 phone view: `server` (read-only routes, SSE, pairing cookie), `scene` (map, rooms, tasks, chat), `auth`, `config` (`web` key, interfaces), `qr`, `phone_ui` (Settings, Phone tab), `demo`, `push` (WEB-PUSH: VAPID key, subscriptions, sender), `static/` (page, `sw.js`, manifest). `python -m webui` |
 | `building/layouts/` | AG-3 room layouts (`compact.json` tiling 4, `tower.json` tiling 16) drawn by the Dungeon tab |
 | `cli_avatars/app/throne_*.py` | Throne tab of the Dungeon: `throne_model` (seating, board columns, state lights, door), `throne_px` (pixel engine), `throne_pieces` (code-drawn pieces), `throne_art` (the room), `throne_panel` (Tk tab) |
 | `cli_avatars/app/atelier*.py` | ATELIER.1 backroom beside the throne room: `atelier` (guest trigger, walk route, `Errands`; no Tk), `atelier_pieces` (desk, easel, plant, scrolls, rug, sketches), `atelier_art` (the atelier pass of the Throne tab) |
