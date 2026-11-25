@@ -40,6 +40,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `sandbox.py` | SANDBOX: Try it risky makes a git worktree on a `sandbox/` branch beside the task's repo and a task chat in it; Promote keeps the branch, Bin removes worktree and branch (asks when dirty); `sandboxes.json`; git only via `cli_runner.run_git` (allow-list `cli_avatars/runner/sandbox_git.py`); `sandbox_card.py`, `sandbox_rooms.py`, `sandbox_art.py`, `sandbox_view.py` show it (`docs/sandbox-room.md`) |
 | `topics.py` | Topic summaries, pins, previews |
 | `cli_avatars/app/chat_clis.py`, `cli_avatars/app/task_sessions.py` | CHAT-CTX.1: the composer's CLIs (Claude, Grok, Cursor: names, colours, checked argv templates from `config.json`, found/unset state, Copy context text) and one session per task per CLI in `task_sessions.json`; `cli_avatars/app/cli_chips.py` draws the Run row (`docs/task-chats.md`) |
+| `cli_avatars/app/grok_stream.py`, `cli_avatars/app/grok_topics.py` | GROK-CHAT.1: Grok's streaming-json to tagged chat lines and its session id; Grok topics (`grok_topics.json`, rooms bound to a folder) and the topic rows with live state from `GrokBuildSource`; `grok_list.py`, `grok_voice.py`, `grok_cues.py` draw the strip, read aloud and play the cues, `webui/grok_routes.py` and `webui/static/grok.js` on the phone (`docs/grok-chat.md`) |
 | `cli_avatars/app/tiers.py`, `cli_avatars/app/summon.py` | HIERARCHY.1 / SUMMON.1: the four chat tiers (main, topic, task, subagent) with CLI, model, effort and role from `config.json` `chat.tiers`, picked per launch from where it starts; Summon opens the main session and starts its CLI on Daniel's click. `summon_ui.py`, `tier_art.py` draw the plate and chips (`docs/orchestrator-hierarchy.md`) |
 | `repos.py` | REPOS.1: repos as project records with a folder (add, remove), which agents work in each by role (Caine, sub-orchestrators, subagents) and since when; `repos_live.py`, `repos_panel.py`, `repo_badge.py`, `repo_art.py` show it, `webui/repo_routes.py` on the phone (`docs/repos.md`) |
 | `cli_avatars/app/door_counts.py` | DOOR-COUNTS: counts per room, project and in total (no Tk); `door_plaque.py` and `door_totals.py` draw them (`docs/door-counts.md`) |
@@ -120,6 +121,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Task board | `docs/board.md` |
 | Room chat | `docs/room-chat.md` |
 | Task chats | `docs/task-chats.md` |
+| Grok chat (send, voice, topics) | `docs/grok-chat.md` |
 | Phone view | `docs/phone-view.md` |
 | Needs you list (desktop and phone) | `docs/needs-you.md` |
 | Daily recap (desktop and phone) | `docs/daily-recap.md` |

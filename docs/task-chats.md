@@ -95,23 +95,23 @@ Enter starts or resumes *this task's* session of that CLI, so every conversation
 |-----|--------|--------|--------|
 | Claude | `claude -p --output-format stream-json --verbose --permission-mode <mode>`, prompt on stdin | `--resume <uuid>` | `claude --help` (built in) |
 | Cursor | `cursor-agent` (or `agent`) `-p --output-format stream-json --mode plan`, prompt on stdin | `--resume <uuid>` | Cursor CLI docs (parameters, output format); default template, prompt on stdin not confirmed |
-| Grok | set in `config.json` | set in `config.json` | not confirmed: no headless flags published for Grok Build; no default |
+| Grok | `grok -p --output-format streaming-json --no-auto-update --permission-mode dontAsk --sandbox read-only`, prompt on stdin; a new session named with `-s <uuid>` | `-r <uuid>` | Grok Build CLI docs; default template, prompt on stdin not confirmed ([grok-chat.md](grok-chat.md)) |
 
-Grok and Cursor run from an argv template in `config.json`:
+Grok and Cursor run from an argv template, overridable in `config.json`:
 
 ```json
 { "chat": { "clis": {
   "cursor": { "argv": ["-p", "--output-format", "stream-json", "--mode", "plan"], "resume": ["--resume", "{session}"] },
-  "grok":   { "argv": ["<flags from grok --help>"], "resume": ["<flag>", "{session}"] }
+  "grok":   { "argv": ["-p", "--output-format", "streaming-json"], "resume": ["-r", "{session}"], "new": ["-s", "{session}"] }
 } } }
 ```
 
 A template holds flags only: each part is a plain flag or word (no path, no space, no shell character), at most 16
-parts, and the only slot is one `{session}` in `resume`, filled with a checked session UUID. Anything with `force`,
+parts, and the only slot is one `{session}` in `resume` (or `new`, which names a fresh session), filled with a checked session UUID. Anything with `force`,
 `yolo`, `danger`, `bypass`, `skip-perm`, `approve`, `allowedTools` or `add-dir` is refused, and so is a `{prompt}`
-slot: the prompt is always on stdin. A refused template reads as unset. With no template Grok stays greyed
-("no command set"). Both must print stream-json (Claude's shape: `system`/`init` with `session_id`, `assistant`
-text, `result`) for replies and resume to work. The permission mode button applies to Claude; the others run their
+slot: the prompt is always on stdin. A refused template reads as unset and greys the CLI ("no command set").
+Cursor must print stream-json (Claude's shape: `system`/`init` with `session_id`, `assistant` text, `result`); Grok's
+stream is read by `grok_stream.py` ([grok-chat.md](grok-chat.md)). The permission mode button applies to Claude; the others run their
 template as written (Cursor's default is plan mode).
 
 ### Store
@@ -167,8 +167,8 @@ After each turn the chat rewrites the card's three-line summary (done / now / ne
 
 ## Grok
 
-Grok's button is disabled with its reason: the runner does not launch Grok yet (ROOM-CHAT.6, after `grok login`). A Grok chat record is refused until then. Grok and Cursor run from a chat's Run row instead (CHAT-CTX.1, above).
+**Grok** makes a Grok task chat like Claude's (GROK-CHAT.1). It is greyed with its reason only when the Grok command is unset (`chat.clis.grok.argv`). Talking to Grok, voice and Grok topics: [grok-chat.md](grok-chat.md).
 
 ## Phone
 
-With `web.allow_writes` on, tapping a task lists its chats under it and shows **+ Claude chat**. `GET /api/board` and `/api/cards/<id>` carry `chats` (`room`, `cli`, `started`). `POST /api/cards/<id>/chats` with `{"cli": "claude"}` starts one (same guards as other phone writes: CSRF, rate limit, body cap); it answers `{"room": …}`, `409` with `why` for Grok or a full card, `404` for no card. A Send in that room is the same Enter: the task context goes first and its `TASK` lines update the card.
+With `web.allow_writes` on, tapping a task lists its chats under it and shows **+ Claude chat**. `GET /api/board` and `/api/cards/<id>` carry `chats` (`room`, `cli`, `started`). `POST /api/cards/<id>/chats` with `{"cli": "claude"}` starts one (same guards as other phone writes: CSRF, rate limit, body cap); it answers `{"room": …}`, `409` with `why` for an unset Grok command or a full card, `404` for no card. A Send in that room is the same Enter: the task context goes first and its `TASK` lines update the card.
