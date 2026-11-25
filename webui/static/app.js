@@ -10,6 +10,7 @@
 // STANDUP (standup.js): the day's standup, one line per agent; a low "gather" horn when a new one comes in.
 // CONTEXT-PACKS (pack.js): the selected task's pack under it; pin and unpin with writes on.
 // SANDBOX (sandbox.js): the selected task's sandbox under it; promote and bin with writes on.
+// TIMELAPSE (timelapse.js): scrub a day over the map; drawLapse stands in for the live avatars while it is on.
 // Every text goes in with textContent.
 "use strict";
 
@@ -154,6 +155,7 @@ function inside(poly, x, y) {
 function tapMap(sx, sy) {
   if (!state.scene) return;
   const x = (sx - state.view.x) / state.view.s, y = (sy - state.view.y) / state.view.s;
+  if (typeof lapseTap === "function" && lapseTap(x, y)) return;
   const room = state.scene.rooms.find((r) => inside(r.poly, x, y));
   if (!room) return;
   if (room.name === state.room && !state.anim) return openRooms(room.id);
@@ -203,11 +205,12 @@ function frame(now) {
     ctx.shadowBlur = 0;
     drawFlare(now);
     drawGlow(now);
-    drawAvatars(now);
+    const lapsing = typeof drawLapse === "function" && drawLapse(now);
+    if (!lapsing) drawAvatars(now);
     drawFocus(now);
     ctx.restore();
     drawLabels();
-    drawNames();
+    if (!lapsing) drawNames();
   }
   requestAnimationFrame(frame);
 }
@@ -803,7 +806,8 @@ function clock(ts) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-async function showChat(topic, title) {
+async function showChat(topic, title, at) {
+  if (at !== undefined || topic !== state.chatKey) state.chatAt = at || null;
   $("chatRoom").textContent = title || "";
   state.chatKey = topic || "";
   paintComposer(false);
@@ -814,7 +818,8 @@ async function showChat(topic, title) {
     return;
   }
   let data;
-  try { data = await getJSON("/api/chat/" + encodeURIComponent(topic) + "?tail=40"); } catch (_e) { return; }
+  const around = state.chatAt ? "&around=" + state.chatAt : "";
+  try { data = await getJSON("/api/chat/" + encodeURIComponent(topic) + "?tail=40" + around); } catch (_e) { return; }
   if (state.chatKey !== topic) return;
   const seen = new Set([...list.children].map((n) => n.dataset.key));
   const stick = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
@@ -826,6 +831,7 @@ async function showChat(topic, title) {
     const key = m.ts + m.from;
     const li = el("li", "msg " + who + (m.icon === "error" ? " error" : "") + (seen.size && !seen.has(key) ? " fresh" : ""));
     li.dataset.key = key;
+    li.dataset.ts = m.ts;
     const head = el("div", "who", who || "?");
     const t = el("time", "", clock(m.ts));
     head.append(t);
@@ -833,14 +839,27 @@ async function showChat(topic, title) {
     list.append(li);
     if (who !== "user") reply = key;
   }
-  if (reply && state.lastReply && reply !== state.lastReply && state.lastReply.startsWith(topic + "|")) tone("reply");
+  if (!at && reply && state.lastReply && reply !== state.lastReply && state.lastReply.startsWith(topic + "|")) tone("reply");
   state.lastReply = topic + "|" + reply;
   state.running = !!data.running;
   $("typing").hidden = !state.running;
   $("typingText").textContent = state.running ? "Answering in " + (title || topic) + "…" : "";
   paintComposer(false);
-  if (stick || seen.size === 0) list.scrollTop = list.scrollHeight;
+  if (at) showMoment(list, at);
+  else if (stick || seen.size === 0) list.scrollTop = list.scrollHeight;
   paintAsk();
+}
+
+// TIMELAPSE: the message nearest ``at`` in view, lit for a moment
+function showMoment(list, at) {
+  let best = null;
+  for (const li of list.children) {
+    if (li.dataset.ts && (!best || Math.abs(li.dataset.ts - at) < Math.abs(best.dataset.ts - at))) best = li;
+  }
+  if (!best) return;
+  best.classList.add("moment");
+  list.scrollTop = Math.max(0, best.offsetTop - list.offsetTop - list.clientHeight / 3);
+  setTimeout(() => best.classList.remove("moment"), 2400);
 }
 
 // --- media a turn made: inline, tap for the full view ------------------------------------------------
@@ -2035,6 +2054,7 @@ function live() {
   src.addEventListener("change", () => { if (typeof packEvent === "function") packEvent(); });
   src.addEventListener("sandbox", () => { if (typeof sandboxEvent === "function") sandboxEvent(); });
   src.addEventListener("change", () => { if (typeof sandboxEvent === "function") sandboxEvent(); });
+  src.addEventListener("timelapse", () => { if (typeof lapseEvent === "function") lapseEvent(); });
   src.addEventListener("avatars", (e) => {
     if (!state.scene) return;
     let data;
@@ -2082,7 +2102,7 @@ function tone(kind) {
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
     const long = kind === "build" || kind === "decide" || kind === "release" || kind === "gather";
-    out.gain.exponentialRampToValueAtTime(0.0001, t + (long ? 1.1 : 0.45));
+    out.gain.exponentialRampToValueAtTime(0.0001, t + (long ? 1.1 : kind === "tick" ? 0.06 : 0.45));
     out.connect(audio.destination);
     const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : kind === "done" ? [[523.25, 0], [659.25, 0.09], [783.99, 0.18]]
       : kind === "build" ? [[130.81, 0], [196.0, 0.16], [261.63, 0.34], [392.0, 0.52]]
@@ -2092,6 +2112,7 @@ function tone(kind) {
       : kind === "focus" ? [[220.0, 0], [164.81, 0.14]] : kind === "unfocus" ? [[164.81, 0], [246.94, 0.14]]
       : kind === "release" ? [[164.81, 0], [246.94, 0.14], [987.77, 0.4]]
       : kind === "gather" ? [[196.0, 0], [261.63, 0.14], [392.0, 0.34]]
+      : kind === "tick" ? [[1567.98, 0]] : kind === "moment" ? [[392.0, 0], [587.33, 0.12]]
       : kind === "letter" ? [[587.33, 0], [440.0, 0.08]] : kind === "filed" ? [[196.0, 0], [783.99, 0.12]]
       : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {

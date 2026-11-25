@@ -13,6 +13,8 @@ MAILROOM: ``/api/mailroom`` (read) and its writes live in ``mail_routes``; the S
 STANDUP: ``/api/standup`` (read) and ``POST /api/standup/run`` live in ``standup_routes``; SSE ``standup`` on a new one.
 CONTEXT-PACKS: ``/api/cards/<id>/pack`` (read, and pin/unpin as a write) lives in ``pack_routes``; SSE ``pack``.
 SANDBOX: ``/api/cards/<id>/sandbox`` (read, and promote/bin as a write) lives in ``sandbox_routes``; SSE ``sandbox``.
+TIMELAPSE: ``/api/timelapse?day=`` (read) is one day of ghosts in map pixels; ``/api/chat/<topic>?around=<ts>``
+opens a chat at a moment; SSE ``timelapse`` when the day's logs change.
 """
 
 from __future__ import annotations
@@ -30,11 +32,12 @@ from urllib.parse import parse_qs, urlsplit
 import focus
 import needs_you
 import recap
+import timelapse
 from board.model import BODY_LIMIT, COLUMNS, clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
 from topics import valid_topic_id
-from webui import auth, mail_routes, media, pack_routes, push, sandbox_routes, scene, standup_routes, writes
+from webui import auth, lapse, mail_routes, media, pack_routes, push, sandbox_routes, scene, standup_routes, writes
 
 STATIC = asset_path("webui", "static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -48,6 +51,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/pack.css": ("pack.css", "text/css; charset=utf-8"),
          "/static/sandbox.js": ("sandbox.js", "text/javascript; charset=utf-8"),
          "/static/sandbox.css": ("sandbox.css", "text/css; charset=utf-8"),
+         "/static/timelapse.js": ("timelapse.js", "text/javascript; charset=utf-8"),
+         "/static/timelapse.css": ("timelapse.css", "text/css; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048
@@ -70,6 +75,7 @@ _ROOM = re.compile(r"^/api/rooms/([A-Za-z0-9][A-Za-z0-9-]{0,39})(/delete)?$")
 _SKIN = re.compile(r"^/api/skins/([a-z-]{1,32})/([SMLT])\.png$")
 _DECIDE = re.compile(r"^/api/decisions/([^/]{1,64})$")
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_AROUND = re.compile(r"^\d{1,12}(\.\d{1,6})?$")
 NEEDS_KEYS = ("key", "kind", "ts", "title", "detail", "room", "card")
 ROOM_ADD = ("name", "topic", "size", "skin", "at", "point")
 ROOM_EDIT = ("name", "topic", "size", "skin")
@@ -374,6 +380,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({**scene.focus_now(directory), "writes": self.server.writes()})
         if path == "/api/recap":
             return self._recap(query)
+        if path == "/api/timelapse":
+            return self._timelapse(query)
         if path == "/api/mailroom":
             return mail_routes.read(self)
         if path == "/api/standup":
@@ -419,16 +427,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def _recap(self, query) -> None:
         """DAILY-RECAP: one local day (``?day=YYYY-MM-DD``, default today), read-only."""
-        raw = (query.get("day") or [""])[0]
-        today = date.today()
-        try:
-            day = date.fromisoformat(raw) if _DAY.fullmatch(raw) else (today if raw == "" else None)
-        except ValueError:
-            day = None
+        today, day = _day(query)
         if day is None:
             return self._error(400)
         built = recap.build(self.server.directory, day, today=today)
         return self._json({**built, "today": today.isoformat(), "first": recap.days(today)[-1].isoformat()})
+
+    def _timelapse(self, query) -> None:
+        """TIMELAPSE: one local day (``?day=YYYY-MM-DD``, default today) of ghosts, read-only."""
+        today, day = _day(query)
+        if day is None:
+            return self._error(400)
+        self._json(lapse.build(self.server.directory, day, today))
 
     def _suggest(self, query) -> None:
         """QUICK-CAPTURE: topics for ``q`` best first (local ranker), ``current`` when nothing matches."""
@@ -485,7 +495,9 @@ class Handler(BaseHTTPRequestHandler):
     def _chat(self, topic: str, query) -> None:
         raw = (query.get("tail") or [str(DEFAULT_TAIL)])[0]
         tail = min(int(raw), MAX_TAIL) if raw.isdigit() and int(raw) > 0 else DEFAULT_TAIL
-        messages = scene.chat(self.server.directory, topic, tail)
+        around = (query.get("around") or [""])[0]
+        around = float(around) if _AROUND.fullmatch(around) else None
+        messages = scene.chat(self.server.directory, topic, tail, around)
         if messages is None:
             return self._error(404)
         self._json({"topic": topic, "messages": messages, "running": topic in self.server.actions.running})
@@ -512,6 +524,7 @@ class Handler(BaseHTTPRequestHandler):
             stood = standup_routes.summary(self.server.directory)
             packed = pack_routes.summary(self.server.directory)
             boxed = sandbox_routes.summary(self.server.directory)
+            lapsed = timelapse.stamp(self.server.directory)
             updater, update_seq = self.server.updater, self.server.updater.seq()
             while not self.server.stopping.wait(min(self.server.poll, AVATAR_TICK)):
                 if updater.seq() != update_seq:
@@ -558,6 +571,10 @@ class Handler(BaseHTTPRequestHandler):
                     boxed, quiet = sandbox_routes.summary(self.server.directory), time.monotonic()
                     self.wfile.write(b"event: sandbox\ndata: {}\n\n")
                     self.wfile.flush()
+                if timelapse.stamp(self.server.directory) != lapsed:
+                    lapsed, quiet = timelapse.stamp(self.server.directory), time.monotonic()
+                    self.wfile.write(b"event: timelapse\ndata: {}\n\n")
+                    self.wfile.flush()
                 now = scene.stamp(self.server.directory)
                 if now != last:
                     last, quiet = now, time.monotonic()
@@ -571,6 +588,16 @@ class Handler(BaseHTTPRequestHandler):
             pass
         finally:
             self.server.streams.release()
+
+
+def _day(query) -> tuple[date, date | None]:
+    """Today, and the ``day`` asked for (default today); None when it is not a date."""
+    raw = (query.get("day") or [""])[0]
+    today = date.today()
+    try:
+        return today, date.fromisoformat(raw) if _DAY.fullmatch(raw) else (today if raw == "" else None)
+    except ValueError:
+        return today, None
 
 
 class NoUpdate:

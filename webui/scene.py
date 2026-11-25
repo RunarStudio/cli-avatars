@@ -351,7 +351,8 @@ def focus_now(directory: Path | str) -> dict:
     return {"task": state["task"], "title": state["title"], "room": room, "waiting": state["waiting"]}
 
 
-def chat(directory: Path | str, topic: str, tail: int) -> list[dict] | None:
+def chat(directory: Path | str, topic: str, tail: int, around: float | None = None) -> list[dict] | None:
+    """The last ``tail`` messages, or the ``tail`` from the one nearest ``around`` on (TIMELAPSE)."""
     if not valid_topic_id(topic):
         return None
     from topics import topic_messages
@@ -361,7 +362,13 @@ def chat(directory: Path | str, topic: str, tail: int) -> list[dict] | None:
         messages = topic_messages(directory, topic)
     except EventRejected:
         return None
-    messages = sorted(messages + as_messages(directory, topic), key=lambda m: float(m["ts"]))[-tail:]
+    messages = sorted(messages + as_messages(directory, topic), key=lambda m: float(m["ts"]))
+    if around is not None and messages:
+        near = min(range(len(messages)), key=lambda i: abs(float(messages[i]["ts"]) - around))
+        start = max(0, min(near - tail // 4, len(messages) - tail))
+        messages = messages[start:start + tail]
+    else:
+        messages = messages[-tail:]
     full = _full_notes(directory, topic)
     for message in messages:
         message["text"] = full.get((message["ts"], message["from"]), message["text"])

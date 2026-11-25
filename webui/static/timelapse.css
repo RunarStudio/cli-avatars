@@ -1,0 +1,30 @@
+/* TIMELAPSE: a sand-glass in the map bar; on the map a stone plinth with the day, the clock, play, speed, Leave and
+   the sundial strip under it. A chat line opened at a moment glows amber for a beat. */
+.glass-ico { display: inline-block; width: 12px; height: 16px; vertical-align: middle; position: relative;
+  background: linear-gradient(180deg, #ffd27a 0 2px, transparent 2px 14px, #ffd27a 14px);
+  clip-path: polygon(0 0, 100% 0, 100% 2px, 58% 50%, 100% calc(100% - 2px), 100% 100%, 0 100%, 0 calc(100% - 2px), 42% 50%, 0 2px); }
+.glass-ico::before { content: ""; position: absolute; inset: 2px 1px; background: #e9dcbc55;
+  clip-path: polygon(0 0, 100% 0, 58% 50%, 100% 100%, 0 100%, 42% 50%); }
+.glass-ico::after { content: ""; position: absolute; left: 2px; right: 2px; bottom: 2px; height: 4px; background: #f2a33a;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.icon.lapse-btn[aria-pressed="true"] .glass-ico { filter: drop-shadow(0 0 4px #ffd27a); animation: lapse-turn 2.4s steps(2) infinite; }
+@keyframes lapse-turn { 50% { transform: rotate(180deg); } }
+.lapse { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 5px 6px 4px; color: var(--ink);
+  background: linear-gradient(180deg, #2b2234ee, #17111ff2); border: 2px solid var(--deep);
+  box-shadow: inset 0 1px 0 #5a4e66, inset 0 -2px 0 #0b0811, 0 0 0 1px #4a3f55, 0 6px 18px #000c; }
+.lapse[hidden] { display: none; }
+.lapse-row { display: flex; align-items: center; gap: 4px; }
+.lapse-row button { font: 11px var(--mono); color: var(--ink); background: #2a2038; border: 0; min-width: 30px; height: 26px;
+  padding: 0 7px; cursor: pointer; box-shadow: inset 0 0 0 1px var(--edge), 0 0 0 1px #0b0811; }
+.lapse-row button:disabled { color: #5a4e66; cursor: default; }
+.lapse-row #lapsePlay { color: var(--torch-2); }
+.lapse-day { font: 700 11px var(--mono); letter-spacing: .08em; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: var(--gold, #ffcf4a); }
+.lapse-clock { margin-left: auto; font: 700 13px var(--mono); color: var(--torch-2); text-shadow: 0 0 6px #f2a33a88; }
+.lapse-leave { color: #ff9a7a !important; }
+.lapse-track { display: block; width: 100%; height: 40px; margin-top: 4px; touch-action: none; cursor: ew-resize;
+  image-rendering: pixelated; }
+.lapse-now { margin: 1px 2px 0; font-size: 10px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat .msg.moment { background: linear-gradient(90deg, #3a2a10, #5a3a0800); box-shadow: inset 3px 0 0 #f2a33a;
+  transition: background 1.2s; }
+@media (prefers-reduced-motion: reduce) { .icon.lapse-btn[aria-pressed="true"] .glass-ico { animation: none; } }
