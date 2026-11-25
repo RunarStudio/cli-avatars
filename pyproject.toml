@@ -52,6 +52,7 @@ py-modules = [
     "sprite_loader",
     "standup",
     "subskins",
+    "timelapse",
     "topics",
     "win32",
 ]

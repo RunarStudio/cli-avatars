@@ -54,6 +54,7 @@ hiddenimports = [
     "sprite_loader",
     "standup",
     "subskins",
+    "timelapse",
     "topics",
     "win32",
     "PIL",
