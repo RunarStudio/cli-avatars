@@ -38,6 +38,8 @@ from cli_avatars.app.render import RenderController
 from cli_avatars.app.render import color_for as avatar_color
 from cli_avatars.app.rooms_panel import RoomsPanel
 from cli_avatars.app.skin_picker import PICK, PICK_ANIMS, PICK_FRAME_MS, SkinPicker
+from cli_avatars.app.skin_picks import SkinPicks
+from cli_avatars.app.skin_picks import store_path as skin_store_path
 from cli_avatars.app.subagents import SubagentController
 from cli_avatars.app.tick import TickLoop
 from cli_avatars.app.update_ui import mount_update_status
@@ -161,6 +163,7 @@ class OverlayApp:
         self.rooms = RoomsPanel(self)
         self.chat = ChatController(self)
         self.skin_picker = SkinPicker(self)
+        self.skin_picks = SkinPicks(skin_store_path())
         self.config_screen = ConfigScreen(self)
         self.tick_loop = TickLoop(self)
 

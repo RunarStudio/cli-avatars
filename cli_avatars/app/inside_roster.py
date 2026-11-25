@@ -18,6 +18,7 @@ from cli_avatars.app.needs_walk import Walker, beside, needing, read_rooms, stro
 from cli_avatars.app.room_fit import fit_inside
 from cli_avatars.app.room_floor import Plan, along, length, wander
 from cli_avatars.app.session_rooms import APOTHECARY, bound_room
+from cli_avatars.app.skin_picks import mapping
 from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.model.agent import AgentInfo
 from cli_avatars.model.crossing import span
@@ -31,8 +32,8 @@ SNAPSHOT_S = 0.2
 
 
 def roster_rows(feet: dict, inside: dict, rooms: dict, hues: dict, walking: set,
-                body: dict | None = None) -> list[dict]:
-    """PHONE.2: each avatar's feet in layout tiles, room and look, for the phone map; BODY pose and smoke."""
+                body: dict | None = None, picks: dict | None = None) -> list[dict]:
+    """PHONE.2: each avatar's feet in layout tiles, room and look, for the phone map; BODY pose and smoke; SKIN pick."""
     out = []
     for aid, spot in feet.items():
         av = inside.get(aid)
@@ -47,6 +48,8 @@ def roster_rows(feet: dict, inside: dict, rooms: dict, hues: dict, walking: set,
             row["hue"] = hues.get(aid, base_hue(aid))
         if body and aid in body:
             row.update(body[aid])
+        if picks and aid in picks:
+            row["skin"] = picks[aid]
         out.append(row)
     return out
 
@@ -69,9 +72,11 @@ class RosterPhotos:
         return self._own[key]
 
 
-def dress(av, photos, room_scale: int, hues: dict[str, int]):
-    """Box and photos for the roster look. No rooms painted keeps the desktop size."""
-    if room_scale < 1:
+def dress(av, photos, room_scale: int, hues: dict[str, int], picks: dict | None = None):
+    """Box and photos for the roster look, or the avatar's own sheet when a skin was picked for it (SKIN).
+    No rooms painted keeps the desktop size."""
+    if room_scale < 1 or (picks and av.agent.agent_id in picks):
+        av._av1_look = None
         return fit_inside(av, photos, room_scale), None
     look = look_for(av.agent, hues)
     if getattr(av, "_av1_look", None) != look:
@@ -321,8 +326,12 @@ class Hall:
         body = view.public({aid: self.room_of(aid) for aid in feet}) if view is not None else None
         from cli_avatars.app.courier_view import rows as courier_rows
 
-        found = roster_rows(feet, self.book.app._inside, rooms, self.hues, walking, body)
+        found = roster_rows(feet, self.book.app._inside, rooms, self.hues, walking, body, mapping(self.book.app))
         self.snapshot = (stamp, found + courier_rows(self.book))
+
+    def dress(self, av, photos, room_scale: int, hues: dict[str, int]):
+        """``dress`` with the app's skin picks."""
+        return dress(av, photos, room_scale, hues, mapping(self.book.app))
 
     def _where(self, plan: Plan, aid: str, now: float) -> tuple[tuple[float, float], int]:
         trip = self._trips.get(aid)

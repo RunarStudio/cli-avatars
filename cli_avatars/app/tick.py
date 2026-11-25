@@ -85,6 +85,9 @@ class TickLoop:
                 agents.update(bots.dungeon_agents())
             except Exception:
                 logging.getLogger("cli_avatars.bots").exception("bot roster failed")
+        picks = getattr(app, "skin_picks", None)
+        if picks is not None:
+            picks.restore(agents)
         floors, walls, floor_hwnds, win_pos = app.terrain.get_snapshot()
         moves = window_moves(app._last_win_pos, win_pos)
         app._last_win_pos = win_pos

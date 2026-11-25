@@ -26,9 +26,8 @@ from registry.facade import Registry
 from registry.task_decisions import open_by_card, pending, public
 from topics import get_topic, valid_topic_id
 from webui import live
+from webui.skin_sprite import key_of, sheet_png
 
-# skin -> (sheet, frame w, frame h), as cli_avatars.sprites.registry loads them; the idle row only
-SHEETS = {"caine": ("caine.png", 48, 48), "michimaru": ("Michimaru.png", 40, 51)}
 # roster look -> the Dungeon's AV.1 look; a Grok bot's own hue is "grok-<0..359>"
 _LOOK = re.compile(r"^(user|orchestrator|grok|subagent)(?:-(\d{1,3}))?$")
 FEET_UP = 0.08
@@ -105,7 +104,7 @@ def map_png(directory: Path | str) -> bytes | None:
 
 
 def sprite_png(skin: str) -> tuple[bytes, int, int, int] | None:
-    """``(png strip, frame w, frame h, frames)`` of a known sheet's idle row, or a roster look's idle and walk."""
+    """``(png strip, frame w, frame h, frames)``: a roster look's or a picked sheet's idle and walk rows."""
     if _LOOK.match(skin):
         return _look_png(skin)
     if skin == "courier":
@@ -114,36 +113,7 @@ def sprite_png(skin: str) -> tuple[bytes, int, int, int] | None:
         from webui.boss_scene import sprite_png as boss_png
 
         return boss_png(int(skin[5:]))
-    if skin not in SHEETS:
-        return None
-    with _LOCK:
-        if skin in _SPRITES:
-            return _SPRITES[skin]
-    from PIL import Image
-
-    name, fw, fh = SHEETS[skin]
-    try:
-        with Image.open(asset_path("Sprites", name)) as img:
-            sheet = img.convert("RGBA")
-    except (OSError, ValueError):
-        return None
-    frames = []
-    for col in range(sheet.width // fw):
-        cell = sheet.crop((col * fw, 0, col * fw + fw, fh))
-        if cell.getchannel("A").getbbox() is None:
-            break
-        frames.append(cell)
-    if not frames:
-        return None
-    strip = Image.new("RGBA", (fw * len(frames), fh), (0, 0, 0, 0))
-    for i, cell in enumerate(frames):
-        strip.paste(cell, (i * fw, 0))
-    out = io.BytesIO()
-    strip.save(out, "PNG")
-    found = (out.getvalue(), fw, fh, len(frames))
-    with _LOCK:
-        _SPRITES[skin] = found
-    return found
+    return sheet_png(skin)
 
 
 def _courier_png() -> tuple[bytes, int, int, int]:
@@ -215,6 +185,8 @@ def _px(u: float, v: float, left: int, top: int) -> list[int]:
 
 def sprite_key(row: dict) -> str:
     hue = row.get("hue")
+    if isinstance(row.get("skin"), str):
+        return key_of(row["skin"])
     return f"grok-{hue}" if row["kind"] == "grok" and type(hue) is int and 0 <= hue < 360 else row["kind"]
 
 
