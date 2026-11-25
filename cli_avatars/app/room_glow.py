@@ -13,6 +13,7 @@ import numpy as np
 from cli_avatars.app.dungeon_rooms import TILE_HALF_H, TILE_HALF_W, compose, load_manifest
 from cli_avatars.app.inside_roster import FEET_UP
 from cli_avatars.app.room_floor import Plan
+from cli_avatars.app.room_rise import rise_for
 from cli_avatars.app.throne_px import BAYER
 
 TAG = "room-glow"
@@ -65,6 +66,8 @@ class RoomGlow:
 
     def paint(self, scene, hall, dragging, now: float) -> None:
         if dragging is None and self.room is None:
+            if getattr(self, "_rise", None) is not None:
+                self._rise.clear(scene)
             return
         self._follow(hall, dragging, now)
         painter = getattr(scene, "_rooms_painter", None)
@@ -74,6 +77,10 @@ class RoomGlow:
         flick = FLICKER[int(now * 7) % len(FLICKER)] if level >= 1.0 else 1.0
         step = math.ceil(level * STEPS) * flick
         self._show(scene, painter, "home", self.room, step)
+        try:
+            rise_for(self).paint(scene, painter, getattr(getattr(hall, "book", None), "app", None), self, now)
+        except Exception:
+            pass
         self._show(scene, painter, "hint", self.hint, STEPS)
 
     def _follow(self, hall, dragging, now: float) -> None:
