@@ -53,6 +53,12 @@ class Overlays(unittest.TestCase):
     def test_a_key_press_never_maps_raises_or_focuses_an_overlay(self):
         probe(self, "keys", ("one map", "keys never raise", "empty withdraws"))
 
+    def test_avatars_redraw_on_a_rebuilt_overlay(self):
+        probe(self, "rebuild", ("redraw after rebuild", "both on the new overlay"))
+
+    def test_an_avatar_off_every_monitor_draws_nothing(self):
+        probe(self, "deadzone", ("dead zone draw", "others untouched"))
+
 
 if __name__ == "__main__":
     unittest.main()

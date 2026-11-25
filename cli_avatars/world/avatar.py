@@ -335,7 +335,7 @@ class Avatar:
                 first = None
                 for key, target, ox, oy in targets:
                     seen.add(key)
-                    ink = self._ink(key)
+                    ink = self._ink(key, target)
                     ink["canvas"] = target
                     self._paint(target, photos, ink, ox, oy)
                     if first is None:
@@ -344,9 +344,13 @@ class Avatar:
                     self._adopt(first)
                 self._drop_inks(seen)
                 return
+            self._drop_inks(set())  # off every monitor: draw nothing, keep no id from another canvas
+            self._spr_canvas = None
+            return
+        same = getattr(self, "_spr_canvas", canvas) is canvas
         ink = {
-            "spr": self.spr_id,
-            "lbl": self.lbl_id,
+            "spr": self.spr_id if same else None,
+            "lbl": self.lbl_id if same else None,
             "sig": getattr(self, "_draw_sig", None),
             "mode": getattr(self, "_spr_mode", "none"),
             "photo": self._photo,
@@ -355,11 +359,13 @@ class Avatar:
         self._paint(canvas, photos, ink, 0, 0)
         self._adopt(ink)
 
-    def _ink(self, key: str) -> dict:
+    def _ink(self, key: str, canvas: object) -> dict:
         inks = getattr(self, "_inks", None)
         if inks is None:
             self._inks = {}
             inks = self._inks
+        if inks.get(key, {}).get("canvas") not in (None, canvas):  # a rebuilt overlay: its old ids are gone
+            del inks[key]
         if key not in inks:
             inks[key] = {
                 "spr": None, "lbl": None, "sig": None,
@@ -372,7 +378,7 @@ class Avatar:
         self.lbl_id = ink["lbl"]
         self._draw_sig = ink["sig"]
         self._spr_mode = ink["mode"]
-        self._photo = ink["photo"]
+        self._photo, self._spr_canvas = ink["photo"], ink["canvas"]
 
     def _drop_inks(self, keep: set) -> None:
         inks = getattr(self, "_inks", None) or {}
