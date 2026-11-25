@@ -84,6 +84,8 @@ class Log:
         try:
             with self._lock:
                 directory = Path(self._directory())
+                if not directory.is_absolute():
+                    return
                 if day != self._day:
                     self._day, self._last = day, _seen(directory, day)
                     _prune(directory, day)

@@ -160,6 +160,7 @@ class Stage:
             self.book._now = self.clock[0]
             self.lapse._clock = time.monotonic() - step
             self.book.draw_inside()
+            timelapse_view.paint(self.book)
 
     def grab(self) -> Image.Image:
         self.root.update()

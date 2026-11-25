@@ -170,6 +170,16 @@ class Builder(unittest.TestCase):
         if os.name != "nt":
             self.assertEqual(folder.stat().st_mode & 0o777, 0o700)
 
+    def test_log_never_writes_to_a_relative_folder(self):
+        here = os.getcwd()
+        os.chdir(self.dir)
+        try:
+            timelapse.Log(lambda: "unused").rooms([{"id": "daniel", "kind": "user", "name": "You",
+                                                     "room": "Apothecary"}], time.time())
+        finally:
+            os.chdir(here)
+        self.assertFalse((self.dir / "unused").exists())
+
     def test_bad_log_lines_are_skipped(self):
         path = timelapse.log_path(self.dir, TODAY)
         path.parent.mkdir()

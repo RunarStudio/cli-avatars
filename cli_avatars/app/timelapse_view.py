@@ -46,9 +46,13 @@ def lapse_for(book) -> "Lapse":
     return found
 
 
-def paint(book, scene, now: float) -> None:
+def paint(book, scene=None, now: float | None = None) -> None:
+    """Over the inside floor, after ``book.draw_inside``; the book's own scene and clock by default."""
+    scene = scene if scene is not None else book._scene()
+    if scene is None:
+        return
     try:
-        lapse_for(book).paint(scene, now)
+        lapse_for(book).paint(scene, now if now is not None else (book._now or time.time()))
     except Exception:
         _log.debug("time-lapse paint failed", exc_info=True)
 
@@ -69,7 +73,12 @@ def open_moment(app, moment: dict | None) -> bool:
     except Exception:
         return False
     window = getattr(app, "_chat_window", None)
-    if callable(getattr(window, "see_at", None)):
+    pane = getattr(window, "_room", None)
+    if pane is not None and pane.cli_target() is not None:
+        from cli_avatars.app.moment_scroll import see_in_pane
+
+        see_in_pane(pane, moment["ts"])
+    elif callable(getattr(window, "see_at", None)):
         window.see_at(moment["ts"])
     cue(app, "moment", moment.get("card"))
     return True

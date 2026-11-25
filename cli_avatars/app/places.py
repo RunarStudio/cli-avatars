@@ -308,9 +308,6 @@ class PlaceBook:
                 self._paint_inside(scene, aid, (0.0, 0.0), photos, dragging, now, posed=True)
         room.paint_user(scene, photos, now)
         room.paint_marks(scene)
-        from cli_avatars.app import timelapse_view
-
-        timelapse_view.paint(self, scene, now)
         try:
             scene.tag_lower("floor")
         except Exception:

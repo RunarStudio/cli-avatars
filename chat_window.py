@@ -305,10 +305,7 @@ class ChatWindow:
         self.refresh(force=True)
 
     def see_at(self, ts: float) -> None:
-        """TIMELAPSE: scroll the open room to the message nearest ``ts`` and light it for a moment."""
-        if self._room is not None and self._room.cli_target() is not None:
-            self._room.see_at(ts)
-            return
+        """TIMELAPSE: scroll the open room's thread to the message nearest ``ts`` and light it for a moment."""
         if self._thread is not None:
             self._follow.pinned = False
             self._thread.after_idle(lambda: self._see_row(ts))
