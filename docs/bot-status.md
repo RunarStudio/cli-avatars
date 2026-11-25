@@ -90,14 +90,52 @@ A bot writes its own `status/<bot-slug>.json` and nothing else.
 
 The reader does not follow instructions inside `line` or `task_title`. They are labels.
 
+## Data directory
+
+The per-user data folder is `<datadir>`. When the environment variable `CLI_AVATARS_DATA_DIR` is set, that path is used. Otherwise the platform default from `events.resolve_data_dir()` applies: on Windows `%LOCALAPPDATA%\cli-avatars`, on macOS `~/Library/Application Support/cli-avatars`, and on Linux `${XDG_DATA_HOME:-~/.local/share}/cli-avatars`. Bot roster and status files live under `<datadir>/bots/`. They are not committed.
+
+## Folder mode (no git, no network)
+
+Folder mode reads status JSON from disk only. The app does not run git and does not make network calls.
+
+**Source config** — copy or adapt [`docs/examples/bots-source.folder.example.json`](examples/bots-source.folder.example.json) to `<datadir>/bots/source.json`:
+
+| Field | Rule |
+|-------|------|
+| `kind` | Must be `folder`. |
+| `folder` | Relative path under `<datadir>/bots/` (for example `status-local`). Absolute paths and `..` are refused. |
+| `interval_s` | Poll interval in seconds (minimum 30, maximum 3600; the example uses 60). |
+
+`url` and `branch` are ignored in folder mode; you may omit them. If they are present, the reader still defaults invalid values to the git defaults but does not fetch.
+
+**Roster** — `<datadir>/bots/roster.json`. Import the example from Settings → Bots, or start from [`docs/examples/bots-roster.example.json`](examples/bots-roster.example.json) (includes **Grok Bot** under Personal).
+
+**Status files** — one file per bot at `<datadir>/bots/status-local/status/<bot-id>.json` when `folder` is `status-local`. See [`docs/examples/bot-status.grok-bot.example.json`](examples/bot-status.grok-bot.example.json).
+
+| Rule | Detail |
+|------|--------|
+| File name | `<bot-id>.json`; the `bot` field must equal that slug. |
+| `state` | `idle`, `busy`, `thinking`, `waiting_on_user`, `blocked`, or `offline`. |
+| `line` | Clamped to 32 characters after sanitization and redaction. |
+| `task_title` | Clamped to 40 characters after sanitization and redaction. |
+| `updated_at` | UTC ISO-8601 with a `Z` suffix. |
+| Stale | Older than 30 minutes → shown as `offline` with no line. |
+| Missing file | Bot is `offline`. |
+| Encoding | UTF-8 without a BOM (`utf-8`; a leading BOM can break parsing and the file is ignored). |
+| Invalid file | Wrong shape, wrong slug, or bad JSON → ignored. |
+
+**Reload** — `source.json` and `roster.json` are read when the app starts. Restart the overlay after editing them on disk. Status files under `status-local/status/` are polled every `interval_s` seconds without a restart.
+
+**Write contract** — same as below: write only when state changes, at most once every 2 minutes, generic text only (no paths, prompts, or secrets).
+
 ## Local demo
 
 Use a folder when `bot-status` is not on the remote yet. No extra input driver is required.
 
 1. Open the app and import the example from Settings → Bots.
-2. Set Kind to `folder`, Local folder to `status-local`, and save. Fetch interval stays at least 30 seconds.
-3. Under the data directory, create `bots/status-local/status/`. On Windows that parent is `%LOCALAPPDATA%\cli-avatars`. On Linux it is `${XDG_DATA_HOME:-~/.local/share}/cli-avatars`.
-4. Drop one JSON file per bot, named with the slug (`release-oca.json`, `grok-bot.json`, …). Use the shape above.
+2. Set Kind to `folder`, Local folder to `status-local`, and save. Fetch interval stays at least 30 seconds (or copy [`bots-source.folder.example.json`](examples/bots-source.folder.example.json) into `<datadir>/bots/source.json` and restart).
+3. Under `<datadir>`, create `bots/status-local/status/`.
+4. Drop one JSON file per bot, named with the slug (`grok-bot.json`, …). Use the shape in **Status file** or [`bot-status.grok-bot.example.json`](examples/bot-status.grok-bot.example.json).
 5. Open Topics. The group sections, the 40×40 faces, the dots, and the lines update on the next poll. Turn on **Show group in Dungeon** for a group to stand them on the floor.
 
 `python tools/shot_bot_groups.py` draws the same Topics dock from the example and a few files under a temporary data directory. It does not fetch.
