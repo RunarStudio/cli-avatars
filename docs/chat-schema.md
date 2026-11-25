@@ -170,6 +170,30 @@ The summary and the pins are data. The overlay does not execute them and does no
 
 The chat window shows the newest 200 messages for the selected topic, the summary, and the pins. Topics in the left column carry an unread count (channel lines newer than the last time that topic was on screen, not counting the person's own lines) and the open-decision count.
 
+## Task sessions `task_sessions.json`
+
+CHAT-CTX.1: one CLI session per task per CLI, so a send from a task resumes that task's own conversation
+([task-chats.md](task-chats.md#per-task-sessions-chat-ctx1)). One JSON file in the data dir, written under the data
+directory lock with an atomic replace. Never in git. A malformed file reads as empty.
+
+```json
+{ "tasks": { "card:<card uuid>": { "claude": { "id": "<uuid>", "started": 1700000000.0, "at": 1700000300.0, "turns": 3 },
+                                  "cursor": { "id": null, "started": 0.0, "at": 1700000400.0, "turns": 0 } },
+             "room:<topic id>": { "grok": { "id": "<uuid>", "started": 1700000000.0, "at": 1700000000.0, "turns": 1 } } } }
+```
+
+| Field | Rule |
+|-------|------|
+| key | `card:<id>` for a task chat room (every chat of that card), else `room:<topic id>`. |
+| CLI | `claude`, `grok` or `cursor` (`board.model.CHAT_CLIS`). |
+| `id` | The session id the CLI reported (`system`/`init` or `result`), lowercase UUID only; `null` after New session. |
+| `started`, `at` | Epoch seconds: when this id first answered, when it last answered. |
+| `turns` | Turns on this id. A new id starts at 1. |
+
+- Written after each turn (`room_log.finish_turn`, desktop and phone) and by New session (`task_sessions.drop`).
+- At most 500 tasks; the ones idle longest go first.
+- The phone gets `cli`, `turns`, `started`, `at`; the id stays on the desktop.
+
 ## Agent state
 
 The event-bus `state` field is one of `idle`, `busy`, `thinking`, `subagent`, or `blocked`. Any other value is rejected and the packet is dropped. `blocked` means the agent is waiting on a decision, a permission prompt, or a reply. The Claude Code `Notification` hook sets it. The next `PreToolUse`, `UserPromptSubmit`, or `PostToolUse` replaces it with that event's own state. The notification message is not a field on the packet and is not executed.

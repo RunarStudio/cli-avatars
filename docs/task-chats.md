@@ -71,6 +71,64 @@ the summary, the decisions, the files the task's chats touched and its links, pl
 1,500 characters, and the oldest lines go first. A resumed session does not get it again. The chats list marks a chat
 that started with the pack, and the transcript shows the pack on top. Details: [context-packs.md](context-packs.md).
 
+## Per-task sessions (CHAT-CTX.1)
+
+The task is the unit. The composer's **Run** row offers **Inbox | Claude | Grok | Cursor**. Whichever CLI you pick,
+Enter starts or resumes *this task's* session of that CLI, so every conversation already knows the task.
+
+- One session per task per CLI. A task is the card a task chat belongs to (all chat rooms of that card share it),
+  else the topic room itself. The next send to the same CLI resumes it; a different CLI has its own.
+- A new session (the first send to a CLI, or after **New session**) gets the context pack, then the task context, then
+  your prompt. A resumed one gets the task context and the prompt. **New session** drops only the picked CLI's session.
+- Switching task switches the sessions. Replies land in the same task chat, each line tagged with its CLI
+  (`Claude ›`, `Grok ›`, `Cursor ›`) in that CLI's colour, and stored on the room's channel as `<cli>:room`.
+- A CLI that is not found on PATH, or has no command set, is a greyed chip; clicking it shows why in the status line.
+  A found binary is confirmed once (**Use this binary**, the path shown shortened, never the home folder).
+- **Copy context** copies the same pack and task context as text, for Grok on the web or the Cursor IDE when the CLI is
+  absent. It starts nothing and marks nothing.
+- The launch rule is unchanged: a CLI starts only on your click or Enter, with a fixed argv, `shell=False`, the prompt
+  on stdin ([room-chat.md](room-chat.md)).
+
+### How each CLI is started
+
+| CLI | Prompt | Resume | Source |
+|-----|--------|--------|--------|
+| Claude | `claude -p --output-format stream-json --verbose --permission-mode <mode>`, prompt on stdin | `--resume <uuid>` | `claude --help` (built in) |
+| Cursor | `cursor-agent` (or `agent`) `-p --output-format stream-json --mode plan`, prompt on stdin | `--resume <uuid>` | Cursor CLI docs (parameters, output format); default template, prompt on stdin not confirmed |
+| Grok | set in `config.json` | set in `config.json` | not confirmed: no headless flags published for Grok Build; no default |
+
+Grok and Cursor run from an argv template in `config.json`:
+
+```json
+{ "chat": { "clis": {
+  "cursor": { "argv": ["-p", "--output-format", "stream-json", "--mode", "plan"], "resume": ["--resume", "{session}"] },
+  "grok":   { "argv": ["<flags from grok --help>"], "resume": ["<flag>", "{session}"] }
+} } }
+```
+
+A template holds flags only: each part is a plain flag or word (no path, no space, no shell character), at most 16
+parts, and the only slot is one `{session}` in `resume`, filled with a checked session UUID. Anything with `force`,
+`yolo`, `danger`, `bypass`, `skip-perm`, `approve`, `allowedTools` or `add-dir` is refused, and so is a `{prompt}`
+slot: the prompt is always on stdin. A refused template reads as unset. With no template Grok stays greyed
+("no command set"). Both must print stream-json (Claude's shape: `system`/`init` with `session_id`, `assistant`
+text, `result`) for replies and resume to work. The permission mode button applies to Claude; the others run their
+template as written (Cursor's default is plan mode).
+
+### Store
+
+`task_sessions.json` in the app data dir (never in git), see [chat-schema.md](chat-schema.md#task-sessions-task_sessionsjson).
+A Claude session a room stored before CHAT-CTX (`room_chat/<room>.json`) is still resumed until New session.
+
+### Phone
+
+Tap a task: under its chats, **Sessions** lists the CLIs with a session (gem chip, turns, last answer), read-only.
+`GET /api/board` and `/api/cards/<id>` carry `sessions` (`cli`, `turns`, `started`, `at`), never the session id.
+
+### Sound
+
+A session that starts with the pack plays the `pack` cue, for every CLI, and so does **Copy context**. Windows only,
+off in Settings, held while a task is in focus.
+
 ## Sandbox chat (SANDBOX)
 
 **Try it risky** on the card makes a throwaway git worktree on a `sandbox/<card8>-<slug>` branch and a new Claude
@@ -109,7 +167,7 @@ After each turn the chat rewrites the card's three-line summary (done / now / ne
 
 ## Grok
 
-Grok's button is disabled with its reason: the runner does not launch Grok yet (ROOM-CHAT.6, after `grok login`). A Grok chat record is refused until then.
+Grok's button is disabled with its reason: the runner does not launch Grok yet (ROOM-CHAT.6, after `grok login`). A Grok chat record is refused until then. Grok and Cursor run from a chat's Run row instead (CHAT-CTX.1, above).
 
 ## Phone
 

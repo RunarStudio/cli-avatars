@@ -41,7 +41,7 @@ The topic and the board show the project folder name only (`rooms.project_folder
 
 ### Binary
 
-- Allowlist: `claude` now, `grok` later. No other name.
+- Allowlist: `claude` now, `grok` later. No other name. CHAT-CTX.1 adds `grok` and `cursor` with a checked argv template from `config.json` ([task-chats.md](task-chats.md#per-task-sessions-chat-ctx1)); without one they do not start.
 - Resolved once from absolute `PATH` entries when Daniel opens Settings → Room chat (`shutil.which` on macOS and Linux; on Windows a direct search, because `which` tries the current directory first). A path that resolves to a shell or interpreter, or a `.cmd`/`.bat` path containing characters `cmd.exe` parses, is refused. The full path is shown there and Daniel confirms it. Until Settings has a Room chat section, the chat pane shows the same path in a row under the picker on first use, with a "Use this binary" button (ROOM-CHAT.4). The confirmed path is stored in the per-user data directory, not in git.
 - On Windows, prefer a native `.exe`. A `.cmd` or `.bat` shim is used only if no `.exe` exists, and Settings says so.
 - Before each launch the stored path must still exist and be the same file (size and mtime). If not, Settings asks again. The app does not search `PATH` per launch.
