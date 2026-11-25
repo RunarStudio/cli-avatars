@@ -3,7 +3,8 @@
 Live agents, the lord's board and the state crystals are read once a second while the
 tab shows. A changed room is drawn on a worker thread; the Tk thread only swaps images
 and cycles the torch frames. A click on the door goes back to the Dungeon tab. A bot
-whose blocked card is labelled ``guest`` walks to the atelier desk (``atelier``).
+whose blocked card is labelled ``guest`` walks to the atelier desk (``atelier``). The daily standup plays here
+(``standup_panel.Stage``).
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ from cli_avatars.app import atelier as at
 from cli_avatars.app import throne_model as tm
 from cli_avatars.app.dungeon_rooms import fit_scale
 from cli_avatars.app.needs_walk import read_rooms
-from cli_avatars.app.throne_art import RoomScene, ThroneArt
+from cli_avatars.app.standup_panel import Stage
+from cli_avatars.app.throne_art import FRAMES, RoomScene, ThroneArt
 from cli_avatars.app.throne_px import BG
 from cli_avatars.app.throttle import StoreThrottle
 
@@ -58,6 +60,7 @@ class ThronePanel:
         self._project = None
         self._errands = at.Errands()
         self._rooms = StoreThrottle()
+        self.stage = Stage(self)
 
     def show(self) -> None:
         self.canvas.pack(fill="both", expand=True)
@@ -84,6 +87,8 @@ class ThronePanel:
         seating = tm.seat(actors, lord)
         topics, cards = self._read_rooms()
         seating, marked = self._errands.step(seating, at.needing_guest(topics, cards, agents), time.monotonic())
+        if self.stage.show is not None:
+            seating, marked = self.stage.seating(seating, actors), frozenset()
         project = tm.lord_project(agents, seating)
         if project != self._project or self._ticks % BOARD_EVERY == 0:
             self._project, self._cards = project, self._read_cards(project)
@@ -181,6 +186,7 @@ class ThronePanel:
         if not self._live:
             return
         try:
+            self.stage.tick()
             scene = self.scene()
             key = (scene.seating, scene.columns, scene.lights, scene.marked,
                    tuple((p.actor.skin, p.actor.state) for p in scene.seating.placed))
@@ -190,11 +196,12 @@ class ThronePanel:
                 self.canvas.after(50, self._poll)
         except Exception:
             _LOG.exception("throne room refresh failed")
-        self._job = self.canvas.after(WALK_MS if self._errands.moving() else REFRESH_MS, self._refresh)
+        busy = self._errands.moving() or self.stage.show is not None
+        self._job = self.canvas.after(WALK_MS if busy else REFRESH_MS, self._refresh)
 
     def _work(self, scene: RoomScene) -> None:
         try:
-            self._result = self._art.render(scene)
+            self._result = self._art.render(scene, 1 if self.stage.walking() else FRAMES)
         except Exception:
             _LOG.exception("throne room render failed")
             self._result = []
@@ -242,6 +249,18 @@ class ThronePanel:
         else:
             self.canvas.itemconfigure(self._item, image=photo)
             self.canvas.coords(self._item, *self._origin)
+        self.stage.place()
+
+    # Standup
+    def tick(self) -> None:
+        """One standup step now: cues, the end of the show, the overlays."""
+        self.stage.tick()
+
+    def bubble_shown(self) -> int | None:
+        return self.stage.speaking() if self.canvas.find_withtag("standup_ui_bubble") else None
+
+    def bubble_tone(self) -> str:
+        return self.stage.tone()
 
     def room_point(self, x: float, y: float) -> tuple[float, float]:
         return (x - self._origin[0]) / self._scale, (y - self._origin[1]) / self._scale

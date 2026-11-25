@@ -10,6 +10,8 @@ asks Daniel a decision (DECIDE.1). ``move``: a card slid across the board and se
 with one soft bell strike after it, when alerts waited: one cue for the whole batch.
 ``letter``: a letter slid into a pigeonhole (a soft papery swish and a muted wooden tap), once per batch of new
 Mailroom letters. ``filed``: a wax seal pressed (a low thud, a knock) and a small bright pluck, when one is filed.
+``gather``: a herald's horn call (two brass notes, the second held) and a soft hall bell, when the standup starts.
+``blip``: one soft wooden blip as each standup bubble opens (STANDUP).
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -57,6 +59,10 @@ def wav(name: str) -> bytes:
         return _pcm(_letter())
     if name == "filed":
         return _pcm(_seal())
+    if name == "gather":
+        return _pcm(_horn())
+    if name == "blip":
+        return _pcm(_blip())
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):
@@ -216,6 +222,36 @@ def _seal() -> np.ndarray:
     start = int(RATE * 0.18)
     out[start:start + n] += (pluck * np.minimum(1.0, t * 500) * 0.45).astype(np.float32)
     return out
+
+
+def _horn() -> np.ndarray:
+    """A herald's horn: G3 then D4 held, brass partials swelling in with a little vibrato, a bell under."""
+    out = np.zeros(int(RATE * 1.6), np.float32)
+    for at, pitch, length in ((0.0, 196.0, 0.32), (0.3, 293.66, 0.95)):
+        n = int(RATE * length)
+        t = np.arange(n) / RATE
+        f = pitch * (1 + 0.006 * np.sin(2 * np.pi * 5.5 * t) * np.minimum(1.0, t * 3))
+        phase = 2 * np.pi * np.cumsum(f) / RATE
+        brass = sum(np.sin(k * phase) * (0.55 / k) * np.minimum(1.0, t * (14 - k)) for k in range(1, 7))
+        env = np.minimum(1.0, t * 18) * np.exp(-np.maximum(0.0, t - length + 0.25) * 9)
+        start = int(RATE * at)
+        out[start:start + n] += (brass * env).astype(np.float32)
+    n = int(RATE * 0.9)
+    t = np.arange(n) / RATE
+    bell = (np.sin(2 * np.pi * 587.33 * t) + 0.3 * np.sin(2 * np.pi * 1179.0 * t)) * np.exp(-t * 4.5)
+    start = int(RATE * 0.62)
+    out[start:start + n] += (bell * np.minimum(1.0, t * 400) * 0.22).astype(np.float32)
+    return out
+
+
+def _blip() -> np.ndarray:
+    """A soft wooden blip: a short falling sine (A5 to E5) with a click of a knock."""
+    n = int(RATE * 0.12)
+    t = np.arange(n) / RATE
+    f = 880.0 - 220.0 * np.minimum(1.0, t / 0.05)
+    tone = np.sin(2 * np.pi * np.cumsum(f) / RATE) * np.exp(-t * 32) * np.minimum(1.0, t * 900)
+    knock = np.sin(2 * np.pi * 220.0 * t) * np.exp(-t * 90) * 0.4
+    return (tone + knock).astype(np.float32)
 
 
 def _pcm(out: np.ndarray) -> bytes:
