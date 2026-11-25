@@ -13,6 +13,7 @@ from pathlib import Path
 
 from board.model import clean_board_project, new_event
 from board.store import LocalStore
+from cli_avatars.app import task_sessions
 from cli_avatars.app.tasks_view import topic_cards
 from cli_avatars.model.room import Room, add_participant, set_session_id
 from cli_avatars.model.room_stream import CHUNK_LIMIT, Message, Turn
@@ -21,7 +22,7 @@ from rooms import project_folder
 from topics import ensure_topic, get_topic
 
 AGENT_ID = "room"
-NAMES = {"claude": "Claude", "grok": "Grok"}
+NAMES = {"claude": "Claude", "grok": "Grok", "cursor": "Cursor"}
 STDERR_LOG_LIMIT = 2048
 HISTORY_BYTES = 512 * 1024
 _FALLBACK_PROJECT = "rooms"
@@ -60,6 +61,7 @@ def finish_turn(
     """After a run: keep the reported session id for resume, log stderr, append the board event."""
     if turn.session_id:
         set_session_id(directory, room.room_id, cli, turn.session_id)
+        task_sessions.remember(directory, room.room_id, cli, turn.session_id)
     add_participant(directory, room.room_id, cli)
     if stderr:
         _log.info("room=%s cli=%s stderr: %s", room.room_id, cli, stderr[:STDERR_LOG_LIMIT])

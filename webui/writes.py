@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from cli_avatars.app import room_log
+from cli_avatars.app import room_log, task_sessions
 from cli_avatars.app import session_rooms as sr
 from cli_avatars.app import session_walks as sw
 from cli_avatars.model.room import PARTICIPANTS, ROOM_DIR_NAME, add_participant, load_binary_pin, load_room
@@ -243,11 +243,11 @@ class Actions:
             finally:
                 self.running.discard(topic)
 
+        session = task_sessions.session(self.directory, topic, cli)
         request = SimpleNamespace(room_id=topic, cli=cli, pin=pin, working_dir=room.working_dir,
-                                  mode=room.permission_mode, session_id=room.session_id(cli), topic_title=title,
+                                  mode=room.permission_mode, session_id=session, topic_title=title,
                                   open_cards=cards, on_line=on_line, on_done=on_done,
-                                  preamble=task_chats.preamble(self.directory, topic,
-                                                               fresh=room.session_id(cli) is None))
+                                  preamble=task_chats.preamble(self.directory, topic, fresh=session is None))
         try:
             launch_cli(request, text, "phone-send")
         except room_tools().rejected as exc:
