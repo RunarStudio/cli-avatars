@@ -358,8 +358,39 @@ function renderTasks() {
     if (note) b.append(el("span", "note", note));
     b.addEventListener("click", () => pickTask(c.id));
     li.append(b);
+    if (c.id === state.sel) li.append(taskChats(c));
     list.append(li);
   }
+}
+
+// TASK-CHAT.1: the selected task's chats; with writes on, start a Claude one (it runs on the first Send)
+function taskChats(c) {
+  const row = el("div", "task-chats");
+  row.append(el("span", "tc-label", "Chats"));
+  (c.chats || []).forEach((ch, i) => {
+    const b = el("button", "tc-chip " + ch.cli + (state.chatKey === ch.room ? " sel" : ""), "chat " + (i + 1));
+    b.type = "button";
+    b.addEventListener("click", () => { showChat(ch.room, c.title + " · chat " + (i + 1)); renderTasks(); });
+    row.append(b);
+  });
+  if (state.writes.writes) {
+    const add = el("button", "tc-chip tc-new", "+ Claude chat");
+    add.type = "button";
+    add.addEventListener("click", () => newTaskChat(c));
+    row.append(add);
+  } else if (!(c.chats || []).length) row.append(el("span", "tc-none", "none yet"));
+  return row;
+}
+
+async function newTaskChat(c) {
+  const res = await postJSON("/api/cards/" + c.id + "/chats", { cli: "claude" }).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) { $("composeHint").textContent = res.data.why || "Not started (" + (res.status || "offline") + ")."; return; }
+  tone("done");
+  const board = await getJSON("/api/board").catch(() => null);
+  if (board) state.cards = board.cards;
+  const card = state.cards.find((x) => x.id === c.id);
+  await showChat(res.data.room, c.title + " · chat " + (card ? card.chats.length : ""));
+  renderTasks();
 }
 
 function pickTask(id) {

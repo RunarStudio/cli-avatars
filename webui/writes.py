@@ -1,9 +1,10 @@
 """PHONE.2 / WEB.4: what the phone may change, behind ``web.allow_writes``. No Tk.
 
-Open or end a session (START.1) and send a prompt to a room's chat. The phone's Send tap is the
-user's Enter: the run goes through the Dungeon chat's own launch (``chat_window.launch_cli``), with
-the room's folder and the binary the user confirmed there. The phone never names a folder, a binary,
-a mode or a CLI flag; a room without a folder picked in the Dungeon is refused.
+Open or end a session (START.1), start a task chat (TASK-CHAT.1) and send a prompt to a room's chat.
+The phone's Send tap is the user's Enter: the run goes through the Dungeon chat's own launch
+(``chat_window.launch_cli``), with the room's folder and the binary the user confirmed there. The
+phone never names a folder, a binary, a mode or a CLI flag; a room without a folder picked in the
+Dungeon is refused.
 """
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ from cli_avatars.app import session_rooms as sr
 from cli_avatars.app import session_walks as sw
 from cli_avatars.model.room import PARTICIPANTS, ROOM_DIR_NAME, add_participant, load_binary_pin, load_room
 from events import EventRejected
+from registry import task_chats
+from registry.facade import Registry
 from rooms import project_folder
 from topics import get_topic, valid_topic_id
 from webui import media
@@ -120,11 +123,31 @@ class Actions:
         except Exception:
             return "The Dungeon did not answer. Try again."
 
+    def task_chat(self, card_id: str, cli: str) -> tuple[str, str]:
+        """``(room, "")`` for a new chat on the card, else ``("", why)``; ``why`` is ``missing`` for no card.
+
+        Starts no CLI: the first Send in that room does.
+        """
+        ready, why = task_chats.cli_ready(cli)
+        if not ready:
+            return "", why
+        registry = Registry(self.directory)
+        if registry.task_get(card_id) is None:
+            return "", "missing"
+        try:
+            _card, chat = task_chats.start_chat(registry, card_id, cli)
+        except (EventRejected, OSError):
+            return "", f"Not started: up to {task_chats.MAX_CHATS} chats per task."
+        self._after_change()
+        return chat["room"], ""
+
     def send(self, topic: str, text: str) -> str:
         """Start one run for the phone's Send tap; ``""`` when it started, else why not."""
         from chat_window import launch_cli, room_tools
 
         room = _room(self.directory, topic)
+        if hasattr(room, "room_id"):
+            room = task_chats.with_folder(self.directory, room)
         cli = self._cli(topic, room)
         if not room.working_dir:
             return NO_FOLDER
@@ -144,8 +167,11 @@ class Actions:
             self.running.discard(topic)
             return "Not stored."
 
+        texts: list[str] = []
+
         def on_line(line: str) -> None:
             messages = turn.feed(line)
+            texts.extend(m.text for m in messages if m.icon == "speech")
             if messages:
                 try:
                     room_log.post_messages(self.directory, topic, cli, messages)
@@ -156,6 +182,7 @@ class Actions:
             try:
                 media.collect(self.directory, topic, room.working_dir, before, room_log.cli_sender(cli))
                 room_log.finish_turn(self.directory, room, cli, turn, result.outcome, result.stderr)
+                task_chats.apply_reply(self.directory, topic, texts)
             except (EventRejected, OSError):
                 pass
             finally:
@@ -163,7 +190,8 @@ class Actions:
 
         request = SimpleNamespace(room_id=topic, cli=cli, pin=pin, working_dir=room.working_dir,
                                   mode=room.permission_mode, session_id=room.session_id(cli), topic_title=title,
-                                  open_cards=cards, on_line=on_line, on_done=on_done)
+                                  open_cards=cards, on_line=on_line, on_done=on_done,
+                                  preamble=task_chats.preamble(self.directory, topic))
         try:
             launch_cli(request, text, "phone-send")
         except room_tools().rejected as exc:

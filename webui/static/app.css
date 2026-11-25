@@ -61,6 +61,14 @@ h1, h2 { margin: 0; font-size: 13px; letter-spacing: .14em; text-transform: uppe
 .room-chip::before { content: "\2302 "; color: var(--torch); }
 .bar-wrap { width: 64px; height: 6px; background: #0b0811; box-shadow: 0 0 0 1px #3a2c4d; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--torch), var(--torch-2)); }
+.task-chats { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -2px 0 8px 14px; font-size: 12px; }
+.tc-label { color: var(--torch-2); letter-spacing: .06em; }
+.tc-chip { font: inherit; color: #e8dcc0; background: #1a1422; border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px #4a3a5e;
+  padding: 4px 9px; cursor: pointer; }
+.tc-chip.claude::before { content: "\25CF "; color: var(--claude); } .tc-chip.grok::before { content: "\25C6 "; color: var(--grok); }
+.tc-chip.sel { background: #2e2238; box-shadow: inset 0 0 0 1px var(--torch), 0 0 8px #f2a33a55; }
+.tc-new { color: var(--torch-2); border-style: dashed; }
+.tc-none { color: var(--dim); }
 .note { grid-column: 2; color: #c9bba0; font-size: 12px; font-style: italic; overflow-wrap: anywhere; }
 .empty { color: var(--dim); padding: 14px 8px; text-align: center; }
 .msg { display: grid; grid-template-columns: 10px 1fr; gap: 2px 8px; padding: 6px 4px; border-bottom: 1px solid #2a2136; }

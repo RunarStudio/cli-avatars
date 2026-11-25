@@ -40,6 +40,7 @@ _BAD_PATH = re.compile(r"\.\.|%2e|%2f|%5c|\\|//", re.IGNORECASE)
 _RANGE = re.compile(r"^bytes=(\d{0,15})-(\d{0,15})$")
 CHUNK = 64 * 1024
 _END = re.compile(r"^/api/sessions/([^/]{1,40})/end$")
+_CHATS = re.compile(r"^/api/cards/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/chats$")
 _SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
 _ROOM = re.compile(r"^/api/rooms/([A-Za-z0-9][A-Za-z0-9-]{0,39})(/delete)?$")
 _SKIN = re.compile(r"^/api/skins/([a-z-]{1,32})/([SMLT])\.png$")
@@ -160,6 +161,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True}) if actions.end_session(end.group(1)) else self._error(404)
         if path == "/api/rooms" or path.startswith("/api/rooms/"):
             return self._room_write(path, body)
+        chats = _CHATS.match(path)
+        if chats:
+            if set(body) != {"cli"} or body["cli"] not in ("claude", "grok"):
+                return self._error(400)
+            room, why = actions.task_chat(chats.group(1), body["cli"])
+            if why == "missing":
+                return self._error(404)
+            return self._json({"why": why}, 409) if why else self._json({"room": room})
         if path.startswith("/api/chat/"):
             topic, text = path[len("/api/chat/"):], body.get("text")
             if not valid_topic_id(topic) or not isinstance(text, str) or not text.strip():
