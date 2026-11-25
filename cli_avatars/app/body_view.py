@@ -156,7 +156,9 @@ class BodyView:
     def update(self, hall, plan, agents: dict, topics, cards, now: float) -> set[str]:
         items, th = self._inputs()
         homes = {aid: hall.room_of(aid) for aid in agents}
-        self.found = states(agents, topics, cards, items, homes, self.runs, now, th)
+        from cli_avatars.app.you_view import needs as you_needs
+
+        self.found = states(agents, topics, cards, items, homes, self.runs, now, th, you_needs(self.book))
         self.blend = {aid: self.shift.see(aid, pose, now) for aid, pose in self.found.poses.items()}
         self.shift.keep(set(self.found.poses))
         targets = self._targets(plan, hall, homes)

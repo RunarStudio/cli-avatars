@@ -73,8 +73,10 @@ def pose_for(agent, reason: str | None, now: float, th: Thresholds) -> str:
     return STRIDE if flowing(agent, now, th) else IDLE
 
 
-def reasons(topics: Iterable, cards: Iterable, items: Iterable, agents: Mapping) -> dict[str, str]:
-    """Agent id to ``STUCK`` or ``WAITS`` from blocked cards, waiting topics and needs-you rows."""
+def reasons(topics: Iterable, cards: Iterable, items: Iterable, agents: Mapping,
+            direct: Mapping | None = None) -> dict[str, str]:
+    """Agent id to ``STUCK`` or ``WAITS`` from blocked cards, waiting topics and needs-you rows; ``direct``
+    (YOU-AVATAR ``you_needs.who``) also reaches agents that are not a topic's members."""
     topics = [t for t in topics if isinstance(t, dict) and isinstance(t.get("id"), str)]
     known = {t["id"]: t for t in topics}
     cards = [c for c in cards if isinstance(c, dict)]
@@ -88,7 +90,11 @@ def reasons(topics: Iterable, cards: Iterable, items: Iterable, agents: Mapping)
             stuck.append({"column": BLOCKED, "topic": room, "project": base.get("project")})
         else:
             waits.append({**base, "status": WAITING})
-    return needing(topics + waits, cards + stuck, agents)
+    found = needing(topics + waits, cards + stuck, agents)
+    for aid, need in (direct or {}).items():
+        if aid in agents and not getattr(agents[aid], "parent_id", None):
+            found.setdefault(aid, STUCK if need.stuck else WAITS)
+    return found
 
 
 def smoke(start: float | None, now: float, th: Thresholds) -> float:
@@ -177,12 +183,12 @@ class Found:
 
 
 def states(agents: Mapping, topics: Iterable, cards: Iterable, items: Iterable, rooms: Mapping, runs: Runs,
-           now: float, th: Thresholds) -> Found:
+           now: float, th: Thresholds, direct: Mapping | None = None) -> Found:
     """Every top-level agent's pose and each room's smoke; nothing while ``body.enabled`` is false."""
     if not th.enabled:
         return Found({}, {})
     top = {aid: a for aid, a in agents.items() if not getattr(a, "parent_id", None)}
-    why = reasons(topics, cards, items, top)
+    why = reasons(topics, cards, items, top, direct)
     poses = {aid: pose_for(agent, why.get(aid), now, th) for aid, agent in top.items()}
     starts = {aid: runs.see(aid, flowing(agent, now, th), now) for aid, agent in top.items()}
     runs.keep(set(top))
