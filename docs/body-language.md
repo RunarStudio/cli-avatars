@@ -19,6 +19,8 @@ Smoke: a run starts when an agent starts working and ends after 90 s without wor
 on disk). Past `smoke_min` (20 min) the room smokes at 0.2; it thickens to 1.0 at `thick_min` (60 min). A room
 takes the longest run inside it.
 
+YOU-AVATAR.1: a needs-you row also reaches an avatar that is no topic member: a decision its asker, a blocked card its assignee, a reply or run every agent of the room's project ([you-avatar.md](you-avatar.md)); without hooks a waiting avatar still taps or slumps.
+
 A pose change eases over 0.4 s (ease-out cubic); the pose before fades as the new one comes in.
 
 ## Desktop

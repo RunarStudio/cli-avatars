@@ -29,6 +29,8 @@ One list, on the desktop and the phone, of what waits on Daniel. Each row names 
 - A row click: a card opens on the Tasks tab with its card panel (the board turns to the card's topic when it shows another or none); a room opens its chat in the dock. **Clear** on the row clears it.
 - An item that enters plays the soft `arrive` cue (`cues.py`, off with `sound.cues` false; Windows plays it). A new decision rings the `decide` bell instead. The first read after a start is quiet.
 
+**On the floor (YOU-AVATAR.1).** Each avatar a row belongs to wears a bobbing `!`/`?` bubble in the row's kind colour, and your keeper carries the count; a bubble click or walking up to it opens the row as above ([you-avatar.md](you-avatar.md)).
+
 ## Phone
 
 - A bell button in the map bar, lit with a count while anything waits; it rings when an item enters and the soft reply tone plays (the note button).

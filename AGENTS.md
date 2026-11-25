@@ -30,6 +30,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `recap.py` | DAILY-RECAP: one local day per agent and task from the board logs and today's hook file basenames (`docs/daily-recap.md`) |
 | `timelapse.py` | TIMELAPSE: one day as per-minute frames, chat moments and room paths from the board logs, channel logs and `timelapse/<day>.jsonl` (room and state changes, 30 days); `timelapse_view.py`, `timelapse_ghosts.py`, `timelapse_art.py`, `timelapse_cues.py` play it on the floor, `webui/lapse.py` on the phone (`docs/time-lapse.md`) |
 | `body.py` | BODY: status to pose (stride, slump, tap, idle) and room smoke from hook states, blocked cards, waiting topics and needs-you; thresholds in `config.json` `body`; `body_view.py`, `body_spots.py`, `body_art.py`, `body_cues.py` draw it on the floor, `webui/static/body.js` on the phone (`docs/body-language.md`) |
+| `cli_avatars/app/you_needs.py`, `cli_avatars/app/you_walk.py` | YOU-AVATAR.1: who needs Daniel (needs-you rows and hook state to avatars, no Tk) and the keeper's key steps, home room and saved spot (`ui/you_avatar.json`); `you_view.py`, `you_art.py` draw and drive it on the floor, `webui/static/you.js` on the phone (`docs/you-avatar.md`) |
 | `messenger.py` | MESSENGER: answered decisions linked to the tasks they affect (affects, names, depends, shared file) as `courier` events in `couriers.json` (walking, arrived, opened); `courier_view.py`, `courier_art.py`, `courier_tiles.py`, `courier_cues.py` walk and light it on the floor, `webui/static/courier.js` on the phone (`docs/messenger.md`) |
 | `backlog_boss.py` | BACKLOG-BOSS: blocked and 7-day-idle open cards feed an oni (HP, four stages), a closed one is a deduped `hit`; `boss.json` (owner-only) keeps each day's HP for the weekly burn-down, 30 days; `boss_view.py`, `boss_art.py`, `boss_oni.py` (the swappable oni), `boss_px.py`, `boss_cues.py` draw it in a pit on the floor, `webui/static/boss.js` on the phone (`docs/backlog-boss.md`) |
 | `voice.py` | PHONE-VOICE: a spoken transcript to one action by fixed phrases (approve or reject the open decision, new task with its task chat, else a draft reply; no AI) and the spoken summary line (task done/now/next or the needs-you count, at most 25 words); `webui/voice_routes.py` serves both as reads, `webui/static/voice.js` holds the rune mic and the confirm (`docs/phone-voice.md`) |
@@ -133,6 +134,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Sandbox room (desktop and phone) | `docs/sandbox-room.md` |
 | Dungeon time-lapse (desktop and phone) | `docs/time-lapse.md` |
 | Body language (desktop and phone) | `docs/body-language.md` |
+| Your avatar and who needs you on the map (desktop and phone) | `docs/you-avatar.md` |
 | Messenger between rooms (desktop and phone) | `docs/messenger.md` |
 | Backlog boss in the Pit (desktop and phone) | `docs/backlog-boss.md` |
 | Talk to it from the phone (voice) | `docs/phone-voice.md` |
