@@ -258,6 +258,15 @@ and a room whose run passes 20 minutes smokes from its brazier or a chimney, thi
 over 0.4 s; hover an avatar for its word. `sigh`, `knock` and `crackle` cues, held in focus. Posed avatars skip the
 needs-me walk; `body.enabled: false` brings it back. No new window. Details: [body-language.md](body-language.md).
 
+#### Messenger (MESSENGER)
+
+When an answered decision affects another task (it says `affects <task>`, names it, a card body says one depends on
+the other, or both touch the same file in a topic or project), a courier carries the scroll over. It walks the doors
+from the deciding room to the affected room, one at a time with a `+n` pip for the queue, and a wax seal flashes on
+arrival. The card then glows under a `NEW FROM <ROOM>` ribbon, on the floor and on its Tasks tile, until opened. A
+click opens a parchment note with the decision and the reason. Needs-you lists it only while that card waits on you.
+`rustle` and `stamp` cues, held in focus with the courier. No new window. Details: [messenger.md](messenger.md).
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 
