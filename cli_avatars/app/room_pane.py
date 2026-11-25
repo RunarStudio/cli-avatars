@@ -35,6 +35,7 @@ from rooms import project_folder
 
 BG = "#0d0d1a"
 TERM_BG = "#08080f"
+MOMENT, MOMENT_MS = "#3a2a10", 2400
 INK = "#e8e6f4"
 META = "#9a98b8"
 ACCENT = "#88aaff"
@@ -407,10 +408,28 @@ class RoomPane:
         self._clear()
         if task := task_chats.shown(self.window.directory(), self.room_id):
             self._write(task + "\n", "note")
-        for sender, text in room_log.history(self.window.directory(), self.room_id, self.target):
-            self._write(f"> {text}\n" if sender == "user" else text + "\n", "prompt" if sender == "user" else "reply")
+        lines = room_log.history(self.window.directory(), self.room_id, self.target, stamped=True)
+        self._stamps = [ts for _sender, _text, ts in lines]
+        for i, (sender, text, _ts) in enumerate(lines):
+            self._write(f"> {text}\n" if sender == "user" else text + "\n",
+                        ("prompt" if sender == "user" else "reply", f"m{i}"))
         if self.room_id in self._runs:
             self._write("… still answering\n", "note")
+
+    def see_at(self, ts: float) -> None:
+        """TIMELAPSE: scroll the transcript to the line nearest ``ts`` and light it for a moment."""
+        stamps, term = getattr(self, "_stamps", []), self._term
+        if not stamps or term is None:
+            return
+        i = min(range(len(stamps)), key=lambda n: abs(stamps[n] - ts))
+        try:
+            term.tag_configure("moment", background=MOMENT)
+            term.tag_remove("moment", "1.0", "end")
+            term.tag_add("moment", f"m{i}.first", f"m{i}.last")
+            term.see(f"m{i}.first")
+            term.after(MOMENT_MS, lambda: term.tag_remove("moment", "1.0", "end"))
+        except tk.TclError:
+            return
 
     def _show(self) -> None:
         """Transcript in place of the thread while a CLI is the target; the picker shows the room's state."""

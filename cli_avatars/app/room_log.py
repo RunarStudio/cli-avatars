@@ -86,8 +86,9 @@ def context(directory: Path | str, room_id: str) -> tuple[str, list[tuple[str, s
     return title, cards
 
 
-def history(directory: Path | str, room_id: str, cli: str, limit: int = 200) -> list[tuple[str, str]]:
-    """``(sender, text)`` of this room's CLI turns, oldest first, from the newest 512 KiB of the channel."""
+def history(directory: Path | str, room_id: str, cli: str, limit: int = 200, stamped: bool = False) -> list[tuple]:
+    """``(sender, text)`` of this room's CLI turns, oldest first, from the newest 512 KiB of the channel;
+    ``stamped`` adds each line's time as a third item."""
     try:
         path = channel_path(Path(directory), room_id)
     except (EventRejected, OSError):
@@ -110,7 +111,8 @@ def history(directory: Path | str, room_id: str, cli: str, limit: int = 200) -> 
         if not isinstance(obj, dict) or obj.get("channel") != room_id or not isinstance(obj.get("note"), str):
             continue
         if obj.get("from") == sender or (obj.get("from") == "user" and obj.get("to") == sender):
-            found.append((str(obj["from"]), obj["note"]))
+            ts = obj.get("ts") if isinstance(obj.get("ts"), (int, float)) else 0.0
+            found.append((str(obj["from"]), obj["note"], float(ts)) if stamped else (str(obj["from"]), obj["note"]))
     return found[-limit:]
 
 

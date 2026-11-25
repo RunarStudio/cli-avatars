@@ -144,6 +144,7 @@ TITLE_BG = "#111133"
 CARD = "#16162a"
 INK = "#e8e6f4"
 META = "#9a98b8"
+MOMENT = "#3a2a10"
 ACCENT = "#88aaff"
 LINE = "#223366"
 BTN = "#334477"
@@ -302,6 +303,31 @@ class ChatWindow:
         except Exception:
             return
         self.refresh(force=True)
+
+    def see_at(self, ts: float) -> None:
+        """TIMELAPSE: scroll the open room to the message nearest ``ts`` and light it for a moment."""
+        if self._room is not None and self._room.cli_target() is not None:
+            self._room.see_at(ts)
+            return
+        if self._thread is not None:
+            self._follow.pinned = False
+            self._thread.after_idle(lambda: self._see_row(ts))
+
+    def _see_row(self, ts: float) -> None:
+        parent = self._thread
+        try:
+            rows = [w for w in parent.winfo_children() if hasattr(w, "_ts")]
+            if not rows:
+                return
+            row = min(rows, key=lambda w: abs(w._ts - ts))
+            parent._canvas.update_idletasks()
+            parent._canvas.yview_moveto(max(0.0, (row.winfo_y() - 40) / max(1, parent.winfo_height())))
+            lit = [(w, w.cget("bg")) for w in (row, *row.winfo_children())]
+            for widget, _bg in lit:
+                widget.config(bg=MOMENT)
+            row.after(2400, lambda: [w.config(bg=bg) for w, bg in lit if w.winfo_exists()])
+        except tk.TclError:
+            return
 
     def rehome(self, container) -> None:
         """Mount the chat in another frame.
@@ -820,6 +846,7 @@ class ChatWindow:
     def _render_line(self, parent, line, by_id, index: int) -> None:
         bg = "#12121f" if index % 2 else CARD
         row = tk.Frame(parent, bg=bg)
+        row._ts = float(line.ts)
         row.pack(fill="x", padx=8, pady=1)
         tk.Label(row, text=line.clock, bg=bg, fg=META, font=FONT, width=5,
                  anchor="w").grid(row=0, column=0, padx=(6, 4), pady=4, sticky="w")

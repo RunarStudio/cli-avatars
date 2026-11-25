@@ -217,6 +217,9 @@ class BubblesView:
             bus.subscribe(recap.TALLY.on_event)
             if callable(getattr(app, "_chat_directory", None)):
                 bus.subscribe(context_packs.FileFeed(app._chat_directory).on_event)
+                from cli_avatars.app import timelapse_view
+
+                bus.subscribe(timelapse_view.log(app).on_event)
 
     def step(self, frame: Any = None) -> None:
         now = getattr(frame, "now", None) if frame is not None else None
