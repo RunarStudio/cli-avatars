@@ -168,6 +168,8 @@ class TasksPanel:
     def open_card(self, card_id: str) -> None:
         card = TaskEditor(self._directory(), self._edit_topic()).registry.task_get(card_id)
         if card is not None:
+            if self._topic() not in (ALL, card.get("topic")):
+                self.set_filter(project=card.get("project"), topic=card.get("topic") or ALL)
             self.card_panel.show_card(card)
             self._show_panel()
 

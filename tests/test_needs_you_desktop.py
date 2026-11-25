@@ -23,6 +23,19 @@ class Desktop(unittest.TestCase):
             self.assertIn(f"ok {name}", proc.stdout)
 
 
+    def test_card_opens_with_no_topic_selected(self):
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as data:
+            proc = subprocess.run(
+                [sys.executable, str(root / "tests" / "_needs_open_probe.py"), str(root), data],
+                cwd=root, capture_output=True, text=True, timeout=120, shell=False,
+            )
+        if proc.returncode == 77:
+            self.skipTest("tkinter has no display")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        for name in ("empty board", "card shown", "same card"):
+            self.assertIn(f"ok {name}", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
