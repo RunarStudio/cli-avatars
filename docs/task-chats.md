@@ -71,6 +71,14 @@ the summary, the decisions, the files the task's chats touched and its links, pl
 1,500 characters, and the oldest lines go first. A resumed session does not get it again. The chats list marks a chat
 that started with the pack, and the transcript shows the pack on top. Details: [context-packs.md](context-packs.md).
 
+## Sandbox chat (SANDBOX)
+
+**Try it risky** on the card makes a throwaway git worktree on a `sandbox/<card8>-<slug>` branch and a new Claude
+task chat whose folder is that worktree, not the topic room's folder. Every prompt gets the line `sandbox: throwaway
+branch, may be binned` ahead of the task context (after the pack on a fresh session). Promote keeps the branch; Bin
+removes the worktree and the branch, and the chat is left with no folder. Nothing starts until Enter. Details:
+[sandbox-room.md](sandbox-room.md).
+
 ## The AI updates its own task
 
 After a reply, the app reads its text for whole lines `TASK check <n>`, `TASK uncheck <n>`, `TASK note <text>`, `TASK comment <text>` (at most 10). Each one is a narrow write on the chat's own card:

@@ -126,6 +126,13 @@ cap. It stays live over the SSE events `pack` and `change`. With writes on, **pi
 leaves it out, and the row at the bottom pins a typed line (CSRF and rate limit as for every write). Details:
 [context-packs.md](context-packs.md).
 
+## Sandbox
+
+Tap a task that has a sandbox: the **Sandbox** slip under it shows the state, the `sandbox/…` branch (Copy) and a
+note, live over the SSE events `sandbox` and `change`. With writes on, **Promote** keeps the branch and **Bin** drops
+it; when the sandbox has uncommitted changes, Bin answers 409 and **Bin anyway** appears (CSRF and rate limit as for
+every write). Try it risky is on the desktop card only. Details: [sandbox-room.md](sandbox-room.md).
+
 ## Daily recap
 
 The scroll button in the map bar (beside the bell) opens **Daily recap**: what each agent did today, per task, on a
@@ -181,7 +188,7 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `/api/chat/<topic>?tail=N` | The room's last messages (default 30, at most 200). |
 | `/api/map.png` | The Dungeon map, composed from the kit exactly as the Dungeon window draws it. |
 | `/api/sprite/<look>.png` | Idle and walk rows of a roster look (`user`, `orchestrator`, `grok`, `grok-<hue>`, `subagent`), cut as the Dungeon cuts them. |
-| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change; `focus` with the focus state when it starts, ends or holds one more alert.; `mailroom` when the Mailroom's count changes; `standup` when a standup runs; `pack` when a context pack's pins or touched files change. |
+| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change; `focus` with the focus state when it starts, ends or holds one more alert.; `mailroom` when the Mailroom's count changes; `standup` when a standup runs; `pack` when a context pack's pins or touched files change; `sandbox` when a sandbox is made, promoted or binned. |
 | `/api/sessions` | Open sessions, the rooms the phone may open (title and folder name, never a path), whether writes are on, and then the CSRF value. |
 | `POST /api/sessions` | Writes on: open a session `{"kind", "cli", "topic"}` on a room whose folder was picked in the Dungeon. |
 | `POST /api/sessions/<topic>/end` | Writes on: end it; its avatars walk back to the Apothecary. |
@@ -207,6 +214,8 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `POST /api/standup/run` | Writes on: `{}` runs the standup now and pins it; 200 with the record. |
 | `/api/cards/<id>/pack` | CONTEXT-PACKS: the task's pack (`parts` with `key`, `part`, `text`, `ts`, `pinned`; `chars`, `limit`, `dropped`), whether writes are on. |
 | `POST /api/cards/<id>/pack` | Writes on: `{"pin": {"part", "text"}}` or `{"unpin": "<key>"}`; 200 with the pack, 400 for a refused line. |
+| `/api/cards/<id>/sandbox` | SANDBOX: the task's sandbox (`state`, `branch`, `folder` name, `created`, `ended`, `kept`; no paths) or `null`, whether writes are on. |
+| `POST /api/cards/<id>/sandbox` | Writes on: `{"promote": true}` or `{"bin": true, "confirm": false}`; 200 with the sandbox, 409 with `why` and `dirty` when git or a guard refuses, 400 for another body. |
 | `/api/media/<id>` | A picture or video a phone-sent turn wrote in the room's folder, by its id; byte ranges for video. |
 
 The page keeps the Send box above the phone's keyboard: while you type, the task list folds away and the map shrinks.
