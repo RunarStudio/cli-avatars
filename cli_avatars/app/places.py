@@ -445,6 +445,10 @@ class PlaceBook:
         av.monitor_layout = None
         av._board = None
         photos, look = dress(av, photos, rooms_scale(scene), hall(self).hues)
+        if not posed:
+            from cli_avatars.app.body_view import photos as body_photos
+
+            photos = body_photos(self, aid, av, photos, look, rooms_scale(scene), now)
         shown = pose(self, aid, now) if posed else None
         if shown is not None:
             av.x, av.y = shown.x, shown.y

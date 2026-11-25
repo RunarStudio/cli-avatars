@@ -206,14 +206,14 @@ def _spot(floor: Floor, key: str, leg: int) -> tuple[float, float]:
     return (a + (c - a) * (h & 0xFFFF) / 0xFFFF, b + (d - b) * (h >> 16) / 0xFFFF)
 
 
-def wander(floor: Floor, key: str, now: float) -> tuple[tuple[float, float], int]:
-    """Stand, then walk to the next spot of the room, one leg every ``LEG_S``; point and facing."""
+def wander(floor: Floor, key: str, now: float, pause: float = PAUSE) -> tuple[tuple[float, float], int]:
+    """Stand for ``pause`` of a leg, then walk to the next spot of the room, one leg every ``LEG_S``."""
     s = now / LEG_S + zlib.crc32(key.encode("utf-8")) / 2**32
     leg = math.floor(s)
     f = s - leg
     here = _spot(floor, key, leg)
-    if f < PAUSE:
+    if f < pause:
         return here, facing(_spot(floor, key, leg - 1), here)
     nxt = _spot(floor, key, leg + 1)
-    k = (f - PAUSE) / (1.0 - PAUSE)
+    k = (f - pause) / (1.0 - pause)
     return (here[0] + (nxt[0] - here[0]) * k, here[1] + (nxt[1] - here[1]) * k), facing(here, nxt)

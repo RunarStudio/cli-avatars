@@ -30,8 +30,9 @@ FEET_UP = 0.08
 SNAPSHOT_S = 0.2
 
 
-def roster_rows(feet: dict, inside: dict, rooms: dict, hues: dict, walking: set) -> list[dict]:
-    """PHONE.2: each avatar's feet in layout tiles, room and look, for the phone map. Plain data."""
+def roster_rows(feet: dict, inside: dict, rooms: dict, hues: dict, walking: set,
+                body: dict | None = None) -> list[dict]:
+    """PHONE.2: each avatar's feet in layout tiles, room and look, for the phone map; BODY pose and smoke."""
     out = []
     for aid, spot in feet.items():
         av = inside.get(aid)
@@ -44,6 +45,8 @@ def roster_rows(feet: dict, inside: dict, rooms: dict, hues: dict, walking: set)
                "face": -1 if getattr(av, "dir", 1) < 0 else 1, "walk": aid in walking}
         if kind == GROK:
             row["hue"] = hues.get(aid, base_hue(aid))
+        if body and aid in body:
+            row.update(body[aid])
         out.append(row)
     return out
 
@@ -217,7 +220,10 @@ class Hall:
         self.hues = bot_hues(aid for aid, agent in agents.items() if kind_of(agent) == GROK)
         self._meet(agents, now)
         topics, cards = self._rooms()
-        need = set(needing(topics, cards, agents))
+        from cli_avatars.app import body_view
+
+        posed = body_view.update(self.book, self, plan, agents, topics, cards, now)
+        need = set(needing(topics, cards, agents)) - posed
         user = self._where(plan, USER_ID, now)[0]
         self._feet[USER_ID] = user
         floor = plan.floor(self.room_of(USER_ID))
@@ -245,6 +251,7 @@ class Hall:
         self._publish(plan)
         from cli_avatars.app import door_plaque, door_signs, focus_veil, sandbox_view
 
+        body_view.paint(self.book, self.book._scene(), self, now)
         door_signs.paint(self.book, self.book._scene(), self, now)
         sandbox_view.paint(self.book, self.book._scene(), self, now)
         door_plaque.paint(self.book, self.book._scene(), self, now)
@@ -305,7 +312,9 @@ class Hall:
         feet = dict(self._feet)
         walking = {aid for aid, spot in feet.items() if before.get(aid) not in (None, spot)}
         rooms = {aid: plan.room_at(*spot) for aid, spot in feet.items()}
-        self.snapshot = (stamp, roster_rows(feet, self.book.app._inside, rooms, self.hues, walking))
+        view = getattr(self.book, "_body", None)
+        body = view.public({aid: self.room_of(aid) for aid in feet}) if view is not None else None
+        self.snapshot = (stamp, roster_rows(feet, self.book.app._inside, rooms, self.hues, walking, body))
 
     def _where(self, plan: Plan, aid: str, now: float) -> tuple[tuple[float, float], int]:
         trip = self._trips.get(aid)
@@ -318,7 +327,11 @@ class Hall:
 
     def _rest_at(self, plan: Plan, aid: str, now: float) -> tuple[tuple[float, float], int]:
         floor = plan.floor(self.room_of(aid))
-        return (floor.centre(), 1) if aid == USER_ID else wander(floor, aid, now)
+        if aid == USER_ID:
+            return (floor.centre(), 1)
+        from cli_avatars.app.body_view import rest
+
+        return rest(self.book, floor, aid, now)
 
     def _seconds(self, path) -> float:
         return length(path) * max(1, self._scale()) / max(1.0, self.walker.speed)
