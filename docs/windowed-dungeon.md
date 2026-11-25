@@ -180,12 +180,30 @@ No "Ask Claude" chip: the local ranker answers at once, and a Claude turn needs 
 and a confirmed binary. `app/capture_strip.py` (Tk) and `registry/capture.py` (no Tk). Phone:
 [phone-view.md](phone-view.md#quick-capture). Tests: `tests/test_quick_capture.py`.
 
+#### Daily recap (DAILY-RECAP)
+
+Central tab **Recap** beside Throne: a parchment scroll hung on the dungeon wall on two iron hooks, drawn in code
+(`app/recap_art.py`: brick wall in torchlight, wooden rods with gold caps, burnt paper edges, wax seals, task gems;
+painted at half size and scaled 2× nearest). No new window.
+
+| Part | What |
+|------|------|
+| Head | "Daily recap", the day (`Today · Wed 25 Nov`), ◄ and ► (dim at the ends), and the day's totals. |
+| Rows | Agent (wax seal, name, its counts) → task (gem, title in wine, counts) → lines (newest 8, `… N earlier` above, then `files:` and `commits:`). |
+| Days | Today on open. ← / → on the scroll, or the arrows, move one day inside the last 30. |
+| Click | A task title opens its card on the Tasks tab; the board turns to the card's project and topic if it showed another. |
+| Live | While the tab is shown, the tick reads again at most once a second, and only when a board log or the file tally changed. Rows are keyed and changed in place (text, then position); nothing is cleared, so updates do not blink. |
+| Sound | Opening the tab plays the `scroll` cue: a papery rustle and the rod settling (drawn in code; Windows, off in Settings). |
+
+What the lines mean and where they come from: [daily-recap.md](daily-recap.md). `app/recap_panel.py`.
+Tests: `tests/test_daily_recap_desktop.py`.
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 
 | Kind | Controls | Look |
 |------|----------|------|
-| Tab | Dungeon, Skins, Tasks (centre); Chat, Settings (right dock) | Tab strip; the selected tab is joined to its panel with a lit top accent |
+| Tab | Dungeon, Skins, Tasks, Throne, Recap (centre); Chat, Needs you, Settings (right dock) | Tab strip; the selected tab is joined to its panel with a lit top accent |
 | Panel toggle | Topics, Chat (toolbar, PANELS) | Lamp lit and sunken while open; the arrow points to the side the panel opens on |
 | Desktop / window action | Door, Call home (DESKTOP); Pin, Menu (WINDOW); Pop out (right dock) | Raised buttons on their own plate; Pop out is the only control that opens a separate window |
 

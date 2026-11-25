@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -83,6 +83,15 @@ The new card glows for a moment in the list and on the Board, a toast says where
 ## What needs you (NEEDS-YOU.1)
 
 The bell in the map bar lights with a count when something waits on you: a decision, a blocked task, a reply you have not answered, a run that ended. Tap it for the list, tap a row to open it, **Clear** to hide it until it changes (clearing needs the same switch as above). Details: [needs-you.md](needs-you.md).
+
+## Daily recap
+
+The scroll button in the map bar (beside the bell) opens **Daily recap**: what each agent did today, per task, on a
+parchment scroll between two rods. Same grouping as the desktop: agent (wax seal, counts) → task → lines (chat
+turns, summaries, cards created and moved, decisions asked and answered, blocked and unblocked, files touched,
+commits named in task notes). ◄ / ► (or the arrow keys) walk back through the last 30 days. Tap a task to open it
+in the list. Read-only, works with writes off; while it is open it reloads on each SSE `change`. Opening it plays a
+low three-note when sound is on. Details: [daily-recap.md](daily-recap.md).
 
 ## Web Push: alerts with the page closed
 
@@ -176,4 +185,4 @@ The avatars are the Dungeon's own: while the Dungeon window runs, the page shows
 
 ## Sound
 
-A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1). A card moved on the Board plays a short rising two-note; a captured thought a quick three-note flourish.
+A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1). A card moved on the Board plays a short rising two-note; a captured thought a quick three-note flourish; the Daily recap a low three-note as it opens.
