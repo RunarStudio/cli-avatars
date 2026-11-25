@@ -133,6 +133,11 @@ class Store(unittest.TestCase):
         self.assertTrue(state["friday"])
         self.assertFalse(state["defeated"])
 
+    def test_public_today_is_the_live_hp(self):
+        boss.sync(self.dir, [_card(1, "blocked"), _card(2, "blocked")], NOW)
+        state = boss.public(self.dir, [_card(1, "blocked")], NOW)
+        self.assertEqual(state["week"][-1]["hp"], 1)
+
     def test_standup_line_on_friday_only(self):
         boss.sync(self.dir, [_card(1, "blocked")], NOW)
         self.assertEqual(boss.standup_line(self.dir, FRIDAY), "Backlog boss: HP 1 (Mon – → Fri 1)")

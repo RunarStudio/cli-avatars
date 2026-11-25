@@ -143,12 +143,13 @@ def sync(directory: Path | str, cards: Iterable, now: float | None = None) -> di
 
 
 def public(directory: Path | str, cards: Iterable, now: float | None = None) -> dict:
-    """What the floor and the phone show: HP, the week's top HP, stage and name, feeding tasks, the week's series."""
+    """What the floor and the phone show: HP, the week's top HP, stage and name, feeding tasks, the week's series
+    (today's point is the live HP, so the phone, which never writes the store, stays current)."""
     now = time.time() if now is None else now
     today = datetime.fromtimestamp(now).date()
     rows = feeding(cards, now)
-    series = week(load(directory)["days"], today)
     points = len(rows)
+    series = week({**load(directory)["days"], today.isoformat(): points}, today)
     top = max([points] + [r["hp"] for r in series if r["hp"] is not None])
     return {"hp": points, "max": max(1, top), "stage": stage(points), "name": NAMES[stage(points)],
             "feeding": rows, "week": series, "friday": today.weekday() == 4, "defeated": points == 0}

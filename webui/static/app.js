@@ -156,6 +156,7 @@ function tapMap(sx, sy) {
   if (!state.scene) return;
   const x = (sx - state.view.x) / state.view.s, y = (sy - state.view.y) / state.view.s;
   if (typeof lapseTap === "function" && lapseTap(x, y)) return;
+  if (typeof bossTap === "function" && bossTap(x, y)) return;
   const room = state.scene.rooms.find((r) => inside(r.poly, x, y));
   if (!room) return;
   if (room.name === state.room && !state.anim) return openRooms(room.id);
@@ -210,6 +211,7 @@ function frame(now) {
     if (!lapsing) drawAvatars(now);
     if (!lapsing && typeof drawBodyOver === "function") drawBodyOver(now);
     if (!lapsing && typeof drawCourierOver === "function") drawCourierOver(now);
+    if (!lapsing && typeof drawBossOver === "function") drawBossOver(now);
     drawFocus(now);
     ctx.restore();
     drawLabels();
@@ -1084,6 +1086,7 @@ async function load() {
   const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites(), loadDecisions(), loadNeeds(), loadFocus()]);
   const oldOrigin = state.scene && state.scene.map ? state.scene.map.origin : null;
   state.scene = scene;
+  if (typeof renderBoss === "function") renderBoss();
   state.cards = board.cards;
   paintTotals();
   paintFocus();

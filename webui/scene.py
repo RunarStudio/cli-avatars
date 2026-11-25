@@ -110,6 +110,10 @@ def sprite_png(skin: str) -> tuple[bytes, int, int, int] | None:
         return _look_png(skin)
     if skin == "courier":
         return _courier_png()
+    if skin.startswith("boss-") and skin[5:] in ("0", "1", "2", "3"):
+        from webui.boss_scene import sprite_png as boss_png
+
+        return boss_png(int(skin[5:]))
     if skin not in SHEETS:
         return None
     with _LOCK:
@@ -303,6 +307,12 @@ def build_scene(directory: Path | str) -> dict:
     scene["tasks"] = {c["id"]: room_for_topic(scene, c.get("topic")) for c in cards(directory)}
     scene["couriers"] = [{"room": room_for_topic(scene, row["to_topic"]), "card": row["to"], "key": row["key"],
                           "from": room_for_topic(scene, row["from_topic"])} for row in lit(directory)]
+    from webui.boss_scene import state as boss_state
+
+    scene["boss"] = boss_state(directory, lay, left, top, _px)
+    if scene["boss"]:
+        strip = sprite_png(scene["boss"]["sprite"])
+        sprites[scene["boss"]["sprite"]] = {"w": strip[1], "h": strip[2], "frames": strip[3], "feet": 0}
     return scene
 
 
@@ -467,7 +477,8 @@ def _full_notes(directory: Path | str, topic: str) -> dict:
 def stamp(directory: Path | str) -> tuple:
     """Sizes and mtimes of what the page shows: session rooms, boards, chat, topics."""
     root = Path(directory)
-    paths = [root / "ui" / "session_rooms.json", root / "needs_you.json", root / "focus.json", root / "couriers.json"]
+    paths = [root / "ui" / "session_rooms.json", root / "needs_you.json", root / "focus.json", root / "couriers.json",
+             root / "boss.json"]
     for pattern in ("board/*/events.jsonl", "board/*/cards", "channel/*.jsonl", "topics", "web/media.json",
                     "decisions.jsonl"):
         try:
