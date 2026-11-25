@@ -28,7 +28,7 @@ COUNT_KEYS = ("turns", "summaries", "created", "moved", "asked", "answered", "bl
               "commits")
 _COMMIT = re.compile(r"(?i)\bcommit(?:ted)?\s*:?\s+([0-9a-f]{7,40})\b")
 _PATH = re.compile(r"(?:[A-Za-z]:)?(?:[\\/]?[^\s\\/]+)?(?:[\\/][^\s\\/]*)+")
-_SESSION = re.compile(r"^[0-9a-f]{8}$")
+CHATS = "chats"
 
 
 def days(today: date | None = None) -> list[date]:
@@ -52,17 +52,23 @@ def day_label(day: date, today: date | None = None) -> str:
     return f"{day:%a} {day.day} {day:%b}"
 
 
-def agent_name(actor: str) -> str:
-    """Display name: ``You``, ``Claude · chat 2`` for a task chat, ``Claude 0a1b2c3d`` for a session."""
-    if actor == PERSON:
-        return "You"
+def agent_key(actor: str) -> str:
+    """Group key: every task chat of one CLI is one agent (``claude:chats``); ``@machine`` is dropped."""
     actor = actor.split("@", 1)[0]
     source, _, rest = actor.partition(":")
-    if rest and valid_chat_room(rest):
-        return f"{source.capitalize()} · chat {rest.rsplit('-', 1)[1]}"
+    return f"{source}:{CHATS}" if rest and valid_chat_room(rest) else actor
+
+
+def agent_name(actor: str) -> str:
+    """Display name: ``You``, ``Claude · task chats``, ``Claude 0a1b2c3d`` for a session."""
+    if actor == PERSON:
+        return "You"
+    source, _, rest = agent_key(actor).partition(":")
+    if rest == CHATS:
+        return f"{source.capitalize()} · task chats"
     if rest:
         return f"{source.capitalize()} {rest[:8]}"
-    return actor
+    return source
 
 
 def clean(text: object, limit: int = LINE_LIMIT) -> str:
@@ -134,7 +140,7 @@ def build(directory: Path | str, day: date | None = None, files: FileTally | Non
     groups: dict[str, dict[str | None, dict]] = {}
 
     def task(actor: str, card: str | None, label: str = "") -> dict:
-        tasks = groups.setdefault(actor, {})
+        tasks = groups.setdefault(agent_key(actor), {})
         if card not in tasks:
             title = cards[card]["title"] if card in cards else (label or ("Card gone" if card else "No task"))
             tasks[card] = {"card": card if card in cards else None, "title": clean(title, 120),
@@ -155,7 +161,7 @@ def build(directory: Path | str, day: date | None = None, files: FileTally | Non
             for key, value in row["counts"].items():
                 counts[key] += value
                 out["totals"][key] += value
-        out["agents"].append({"agent": clean(actor.split("@", 1)[0], 64), "name": clean(agent_name(actor), 64),
+        out["agents"].append({"agent": clean(actor, 64), "name": clean(agent_name(actor), 64),
                               "counts": counts, "tasks": tasks})
     return out
 
@@ -170,7 +176,7 @@ def _apply(event: dict, cards: dict, task) -> None:
             return
         row = task(f"{event['target']}:{room}", card)
         row["counts"]["turns"] += 1
-        row["lines"].append(f"{at} chat turn · {event['outcome']}")
+        row["lines"].append(f"{at} chat {room.rsplit('-', 1)[1]} turn · {event['outcome']}")
         return
     card = event.get("card")
     if card is None:

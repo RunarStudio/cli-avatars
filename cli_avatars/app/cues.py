@@ -4,6 +4,7 @@
 knock when a guest orchestrator reaches the host's room. ``decide``: a rising three-note bell when an agent
 asks Daniel a decision (DECIDE.1). ``move``: a card slid across the board and set down (TASKBACK.5).
 ``capture``: a quill's quick scratch and a soft pinned-note pluck when a thought is saved (QUICK-CAPTURE).
+``scroll``: parchment unrolled (a soft papery rustle) and its wooden rod settling, when the Recap opens (DAILY-RECAP).
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -41,6 +42,8 @@ def wav(name: str) -> bytes:
         return _pcm(_slide())
     if name == "capture":
         return _pcm(_quill())
+    if name == "scroll":
+        return _pcm(_unroll())
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):
@@ -97,6 +100,27 @@ def _quill() -> np.ndarray:
         pluck = (np.sin(2 * np.pi * pitch * t) + 0.25 * np.sin(2 * np.pi * pitch * 3 * t)) * np.exp(-t * 22)
         start = int(RATE * at)
         out[start:start + n] += (pluck * np.minimum(1.0, t * 600) * 0.7).astype(np.float32)
+    return out
+
+
+def _unroll() -> np.ndarray:
+    """Parchment unrolled: a papery rustle that swells and fades, crackles in it, then a soft rod knock."""
+    rng = np.random.default_rng(31)
+    out = np.zeros(int(RATE * 0.55), np.float32)
+    n = int(RATE * 0.34)
+    t = np.arange(n) / RATE
+    paper = np.diff(np.convolve(rng.standard_normal(n + 1), np.ones(3) / 3, "same"))
+    swell = np.sin(np.pi * t / t[-1]) ** 1.5 * (0.6 + 0.4 * np.sin(2 * np.pi * 9.0 * t))
+    out[:n] += (paper * swell * 0.3).astype(np.float32)
+    for at in rng.uniform(0.02, 0.3, 7):
+        k = int(RATE * 0.008)
+        start = int(RATE * at)
+        out[start:start + k] += (rng.standard_normal(k) * np.exp(-np.arange(k) / 40) * 0.35).astype(np.float32)
+    n = int(RATE * 0.16)
+    t = np.arange(n) / RATE
+    knock = np.sin(2 * np.pi * 140.0 * t) * np.exp(-t * 38) + np.sin(2 * np.pi * 330.0 * t) * np.exp(-t * 70) * 0.3
+    start = int(RATE * 0.36)
+    out[start:start + n] += (knock * 0.55).astype(np.float32)
     return out
 
 

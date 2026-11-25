@@ -69,8 +69,8 @@ class Recap(unittest.TestCase):
         self.add("moved", "daniel", at(TODAY, 11), **{"from": "doing", "to": "blocked"})
         self.add("moved", "daniel", at(TODAY, 12), **{"from": "blocked", "to": "doing"})
         built = recap.build(self.dir, TODAY)
-        self.assertEqual([a["name"] for a in built["agents"]], ["Claude · chat 1", "You"])
-        chat = self.agent(built, "Claude · chat 1")
+        self.assertEqual([a["name"] for a in built["agents"]], ["Claude · task chats", "You"])
+        chat = self.agent(built, "Claude · task chats")
         self.assertEqual([t["card"] for t in chat["tasks"]], [self.card])
         task = chat["tasks"][0]
         self.assertEqual(task["title"], "Relight the forge")
@@ -80,8 +80,8 @@ class Recap(unittest.TestCase):
         self.assertEqual({k: v for k, v in you.items() if v},
                          {"created": 1, "moved": 3, "answered": 1, "blocked": 1, "unblocked": 1})
         lines = " | ".join(chat["tasks"][0]["lines"])
-        self.assertIn("chat turn · ok", lines)
-        self.assertIn("chat turn · error", lines)
+        self.assertIn("chat 1 turn · ok", lines)
+        self.assertIn("chat 1 turn · error", lines)
         self.assertIn("summary: done: bellows · now: coal · next: light it", lines)
         self.assertIn("asked: Oak or ash?", lines)
         you_lines = " | ".join(self.agent(built, "You")["tasks"][0]["lines"])
@@ -92,8 +92,8 @@ class Recap(unittest.TestCase):
     def test_the_day_ends_at_local_midnight(self):
         self.add("summary", self.chat, at(YESTERDAY, 23, 59), text="done: late", via="chat")
         self.add("summary", self.chat, at(TODAY, 0, 1), text="done: early", via="chat")
-        old = self.agent(recap.build(self.dir, YESTERDAY), "Claude · chat 1")["tasks"][0]
-        new = self.agent(recap.build(self.dir, TODAY), "Claude · chat 1")["tasks"][0]
+        old = self.agent(recap.build(self.dir, YESTERDAY), "Claude · task chats")["tasks"][0]
+        new = self.agent(recap.build(self.dir, TODAY), "Claude · task chats")["tasks"][0]
         self.assertEqual((old["counts"]["summaries"], new["counts"]["summaries"]), (1, 1))
         self.assertIn("summary: done: late", old["lines"][0])
         self.assertIn("summary: done: early", new["lines"][0])
@@ -109,7 +109,7 @@ class Recap(unittest.TestCase):
     def test_commits_only_from_logged_notes(self):
         self.add("commented", self.chat, at(TODAY, 9), text="committed 1a2b3c4 on the bellows", via="chat")
         self.add("status", self.chat, at(TODAY, 9, 3), text="pushed, commit 9f8e7d6c5b ready", via="chat")
-        task = self.agent(recap.build(self.dir, TODAY), "Claude · chat 1")["tasks"][0]
+        task = self.agent(recap.build(self.dir, TODAY), "Claude · task chats")["tasks"][0]
         self.assertEqual(task["commits"], ["1a2b3c4", "9f8e7d6"])
         self.assertEqual(task["counts"]["commits"], 2)
         self.assertIn("commits: 1a2b3c4, 9f8e7d6", task["lines"])
@@ -162,7 +162,8 @@ class Recap(unittest.TestCase):
         self.assertEqual(recap.day_label(TODAY, TODAY), "Today")
         self.assertEqual(recap.day_label(YESTERDAY, TODAY), "Yesterday")
         self.assertEqual(recap.agent_name("worker@box-7"), "worker")
-        self.assertEqual(recap.agent_name("grok:task-0a1b2c3d-2"), "Grok · chat 2")
+        self.assertEqual(recap.agent_name("grok:task-0a1b2c3d-2"), "Grok · task chats")
+        self.assertEqual(recap.agent_key("grok:task-0a1b2c3d-2"), "grok:chats")
         self.assertEqual(recap.agent_name("daniel"), "You")
 
     def test_stamp_moves_when_a_board_changes(self):

@@ -83,9 +83,11 @@ def repack(view) -> None:
 
 
 def show_center(view, name: str) -> None:
+    was = getattr(view, "_center", "")
     view.scene.pack_forget()
     view._skins.pack_forget()
     view._tasks.pack_forget()
+    view._recap.pack_forget()
     throne = getattr(view, "_throne", None)
     if throne is not None:
         throne.pack_forget()
@@ -96,6 +98,14 @@ def show_center(view, name: str) -> None:
         view._tasks.pack(fill="both", expand=True)
         view._center = "tasks"
         view._ensure_tasks()
+    elif name == "recap":
+        from cli_avatars.app import recap_panel
+
+        view.app._picker_live = False
+        view._recap.pack(fill="both", expand=True)
+        view._center = "recap"
+        if was != "recap":
+            recap_panel.opened(view)
     elif name == "throne" and throne is not None:
         from cli_avatars.app.throne_panel import ensure
 
@@ -118,6 +128,7 @@ def show_center(view, name: str) -> None:
     mark(view._tab_dungeon, view._center == "dungeon")
     mark(view._tab_tasks, view._center == "tasks")
     mark(getattr(view, "_tab_throne", None), view._center == "throne")
+    mark(view._tab_recap, view._center == "recap")
 
 
 def show_right(view) -> None:
@@ -214,10 +225,13 @@ def _body(view, root) -> None:
     view._tab_tasks.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_throne = Tab(strip, "throne", text="Throne", command=lambda: view.show_center("throne"))
     view._tab_throne.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    view._tab_recap = Tab(strip, "recap", text="Recap", command=lambda: view.show_center("recap"))
+    view._tab_recap.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view.scene = tk.Canvas(view._mid, bg=_FLOOR, highlightthickness=0, bd=0)
     view._skins = tk.Frame(view._mid, bg=_BG)
     view._tasks = tk.Frame(view._mid, bg=_BG)
     view._throne = tk.Frame(view._mid, bg=_BG)
+    view._recap = tk.Frame(view._mid, bg=_BG)
     view.scene.bind("<Configure>", lambda _e: paint_floor(view.scene))
     rstrip = tk.Frame(view._right, bg=_TABS)
     rstrip.pack(fill="x")
