@@ -69,6 +69,11 @@ h1, h2 { margin: 0; font-size: 13px; letter-spacing: .14em; text-transform: uppe
 .tc-chip.sel { background: #2e2238; box-shadow: inset 0 0 0 1px var(--torch), 0 0 8px #f2a33a55; }
 .tc-new { color: var(--torch-2); border-style: dashed; }
 .tc-none { color: var(--dim); }
+.where { grid-column: 1 / -1; display: grid; gap: 2px; padding: 5px 8px 6px; font-size: 12px; background: #2a1a26;
+  border-left: 3px solid var(--torch); box-shadow: inset 0 0 0 1px #5a2a3d, 0 2px 0 var(--deep); }
+.where-head { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; letter-spacing: .08em; color: var(--torch-2); }
+.where-age { color: var(--dim); letter-spacing: 0; }
+.where-line { color: var(--ink); overflow-wrap: anywhere; }
 .note { grid-column: 2; color: #c9bba0; font-size: 12px; font-style: italic; overflow-wrap: anywhere; }
 .empty { color: var(--dim); padding: 14px 8px; text-align: center; }
 .msg { display: grid; grid-template-columns: 10px 1fr; gap: 2px 8px; padding: 6px 4px; border-bottom: 1px solid #2a2136; }

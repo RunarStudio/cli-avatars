@@ -343,6 +343,7 @@ function renderTasks() {
     const b = el("button", "task" + (c.id === state.sel ? " sel" : ""));
     b.type = "button";
     b.append(el("span", "badge " + c.column, LABELS[c.column] || c.column), el("span", "title", c.title));
+    if (c.summary) b.append(whereSlip(c));
     const meta = el("span", "meta");
     meta.append(el("span", "room-chip", rooms.get(c.room) || c.room));
     if (c.assignee) meta.append(el("span", "who-chip", c.assignee));
@@ -364,6 +365,27 @@ function renderTasks() {
     list.append(li);
   }
 }
+
+// TASK-SUMMARY: the AI's three lines on where the task is, with their age; read-only
+function whereSlip(c) {
+  const box = el("span", "where"), head = el("span", "where-head");
+  const age = el("span", "where-age", summaryAge(c.summary_at));
+  age.dataset.ts = c.summary_at || "";
+  head.append(el("span", "where-label", "WHERE WE ARE"), age);
+  box.append(head);
+  for (const line of c.summary.split("\n")) box.append(el("span", "where-line", line));
+  return box;
+}
+
+function summaryAge(ts) {
+  const s = ts ? Math.max(0, (Date.now() - Date.parse(ts)) / 1000) : -1;
+  if (s < 0) return "";
+  if (s < 60) return "updated just now";
+  const [size, unit] = s >= 86400 ? [86400, "d"] : s >= 3600 ? [3600, "h"] : [60, "m"];
+  return "updated " + Math.floor(s / size) + unit + " ago";
+}
+
+setInterval(() => document.querySelectorAll(".where-age").forEach((n) => { n.textContent = summaryAge(n.dataset.ts); }), 30000);
 
 // TASK-CHAT.1: the selected task's chats; with writes on, start a Claude one (it runs on the first Send)
 function taskChats(c) {
