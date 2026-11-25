@@ -42,6 +42,7 @@ hiddenimports = [
     "mailroom",
     "meetings",
     "messenger",
+    "backlog_boss",
     "needs_you",
     "overlay",
     "perchas",
