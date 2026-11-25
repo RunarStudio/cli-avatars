@@ -64,7 +64,7 @@ def main() -> None:
     from chat_window import ChatWindow
     from cli_avatars.app import cues
     from cli_avatars.app.room_pane import RoomPane
-    from cli_avatars.model.room import save_binary_pin, set_working_dir
+    from cli_avatars.model.room import save_binary_pin
     from cli_avatars.runner import cli_runner
     from grok_fake import install
 
@@ -83,9 +83,7 @@ def main() -> None:
     (work / "fake-claude").write_text(SLOW_GROK, encoding="utf-8", newline="\n")
     pin = cli_runner.confirm_binary(cli_runner.resolve_binary("grok", finder=lambda _n: str(script), templated=True))
     save_binary_pin(orch_shot._DATA, "grok", pin.path, pin.size, pin.mtime_ns, pin.shim)
-    for room in ("release-train", "harbor-map"):
-        (work / room).mkdir()
-        set_working_dir(orch_shot._DATA, room, work / room, check=cli_runner.validate_working_dir)
+    (work / "release-train").mkdir()
     tk.Frame(stage.dock, bg="#0d0d1a", height=48).pack(fill="x")  # room for the caption
     host = tk.Frame(stage.dock, bg="#0d0d1a")
     host.pack(fill="both", expand=True)
@@ -93,6 +91,7 @@ def main() -> None:
                         room_pane=RoomPane)
     window.open(topic_id="release-train")
     pane = window._room
+    pane.pick_folder(ask=lambda: str(work / "release-train"))  # the folder dialog's path, answered here
     stage.tick(4.0)
     frames = []
 

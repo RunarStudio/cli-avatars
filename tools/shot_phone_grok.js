@@ -2,7 +2,7 @@
 // Grok stub), fakes the browser's speech recognizer and synthesizer in headless, muted Chrome at 400 px: opens the
 // Grok topics sheet, makes a new Grok topic, turns Auto-read on, holds the rune mic, confirms with one Send tap, and
 // the streamed reply is spoken. Writes voice.gif and phone-400.png into <out-dir>.
-//   NODE_PATH=<global node_modules> node tools/shot_phone_grok.js <out-dir>
+//   NODE_PATH=<global node_modules> xvfb-run -a node tools/shot_phone_grok.js <out-dir>
 "use strict";
 const { spawn, execFileSync } = require("child_process");
 const fs = require("fs");

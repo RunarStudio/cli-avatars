@@ -1,13 +1,14 @@
 """GROK-CHAT.1 evidence on the phone: serves the made-up day of ``shot_courier`` on 127.0.0.1 with phone writes on and
 the slow Grok stub of ``shot_grok_chat`` pinned (made-up replies, never a real CLI). The Moon forge runs in a temp
-folder. Prints the pairing URL and serves until stdin closes; ``tools/shot_phone_grok.js`` drives headless, muted
+folder. Needs a display for one hidden Tk window (run under Xvfb). Prints the pairing URL and serves until stdin closes; ``tools/shot_phone_grok.js`` drives headless, muted
 Chrome with a fake speech recognizer and synthesizer.
 
-    NODE_PATH=<global node_modules> node tools/shot_phone_grok.js <out-dir>
+    NODE_PATH=<global node_modules> xvfb-run -a node tools/shot_phone_grok.js <out-dir>
 
 The data dir and the work folder are fresh temp dirs, removed after.
 """
 
+import gc
 import shutil
 import sys
 import tempfile
@@ -23,7 +24,7 @@ from shot_grok_chat import SLOW_GROK  # noqa: E402
 from shot_phone_voice import rows  # noqa: E402
 
 from cli_avatars.app import session_rooms as sr  # noqa: E402
-from cli_avatars.model.room import save_binary_pin, set_working_dir  # noqa: E402
+from cli_avatars.model.room import save_binary_pin  # noqa: E402
 from cli_avatars.runner import cli_runner  # noqa: E402
 from webui import auth, live, server  # noqa: E402
 
@@ -36,7 +37,24 @@ def pin_grok(work: Path) -> None:
     pin = cli_runner.confirm_binary(cli_runner.resolve_binary("grok", finder=lambda _n: str(script), templated=True))
     save_binary_pin(sc._DATA, "grok", pin.path, pin.size, pin.mtime_ns, pin.shim)
     (work / "moon-forge").mkdir()
-    set_working_dir(sc._DATA, "moon-forge", work / "moon-forge", check=cli_runner.validate_working_dir)
+    folder(work / "moon-forge")
+
+
+def folder(path: Path) -> None:
+    """Give the Moon forge its folder the only way the app allows: the room pane's folder dialog, answered here."""
+    import tkinter as tk
+
+    from chat_window import ChatWindow
+    from cli_avatars.app.room_pane import RoomPane
+
+    root = tk.Tk()
+    root.withdraw()
+    window = ChatWindow(root, directory=sc._DATA, agents=[], config=lambda: {}, offscreen=True, room_pane=RoomPane)
+    window.open(topic_id="moon-forge")
+    window._room.pick_folder(ask=lambda: str(path))
+    root.destroy()
+    del window, root
+    gc.collect()  # Tk objects must die on this thread, not on the server's
 
 
 def main() -> None:
