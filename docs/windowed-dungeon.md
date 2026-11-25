@@ -233,6 +233,14 @@ wax). Space/→, S, R and U (next, skip, replay, call now) live on the throne ca
 horn and a `blip` with each bubble. Each line is pinned to its card as a note from the orchestrator. During focus it
 waits until you leave. Canvas items change in place, and no window opens. Details: [standup.md](standup.md).
 
+#### Context packs (CONTEXT-PACKS)
+
+In the Tasks tab, the card panel has a **Context pack** slip: a leather band with a satchel drawn in code, the size
+against the cap, and the four parts (summary, decisions, files, links). You can pin, unpin (✕) and edit (✎) a line,
+or pin a typed one. A chat that started with the pack is marked in the Chats list, its transcript opens with the
+pack, and the room pin shows the satchel. A `pack` cue (satchel flap, buckle click) plays when a chat starts with
+it, except during focus. No new window opens. Details: [context-packs.md](context-packs.md).
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 

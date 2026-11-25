@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -118,6 +118,14 @@ read-only. **Run standup now** needs **Allow the phone to open sessions and send
 the lines again. The SSE event `standup` keeps the sheet live. A new standup plays a low rising three-note (not
 during focus). Details: [standup.md](standup.md).
 
+## Context pack
+
+Tap a task: under its chats, the **Context pack** slip shows what every new chat on that task starts with. It has
+four parts (summary, decisions, files, links), your pins with a gold pin, and its size against the 1,500-character
+cap. It stays live over the SSE events `pack` and `change`. With writes on, **pin** keeps a line, ✕ unpins it or
+leaves it out, and the row at the bottom pins a typed line (CSRF and rate limit as for every write). Details:
+[context-packs.md](context-packs.md).
+
 ## Daily recap
 
 The scroll button in the map bar (beside the bell) opens **Daily recap**: what each agent did today, per task, on a
@@ -173,7 +181,7 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `/api/chat/<topic>?tail=N` | The room's last messages (default 30, at most 200). |
 | `/api/map.png` | The Dungeon map, composed from the kit exactly as the Dungeon window draws it. |
 | `/api/sprite/<look>.png` | Idle and walk rows of a roster look (`user`, `orchestrator`, `grok`, `grok-<hue>`, `subagent`), cut as the Dungeon cuts them. |
-| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change; `focus` with the focus state when it starts, ends or holds one more alert.; `mailroom` when the Mailroom's count changes; `standup` when a standup runs. |
+| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change; `focus` with the focus state when it starts, ends or holds one more alert.; `mailroom` when the Mailroom's count changes; `standup` when a standup runs; `pack` when a context pack's pins or touched files change. |
 | `/api/sessions` | Open sessions, the rooms the phone may open (title and folder name, never a path), whether writes are on, and then the CSRF value. |
 | `POST /api/sessions` | Writes on: open a session `{"kind", "cli", "topic"}` on a room whose folder was picked in the Dungeon. |
 | `POST /api/sessions/<topic>/end` | Writes on: end it; its avatars walk back to the Apothecary. |
@@ -197,6 +205,8 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `POST /api/mailroom/<id>/approve`, `/bounce`, `/topic` | Writes on: approve `{}` files it (200 with `id`, `topic`, `room`, `decision`); bounce `{}` (200 with `now`: `unsorted` or `dropped`); topic `{"topic"}`; 404 unknown. |
 | `/api/standup` | STANDUP: the latest standup (day, who called it, one entry per agent with `done`, `next`, `stuck`, `tone`, `card`), the morning hour, whether writes are on. |
 | `POST /api/standup/run` | Writes on: `{}` runs the standup now and pins it; 200 with the record. |
+| `/api/cards/<id>/pack` | CONTEXT-PACKS: the task's pack (`parts` with `key`, `part`, `text`, `ts`, `pinned`; `chars`, `limit`, `dropped`), whether writes are on. |
+| `POST /api/cards/<id>/pack` | Writes on: `{"pin": {"part", "text"}}` or `{"unpin": "<key>"}`; 200 with the pack, 400 for a refused line. |
 | `/api/media/<id>` | A picture or video a phone-sent turn wrote in the room's folder, by its id; byte ranges for video. |
 
 The page keeps the Send box above the phone's keyboard: while you type, the task list folds away and the map shrinks.

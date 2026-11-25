@@ -64,6 +64,13 @@ After the checklist, `where we are:` repeats the card's summary, so the next tur
 
 Lines without a value are left out. The block is redacted (`redaction.redact`) and capped at 3,000 characters; the description is cut first. The chat transcript shows the same block when the chat opens.
 
+## Context pack (CONTEXT-PACKS)
+
+A session's first prompt (a new chat, or after **New session**) gets the task's context pack ahead of this block:
+the summary, the decisions, the files the task's chats touched and its links, plus your pins. The pack is capped at
+1,500 characters, and the oldest lines go first. A resumed session does not get it again. The chats list marks a chat
+that started with the pack, and the transcript shows the pack on top. Details: [context-packs.md](context-packs.md).
+
 ## The AI updates its own task
 
 After a reply, the app reads its text for whole lines `TASK check <n>`, `TASK uncheck <n>`, `TASK note <text>`, `TASK comment <text>` (at most 10). Each one is a narrow write on the chat's own card:
