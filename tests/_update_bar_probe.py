@@ -131,7 +131,9 @@ pump(lambda: not getattr(app, "_update_running", True))
 bars = app._update_bars
 pulled = progress.step("Update: pulling")[0]
 check("red with the reason", all(b.bar.tone == "bad" and b.bar.pct == pulled for b in bars.values())
-      and "git pull --ff-only failed" in bars["settings"].bar.text, str([b.bar for b in bars.values()]))
+      and "git pull --ff-only failed" in bars["settings"].bar.text
+      and bars["settings"]._caption.cget("text") == "Stopped: git pull --ff-only failed",
+      str([b.bar for b in bars.values()]))
 status = phone.status()
 check("phone failed", (status["tone"], status["pct"]) == ("bad", pulled), str(status))
 held[0] = "a-task-in-focus"

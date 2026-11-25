@@ -191,7 +191,8 @@ def _fill(app) -> None:
         font=("Courier", 9, "bold"), relief="flat", padx=10, pady=4, cursor="hand2",
     )
     button.pack(anchor="w", padx=8, pady=(0, 4))
-    bar = _bars(app)["settings"] = UpdateBar(frame, 220, 14, _BG, anchor="w", padx=8, pady=(0, 4))
+    bar = _bars(app)["settings"] = UpdateBar(frame, 220, 14, _BG, caption=True, anchor="w", padx=8,
+                                                pady=(0, 4))
     bar.show(_progress(app))
     if reason or running:
         button.config(state="disabled", cursor="")
