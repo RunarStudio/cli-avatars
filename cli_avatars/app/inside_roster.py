@@ -113,6 +113,11 @@ class Hall:
         self._feet: dict[str, tuple[float, float]] = {}
         self._sent: dict[str, str] = {}
         self._now = 0.0
+        self._chat = StoreThrottle(1.0)
+        self._tail = None
+        self._manual: dict[str, float] = {}
+        self._out: dict[str, tuple[str, float]] = {}
+        self._cue_at: dict[str, float] = {}
         self.snapshot: tuple[float, list[dict]] | None = None
 
     def plan(self) -> Plan | None:
@@ -172,6 +177,8 @@ class Hall:
         self._trips[aid] = (path, now, eta)
         self._sent[aid] = room
         set_room = getattr(self.book, "set_room", None)
+        if keep:
+            self._manual[aid] = now
         if keep and callable(set_room):
             set_room(aid, room)
         return True
@@ -208,6 +215,7 @@ class Hall:
         inside = self.book.app._inside
         agents = {aid: inside[aid].agent for aid in spots if aid in inside}
         self.hues = bot_hues(aid for aid, agent in agents.items() if kind_of(agent) == GROK)
+        self._meet(agents, now)
         topics, cards = self._rooms()
         need = set(needing(topics, cards, agents))
         user = self._where(plan, USER_ID, now)[0]
@@ -236,6 +244,50 @@ class Hall:
             moved[aid] = self._spot(feet, av)
         self._publish(plan)
         return moved
+
+    def _meet(self, agents: dict, now: float) -> None:
+        """ORCH.ROOM: guests walk to the room they meet in, and home when the meeting ends."""
+        from cli_avatars.app import cues, orch_rooms
+
+        homes = orch_rooms.orchestrators(self._plan[0], agents)
+        away = {aid for aid, agent in agents.items() if getattr(agent, "status", "") in orch_rooms.AWAY}
+        want = orch_rooms.meetings(self._talk(), homes, now, away, self._manual) if len(homes) > 1 else {}
+        for aid, (room, began) in want.items():
+            if self._out.get(aid) != (room, began) and self.move(aid, room, now, keep=False):
+                self._cue_at[aid] = self._trips[aid][2]
+        for aid, (_room, began) in self._out.items():
+            if aid in want:
+                continue
+            self._cue_at.pop(aid, None)
+            if self._manual.get(aid, float("-inf")) < began:
+                self._sent.pop(aid, None)
+                self.move(aid, self.room_of(aid), now, keep=False)
+        self._out = want
+        for aid, at in list(self._cue_at.items()):
+            if now >= at:
+                self._cue_at.pop(aid)
+                cues.play(self.book.app, "arrive")
+
+    def _talk(self) -> list:
+        """Chat rows between agents in the last hour, read at most once a second."""
+        directory = getattr(self.book.app, "_chat_directory", None)
+        if not callable(directory):
+            return []
+        try:
+            return self._chat.get(lambda: self._read_talk(directory()))
+        except Exception:
+            return []
+
+    def _read_talk(self, directory) -> list:
+        from pathlib import Path
+
+        from chatlog import ChannelTail
+        from cli_avatars.app.orch_rooms import talk_rows
+
+        if self._tail is None or self._tail.directory != Path(directory):
+            self._tail = ChannelTail(directory)
+        since = time.time() - 3600.0
+        return talk_rows(line for line in self._tail.poll() if line.ts >= since)
 
     def _publish(self, plan: Plan) -> None:
         """At most five times a second: who stands where, for the phone view's thread to read."""

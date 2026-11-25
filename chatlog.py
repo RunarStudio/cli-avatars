@@ -84,6 +84,7 @@ class ChatLine:
     note: str
     skin: str
     reply_to: str = ""
+    to: tuple = ()
 
 
 class ScrollFollow:
@@ -205,6 +206,9 @@ def parse_record(obj: object, localtime: Callable = time.localtime) -> ChatLine 
     raw_reply = obj.get("reply_to")
     if isinstance(raw_reply, str) and UUID_RE.fullmatch(raw_reply):
         reply_to = raw_reply.lower()
+    raw_to = obj.get("to")
+    to = tuple(t for t in raw_to[:16] if isinstance(t, str) and _sender_source(t) is not None) \
+        if isinstance(raw_to, list) else ()
     return ChatLine(
         ts=ts,
         clock=format_clock(ts, localtime),
@@ -217,6 +221,7 @@ def parse_record(obj: object, localtime: Callable = time.localtime) -> ChatLine 
         note=_message_text(obj),
         skin=default_skin(source),
         reply_to=reply_to,
+        to=to,
     )
 
 

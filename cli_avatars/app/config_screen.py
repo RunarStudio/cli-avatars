@@ -7,6 +7,8 @@ from tkinter import ttk
 from activity import bind_settings, bubble_settings
 from cli_avatars.app.bots_ui import build_bots_settings
 from cli_avatars.app.close_choice import mount_setting as mount_close_setting
+from cli_avatars.app.config_file import save_config_with
+from cli_avatars.app.cues import enabled as cue_enabled
 from cli_avatars.desktop.settings import desktop_settings, with_bootcheck
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
@@ -193,6 +195,18 @@ def _build_config_ui(self, win):
     _bubble_row("Activity bubbles", lambda p: _bubble_check(p, v_act, "on"))
     _bubble_row("Show on subagents", lambda p: _bubble_check(p, v_sub, "too"))
     _bubble_row("Spring dots", lambda p: _bubble_check(p, v_dots, "on"))
+    v_cues = tk.BooleanVar(win, cue_enabled(getattr(self, "config", {})))
+
+    def _save_cues():
+        on = bool(v_cues.get())
+        self.config = {**(getattr(self, "config", None) or {}), "sound": {"cues": on}}
+        save_config_with(getattr(self, "_config_path", None),
+                         lambda data: {**data, "sound": {**(data.get("sound") if isinstance(data.get("sound"), dict)
+                                                            else {}), "cues": on}})
+
+    _bubble_row("Sound cues", lambda p: tk.Checkbutton(
+        p, variable=v_cues, text="on", command=_save_cues, bg=BG, fg=FG, selectcolor=SEL, activebackground=BG,
+        activeforeground="white", font=FONT, highlightthickness=0).pack(side="left"))
 
     def _duration(parent):
         tk.Spinbox(
