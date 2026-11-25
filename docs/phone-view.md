@@ -16,6 +16,8 @@ To stop sharing: untick **Serve the phone view**, and run `tailscale serve reset
 
 Never use `tailscale funnel` for this page: funnel puts it on the public internet.
 
+Page stopped answering: `python -m cli_avatars_emit app phone refresh` redoes step 3 and 4 ([agent-ops.md](agent-ops.md#phone-page-down-refresh-tailscale)).
+
 ### Without `tailscale serve`
 
 Pick the address marked **Tailscale** in **Listen on**. The server then listens on that one address only (plain HTTP inside Tailscale's encrypted tunnel), and the pairing link uses it. Windows Firewall may ask about the app the first time; allow it on private networks only. Every other address of the PC stays closed.

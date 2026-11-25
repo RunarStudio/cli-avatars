@@ -30,6 +30,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `routing.py` | Composer → orchestrator routing |
 | `cli_avatars_emit.py` | `python -m cli_avatars_emit` — state, say, inbox, hooks installer |
 | `emit_app.py` | `cli-avatars-emit app status\|restart\|update\|logs` — manage the running app (OPS.1, `docs/agent-ops.md`) |
+| `emit_phone.py` | `cli-avatars-emit app phone status\|refresh` — check and redo `tailscale serve` for the phone view (OPS.2, `docs/agent-ops.md`) |
 | `emit_tasks.py` | `cli-avatars-emit task status|progress|check` — agent card updates through `registry.AgentApi` |
 | `claude_chat_hooks.py` | Merge chat hooks into Claude `settings.json` |
 | `hooks/claude_chat_hook.py` | Stdlib Claude Code hook (chat context + idle) |
