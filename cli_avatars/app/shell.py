@@ -122,6 +122,9 @@ class OverlayApp:
 
         self.scanner = SessionScanner()
         self.scanner._grok_config = self.config
+        import recap
+
+        self.scanner.bus.subscribe(recap.TALLY.on_event)
         self.terrain = WindowTerrain(self.TITLE, (0, 0, sw, sh))
         self._last_win_pos: dict[int, tuple] = {}
         self.avatars: dict = {}
