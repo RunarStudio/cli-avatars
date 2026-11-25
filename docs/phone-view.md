@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -60,6 +60,16 @@ A new or changed room builds in on the phone map and in the Dungeon at once, wit
 
 Over https a tap on ◆ asks for notification permission; then a decision also notifies while the tab is in the background. With the page closed, turn on [Web Push](#web-push-alerts-with-the-page-closed). Details: [decisions.md](decisions.md#phone).
 
+## Board (TASKBACK.5)
+
+**List | Board** in the Tasks bar switches the task list to a board; the choice is remembered.
+
+- The five columns (todo, doing, review, done, blocked) are lanes: at phone width one lane fills the screen and a swipe snaps to the next; the dots under them show which lane you are on. Wider screens show two or more side by side.
+- **Project** and **Topic** pick which cards show (every project and every topic by default).
+- Each card shows its title, assignee, progress and topic, and, when it has task chats, a wine slip with the chat count and the last AI reply (one line, redacted, cut at 80 characters). Tap the slip to open that chat; tap the card to open its room.
+- **Move**: long-press a card or tap **⇄ Move**; "Move to" lists the columns. With phone writes off the sheet says so and nothing moves. A move is Daniel's: it goes through the registry, writes one `moved` event and plays a short two-note.
+- It stays live: a card an agent moves or updates shows on the next `change` event.
+
 ## What needs you (NEEDS-YOU.1)
 
 The bell in the map bar lights with a count when something waits on you: a decision, a blocked task, a reply you have not answered, a run that ended. Tap it for the list, tap a row to open it, **Clear** to hide it until it changes (clearing needs the same switch as above). Details: [needs-you.md](needs-you.md).
@@ -105,7 +115,8 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `/pair?t=<token>` | Checks the token and sets the pairing cookie, then redirects to `/`. |
 | `/` and `/static/app.js`, `/static/app.css` | The page. Vanilla JS, no build step. |
 | `/api/scene` | Rooms with their floor outline and box in map pixels, every avatar (you, sessions, bots, subagents, the Apothecary's roamers) with feet, facing and walk, task id to room. |
-| `/api/board`, `/api/cards/<id>` | Open cards of every board, busiest column first, each with its room. |
+| `/api/board`, `/api/cards/<id>` | Open cards of every board, busiest column first, each with its room, `chat_count`, `chat_room` (the chat replied in last) and `last_reply` (one redacted line, at most 80). |
+| `POST /api/cards/<id>/move` | Writes on: `{"column"}` (todo, doing, review, done, blocked) moves the card as Daniel; 200 with `id` and `column`, 400 for another column or key, 404 for no card. |
 | `/api/chat/<topic>?tail=N` | The room's last messages (default 30, at most 200). |
 | `/api/map.png` | The Dungeon map, composed from the kit exactly as the Dungeon window draws it. |
 | `/api/sprite/<look>.png` | Idle and walk rows of a roster look (`user`, `orchestrator`, `grok`, `grok-<hue>`, `subagent`), cut as the Dungeon cuts them. |
@@ -153,4 +164,4 @@ The avatars are the Dungeon's own: while the Dungeon window runs, the page shows
 
 ## Sound
 
-A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1).
+A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1). A card moved on the Board plays a short rising two-note.

@@ -171,7 +171,7 @@ Sync:
 
 ## Tasks tab (Daniel)
 
-The Dungeon's Tasks tab shows the chat topic's cards. Daniel edits them there; every write goes
+The Dungeon's Tasks tab shows the chat topic's cards, or any project and topic picked in its filters, with each card's chat count and last reply ([windowed-dungeon.md](windowed-dungeon.md) 3.2). Daniel edits them there; every write goes
 through `Registry` with the actor `daniel` (`cli_avatars/app/tasks_edit.py`, no Tk). A bad field
 shows an error under it and nothing is written. Everything happens inside the Dungeon window.
 
@@ -179,7 +179,7 @@ shows an error under it and nothing is written. Everything happens inside the Du
 |--------|-----|-------|
 | Add a card | "+ New task": title, notes, labels. It lands in `todo` of the topic's project board (the topic id when the topic has no project). | `created` |
 | Edit | Card click opens the card panel: title, notes, labels, topic link, "Save text". | `edited` |
-| Move | Drag the card to another column, or a column button in the card panel. | `moved` |
+| Move | Drag the card to another column, its right-click menu (or Shift+F10), Ctrl+Left/Right on the focused card, or a column button in the card panel. Plays the `move` cue. | `moved` |
 | Assign | Assignee menu: unassigned, `daniel`, live agents by name, the topic's members. | `assigned` |
 | Checklist | "+ Item" adds one; a tick box sets it done or not. Progress follows the checklist while `progress` is empty. | `edited`, `checklist` |
 | Progress, status note | Progress 0–100 (empty: use the checklist) and the note, "Set". | `progress` or `status` |
@@ -264,7 +264,8 @@ Read-only by default. The phone view itself is off by default.
 | `POST /api/cards/<id>/chats` | Only with `web.allow_writes`: start a task chat (TASK-CHAT.1). |
 | `GET /api/decisions` | Pending decisions on live cards with their card's title, topic and column (DECIDE.1, [decisions.md](decisions.md)). Cards carry `decisions`, their open count. |
 | `POST /api/decisions/<id>` | Only with `web.allow_writes`: answer `{"choice"}`, `{"text"}` or both. |
-| `POST /api/cards`, `POST /api/cards/<id>/move` | Not built yet (WEB.4): 405. |
+| `POST /api/cards/<id>/move` | Only with `web.allow_writes`: `{"column"}` moves the card as Daniel through the registry (one `moved` event; TASKBACK.5). |
+| `POST /api/cards` | Not built yet (WEB.4): 405. |
 
 Server, pairing and Tailscale: [phone-view.md](phone-view.md).
 

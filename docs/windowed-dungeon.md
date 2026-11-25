@@ -153,6 +153,18 @@ checklist done/total). `app/tasks_view.py` (no Tk) and `app/tasks_panel.py`; roo
 Since KANBAN.1 Daniel edits it too: "+ New task", a card panel drawn over the board's right edge,
 drag between columns (`app/tasks_edit.py`, `app/tasks_card.py`; see [board.md](board.md) § Tasks tab).
 
+**Board (TASKBACK.5).** The Tasks tab is the board:
+
+| Part | What |
+|------|------|
+| Filters | Two pills beside the title: **Project** (all projects, or one board) and **Topic** (*Chat topic* follows the chat dock, as TM.3 did; *All topics*; or one topic of that project). The title names both. |
+| Card | As TM.3, plus a wine slip when the card has task chats: a pixel speech bubble, `N chats · <last reply>` (the newest AI line of its chats, `TASK` lines cut, redacted, one line, at most 80). A click on the slip opens that chat in the chat dock; a click elsewhere opens the card panel. |
+| Move | Drag the card to another column (a parchment ghost follows the pointer, the target column lights up); right-click or Shift+F10 for "Move to"; Ctrl+Left/Right moves the focused card one column. Each is one `moved` event as `daniel` through the registry and plays the `move` cue (a card slid and set down, Windows, off in Settings). Agents still never reach `done`. |
+| Live | The rooms tick reloads the board at most once a second. Only cards that changed are touched: same widgets with new text when the card keeps its shape, one rebuilt card when a line appears or it changes column, nothing else redrawn, so agent updates do not blink. The redraw takes about 0.2 ms (≤ 2 ms is tested; `TasksPanel.draw_ms`). |
+| Selftest | `overlay.py --selftest` builds the board off-screen from made-up cards. |
+
+`app/tasks_view.py` (`ALL`, `board_choices`, `chat_digest`, `last_reply`; channel files are parsed again only when they change) and `app/tasks_panel.py`. Tests: `tests/test_board_tab.py`.
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 
