@@ -6,6 +6,7 @@
 // last reply; with writes on, a long-press or Move opens "Move to".
 // QUICK-CAPTURE: the floating + drops a thought as a card or a task chat in the topic the local ranker suggests.
 // FOCUS: one task in focus: the other rooms dim, other tasks grey, alerts for them wait; Leave focus lets them in.
+// MAILROOM (mailroom.js): letters to sort; the capture sheet's Mailroom mode sends a thought there unfiled.
 // Every text goes in with textContent.
 "use strict";
 
@@ -607,7 +608,7 @@ $("moveClose").addEventListener("click", () => { $("moveSheet").hidden = true; }
 $("moveSheet").addEventListener("click", (e) => { if (e.target === $("moveSheet")) $("moveSheet").hidden = true; });
 
 // --- QUICK-CAPTURE ---------------------------------------------------------------------------------
-state.cap = { topics: [], picked: "", manual: false, chat: false, timer: null, seq: 0 };
+state.cap = { topics: [], picked: "", manual: false, chat: false, mail: false, timer: null, seq: 0 };
 
 function capCurrent() {
   const sel = state.cards.find((c) => c.id === state.sel);
@@ -668,14 +669,17 @@ function paintCapTopics() {
   more.value = "";
 }
 
-function setCapMode(chat) {
-  state.cap.chat = chat;
-  for (const b of $("capMode").children) b.classList.toggle("on", (b.dataset.mode === "chat") === chat);
+function setCapMode(chat, mail) {
+  state.cap.chat = chat && !mail;
+  state.cap.mail = Boolean(mail);
+  const mode = mail ? "mail" : chat ? "chat" : "card";
+  for (const b of $("capMode").children) b.classList.toggle("on", b.dataset.mode === mode);
 }
 
 async function saveCapture() {
   const cap = state.cap, text = $("capText").value;
   if (!text.trim()) { $("capNote").textContent = "Write the thought first."; tone("failed"); return; }
+  if (cap.mail) return mailCapture(text);
   if (!cap.picked) { $("capNote").textContent = "Pick a topic."; return; }
   $("capSave").disabled = true;
   const res = await postJSON("/api/capture", { text, topic: cap.picked, chat: cap.chat }).catch(() => ({ ok: false, data: {} }));
@@ -696,6 +700,19 @@ async function saveCapture() {
   if (res.data.room) showChat(res.data.room, text.trim().split("\n")[0].slice(0, 60) + " \u00b7 chat");
 }
 
+async function mailCapture(text) {
+  $("capSave").disabled = true;
+  const res = await postJSON("/api/mailroom", { text }).catch(() => ({ ok: false, data: {} }));
+  $("capSave").disabled = false;
+  if (!res.ok) {
+    $("capNote").textContent = res.status === 429 ? "Too many writes: wait a minute." : "Not sent (" + (res.status || "offline") + ").";
+    tone("failed");
+    return;
+  }
+  closeCapture();
+  capToast("\u2709 In the Mailroom");
+}
+
 function capToast(text) {
   const t = $("capToast");
   t.textContent = text;
@@ -710,7 +727,7 @@ $("cap").addEventListener("click", (e) => { if (e.target === $("cap")) closeCapt
 $("capForm").addEventListener("submit", (e) => { e.preventDefault(); saveCapture(); });
 $("capText").addEventListener("input", () => { clearTimeout(state.cap.timer); state.cap.timer = setTimeout(suggestCapture, 180); });
 $("capMore").addEventListener("change", (e) => { if (e.target.value) { state.cap.picked = e.target.value; state.cap.manual = true; paintCapTopics(); } });
-for (const b of $("capMode").children) b.addEventListener("click", () => setCapMode(b.dataset.mode === "chat"));
+for (const b of $("capMode").children) b.addEventListener("click", () => setCapMode(b.dataset.mode === "chat", b.dataset.mode === "mail"));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("cap").hidden) closeCapture(); });
 
 // TASK-SUMMARY: the AI's three lines on where the task is, with their age; read-only
@@ -2007,6 +2024,7 @@ function live() {
   src.addEventListener("focus", (e) => {
     try { setFocus(JSON.parse(e.data)); } catch (_e) { /* bad frame */ }
   });
+  src.addEventListener("mailroom", () => { if (typeof mailEvent === "function") mailEvent(); });
   src.addEventListener("avatars", (e) => {
     if (!state.scene) return;
     let data;
@@ -2063,6 +2081,7 @@ function tone(kind) {
       : kind === "scroll" ? [[220.0, 0], [329.63, 0.07], [293.66, 0.16]]
       : kind === "focus" ? [[220.0, 0], [164.81, 0.14]] : kind === "unfocus" ? [[164.81, 0], [246.94, 0.14]]
       : kind === "release" ? [[164.81, 0], [246.94, 0.14], [987.77, 0.4]]
+      : kind === "letter" ? [[587.33, 0], [440.0, 0.08]] : kind === "filed" ? [[196.0, 0], [783.99, 0.12]]
       : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {
       const o = audio.createOscillator();

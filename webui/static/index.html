@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#120e18">
 <title>Dungeon</title>
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/mailroom.css">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,6 +20,7 @@
       <span id="live" class="live" title="Live updates"></span>
       <button id="decideBtn" class="icon decide" type="button" title="Decisions waiting on you" aria-haspopup="dialog">&#9670;<span id="decideCount" class="decide-count" hidden></span></button>
       <button id="needsBtn" class="icon needs" type="button" title="Nothing waits on you" aria-haspopup="dialog"><span class="bell" aria-hidden="true"></span><span id="needsCount" class="needs-count" hidden></span></button>
+      <button id="mailBtn" class="icon mail" type="button" title="Mailroom: nothing to sort" aria-haspopup="dialog"><span class="env" aria-hidden="true"></span><span id="mailCount" class="needs-count" hidden></span></button>
       <button id="recapBtn" class="icon recap" type="button" title="Daily recap: what each agent did" aria-haspopup="dialog"><span class="scroll-ico" aria-hidden="true"></span></button>
       <button id="editRoom" class="icon" type="button" title="Edit this room" aria-haspopup="dialog" hidden>&#9998;</button>
       <button id="roomsBtn" class="icon" type="button" title="Rooms: add and customize" aria-haspopup="dialog">&#9638;</button>
@@ -183,6 +185,18 @@
     </div>
   </div>
 </div>
+<div id="mail" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="mailTitle">
+  <div class="sheet-card mail-card">
+    <header class="bar"><h2 id="mailTitle"><span class="env" aria-hidden="true"></span> Mailroom</h2><button id="mailClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <p id="mailHeld" class="hint mail-held" hidden></p>
+      <ul id="mailRows" class="mail-rows" aria-live="polite"></ul>
+      <h3 id="mailUnsortedHead" hidden></h3>
+      <ul id="mailUnsorted" class="mail-rows"></ul>
+      <p id="mailNote" class="hint"></p>
+    </div>
+  </div>
+</div>
 <div id="recap" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="recapTitle">
   <div class="sheet-card recap-card">
     <header class="bar"><h2 id="recapTitle"><span class="scroll-ico" aria-hidden="true"></span>Daily recap</h2><button id="recapClose" class="icon" type="button" title="Close">&#10005;</button></header>
@@ -205,7 +219,7 @@
       <h3>Topic <small>suggested from your words</small></h3>
       <div id="capTopics" class="cap-topics" role="radiogroup" aria-label="Topic"></div>
       <select id="capMore" class="cap-more" aria-label="Another topic"></select>
-      <div id="capMode" class="seg" role="radiogroup" aria-label="Save as"><button type="button" data-mode="card" class="on">Card</button><button type="button" data-mode="chat">Task chat</button></div>
+      <div id="capMode" class="seg" role="radiogroup" aria-label="Save as"><button type="button" data-mode="card" class="on">Card</button><button type="button" data-mode="chat">Task chat</button><button type="button" data-mode="mail">Mailroom</button></div>
       <button id="capSave" class="send wide" type="submit">Save</button>
       <p id="capNote" class="hint" aria-live="polite"></p>
     </form>
@@ -220,5 +234,6 @@
   <p id="viewerName" class="viewer-name"></p>
 </div>
 <script src="/static/app.js"></script>
+<script src="/static/mailroom.js"></script>
 </body>
 </html>

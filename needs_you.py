@@ -1,10 +1,11 @@
 """NEEDS-YOU.1: what waits on Daniel, one list from the stores that already hold it. No Tk.
 
 Sources: open decisions (``decisions.jsonl``), cards in ``blocked`` (the boards), replies to him in a
-room after his last line there (the channel), and room runs that ended after it (the boards' ``prompt``
-events). A reply and a run in the same room are one item. Order: decision, blocked, reply, run, then
-oldest first. Clearing stores the item's last change in ``needs_you.json``; a newer change brings it back.
-Replies and runs older than ``FRESH_S`` drop out. Nothing read here is run.
+room after his last line there (the channel), room runs that ended after it (the boards' ``prompt``
+events), and one ``mail`` row while letters wait in the Mailroom (``mailroom.py``). A reply and a run in the
+same room are one item. Order: decision, blocked, reply, run, mail, then oldest first. Clearing stores the
+item's last change in ``needs_you.json``; a newer change brings it back. Replies and runs older than
+``FRESH_S`` drop out. Nothing read here is run.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from pathlib import Path
 
 from events import CHANNEL_DIR_NAME, EventRejected, directory_lock, sanitize_text
 
-KINDS = ("decision", "blocked", "reply", "run")
+KINDS = ("decision", "blocked", "reply", "run", "mail")
 RANK = {kind: i for i, kind in enumerate(KINDS)}
 STORE_NAME = "needs_you.json"
 FRESH_S = 3 * 86400
@@ -26,7 +27,7 @@ TAIL_BYTES = 128 * 1024
 DETAIL_LIMIT = 160
 KEEP = 500
 RUN_WORDS = {"ok": "Run finished", "error": "Run failed", "timeout": "Run timed out"}
-_KEY = re.compile(r"^(decision|card|room):[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
+_KEY = re.compile(r"^(decision|card|room|mail):[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
 
 def valid_key(key: object) -> bool:
@@ -54,7 +55,7 @@ def collect(directory: Path | str, now: float | None = None) -> list[dict]:
     root = Path(directory)
     since = (time.time() if now is None else now) - FRESH_S
     replies, last_user = _replies(root, since)
-    return merge(_decisions(root), _blocked(root), replies, _runs(root, since, last_user))
+    return merge(_decisions(root), _blocked(root), replies, _runs(root, since, last_user), _mail(root))
 
 
 def pending(directory: Path | str, now: float | None = None) -> list[dict]:
@@ -62,7 +63,8 @@ def pending(directory: Path | str, now: float | None = None) -> list[dict]:
     root = Path(directory)
     since = (time.time() if now is None else now) - FRESH_S
     replies, last_user = _replies(root, since)
-    return merge(_decisions(root), _blocked(root), replies, _runs(root, since, last_user), cleared=_load(root))
+    return merge(_decisions(root), _blocked(root), replies, _runs(root, since, last_user), _mail(root),
+                 cleared=_load(root))
 
 
 def clear(directory: Path | str, key: object, now: float | None = None) -> bool:
@@ -86,7 +88,7 @@ def clear(directory: Path | str, key: object, now: float | None = None) -> bool:
 def stamp(directory: Path | str) -> tuple:
     """Sizes and mtimes of the sources and the cleared store; it moves when the list may have."""
     root = Path(directory)
-    paths = [root / "decisions.jsonl", root / STORE_NAME]
+    paths = [root / "decisions.jsonl", root / STORE_NAME, root / "mailroom.json"]
     for pattern in (f"{CHANNEL_DIR_NAME}/*.jsonl", "board/*/events.jsonl", "board/*/cards"):
         try:
             paths.extend(sorted(root.glob(pattern)))
@@ -136,6 +138,12 @@ def _decisions(root: Path) -> list[dict]:
         found.append(_item(f"decision:{row['id']}", "decision", float(row["ts"]), float(row["ts"]), title,
                            str(row["question"]), row["room"], row.get("card")))
     return found
+
+
+def _mail(root: Path) -> list[dict]:
+    import mailroom
+
+    return mailroom.needs_row(root)
 
 
 def _blocked(root: Path) -> list[dict]:

@@ -9,6 +9,7 @@ QUICK-CAPTURE: ``/api/capture/suggest`` ranks topics locally (read-only); ``POST
 WEB-PUSH: ``/sw.js`` and the push routes; the manifest and its icon load unpaired (they hold no data).
 FOCUS: ``/api/focus`` (read), ``POST /api/focus`` and ``/api/focus/leave`` (writes); while a task is in focus the
 needs-you list and the decisions show only its items, and the SSE ``focus`` event carries the state.
+MAILROOM: ``/api/mailroom`` (read) and its writes live in ``mail_routes``; the SSE ``mailroom`` event has the counts.
 """
 
 from __future__ import annotations
@@ -30,12 +31,14 @@ from board.model import BODY_LIMIT, COLUMNS, clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
 from topics import valid_topic_id
-from webui import auth, media, push, scene, writes
+from webui import auth, mail_routes, media, push, scene, writes
 
 STATIC = asset_path("webui", "static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/app.js": ("app.js", "text/javascript; charset=utf-8"),
          "/static/app.css": ("app.css", "text/css; charset=utf-8"),
+         "/static/mailroom.js": ("mailroom.js", "text/javascript; charset=utf-8"),
+         "/static/mailroom.css": ("mailroom.css", "text/css; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048
@@ -212,6 +215,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"why": why}, 409) if why else self._json({"room": room})
         if path == "/api/capture":
             return self._capture(body)
+        if path == "/api/mailroom" or path.startswith("/api/mailroom/"):
+            return mail_routes.write(self, path, body)
         move = _MOVE.match(path)
         if move:
             if set(body) != {"column"} or body["column"] not in COLUMNS:
@@ -345,6 +350,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({**scene.focus_now(directory), "writes": self.server.writes()})
         if path == "/api/recap":
             return self._recap(query)
+        if path == "/api/mailroom":
+            return mail_routes.read(self)
         if path == "/api/capture/suggest":
             return self._suggest(query)
         if path == "/api/push":
@@ -475,6 +482,7 @@ class Handler(BaseHTTPRequestHandler):
             last, quiet = scene.stamp(self.server.directory), time.monotonic()
             checked, sent, counted = quiet, None, scene.counts_now(self.server.directory)
             focused = scene.focus_now(self.server.directory)
+            mailed = mail_routes.summary(self.server.directory)
             updater, update_seq = self.server.updater, self.server.updater.seq()
             while not self.server.stopping.wait(min(self.server.poll, AVATAR_TICK)):
                 if updater.seq() != update_seq:
@@ -502,6 +510,12 @@ class Handler(BaseHTTPRequestHandler):
                     focused, quiet = state, time.monotonic()
                     data = json.dumps(state, separators=(",", ":"))
                     self.wfile.write(f"event: focus\ndata: {data}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                mail = mail_routes.summary(self.server.directory)
+                if mail != mailed:
+                    mailed, quiet = mail, time.monotonic()
+                    data = json.dumps(mail, separators=(",", ":"))
+                    self.wfile.write(f"event: mailroom\ndata: {data}\n\n".encode("utf-8"))
                     self.wfile.flush()
                 now = scene.stamp(self.server.directory)
                 if now != last:

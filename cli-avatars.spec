@@ -38,6 +38,7 @@ hiddenimports = [
     "harness",
     "hud",
     "inbox",
+    "mailroom",
     "meetings",
     "needs_you",
     "overlay",
