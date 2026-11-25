@@ -13,6 +13,8 @@ OVERLAY_TITLE = "CLI Avatars overlay"
 # GWL_EXSTYLE / WS_EX_TOOLWINDOW. Keeps the borderless overlay out of Alt-Tab and the taskbar.
 _GWL_EXSTYLE = -20
 _WS_EX_TOOLWINDOW = 0x00000080
+# WS_EX_NOACTIVATE. Showing or clicking an overlay never takes focus from the window being typed in.
+_WS_EX_NOACTIVATE = 0x08000000
 
 
 def overlay_title(index: int) -> str:
@@ -55,7 +57,7 @@ def frame_hwnd(widget) -> int:
 
 
 def mark_toolwindow(widget) -> None:
-    """Set ``WS_EX_TOOLWINDOW`` on the top-level overlay. Ignored off Windows.
+    """Set ``WS_EX_TOOLWINDOW`` and ``WS_EX_NOACTIVATE`` on the top-level overlay. Ignored off Windows.
 
     The bit is applied to the root hwnd. Tk's overrideredirect window otherwise
     keeps a taskbar and Alt-Tab entry when it has a title.
@@ -76,7 +78,7 @@ def mark_toolwindow(widget) -> None:
         setter.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
         setter.restype = ctypes.c_ssize_t
         current = getter(hwnd, _GWL_EXSTYLE)
-        setter(hwnd, _GWL_EXSTYLE, int(current) | _WS_EX_TOOLWINDOW)
+        setter(hwnd, _GWL_EXSTYLE, int(current) | _WS_EX_TOOLWINDOW | _WS_EX_NOACTIVATE)
     except (OSError, AttributeError, ValueError, TypeError):
         return
 

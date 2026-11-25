@@ -104,9 +104,7 @@ class OverlayBoard:
         self.lift_overlays()
 
     def show(self, boxes) -> None:
-        """Withdraw every overlay that no sprite touches, including the anchor."""
-        import tkinter as tk
-
+        """Withdraw every overlay that no sprite touches, including the anchor. Only a change maps or withdraws."""
         if not getattr(self.app, "desktop_escape", True):
             self._hide_legacy()
             return
@@ -114,13 +112,7 @@ class OverlayBoard:
             window = self._legacy[0] if self._legacy is not None else None
             if window is None:
                 return
-            try:
-                if boxes:
-                    window.deiconify()
-                else:
-                    window.withdraw()
-            except tk.TclError:
-                pass
+            _set_mapped(window, bool(boxes))
             return
         occupied = set()
         for box in boxes:
@@ -129,13 +121,7 @@ class OverlayBoard:
                 if _intersects(rect, slot.monitor.rect):
                     occupied.add(slot.key)
         for slot in self.slots():
-            try:
-                if slot.key in occupied:
-                    slot.window.deiconify()
-                else:
-                    slot.window.withdraw()
-            except tk.TclError:
-                pass
+            _set_mapped(slot.window, slot.key in occupied)
 
     def lift_overlays(self) -> None:
         """Keep avatars above the Dungeon, including when the Dungeon is pinned."""
@@ -342,6 +328,24 @@ def _intersects(box, rect) -> bool:
     left, top, right, bottom = rect
     x1, y1, x2, y2 = box
     return x1 < right and x2 > left and y1 < bottom and y2 > top
+
+
+def _set_mapped(window, shown: bool) -> None:
+    """Map or withdraw on a change only. On Windows each ``deiconify`` shows and raises the overlay again."""
+    import tkinter as tk
+
+    try:
+        if (window.state() != "withdrawn") == shown:
+            return
+        if shown:
+            window.deiconify()
+            from cli_avatars.desktop.chrome import mark_toolwindow
+
+            mark_toolwindow(window)
+        else:
+            window.withdraw()
+    except tk.TclError:
+        pass
 
 
 def _attr(window, name: str, value) -> None:
