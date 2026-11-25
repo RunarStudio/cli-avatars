@@ -23,6 +23,8 @@ One JSON object per card.
 | `progress` | Optional int 0–100 (`true` / `50.0` / `"50"` are rejected). `null` means "use the checklist ratio" (`board.model.effective_progress`). |
 | `status_note` | Sanitised, at most 240. The agent's one-line "where I am". Empty by default. |
 | `learnt` | Sanitised, redacted, at most 240. What we learnt doing the card, written when it is done. Empty by default; a card file without it loads as empty. |
+| `summary` | Up to three lines, each redacted and capped at 120: the task chat's "where we are" ([task-chats.md](task-chats.md)). Empty by default. |
+| `summary_at` | ISO 8601 UTC of the last summary change, or null. |
 | `chats` | At most 12 `{id, cli, created, room}`: the chats started from the card ([task-chats.md](task-chats.md)). Empty by default. |
 | `created`, `updated` | ISO 8601 UTC with `Z`. |
 | `history` | Newest 200 events (below). The full list is in `events.jsonl`. |
@@ -57,7 +59,7 @@ Unknown fields are dropped. `token` is never stored.
 | `ts` | ISO 8601 UTC. |
 | `card` | Card UUID, or `null` for a board-level event (a room prompt, see [room-chat.md](room-chat.md)). |
 | `actor` | `daniel`, an agent id, `agent@machine`, or `emit:mcp`. |
-| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`, `learnt`, `chat`, `decision`. |
+| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`, `learnt`, `chat`, `decision`, `summary`. |
 | `from`, `to` | Optional. Old and new column or assignee; for `progress`, old and new ints 0–100. |
 | `via` | Optional. `mcp`, `hook`, `emit` or `chat` (a task chat's reply): the path an agent write came through. Anything else is rejected. |
 | `text` | Optional. Sanitised, at most 2,000. A comment's text lives here. |

@@ -56,9 +56,11 @@ description:
 You may update this task, and only this one, with lines of their own in your reply:
 TASK check <n> | TASK uncheck <n> | TASK note <one-line status> | TASK comment <text>
 To ask Daniel a decision: TASK ask <question> | <option> | <option> (options optional)
+End every reply with one line on where this task is now:
+TASK summary done: <what is done> | now: <what you are on> | next: <next step, or blocked: why>
 ```
 
-After `learnt`, the block lists the card's newest three decisions ([decisions.md](decisions.md)).
+After the checklist, `where we are:` repeats the card's summary, so the next turn rewrites it. After `learnt`, the block lists the card's newest three decisions ([decisions.md](decisions.md)).
 
 Lines without a value are left out. The block is redacted (`redaction.redact`) and capped at 3,000 characters; the description is cut first. The chat transcript shows the same block when the chat opens.
 
@@ -71,6 +73,7 @@ After a reply, the app reads its text for whole lines `TASK check <n>`, `TASK un
 | `TASK check <n>` / `TASK uncheck <n>` | Checklist item `n` (1-based) done or not. | `checklist` |
 | `TASK note <text>` | `status_note`, sanitised, paths hashed, 240 max. | `status` |
 | `TASK comment <text>` | A comment, paths hashed. | `commented` |
+| `TASK summary <done> \| <now> \| <next>` | `summary` (three lines, 120 each) and `summary_at`. Only the reply's last one counts, and only when the turn ended `ok`. | `summary` |
 | `TASK ask <question> \| <option> \| …` | A decision for Daniel in this chat's room; the card waits on him ([decisions.md](decisions.md)). | `decision` |
 
 - The actor is `<cli>:<room>`, `via` is `chat`, and the usual `emit:registry` line goes to the card's topic.
@@ -78,6 +81,16 @@ After a reply, the app reads its text for whole lines `TASK check <n>`, `TASK un
 - The writes count against the agent rate limit (30 a minute, 300 an hour).
 - The transcript shows each result (`✓ task: ticked 2`, `✓ task: refused check 9: schema`).
 - Reply text is data: the lines are parsed, nothing in them is run or used as argv.
+
+## Where we are (TASK-SUMMARY)
+
+After each turn the chat rewrites the card's three-line summary (done / now / next or blocked) through the same own-card path. A failed, stopped or timed-out turn, or a reply without the line, keeps the last summary. It lives on the card file, so it survives a restart.
+
+- Desktop: a **Where we are** slip on top of the card panel, with "updated Nm ago" (ticks once a second, in place).
+- Room pin: the chat dock pins the summary of the room's task: a task chat's own card, or in a topic room the open card summarised last.
+- Phone: the slip on the task in the list, live over SSE, read-only.
+- Sound: a summary that changes plays the `arrive` cue (Windows, off in Settings).
+- A rewrite adds a `summary` event but posts no line in the topic and stays out of the card's history list.
 
 ## Grok
 
