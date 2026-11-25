@@ -31,6 +31,7 @@ hiddenimports = [
     "cli_avatars_emit",
     "decisions",
     "emit_app",
+    "emit_phone",
     "emit_tasks",
     "events",
     "harness",

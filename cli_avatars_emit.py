@@ -15,6 +15,7 @@ Examples:
     cli-avatars-emit hooks install --apply
     cli-avatars-emit app status --json
     cli-avatars-emit app restart
+    cli-avatars-emit app phone refresh
 
 State and say also send one UDP packet to 127.0.0.1. Say appends the channel
 queue under the per-user data directory (cli-avatars/channel/<room>.jsonl).

@@ -33,10 +33,11 @@ def launch_argv() -> list[str]:
     return [sys.executable, str(SOURCE_ROOT / "overlay.py")]
 
 
-def write_app_json(directory: Path, argv: list[str]) -> None:
-    """Record how to start the app, so ``app restart`` can start it when it is not running."""
+def write_app_json(directory: Path, argv: list[str], config: Path | None = None) -> None:
+    """Record how to start the app and its config.json, for ``app restart`` and ``app phone refresh``."""
     path = Path(directory) / APP_JSON
-    path.write_text(json.dumps({"argv": list(argv)}), encoding="utf-8")
+    record = {"argv": list(argv), **({"config": str(config)} if config else {})}
+    path.write_text(json.dumps(record), encoding="utf-8")
 
 
 def log_line(directory: Path, text: str) -> None:
@@ -103,6 +104,20 @@ def wait_for_exit(pid: int, timeout: float = 30.0) -> bool:
     return True
 
 
+def reload_phone_address(app) -> str:
+    """Take the Phone address ``app phone refresh`` saved in config.json; ``""`` when done, else why not."""
+    from webui.config import web_settings
+
+    try:
+        saved = json.loads(Path(app._config_path).read_text(encoding="utf-8"))
+    except (AttributeError, TypeError, OSError, ValueError):
+        return "Could not read config.json."
+    config = getattr(app, "config", {}) or {}
+    web = config.get("web") if isinstance(config.get("web"), dict) else {}
+    app.config = {**config, "web": {**web, "address": web_settings(saved, available=[]).address}}
+    return ""
+
+
 class Control:
     """The UDP listener's ``on_control``: runs each verb on the Tk thread through ``call``."""
 
@@ -119,6 +134,8 @@ class Control:
                 why = self._call(lambda: restart(self.app, self.directory, self._spawn))
             elif verb == "update":
                 why = self._call(lambda: self._update())
+            elif verb == "phone_reload":
+                why = self._call(lambda: reload_phone_address(self.app))
             else:
                 why = ""
         except Exception:
@@ -139,7 +156,7 @@ def attach(app, directory: Path | None = None) -> None:
     directory = directory or app_data_dir()
     app._ops_started = time.time()
     try:
-        write_app_json(directory, launch_argv())
+        write_app_json(directory, launch_argv(), getattr(app, "_config_path", None))
     except OSError:
         pass
     version, commit = display_version()

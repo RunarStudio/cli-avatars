@@ -172,7 +172,8 @@ def cmd_logs(args: argparse.Namespace) -> int:
 
 
 def add_app_parser(sub, common: argparse.ArgumentParser) -> None:
-    app = sub.add_parser("app", help="status, restart, update, or logs of the running Dungeon (docs/agent-ops.md)")
+    app = sub.add_parser("app",
+                         help="status, restart, update, logs or phone of the running Dungeon (docs/agent-ops.md)")
     app_sub = app.add_subparsers(dest="app_cmd", required=True)
     status = app_sub.add_parser("status", parents=[common],
                                 help="running or not, version, uptime, phone; exit 3 when not running")
@@ -189,3 +190,6 @@ def add_app_parser(sub, common: argparse.ArgumentParser) -> None:
     logs.add_argument("--log", choices=sorted(LOGS), default="app",
                       help="app (start, stop, crashes), update, or events")
     logs.set_defaults(func=cmd_logs)
+    from emit_phone import add_phone_parser
+
+    add_phone_parser(app_sub, common)

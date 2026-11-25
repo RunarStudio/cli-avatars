@@ -151,7 +151,7 @@ class ControlEvent:
 
 
 Event = StateEvent | ChatEvent | ActivityEvent
-CONTROL_VERBS = ("status", "restart", "update")
+CONTROL_VERBS = ("status", "restart", "update", "phone_reload")
 
 
 def worst_state(states) -> str:
