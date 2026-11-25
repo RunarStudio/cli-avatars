@@ -292,6 +292,8 @@ def history_lines(card: Mapping, limit: int = 8) -> list[str]:
     """Newest first: ``MM-DD HH:MM actor what``; a comment reads ``actor: text``."""
     lines = []
     for event in reversed(card.get("history") or []):
+        if event["kind"] == "summary":  # rewritten every chat turn; the card shows it on top
+            continue
         stamp = event["ts"][5:16].replace("T", " ")
         what = _line(event)
         lines.append(f"{stamp} {what}" if event["kind"] == "commented" else f"{stamp} {event['actor']} {what}")

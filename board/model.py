@@ -21,7 +21,7 @@ from topics import clean_project, valid_topic_id
 
 COLUMNS = ("todo", "doing", "review", "done", "blocked")
 KINDS = ("created", "edited", "moved", "assigned", "commented", "checklist", "linked_pr", "prompt", "progress",
-         "status", "learnt", "chat", "decision")
+         "status", "learnt", "chat", "decision", "summary")
 VIA = ("mcp", "hook", "emit", "chat")
 PROMPT_TARGETS = ("claude", "grok", "both")
 PROMPT_OUTCOMES = ("ok", "error", "stopped", "timeout")
@@ -39,6 +39,8 @@ MAX_HISTORY = 200
 STATUS_NOTE_LIMIT = 240
 LEARNT_LIMIT = 240
 MAX_CHATS = 12
+SUMMARY_LINES = 3
+SUMMARY_LINE_LIMIT = 120
 
 _LABEL = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 _MACHINE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,62}$")
@@ -98,6 +100,14 @@ def sanitize_body(value: object, limit: int = BODY_LIMIT) -> str:
     text = value.replace("\r\n", "\n").replace("\r", "\n")
     kept = (ch for ch in text if ch == "\n" or unicodedata.category(ch) not in {"Cc", "Cf", "Cs"})
     return "".join(kept).strip()[:limit]
+
+
+def clean_summary(value: object) -> str:
+    """The "where we are" summary: at most ``SUMMARY_LINES`` non-empty lines, each redacted and capped."""
+    if not isinstance(value, str):
+        raise _reject()
+    lines = (sanitize_text(redact(line), SUMMARY_LINE_LIMIT) for line in value.splitlines())
+    return "\n".join([line for line in lines if line][:SUMMARY_LINES])
 
 
 def _redacted(value: object) -> object:
@@ -200,6 +210,8 @@ def validate_card(obj: object) -> dict[str, object]:
         "progress": obj.get("progress"),
         "status_note": sanitize_text(_redacted(obj.get("status_note") or ""), STATUS_NOTE_LIMIT),
         "learnt": sanitize_text(_redacted(obj.get("learnt") or ""), LEARNT_LIMIT),
+        "summary": clean_summary(obj.get("summary", "")),
+        "summary_at": obj.get("summary_at"),
         "checklist": [],
         "chats": [],
         "created": obj["created"],
@@ -218,6 +230,8 @@ def validate_card(obj: object) -> dict[str, object]:
     if card["pr"] is not None and not (isinstance(card["pr"], str) and _PR.fullmatch(card["pr"])):
         raise _reject()
     if card["progress"] is not None and not valid_progress(card["progress"]):
+        raise _reject()
+    if card["summary_at"] is not None and not valid_ts(card["summary_at"]):
         raise _reject()
     for key in ("status_note", "learnt"):
         if obj.get(key) is not None and not isinstance(obj.get(key), str):

@@ -70,6 +70,7 @@ class TasksPanel:
         if not force and (not self._shown() or now - self._last < REFRESH_S):
             return
         self._last = now
+        self.card_panel.tick()
         try:
             board = load_board(self._directory(), self._topic(), self._done_open, self._decisions_only)
         except OSError:

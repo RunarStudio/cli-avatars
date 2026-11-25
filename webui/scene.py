@@ -266,6 +266,7 @@ def _public(card: dict, decisions: dict | None = None) -> dict:
     return {"id": card["id"], "title": card["title"], "column": card["column"], "topic": card.get("topic"),
             "project": card["project"], "assignee": card.get("assignee"), "progress": effective_progress(card),
             "status_note": card.get("status_note") or "", "learnt": card.get("learnt") or "",
+            "summary": card.get("summary") or "", "summary_at": card.get("summary_at"),
             "checks": [sum(1 for i in items if i["done"]), len(items)], "updated": card["updated"],
             "chats": [{"room": c["room"], "cli": c["cli"], "started": c["created"]} for c in card.get("chats") or []],
             "decisions": (decisions or {}).get(card["id"], 0)}

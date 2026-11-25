@@ -5,17 +5,20 @@ The pane never starts a process. ``ChatWindow``'s Enter or Send handler asks
 only the runner's non-launching checks. Runner callbacks arrive on runner
 threads and go through a queue that a Tk ``after()`` loop drains, so no Tk
 call happens off the Tk thread. Output is shown as text and never run.
+A pin over the transcript shows the room's task summary (TASK-SUMMARY); a turn that changes it plays a cue.
 """
 
 from __future__ import annotations
 
 import queue
+import time
 import tkinter as tk
 from dataclasses import dataclass, field
 from tkinter import filedialog
 from types import SimpleNamespace
 
-from cli_avatars.app import room_log
+from cli_avatars.app import cues, room_log
+from cli_avatars.app.tasks_view import summary_age
 from cli_avatars.model.room import (
     PERMISSION_MODES,
     Room,
@@ -41,6 +44,10 @@ BTN = "#334477"
 BTN_ON = "#5577cc"
 FONT = ("Courier", 10)
 FONT_SMALL = ("Courier", 8)
+PIN_BG = "#1a1426"
+PIN_EDGE = "#7a1f3d"
+PIN_GOLD = "#ffcf4a"
+PIN_S = 1.0
 INBOX = "inbox"
 TARGETS = (("Inbox", INBOX, True), ("Claude", "claude", True), ("Grok", "grok", False), ("Both", "both", False))
 DRAIN_MS = 40
@@ -79,6 +86,11 @@ class RoomPane:
         self._bin_label = None
         self._bin_btn = None
         self._bin_before = None
+        self._pin_box = None
+        self._pin_title = None
+        self._pin_age = None
+        self._pin_text = None
+        self._pin_next = 0.0
 
     def mount(self, center, thread_wrap, composer, before) -> None:
         """Build the picker row above ``before`` and the transcript beside the thread."""
@@ -121,18 +133,32 @@ class RoomPane:
                            ("error", ERR_INK), ("note", META)):
             term.tag_configure(tag, foreground=color)
         self._term = term
+        self._pin_box = tk.Frame(center, bg=PIN_BG, highlightthickness=1, highlightbackground=PIN_EDGE)
+        band = tk.Frame(self._pin_box, bg=PIN_BG)
+        band.pack(fill="x", padx=8, pady=(4, 0))
+        self._pin_age = tk.Label(band, text="", bg=PIN_BG, fg=META, font=FONT_SMALL)
+        self._pin_age.pack(side="right")
+        self._pin_title = tk.Label(band, text="", bg=PIN_BG, fg=PIN_GOLD, font=FONT_SMALL, anchor="w")
+        self._pin_title.pack(side="left", fill="x", expand=True)
+        self._pin_text = tk.Label(self._pin_box, text="", bg=PIN_BG, fg=INK, font=FONT, anchor="w", justify="left",
+                                  wraplength=460)
+        self._pin_text.pack(fill="x", padx=8, pady=(2, 6))
+        self._pin_box.bind("<Configure>", lambda e: self._pin_text.config(wraplength=max(120, e.width - 20)))
         self._show()
+        self._pin_refresh(force=True)
 
     def sync(self, topic_id: str) -> None:
         """Follow the topic the chat shows. The Claude target stays on in a room that used it."""
         topic_id = topic_id or "general"  # the room the inbox send uses when there is no topic
         if topic_id == self.room_id:
+            self._pin_refresh()
             return
         self.room_id = topic_id
         room = self._room()
         self.target = "claude" if room is not None and "claude" in room.participants else INBOX
         self._show()
         self._reload()
+        self._pin_refresh(force=True)
 
     def cli_target(self) -> str | None:
         return None if self.target == INBOX else self.target
@@ -315,16 +341,43 @@ class RoomPane:
         except (EventRejected, OSError):
             pass
         try:
-            changed = task_chats.apply_reply(self.window.directory(), run.room.room_id, run.texts)
+            changed = task_chats.apply_reply(self.window.directory(), run.room.room_id, run.texts, result.outcome)
         except OSError:
             changed = []
         self._paint()
+        if "summary updated" in changed:
+            cues.play(SimpleNamespace(config=self.window._config()), "arrive")
+            self._pin_refresh(force=True)
         if run.room.room_id == self.room_id:
             for line in changed:
                 self._write(f"  ✓ task: {line}\n", "error" if line.startswith("refused") else "ok")
             tag = "ok" if result.outcome == "ok" else "error"
             self._write(f"[{result.outcome}]\n\n", tag)
             self._status("Done. Type a follow-up: it resumes this session." if run.turn.session_id else "Done")
+
+    def _pin_refresh(self, force: bool = False) -> None:
+        """Pin the room's task summary over the thread; read at most once a second, widgets kept in place."""
+        now = time.monotonic()
+        if self._pin_box is None or (not force and now < self._pin_next):
+            return
+        self._pin_next = now + PIN_S
+        try:
+            card = task_chats.room_task(self.window.directory(), self.room_id) if self.room_id else None
+        except OSError:
+            return
+        try:
+            if card is None:
+                self._pin_box.pack_forget()
+                return
+            title = f"WHERE WE ARE · {card['title'][:28]}"
+            for label, text in ((self._pin_title, title), (self._pin_text, card["summary"]),
+                                (self._pin_age, summary_age(card.get("summary_at")))):
+                if label.cget("text") != text:
+                    label.config(text=text)
+            if not self._pin_box.winfo_manager():
+                self._pin_box.pack(fill="x", padx=8, pady=(4, 0), after=self.window._header)
+        except (tk.TclError, AttributeError):
+            return
 
     def _room(self) -> Room | None:
         if not self.room_id:

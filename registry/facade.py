@@ -48,6 +48,8 @@ def card_events(old: Mapping, new: Mapping, actor: str, via: str | None = None) 
         events.append(new_event("status", actor, card, text=note or None, **extra))
     if old["learnt"] != new["learnt"]:
         events.append(new_event("learnt", actor, card, text=new["learnt"] or None, **extra))
+    if old.get("summary") != new.get("summary"):
+        events.append(new_event("summary", actor, card, text=new.get("summary") or None, **extra))
     for index, (was, now) in enumerate(zip(old["checklist"], new["checklist"], strict=False)):
         if was["text"] == now["text"] and was["done"] != now["done"]:
             events.append(new_event("checklist", actor, card, index=index, done=now["done"], text=now["text"],

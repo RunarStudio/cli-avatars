@@ -35,7 +35,11 @@ def describe(card: Mapping, events: Sequence[Mapping], actor: str) -> str:
 
 def post_update(directory: Path, card: Mapping, events: Sequence[Mapping], actor: str,
                 timeout: float) -> None:
-    """Append the line after the board lock is released (lock order: board, topics, channel)."""
+    """Append the line after the board lock is released (lock order: board, topics, channel).
+
+    A summary rewrite (TASK-SUMMARY) comes every chat turn, so it posts no line of its own.
+    """
+    events = [e for e in events if e["kind"] != "summary"]
     if not events or card.get("topic") is None:
         return
     blocked = any(e["kind"] == "moved" and e.get("to") == "blocked" for e in events)

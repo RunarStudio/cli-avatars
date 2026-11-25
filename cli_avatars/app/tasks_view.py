@@ -36,6 +36,7 @@ class TaskCard:
     status_note: str
     learnt: str
     decisions: int = 0
+    summary: str = ""  # not drawn on the tile; a rewrite still changes the board, so the open card follows
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,7 @@ def task_card(card: Mapping, decisions: int = 0) -> TaskCard:
         id=card["id"], title=card["title"], assignee=card.get("assignee"),
         progress=effective_progress(card), checks=(sum(1 for i in items if i["done"]), len(items)),
         column=card["column"], status_note=card.get("status_note") or "", learnt=card.get("learnt") or "",
-        decisions=decisions,
+        decisions=decisions, summary=card.get("summary") or "",
     )
 
 
@@ -149,6 +150,29 @@ def load_board(directory: Path | str, topic: str, done_open: bool = False, decis
     else:
         cards = topic_cards(directory, topic)
     return build_board(cards, topic, done_open, decisions, decisions_only)
+
+
+def ts_epoch(ts: str) -> float:
+    """Seconds since the epoch of a board ``...Z`` timestamp."""
+    import calendar
+    import time
+
+    return float(calendar.timegm(time.strptime(ts[:19], "%Y-%m-%dT%H:%M:%S")))
+
+
+def summary_age(ts: str | None, now: float | None = None) -> str:
+    """``updated 5m ago`` for a card's ``summary_at``; empty without one."""
+    import time
+
+    if not ts:
+        return ""
+    seconds = max(0, int((time.time() if now is None else now) - ts_epoch(ts)))
+    if seconds < 60:
+        return "updated just now"
+    for size, unit in ((86400, "d"), (3600, "h"), (60, "m")):
+        if seconds >= size:
+            return f"updated {seconds // size}{unit} ago"
+    return ""
 
 
 def card_meta(card: TaskCard) -> str:

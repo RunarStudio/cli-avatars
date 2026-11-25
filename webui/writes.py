@@ -212,7 +212,7 @@ class Actions:
             try:
                 media.collect(self.directory, topic, room.working_dir, before, room_log.cli_sender(cli))
                 room_log.finish_turn(self.directory, room, cli, turn, result.outcome, result.stderr)
-                task_chats.apply_reply(self.directory, topic, texts)
+                task_chats.apply_reply(self.directory, topic, texts, result.outcome)
             except (EventRejected, OSError):
                 pass
             finally:

@@ -1,8 +1,9 @@
 """KANBAN.1: the card panel beside the board, inside the Dungeon's Tasks tab. No new window.
 
-A parchment sheet: new-card form, or one card's fields, column, assignee, checklist, progress,
-status note, comments, the card's chats (TASK-CHAT.1), its open decisions (DECIDE.1) and history. Every change calls
-``act(name, *args)`` on the board panel, which writes through ``TaskEditor``. Card text is shown as text only.
+A parchment sheet: new-card form, or one card's "where we are" slip (TASK-SUMMARY), fields, column, assignee,
+checklist, progress, status note, comments, the card's chats (TASK-CHAT.1), its open decisions (DECIDE.1) and
+history. Every change calls ``act(name, *args)`` on the board panel, which writes through ``TaskEditor``.
+Card text is shown as text only.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import tkinter as tk
 
 from board.model import COLUMNS, effective_progress
 from cli_avatars.app.tasks_edit import history_lines
-from cli_avatars.app.tasks_view import STATUS_BADGES
+from cli_avatars.app.tasks_view import STATUS_BADGES, summary_age, ts_epoch
 
 PARCH = "#d8c8a0"
 PAPER = "#efe3c2"
@@ -69,6 +70,7 @@ class CardPanel:
         self.decide_rows: dict[str, dict] = {}
         self.decide_entries: dict[str, tk.Entry] = {}
         self.card: dict | None = None
+        self.where_ts: float | None = None
         self.status_badge: tk.Frame | None = None
         self.frame = tk.Frame(parent, bg=WOOD)
         self.sheet = tk.Frame(self.frame, bg=PARCH, highlightthickness=2, highlightbackground=EDGE)
@@ -98,6 +100,7 @@ class CardPanel:
         self.card = card
         self._clear()
         self._head(card["title"], card["id"][:8])
+        self._where_slip()
         self.decide_box = tk.Frame(self.sheet, bg=PARCH)
         self.decide_box.pack(fill="x", padx=8)
         self._decide_sig = None
@@ -211,8 +214,48 @@ class CardPanel:
         auto = card["progress"] is None and shown is not None
         self.progress_caption.config(text=f"Progress {shown}%" if auto else "Progress")
         self.history.config(text="\n".join(history_lines(card)))
+        self._fill_where(card)
         self._fill_chats(card)
         self._fill_decisions(card)
+
+    def tick(self, now: float | None = None) -> None:
+        """Keep "updated Nm ago" current; touches one label, only when its text changes."""
+        if self.card is None or self.where_ts is None:
+            return
+        age = summary_age(self.card.get("summary_at"), now)
+        if self.where_age.cget("text") != age:
+            self.where_age.config(text=age)
+
+    def _where_slip(self) -> None:
+        """The slip on top of the card: a wine band with a pin, the age, and the AI's three lines."""
+        self.where = tk.Frame(self.sheet, bg=PAPER, highlightthickness=2, highlightbackground=WINE)
+        band = tk.Frame(self.where, bg=WINE)
+        band.pack(fill="x")
+        pin = tk.Canvas(band, width=8, height=10, bg=WINE, highlightthickness=0, bd=0)
+        pin.create_rectangle(1, 0, 7, 6, fill=GOLD, width=0)
+        pin.create_rectangle(2, 1, 4, 3, fill="#fff2c0", width=0)
+        pin.create_rectangle(3, 6, 5, 10, fill=PARCH, width=0)
+        pin.pack(side="left", padx=(5, 3), pady=2)
+        tk.Label(band, text="WHERE WE ARE", bg=WINE, fg=GOLD, font="DungeonBubble").pack(side="left")
+        self.where_age = tk.Label(band, text="", bg=WINE, fg=PARCH, font="DungeonBubble")
+        self.where_age.pack(side="right", padx=5)
+        self.where_text = tk.Label(self.where, text="", bg=PAPER, fg=INK, font="DungeonText", anchor="w",
+                                   justify="left", wraplength=290)
+        self.where_text.pack(fill="x", padx=6, pady=(3, 4))
+        self.where_ts = None
+
+    def _fill_where(self, card: dict) -> None:
+        summary = card.get("summary") or ""
+        if not summary:
+            self.where_ts = None
+            self.where.pack_forget()
+            return
+        if self.where_text.cget("text") != summary:
+            self.where_text.config(text=summary)
+        self.where_ts = ts_epoch(card["summary_at"]) if card.get("summary_at") else None
+        self.tick()
+        if not self.where.winfo_manager():
+            self.where.pack(fill="x", padx=8, pady=(6, 0), after=self.head)
 
     def _fill_decisions(self, card: dict) -> None:
         """One gold-edged slip per open decision: who asks, the question, option buttons, a free answer."""
