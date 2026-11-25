@@ -60,6 +60,10 @@ A new or changed room builds in on the phone map and in the Dungeon at once, wit
 
 Over https a tap on ◆ asks for notification permission; then a decision also notifies while the tab is in the background. With the page closed nothing arrives (Web Push is not built). Details: [decisions.md](decisions.md#phone).
 
+## What needs you (NEEDS-YOU.1)
+
+The bell in the map bar lights with a count when something waits on you: a decision, a blocked task, a reply you have not answered, a run that ended. Tap it for the list, tap a row to open it, **Clear** to hide it until it changes (clearing needs the same switch as above). Details: [needs-you.md](needs-you.md).
+
 ## Try it with made-up data
 
 ```bash

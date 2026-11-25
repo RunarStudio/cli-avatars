@@ -26,6 +26,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `chat_window.py` | Discord-style chat UI |
 | `inbox.py` | Per-agent inbox files and cursors |
 | `decisions.py` | Decision cards store |
+| `needs_you.py` | NEEDS-YOU.1: decisions, blocked cards, unread replies and ended runs as one list; per-item clear (`docs/needs-you.md`) |
 | `topics.py` | Topic summaries, pins, previews |
 | `routing.py` | Composer → orchestrator routing |
 | `cli_avatars_emit.py` | `python -m cli_avatars_emit` — state, say, inbox, hooks installer |
@@ -105,6 +106,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Room chat | `docs/room-chat.md` |
 | Task chats | `docs/task-chats.md` |
 | Phone view | `docs/phone-view.md` |
+| Needs you list (desktop and phone) | `docs/needs-you.md` |
 | Bot roster and status | `docs/bot-status.md` |
 | Check, restart, update the running app | `docs/agent-ops.md` |
 
