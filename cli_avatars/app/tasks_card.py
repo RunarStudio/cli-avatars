@@ -13,6 +13,7 @@ import tkinter as tk
 from board.model import COLUMNS, effective_progress
 from cli_avatars.app.tasks_edit import history_lines
 from cli_avatars.app.tasks_view import STATUS_BADGES, summary_age, ts_epoch
+from standup import pin_text
 
 PARCH = "#d8c8a0"
 PAPER = "#efe3c2"
@@ -245,7 +246,7 @@ class CardPanel:
         self.where_ts = None
 
     def _fill_where(self, card: dict) -> None:
-        summary = card.get("summary") or ""
+        summary = pin_text(card)
         if not summary:
             self.where_ts = None
             self.where.pack_forget()

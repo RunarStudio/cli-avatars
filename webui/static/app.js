@@ -7,6 +7,7 @@
 // QUICK-CAPTURE: the floating + drops a thought as a card or a task chat in the topic the local ranker suggests.
 // FOCUS: one task in focus: the other rooms dim, other tasks grey, alerts for them wait; Leave focus lets them in.
 // MAILROOM (mailroom.js): letters to sort; the capture sheet's Mailroom mode sends a thought there unfiled.
+// STANDUP (standup.js): the day's standup, one line per agent; a low "gather" horn when a new one comes in.
 // Every text goes in with textContent.
 "use strict";
 
@@ -2025,6 +2026,7 @@ function live() {
     try { setFocus(JSON.parse(e.data)); } catch (_e) { /* bad frame */ }
   });
   src.addEventListener("mailroom", () => { if (typeof mailEvent === "function") mailEvent(); });
+  src.addEventListener("standup", () => { if (typeof standupEvent === "function") standupEvent(); });
   src.addEventListener("avatars", (e) => {
     if (!state.scene) return;
     let data;
@@ -2071,7 +2073,7 @@ function tone(kind) {
     const t = audio.currentTime, out = audio.createGain();
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
-    const long = kind === "build" || kind === "decide" || kind === "release";
+    const long = kind === "build" || kind === "decide" || kind === "release" || kind === "gather";
     out.gain.exponentialRampToValueAtTime(0.0001, t + (long ? 1.1 : 0.45));
     out.connect(audio.destination);
     const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : kind === "done" ? [[523.25, 0], [659.25, 0.09], [783.99, 0.18]]
@@ -2081,6 +2083,7 @@ function tone(kind) {
       : kind === "scroll" ? [[220.0, 0], [329.63, 0.07], [293.66, 0.16]]
       : kind === "focus" ? [[220.0, 0], [164.81, 0.14]] : kind === "unfocus" ? [[164.81, 0], [246.94, 0.14]]
       : kind === "release" ? [[164.81, 0], [246.94, 0.14], [987.77, 0.4]]
+      : kind === "gather" ? [[196.0, 0], [261.63, 0.14], [392.0, 0.34]]
       : kind === "letter" ? [[587.33, 0], [440.0, 0.08]] : kind === "filed" ? [[196.0, 0], [783.99, 0.12]]
       : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {

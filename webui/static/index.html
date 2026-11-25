@@ -7,6 +7,7 @@
 <title>Dungeon</title>
 <link rel="stylesheet" href="/static/app.css">
 <link rel="stylesheet" href="/static/mailroom.css">
+<link rel="stylesheet" href="/static/standup.css">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -21,6 +22,7 @@
       <button id="decideBtn" class="icon decide" type="button" title="Decisions waiting on you" aria-haspopup="dialog">&#9670;<span id="decideCount" class="decide-count" hidden></span></button>
       <button id="needsBtn" class="icon needs" type="button" title="Nothing waits on you" aria-haspopup="dialog"><span class="bell" aria-hidden="true"></span><span id="needsCount" class="needs-count" hidden></span></button>
       <button id="mailBtn" class="icon mail" type="button" title="Mailroom: nothing to sort" aria-haspopup="dialog"><span class="env" aria-hidden="true"></span><span id="mailCount" class="needs-count" hidden></span></button>
+      <button id="standupBtn" class="icon standup" type="button" title="Standup: not called yet" aria-haspopup="dialog"><span class="horn" aria-hidden="true"></span></button>
       <button id="recapBtn" class="icon recap" type="button" title="Daily recap: what each agent did" aria-haspopup="dialog"><span class="scroll-ico" aria-hidden="true"></span></button>
       <button id="editRoom" class="icon" type="button" title="Edit this room" aria-haspopup="dialog" hidden>&#9998;</button>
       <button id="roomsBtn" class="icon" type="button" title="Rooms: add and customize" aria-haspopup="dialog">&#9638;</button>
@@ -197,6 +199,17 @@
     </div>
   </div>
 </div>
+<div id="standup" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="standupTitle">
+  <div class="sheet-card su-card">
+    <header class="bar"><h2 id="standupTitle"><span class="horn" aria-hidden="true"></span>Standup</h2><button id="standupClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <p id="standupWhen" class="su-when"></p>
+      <ol id="standupRows" class="su-rows" aria-live="polite"></ol>
+      <button id="standupRun" class="send wide su-run" type="button" hidden>Run standup now</button>
+      <p id="standupNote" class="hint"></p>
+    </div>
+  </div>
+</div>
 <div id="recap" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="recapTitle">
   <div class="sheet-card recap-card">
     <header class="bar"><h2 id="recapTitle"><span class="scroll-ico" aria-hidden="true"></span>Daily recap</h2><button id="recapClose" class="icon" type="button" title="Close">&#10005;</button></header>
@@ -235,5 +248,6 @@
 </div>
 <script src="/static/app.js"></script>
 <script src="/static/mailroom.js"></script>
+<script src="/static/standup.js"></script>
 </body>
 </html>

@@ -370,7 +370,7 @@ class RoomPane:
                 self._pin_box.pack_forget()
                 return
             title = f"WHERE WE ARE · {card['title'][:28]}"
-            for label, text in ((self._pin_title, title), (self._pin_text, card["summary"]),
+            for label, text in ((self._pin_title, title), (self._pin_text, task_chats.pin_text(card)),
                                 (self._pin_age, summary_age(card.get("summary_at")))):
                 if label.cget("text") != text:
                     label.config(text=text)

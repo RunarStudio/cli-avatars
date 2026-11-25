@@ -256,10 +256,15 @@ def apply_reply(directory: Path | str, room: str, texts: list[str], outcome: str
 
 
 def room_task(directory: Path | str, room: str) -> dict | None:
-    """The card whose summary ``room`` pins: a task chat's own card, else the topic's open card summarised last."""
+    """The card whose summary ``room`` pins: a task chat's own card, else the topic's open card summarised last.
+
+    A card with a standup note but no summary pins too (STANDUP).
+    """
+    from standup import pinned
+
     card = task_for(directory, room)
     if card is not None:
-        return card if card.get("summary") else None
+        return card if card.get("summary") or pinned(card) else None
     from topics import get_topic, valid_topic_id
 
     try:
@@ -267,8 +272,15 @@ def room_task(directory: Path | str, room: str) -> dict | None:
         cards = Registry(directory).task_list(entry["project"]) if entry and entry.get("project") else []
     except (EventRejected, OSError):
         return None
-    found = [c for c in cards if c.get("topic") == room and c.get("summary") and c["column"] != "done"]
+    found = [c for c in cards if c.get("topic") == room and (c.get("summary") or pinned(c)) and c["column"] != "done"]
     return max(found, key=lambda c: c["summary_at"] or "", default=None)
+
+
+def pin_text(card: dict) -> str:
+    """The room pin: the summary, then the card's standup note (STANDUP)."""
+    from standup import pin_text as text
+
+    return text(card)
 
 
 def _decision_lines(directory: Path | str, card_id: str) -> list[str]:

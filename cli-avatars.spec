@@ -50,6 +50,7 @@ hiddenimports = [
     "routing",
     "sessions",
     "sprite_loader",
+    "standup",
     "subskins",
     "topics",
     "win32",
