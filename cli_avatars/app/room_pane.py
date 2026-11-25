@@ -1,5 +1,7 @@
 """Room chat pane in the chat dock (ROOM-CHAT.4/.7): target picker, folder, mode, transcript, Stop.
 
+CHAT-CTX.1: Inbox, Claude, Grok or Cursor (``cli_chips``), one session per task and CLI (``task_sessions``).
+
 The pane never starts a process. ``ChatWindow``'s Enter or Send handler asks
 ``prepare`` for the room's settings and starts the CLI itself; ``tools`` holds
 only the runner's non-launching checks. Runner callbacks arrive on runner
@@ -11,14 +13,14 @@ A pin over the transcript shows the room's task summary (TASK-SUMMARY); a turn t
 from __future__ import annotations
 
 import queue
-import time
 import tkinter as tk
 from dataclasses import dataclass, field
 from tkinter import filedialog
 from types import SimpleNamespace
 
-from cli_avatars.app import cues, pack_pane, room_log
-from cli_avatars.app.tasks_view import summary_age
+from board.model import CHAT_CLIS
+from cli_avatars.app import cli_chips, cues, pack_pane, room_log, task_sessions
+from cli_avatars.app.chat_clis import COLORS, NAMES, short_path, state, template
 from cli_avatars.model.room import (
     PERMISSION_MODES,
     Room,
@@ -26,7 +28,6 @@ from cli_avatars.model.room import (
     load_room,
     save_binary_pin,
     set_permission_mode,
-    set_session_id,
     set_working_dir,
 )
 from events import EventRejected
@@ -47,9 +48,7 @@ FONT_SMALL = ("Courier", 8)
 PIN_BG = "#1a1426"
 PIN_EDGE = "#7a1f3d"
 PIN_GOLD = "#ffcf4a"
-PIN_S = 1.0
 INBOX = "inbox"
-TARGETS = (("Inbox", INBOX, True), ("Claude", "claude", True), ("Grok", "grok", False), ("Both", "both", False))
 DRAIN_MS = 40
 
 
@@ -74,7 +73,8 @@ class RoomPane:
         self._runs: dict[str, _Run] = {}
         self._draining = False
         self._resolved = None
-        self._buttons: dict[str, tk.Button] = {}
+        self.chips: dict = {}
+        self._states: dict = {}
         self._term = None
         self._thread_wrap = None
         self._composer = None
@@ -99,16 +99,7 @@ class RoomPane:
         bar = tk.Frame(composer, bg=BG)
         bar.pack(fill="x", pady=(6, 0), before=before)
         tk.Label(bar, text="Run:", bg=BG, fg=META, font=FONT_SMALL).pack(side="left", padx=(0, 4))
-        self._buttons = {}
-        for label, key, enabled in TARGETS:
-            btn = tk.Button(
-                bar, text=label, command=lambda key=key: self.pick_target(key), font=FONT_SMALL,
-                bg=BTN, fg="white", activebackground=BTN_ON, activeforeground="white",
-                disabledforeground="#666688", relief="flat", padx=6, pady=1,
-                state="normal" if enabled else "disabled",
-            )
-            btn.pack(side="left", padx=1)
-            self._buttons[key] = btn
+        self.chips = cli_chips.build(bar, self.pick_target)
         # Own row: the docked chat is too narrow for targets and session controls on one line.
         controls = tk.Frame(composer, bg=BG)
         controls.pack(fill="x", pady=(2, 0), before=before)
@@ -116,6 +107,7 @@ class RoomPane:
         self._new_btn = self._small(controls, "New session", self.new_session)
         self._mode_btn = self._small(controls, "plan", self.toggle_mode)
         self._folder_btn = self._small(controls, "Folder…", self.pick_folder)
+        self._small(self.window._to_btn.master, "Copy context", self.copy_context)  # beside To:, the roomy row
         self._bin_row = tk.Frame(composer, bg=BG)
         self._bin_label = tk.Label(self._bin_row, text="", bg=BG, fg=META, font=FONT_SMALL, anchor="w")
         self._bin_label.pack(side="left", fill="x", expand=True)
@@ -130,7 +122,7 @@ class RoomPane:
             padx=10, pady=8, highlightthickness=0, state="disabled",
         )
         for tag, color in (("prompt", ACCENT), ("reply", INK), ("tool", META), ("ok", OK_INK),
-                           ("error", ERR_INK), ("note", META)):
+                           ("error", ERR_INK), ("note", META), *((f"src-{c}", COLORS[c]) for c in CHAT_CLIS)):
             term.tag_configure(tag, foreground=color)
         self._term = term
         self._pin_box = tk.Frame(center, bg=PIN_BG, highlightthickness=1, highlightbackground=PIN_EDGE)
@@ -144,8 +136,15 @@ class RoomPane:
                                   wraplength=460)
         self._pin_text.pack(fill="x", padx=8, pady=(2, 6))
         self._pin_box.bind("<Configure>", lambda e: self._pin_text.config(wraplength=max(120, e.width - 20)))
+        self.refresh_clis()
         self._show()
         self._pin_refresh(force=True)
+
+    def refresh_clis(self) -> None:
+        """Which CLIs are found, confirmed or configured; searches PATH, starts nothing."""
+        self._states = {cli: state(self.window.directory(), self.window._config(), cli, self.tools.resolve)
+                        for cli in CHAT_CLIS}
+        self._paint()
 
     def sync(self, topic_id: str) -> None:
         """Follow the topic the chat shows. The Claude target stays on in a room that used it."""
@@ -155,7 +154,8 @@ class RoomPane:
             return
         self.room_id = topic_id
         room = self._room()
-        self.target = "claude" if room is not None and "claude" in room.participants else INBOX
+        if not (self.cli_target() and room is not None and room.participants):
+            self.target = "claude" if room is not None and "claude" in room.participants else INBOX
         self._show()
         self._reload()
         self._pin_refresh(force=True)
@@ -164,13 +164,16 @@ class RoomPane:
         return None if self.target == INBOX else self.target
 
     def pick_target(self, key: str) -> None:
-        if key not in ("claude", INBOX):
-            return
+        cli = self._states.get(key)
+        if key != INBOX and not getattr(cli, "enabled", False):
+            return self._status(cli.why) if cli is not None else None
         self.target = key
-        if key == "claude" and self._pin("claude") is None:
-            self._resolve("claude")
+        if key != INBOX and self._pin(key) is None:
+            self._resolve(key)
         self._show()
         self._reload()
+
+    copy_context = cli_chips.copy_context
 
     def prepare(self, prompt: str):
         """Room settings for one launch, or ``None`` with the reason in the status line.
@@ -185,19 +188,24 @@ class RoomPane:
             self._status("Empty")
             return None
         if room.room_id in self._runs:
-            self._status("Claude is still answering here. Stop it or wait.")
+            self._status(f"{NAMES[self._runs[room.room_id].cli]} is still answering here. Stop it or wait.")
             return None
         pin = self._pin(cli)
         if pin is None:
             self._resolve(cli)
             self._show()
-            self._status("Confirm the Claude binary first.")
+            self._status(f"Confirm the {NAMES[cli]} binary first.")
+            return None
+        argv = template(self.window._config(), cli)
+        if argv is None and cli != "claude":
+            self._status(self._states[cli].why if cli in self._states else "Not configured")
             return None
         if not room.working_dir:
             room = self.pick_folder()
             if room is None or not room.working_dir:
                 return None
         directory = self.window.directory()
+        session = task_sessions.session(directory, room.room_id, cli)
         title, cards = room_log.context(directory, room.room_id)
         run = _Run(room, cli, room_log.new_turn(cli))
         try:
@@ -208,8 +216,8 @@ class RoomPane:
         self._write(f"> {prompt}\n", "prompt")
         return SimpleNamespace(
             room_id=room.room_id, cli=cli, pin=pin, working_dir=room.working_dir, mode=room.permission_mode,
-            session_id=room.session_id(cli), topic_title=title, open_cards=cards,
-            preamble=task_chats.preamble(directory, room.room_id, fresh=room.session_id(cli) is None),
+            session_id=session, topic_title=title, open_cards=cards, template=argv,
+            preamble=task_chats.preamble(directory, room.room_id, fresh=session is None),
             on_line=lambda line: run.events.put(("line", line)),
             on_done=lambda result: run.events.put(("done", result)),
             run=run,
@@ -218,8 +226,10 @@ class RoomPane:
     def started(self, request, process) -> None:
         request.run.process = process
         self._runs[request.room_id] = request.run
-        resume = " (resumed session)" if request.session_id else ""
-        self._write(f"… {request.cli} is answering{resume}\n", "note")
+        fresh = " (new session with the task's pack)" if request.preamble.startswith("[cli-avatars context pack") \
+            else " (new session)"
+        self._write(f"… {NAMES[request.cli]} is answering{' (resumed session)' if request.session_id else fresh}\n",
+                    "note")
         pack_pane.started(self.window.directory(), self.window._config(), request)
         self._status("Running. Output is shown, never run.")
         self._paint()
@@ -238,14 +248,14 @@ class RoomPane:
             self._status("Stopping…")
 
     def new_session(self) -> None:
-        room = self._room()
-        if room is None or room.room_id in self._runs:
+        room, cli = self._room(), self.cli_target()
+        if room is None or cli is None or room.room_id in self._runs:
             return
         try:
-            set_session_id(self.window.directory(), room.room_id, "claude", None)
+            task_sessions.drop(self.window.directory(), room.room_id, cli)
         except (EventRejected, OSError):
             return
-        self._write("— new session: the next prompt starts fresh —\n", "note")
+        self._write(f"— new {NAMES[cli]} session: the next prompt starts fresh, with the task's pack —\n", "note")
         self._paint()
 
     def toggle_mode(self) -> None:
@@ -296,6 +306,7 @@ class RoomPane:
             self._status("Binary not stored")
             return
         self._resolved = None
+        self.refresh_clis()
         self._show()
         self._status("Binary confirmed. Press Enter to send.")
 
@@ -334,7 +345,7 @@ class RoomPane:
             return
         for message in messages:
             tag = {"typing": "tool", "ok": "ok", "error": "error", "warn": "note"}.get(message.icon, "reply")
-            self._write(("  · " if tag == "tool" else "") + message.text + "\n", tag)
+            self._line(run.cli, message.text, tag)
 
     def _on_done(self, run: _Run, result) -> None:
         try:
@@ -354,31 +365,10 @@ class RoomPane:
                 self._write(f"  ✓ task: {line}\n", "error" if line.startswith("refused") else "ok")
             tag = "ok" if result.outcome == "ok" else "error"
             self._write(f"[{result.outcome}]\n\n", tag)
-            self._status("Done. Type a follow-up: it resumes this session." if run.turn.session_id else "Done")
+            self._status(f"Done. A follow-up to {NAMES[run.cli]} resumes its session." if run.turn.session_id
+                         else "Done")
 
-    def _pin_refresh(self, force: bool = False) -> None:
-        """Pin the room's task summary over the thread; read at most once a second, widgets kept in place."""
-        now = time.monotonic()
-        if self._pin_box is None or (not force and now < self._pin_next):
-            return
-        self._pin_next = now + PIN_S
-        try:
-            card = task_chats.room_task(self.window.directory(), self.room_id) if self.room_id else None
-        except OSError:
-            return
-        try:
-            if card is None:
-                self._pin_box.pack_forget()
-                return
-            title = pack_pane.pin_title(self, card)
-            for label, text in ((self._pin_title, title), (self._pin_text, task_chats.pin_text(card)),
-                                (self._pin_age, summary_age(card.get("summary_at")))):
-                if label.cget("text") != text:
-                    label.config(text=text)
-            if not self._pin_box.winfo_manager():
-                self._pin_box.pack(fill="x", padx=8, pady=(4, 0), after=self.window._header)
-        except (tk.TclError, AttributeError):
-            return
+    _pin_refresh = pack_pane.pin_refresh
 
     def _room(self) -> Room | None:
         if not self.room_id:
@@ -396,7 +386,7 @@ class RoomPane:
 
     def _resolve(self, cli: str) -> None:
         try:
-            self._resolved = self.tools.resolve(cli)
+            self._resolved = self.tools.resolve(cli, templated=cli != "claude")
         except self.tools.rejected:
             self._resolved = SimpleNamespace(cli=cli, path="", found=False, settings_note="")
 
@@ -407,8 +397,13 @@ class RoomPane:
         self._clear()
         if task := task_chats.shown(self.window.directory(), self.room_id):
             self._write(task + "\n", "note")
-        for sender, text in room_log.history(self.window.directory(), self.room_id, self.target):
-            self._write(f"> {text}\n" if sender == "user" else text + "\n", "prompt" if sender == "user" else "reply")
+        rows = sorted(((ts, cli, sender, text) for cli in CHAT_CLIS for sender, text, ts in
+                       room_log.history(self.window.directory(), self.room_id, cli, stamped=True)), key=lambda r: r[0])
+        for _ts, cli, sender, text in rows:
+            if sender == "user":
+                self._write(f"> {text}\n", "prompt")
+            else:
+                self._line(cli, text, "reply")
         if self.room_id in self._runs:
             self._write("… still answering\n", "note")
 
@@ -426,7 +421,7 @@ class RoomPane:
                 term.pack(fill="both", expand=True, before=self._composer)
             resolved = self._resolved
             if self.cli_target() is not None and self._pin(self.target) is None and resolved is not None:
-                note = f"Claude CLI: {resolved.path}" if resolved.found else "Claude CLI not found on PATH."
+                note = f"{NAMES[self.target]} CLI: " + (short_path(resolved.path) if resolved.found else "not on PATH.")
                 if resolved.found and resolved.settings_note:
                     note += f"  ({resolved.settings_note})"
                 self._bin_label.config(text=note)
@@ -440,10 +435,8 @@ class RoomPane:
 
     def _paint(self) -> None:
         room = self._room()
+        cli_chips.paint(self.chips, self.target, self._states)
         try:
-            for key, btn in self._buttons.items():
-                if str(btn.cget("state")) != "disabled":
-                    btn.config(bg=BTN_ON if key == self.target else BTN)
             cli_on = self.cli_target() is not None
             running = room is not None and room.room_id in self._runs
             self._stop_btn.config(state="normal" if running else "disabled")
@@ -451,7 +444,9 @@ class RoomPane:
             self._folder_btn.config(text=folder or "Folder…", state="normal" if cli_on and not running else "disabled")
             self._mode_btn.config(text=room.permission_mode if room is not None else "plan",
                                   state="normal" if cli_on and not running else "disabled")
-            has_session = room is not None and bool(room.session_id("claude"))
+            session = task_sessions.session(self.window.directory(), room.room_id, self.target) \
+                if cli_on and room is not None else None
+            has_session = bool(session)
             self._new_btn.config(state="normal" if cli_on and has_session and not running else "disabled")
             self.window._to_btn.config(state="disabled" if cli_on else "normal")
         except (tk.TclError, AttributeError):
@@ -460,8 +455,9 @@ class RoomPane:
             self._status("Stored locally. Nothing here runs.")
         elif not running and room is not None:
             where = folder or "a folder you pick on first send"
-            resume = "resumes the session" if room.session_id("claude") else "starts a session"
-            self._status(f"Enter runs Claude in {where} ({room.permission_mode}), {resume}. Output is never run.")
+            resume = "resumes this task's session" if session else "starts a session with the task's pack"
+            mode = f" ({room.permission_mode})" if self.target == "claude" else ""
+            self._status(f"Enter runs {NAMES[self.target]} in {where}{mode}, {resume}. Output is never run.")
 
     def _write(self, text: str, tag: str) -> None:
         term = self._term
@@ -474,6 +470,8 @@ class RoomPane:
             term.see("end")
         except tk.TclError:
             return
+
+    _line = cli_chips.line
 
     def _clear(self) -> None:
         try:
