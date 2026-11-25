@@ -8,6 +8,8 @@ asks Daniel a decision (DECIDE.1). ``move``: a card slid across the board and se
 ``focus``: torches snuffed (a falling breath of noise) under a low settling two-note, when a task takes focus (FOCUS).
 ``unfocus``: torches catching again (a rising crackle) and a lifting two-note, when focus ends; ``release`` is the same
 with one soft bell strike after it, when alerts waited: one cue for the whole batch.
+``letter``: a letter slid into a pigeonhole (a soft papery swish and a muted wooden tap), once per batch of new
+Mailroom letters. ``filed``: a wax seal pressed (a low thud, a knock) and a small bright pluck, when one is filed.
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -51,6 +53,10 @@ def wav(name: str) -> bytes:
         return _pcm(_snuff())
     if name in ("unfocus", "release"):
         return _pcm(_relight(name == "release"))
+    if name == "letter":
+        return _pcm(_letter())
+    if name == "filed":
+        return _pcm(_seal())
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):
@@ -172,6 +178,43 @@ def _relight(bell: bool) -> np.ndarray:
         strike = (np.sin(2 * np.pi * 987.77 * t) + 0.3 * np.sin(2 * np.pi * 1985.5 * t)) * np.exp(-t * 7)
         start = int(RATE * 0.68)
         out[start:start + n] += (strike * np.minimum(1.0, t * 400) * 0.45).astype(np.float32)
+    return out
+
+
+def _letter() -> np.ndarray:
+    """A letter slid into a pigeonhole: a short papery swish that rises, then a muted wooden tap."""
+    rng = np.random.default_rng(53)
+    out = np.zeros(int(RATE * 0.4), np.float32)
+    n = int(RATE * 0.18)
+    t = np.arange(n) / RATE
+    paper = np.diff(np.convolve(rng.standard_normal(n + 1), np.ones(5) / 5, "same"))
+    out[:n] += (paper * np.sin(np.pi * t / t[-1]) ** 2 * (0.4 + t / t[-1]) * 0.35).astype(np.float32)
+    n = int(RATE * 0.14)
+    t = np.arange(n) / RATE
+    tap = np.sin(2 * np.pi * 240.0 * t) * np.exp(-t * 55) + np.sin(2 * np.pi * 520.0 * t) * np.exp(-t * 90) * 0.3
+    start = int(RATE * 0.17)
+    out[start:start + n] += (tap * 0.5).astype(np.float32)
+    return out
+
+
+def _seal() -> np.ndarray:
+    """A wax seal pressed: a low thud and a knock, then a small bright pluck (G5) as the letter is filed."""
+    rng = np.random.default_rng(59)
+    out = np.zeros(int(RATE * 0.55), np.float32)
+    n = int(RATE * 0.16)
+    t = np.arange(n) / RATE
+    thud = np.sin(2 * np.pi * 90.0 * t) * np.exp(-t * 30)
+    grit = np.convolve(rng.standard_normal(n), np.ones(16) / 16, "same") * np.exp(-t * 70) * 0.6
+    out[:n] += (thud + grit).astype(np.float32)
+    n = int(RATE * 0.08)
+    t = np.arange(n) / RATE
+    start = int(RATE * 0.03)
+    out[start:start + n] += (np.sin(2 * np.pi * 330.0 * t) * np.exp(-t * 80) * 0.4).astype(np.float32)
+    n = int(RATE * 0.3)
+    t = np.arange(n) / RATE
+    pluck = (np.sin(2 * np.pi * 783.99 * t) + 0.2 * np.sin(2 * np.pi * 1567.98 * t)) * np.exp(-t * 14)
+    start = int(RATE * 0.18)
+    out[start:start + n] += (pluck * np.minimum(1.0, t * 500) * 0.45).astype(np.float32)
     return out
 
 

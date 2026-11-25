@@ -3,6 +3,7 @@
 One text line, the suggested topic with two alternates as chips (Tab picks the next), a Card / Chat
 toggle; Enter saves through ``registry.capture`` as Daniel, Esc closes. The new card lands on the Board
 in place and the ``capture`` cue plays. A chat capture opens its task chat; no CLI starts until Enter there.
+MAILROOM: the Mail toggle drops the thought in the Mailroom instead, unfiled, to be sorted there.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ class CaptureStrip:
         self.chips: list[tk.Button] = []
         self.picked = ""
         self.as_chat = False
+        self.to_mail = False
         self._manual = False
         self._index = None
         self._fallback = ""
@@ -69,6 +71,8 @@ class CaptureStrip:
 
     def save(self, _event=None) -> str:
         app = self.view.app
+        if self.to_mail:
+            return self._mail()
         try:
             card, room = capture.capture(app._chat_directory(), self.entry.get(), self.picked, self.as_chat)
         except EventRejected as exc:
@@ -89,6 +93,23 @@ class CaptureStrip:
             open_task_chat(app, room, False)
         where = self._index.title(self.picked) if self._index else self.picked
         self._show_toast(f"✓ {'Chat' if room else 'Card'} saved in {where}")
+        return "break"
+
+    def _mail(self) -> str:
+        import mailroom
+
+        app = self.view.app
+        try:
+            item = mailroom.post(app._chat_directory(), self.entry.get())
+        except (EventRejected, OSError):
+            self.error.config(text="The Mailroom could not be written.")
+            return "break"
+        if item is None:
+            self.error.config(text=_WHY["empty"])
+            return "break"
+        self.close()
+        app._mail_stamp = None
+        self._show_toast("✉ In the Mailroom")
         return "break"
 
     def pick(self, topic: str) -> None:
@@ -127,9 +148,10 @@ class CaptureStrip:
         for chip in self.chips[len(shown):]:
             chip.pack_forget()
 
-    def _set_mode(self, chat: bool) -> None:
-        self.as_chat = chat
-        for button, on in ((self.card_btn, not chat), (self.chat_btn, chat)):
+    def _set_mode(self, chat: bool, mail: bool = False) -> None:
+        self.as_chat, self.to_mail = chat and not mail, mail
+        for button, on in ((self.card_btn, not chat and not mail), (self.chat_btn, chat and not mail),
+                           (self.mail_btn, mail)):
             button.config(bg=WINE if on else _CHIP, fg=PARCH if on else _DIM)
         self.entry.focus_set()
 
@@ -162,6 +184,8 @@ class CaptureStrip:
         self.card_btn.pack(side="left", padx=(1, 0), pady=1)
         self.chat_btn = _flat(seg, "Chat", lambda: self._set_mode(True))
         self.chat_btn.pack(side="left", padx=1, pady=1)
+        self.mail_btn = _flat(seg, "Mail", lambda: self._set_mode(False, True))
+        self.mail_btn.pack(side="left", padx=(0, 1), pady=1)
         row = tk.Frame(frame, bg=_BG)
         row.pack(fill="x", padx=10, pady=(2, 0))
         tk.Label(row, text="Topic", bg=_BG, fg=_DIM, font="DungeonBubble").pack(side="left", padx=(26, 8))

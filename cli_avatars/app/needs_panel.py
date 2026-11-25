@@ -37,6 +37,8 @@ KINDS = {
                                    ".a......", "........")),
     "run": ("#6ad08a", "RUN ENDED", ("........", "......aa", ".....aa.", "a...aa..", "aa.aa...", ".aaa....",
                                      "..a.....", "........")),
+    "mail": ("#e0b878", "MAILROOM", ("........", "aaaaaaaa", "aa####aa", "a#aa#a#a", "a##aa##a", "a######a",
+                                     "aaaaaaaa", "........")),
 }
 
 
@@ -66,7 +68,7 @@ def _take(app, items: list[dict]) -> None:
     seen = getattr(app, "_needs_seen", None)
     app._needs_items = items
     app._needs_seen = {row["key"] for row in items}
-    if seen is not None and any(row["key"] not in seen and row["kind"] != "decision" for row in items):
+    if seen is not None and any(row["key"] not in seen and row["kind"] not in ("decision", "mail") for row in items):
         cues.play(app, "arrive")
 
 
@@ -97,6 +99,9 @@ def ensure(view) -> None:
 def open_item(app, item: dict) -> None:
     """A card item opens its card on the Tasks tab; a room item opens that room's chat in the dock."""
     view = getattr(app, "dungeon", None)
+    if item.get("kind") == "mail" and view is not None:
+        view.show_center("mailroom")
+        return
     if item.get("card") and view is not None:
         view.show_center("tasks")
         panel = getattr(app, "_tasks_panel", None)
