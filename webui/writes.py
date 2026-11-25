@@ -1,6 +1,7 @@
 """PHONE.2 / WEB.4: what the phone may change, behind ``web.allow_writes``. No Tk.
 
-Open or end a session (START.1), start a task chat (TASK-CHAT.1) and send a prompt to a room's chat.
+Open or end a session (START.1), start a task chat (TASK-CHAT.1), send a prompt to a room's chat, and
+answer a decision (DECIDE.1).
 The phone's Send tap is the user's Enter: the run goes through the Dungeon chat's own launch
 (``chat_window.launch_cli``), with the room's folder and the binary the user confirmed there. The
 phone never names a folder, a binary, a mode or a CLI flag; a room without a folder picked in the
@@ -27,6 +28,7 @@ from topics import get_topic, valid_topic_id
 from webui import media
 
 MAX_PROMPT = 8000
+MAX_ANSWER = 1000
 MAX_FOLDERS = 50
 NO_FOLDER = "Pick this room's folder once in the Dungeon's chat (Folder…), then send from the phone."
 NO_BINARY = "Confirm the Claude binary once in the Dungeon's chat, then send from the phone."
@@ -140,6 +142,34 @@ class Actions:
             return "", f"Not started: up to {task_chats.MAX_CHATS} chats per task."
         self._after_change()
         return chat["room"], ""
+
+    def decide(self, decision_id: str, choice: str | None, text: str | None) -> tuple[str, str, bool]:
+        """``(room, why, sent)``: Daniel's answer from the phone. ``why`` is ``missing``, ``schema`` or a sentence.
+
+        A decision a task chat asked also runs as that chat's next turn (the tap is his Enter).
+        """
+        from decisions import list_decisions
+        from events import UUID_RE
+        from registry.task_decisions import said
+
+        if UUID_RE.fullmatch(decision_id) is None:
+            return "", "missing", False
+        row = next((r for r in list_decisions(self.directory) if r["id"] == decision_id), None)
+        if row is None:
+            return "", "missing", False
+        try:
+            Registry(self.directory).decision_answer(decision_id, choice, text)
+        except EventRejected as exc:
+            return "", {"answered": "Already answered.", "missing": "missing"}.get(exc.reason, "schema"), False
+        except OSError:
+            return "", "Not stored.", False
+        self._after_change()
+        room = row["room"]
+        chat = task_chats.chat_for(task_chats.task_for(self.directory, room), room)
+        if chat is None or task_chats.chat_agent(chat) != row["from"]:
+            return room, "", False
+        answered = next(r for r in list_decisions(self.directory) if r["id"] == decision_id)
+        return room, "", not self.send(room, f'Daniel answered your question "{row["question"]}": {said(answered)}')
 
     def send(self, topic: str, text: str) -> str:
         """Start one run for the phone's Send tap; ``""`` when it started, else why not."""

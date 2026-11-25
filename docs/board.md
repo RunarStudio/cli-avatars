@@ -260,6 +260,8 @@ Read-only by default. The phone view itself is off by default.
 | `GET /api/events` | Server-sent events: `change` when a board, the rooms or a chat changed; `avatars` as they move. |
 | `POST /api/chat/<topic>`, `POST /api/sessions`, `POST /api/sessions/<topic>/end` | Only when `web.allow_writes` is true (PHONE.2): send a prompt, open or end a session. Otherwise 405. |
 | `POST /api/cards/<id>/chats` | Only with `web.allow_writes`: start a task chat (TASK-CHAT.1). |
+| `GET /api/decisions` | Pending decisions on live cards with their card's title, topic and column (DECIDE.1, [decisions.md](decisions.md)). Cards carry `decisions`, their open count. |
+| `POST /api/decisions/<id>` | Only with `web.allow_writes`: answer `{"choice"}`, `{"text"}` or both. |
 | `POST /api/cards`, `POST /api/cards/<id>/move` | Not built yet (WEB.4): 405. |
 
 Server, pairing and Tailscale: [phone-view.md](phone-view.md).

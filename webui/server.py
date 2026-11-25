@@ -44,6 +44,7 @@ _CHATS = re.compile(r"^/api/cards/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 _SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
 _ROOM = re.compile(r"^/api/rooms/([A-Za-z0-9][A-Za-z0-9-]{0,39})(/delete)?$")
 _SKIN = re.compile(r"^/api/skins/([a-z-]{1,32})/([SMLT])\.png$")
+_DECIDE = re.compile(r"^/api/decisions/([^/]{1,64})$")
 ROOM_ADD = ("name", "topic", "size", "skin", "at", "point")
 ROOM_EDIT = ("name", "topic", "size", "skin")
 HEADERS = {
@@ -161,6 +162,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True}) if actions.end_session(end.group(1)) else self._error(404)
         if path == "/api/rooms" or path.startswith("/api/rooms/"):
             return self._room_write(path, body)
+        decide = _DECIDE.match(path)
+        if decide:
+            return self._decide(decide.group(1), body)
         chats = _CHATS.match(path)
         if chats:
             if set(body) != {"cli"} or body["cli"] not in ("claude", "grok"):
@@ -178,6 +182,22 @@ class Handler(BaseHTTPRequestHandler):
             why = actions.send(topic, text)
             return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
         self._error(404)
+
+    def _decide(self, decision_id: str, body: dict) -> None:
+        """DECIDE.1: answer a decision with ``choice`` (a letter), ``text``, or both."""
+        choice, text = body.get("choice"), body.get("text")
+        if not body or set(body) - {"choice", "text"}:
+            return self._error(400)
+        if choice is not None and (not isinstance(choice, str) or len(choice) != 1 or choice not in "abcdef"):
+            return self._error(400)
+        if text is not None and (not isinstance(text, str) or not text.strip() or len(text) > writes.MAX_ANSWER):
+            return self._error(400)
+        room, why, sent = self.server.actions.decide(decision_id.lower(), choice, text)
+        if why in ("missing", "schema"):
+            return self._error(404 if why == "missing" else 400)
+        if why:
+            return self._json({"why": why}, 409)
+        return self._json({"room": room, "sent": sent})
 
     def _room_write(self, path: str, body: dict) -> None:
         """PHONE.3: add (``/api/rooms``), edit (``/api/rooms/<id>``) or delete (``.../delete``) a room."""
@@ -248,6 +268,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(found) if found else self._error(404)
         if path == "/api/scene":
             return self._json(scene.build_scene(directory))
+        if path == "/api/decisions":
+            pending = scene.decisions(directory)
+            return self._json({"decisions": pending, "count": len(pending)})
         if path == "/api/sessions":
             state = {"writes": self.server.writes(), **self.server.actions.state()}
             if state["writes"]:

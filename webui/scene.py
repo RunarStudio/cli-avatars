@@ -21,6 +21,7 @@ from cli_avatars.app.dungeon_rooms import TILE_HALF_H, TILE_HALF_W, compose, loa
 from cli_avatars.app.session_rooms import APOTHECARY, SessionRooms
 from events import EventRejected
 from registry.facade import Registry
+from registry.task_decisions import open_by_card, pending, public
 from topics import get_topic, valid_topic_id
 from webui import live
 
@@ -260,13 +261,14 @@ def room_for_topic(scene: dict, topic: str | None) -> str:
     return topic if topic and topic in names else APOTHECARY
 
 
-def _public(card: dict) -> dict:
+def _public(card: dict, decisions: dict | None = None) -> dict:
     items = card.get("checklist") or []
     return {"id": card["id"], "title": card["title"], "column": card["column"], "topic": card.get("topic"),
             "project": card["project"], "assignee": card.get("assignee"), "progress": effective_progress(card),
             "status_note": card.get("status_note") or "", "learnt": card.get("learnt") or "",
             "checks": [sum(1 for i in items if i["done"]), len(items)], "updated": card["updated"],
-            "chats": [{"room": c["room"], "cli": c["cli"], "started": c["created"]} for c in card.get("chats") or []]}
+            "chats": [{"room": c["room"], "cli": c["cli"], "started": c["created"]} for c in card.get("chats") or []],
+            "decisions": (decisions or {}).get(card["id"], 0)}
 
 
 def cards(directory: Path | str, project: str | None = None) -> list[dict]:
@@ -286,7 +288,13 @@ def cards(directory: Path | str, project: str | None = None) -> list[dict]:
             continue
     found.sort(key=lambda c: c["updated"], reverse=True)
     found.sort(key=lambda c: ORDER.get(c["column"], len(COLUMNS)))
-    return [_public(c) for c in found[:MAX_CARDS]]
+    waiting = open_by_card(directory)
+    return [_public(c, waiting) for c in found[:MAX_CARDS]]
+
+
+def decisions(directory: Path | str) -> list[dict]:
+    """DECIDE.1: open decisions on live cards, oldest first, as the phone shows them."""
+    return [public(row) for row in pending(directory)]
 
 
 def chat(directory: Path | str, topic: str, tail: int) -> list[dict] | None:
@@ -337,7 +345,8 @@ def stamp(directory: Path | str) -> tuple:
     """Sizes and mtimes of what the page shows: session rooms, boards, chat, topics."""
     root = Path(directory)
     paths = [root / "ui" / "session_rooms.json"]
-    for pattern in ("board/*/events.jsonl", "board/*/cards", "channel/*.jsonl", "topics", "web/media.json"):
+    for pattern in ("board/*/events.jsonl", "board/*/cards", "channel/*.jsonl", "topics", "web/media.json",
+                    "decisions.jsonl"):
         try:
             paths.extend(sorted(root.glob(pattern)))
         except OSError:

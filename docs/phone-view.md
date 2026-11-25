@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -48,6 +48,14 @@ When Update cannot run the button is disabled and the reason shows under it: Run
 
 A new or changed room builds in on the phone map and in the Dungeon at once, with the START.1 sweep, and is kept in `ui/session_rooms.json` with the session rooms, so it survives a restart. The build sound follows the note button.
 
+## Answer decisions from the phone (DECIDE.1)
+
+1. The ◆ button in the map bar shows a wax seal with the count when an agent waits on your decision; a parchment notice drops in and a bell plays when a new one arrives.
+2. Tap ◆ for **Decisions**, then tap one: its chat opens with the question on top.
+3. Tap an option, or type and tap **Answer** (needs the same switch as above; reading works without it). The agent gets it; a task chat answers at once.
+
+Over https a tap on ◆ asks for notification permission; then a decision also notifies while the tab is in the background. With the page closed nothing arrives (Web Push is not built). Details: [decisions.md](decisions.md#phone).
+
 ## Try it with made-up data
 
 ```bash
@@ -80,6 +88,8 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `POST /api/rooms` | Writes on: add `{"name", "topic", "size", "skin", "at", "point"}`; 200 with its id, or 409 with why not. |
 | `POST /api/rooms/<id>` | Writes on: change any of `{"name", "topic", "size", "skin"}` the room allows; 409 with why not. |
 | `POST /api/rooms/<id>/delete` | Writes on: delete one of your rooms; its avatars go back to the Apothecary. |
+| `/api/decisions` | Pending decisions on live cards: id, who asked, room, question, options, card, title, topic, column, `chat` (a task chat asked); and `count`. Cards in `/api/board` carry `decisions`, their open count. |
+| `POST /api/decisions/<id>` | Writes on: answer `{"choice": "a"}`, `{"text"}` (at most 1,000 characters) or both; 200 with `room` and `sent` (a task chat's turn started), 404 unknown, 409 already answered. |
 | `/api/media/<id>` | A picture or video a phone-sent turn wrote in the room's folder, by its id; byte ranges for video. |
 
 The page keeps the Send box above the phone's keyboard: while you type, the task list folds away and the map shrinks.
@@ -109,4 +119,4 @@ The avatars are the Dungeon's own: while the Dungeon window runs, the page shows
 
 ## Sound
 
-A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered.
+A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1).

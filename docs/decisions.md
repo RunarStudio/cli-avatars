@@ -54,3 +54,15 @@ A task chat sees its card's newest three decisions in the task context on every 
   - the asking agent needs Daniel (DOOR.1): on the desktop its avatar walks to the pointer, inside the Dungeon it waits at the door and the closed arch flashes; its topic is `waiting_on_user`, so the AV.1 walk brings it beside him there. A click on the avatar stops the walk until the next decision.
   The first read after a start learns what is already open and stays quiet. No new window.
 - The chat panel shows a task decision with options like any decision card; one without options says to answer on the task card or the phone.
+
+## Phone
+
+Reading always works; answering needs **Allow the phone to open sessions and send prompts** (`web.allow_writes`, [phone-view.md](phone-view.md)).
+
+- **Badge**: the ◆ button in the map bar glows gold with a wax seal holding the count while any decision waits. A card with one shows a DECIDE tag in Tasks.
+- **Decisions sheet**: the badge opens one parchment row per decision: task, question, who asked, when, the options. A tap opens that room's chat (the task chat, or the card's room) with the decision on top.
+- **The slip**: on top of the chat, `<agent> asks · <task>`, the question, one button per option and the chat box below as "Your answer…" with **Answer**. An option sends what is typed as its note; **Answer** alone sends the typed text. While the slip is up on a narrow screen the Tasks pane folds away.
+- **The answer**: `POST /api/decisions/<id>` with `{"choice": "a"}`, `{"text": "…"}` or both. It is the same `Registry.decision_answer` as the desktop, so the agent's inbox, the room, the card history and the topic all change. A decision a task chat asked also runs that chat's next turn with `Daniel answered your question "<question>": <answer>` (the tap counts as Daniel's Enter), so the chat's CLI gets it at once and the task context shows `-> Daniel: …`. An MCP agent reads it from its inbox (hook and `inbox_read`).
+- **Notice**: when a new decision arrives over the live updates (SSE `change`), a parchment notice drops in at the top with the question and the `decide` cue plays (a rising bell). The cue plays unless the note button was turned off. Browsers allow sound only after a first tap on the page. The first load after opening the page is quiet.
+- **System notification**: on https (`tailscale serve`) a tap on the badge or the notice asks for notification permission. Once granted, a new decision while the tab is in the background also shows a system notification. Plain http cannot show one (browser rule).
+- **Page closed**: nothing reaches the phone. That needs Web Push, which needs a push service (the browser vendor's) and a service worker; not built.

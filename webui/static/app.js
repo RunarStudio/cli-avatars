@@ -1,5 +1,5 @@
 // PHONE.1/2/3/4: the Dungeon map, its tasks and the room chat; with writes on, open sessions, send prompts,
-// build and customize rooms, and Update.
+// build and customize rooms, and Update. DECIDE.1: decisions waiting on Daniel, answered in their chat.
 // Every text goes in with textContent.
 "use strict";
 
@@ -353,6 +353,7 @@ function renderTasks() {
       meta.append(wrap, el("span", "", c.progress + "%"));
     }
     if (c.checks[1]) meta.append(el("span", "", c.checks[0] + "/" + c.checks[1]));
+    if (c.decisions) meta.prepend(el("span", "badge decide", c.decisions > 1 ? "DECIDE \u00d7" + c.decisions : "DECIDE"));
     b.append(meta);
     const note = c.column === "done" && c.learnt ? "learnt: " + c.learnt : c.status_note;
     if (note) b.append(el("span", "note", note));
@@ -396,6 +397,8 @@ async function newTaskChat(c) {
 function pickTask(id) {
   const c = state.cards.find((x) => x.id === id);
   if (!c) return;
+  const asked = state.decisions.find((d) => d.card === id);
+  if (asked) { openAsk(asked); return; }
   state.sel = id;
   renderTasks();
   zoomToRoom(c.room);
@@ -445,6 +448,7 @@ async function showChat(topic, title) {
   $("typingText").textContent = state.running ? "Answering in " + (title || topic) + "…" : "";
   paintComposer(false);
   if (stick || seen.size === 0) list.scrollTop = list.scrollHeight;
+  paintAsk();
 }
 
 // --- media a turn made: inline, tap for the full view ------------------------------------------------
@@ -511,9 +515,11 @@ function paintComposer(busy) {
   $("sessions").hidden = false;
   if (!on) { hint.textContent = "Sending from the phone is off (Dungeon: Settings › Phone)."; return; }
   const can = !!topic && !state.running && !busy && !state.sending;
+  const asking = !!state.ask && state.ask.room === topic;
   $("prompt").disabled = !topic;
-  $("send").disabled = !can;
-  $("prompt").placeholder = topic ? "Ask in " + ($("chatRoom").textContent || topic) + "…" : "Tap a room or open a session (+)";
+  $("send").disabled = asking ? busy || state.sending : !can;
+  $("send").textContent = asking ? "Answer" : "Send";
+  $("prompt").placeholder = asking ? "Your answer\u2026" : topic ? "Ask in " + ($("chatRoom").textContent || topic) + "\u2026" : "Tap a room or open a session (+)";
   hint.textContent = topic ? "" : "";
 }
 
@@ -543,6 +549,7 @@ function growPrompt() {
 }
 
 async function sendPrompt() {
+  if (state.ask && state.ask.room === state.chatKey) { answerAsk(null); return; }
   const text = $("prompt").value, topic = state.chatKey;
   if (!text.trim() || !topic || state.sending || state.running) return;
   state.sending = true;
@@ -656,7 +663,7 @@ async function endSession(sid) {
 }
 
 async function load() {
-  const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites()]);
+  const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites(), loadDecisions()]);
   const oldOrigin = state.scene && state.scene.map ? state.scene.map.origin : null;
   state.scene = scene;
   state.cards = board.cards;
@@ -1064,6 +1071,148 @@ $("roomAskYes").addEventListener("click", async () => {
   load().catch(() => {});
 });
 
+// --- DECIDE.1: decisions waiting on Daniel: seal badge, sheet, the slip over the chat, the notice --------
+state.decisions = [];
+state.decSeen = null;
+state.ask = null;
+
+async function loadDecisions() {
+  let data;
+  try { data = await getJSON("/api/decisions"); } catch (_e) { return; }
+  const rows = data.decisions || [];
+  const fresh = state.decSeen ? rows.filter((d) => !state.decSeen.has(d.id)) : [];
+  state.decSeen = new Set(rows.map((d) => d.id));
+  state.decisions = rows;
+  if (state.ask && !rows.some((d) => d.id === state.ask.id)) state.ask = null;
+  paintDecisions();
+  if (fresh.length) announce(fresh[fresh.length - 1], fresh.length);
+}
+
+function asker(from) { return String(from || "").split(":")[0] || "agent"; }
+
+function paintDecisions() {
+  const n = state.decisions.length;
+  $("decideCount").hidden = !n;
+  $("decideCount").textContent = String(n);
+  $("decideBtn").classList.toggle("on", n > 0);
+  $("decideBtn").title = n ? n + (n > 1 ? " decisions wait" : " decision waits") + " on you" : "No decisions waiting";
+  if (!$("decide").hidden) paintDecideSheet();
+  paintAsk();
+}
+
+function paintDecideSheet() {
+  const list = $("decideRows");
+  list.replaceChildren();
+  if (!state.decisions.length) list.append(el("li", "empty", "Nothing waits on you."));
+  for (const d of state.decisions) {
+    const li = el("li"), b = el("button");
+    b.type = "button";
+    const opts = d.options.length ? " \u00b7 " + d.options.map((o) => o.text).join(" / ") : "";
+    b.append(el("span", "seal"), el("b", "", d.title), el("span", "q", d.question),
+      el("small", "", asker(d.from) + " \u00b7 " + clock(d.ts) + opts));
+    b.addEventListener("click", () => { $("decide").hidden = true; openAsk(d); });
+    li.append(b);
+    list.append(li);
+  }
+  $("decideNote").textContent = state.writes.writes ? "Tap one to answer it in its chat."
+    : "Reading only: answering from the phone is off (Dungeon: Settings \u203a Phone).";
+}
+
+async function openAsk(d) {
+  state.ask = d;
+  const card = state.cards.find((c) => c.id === d.card);
+  if (card) { state.sel = card.id; renderTasks(); zoomToRoom(card.room, true); }
+  await showChat(d.room, d.chat ? d.title + " \u00b7 chat" : titleOf(d.room));
+}
+
+function paintAsk() {
+  const d = state.ask, on = !!d && d.room === state.chatKey;
+  $("ask").hidden = !on;
+  document.body.classList.toggle("asking", on);
+  paintComposer(false);
+  if (!on) return;
+  $("askWho").textContent = asker(d.from) + " asks \u00b7 " + d.title;
+  $("askQ").textContent = d.question;
+  const opts = $("askOpts");
+  opts.replaceChildren();
+  for (const o of d.options) {
+    const b = el("button");
+    b.type = "button";
+    b.disabled = !state.writes.writes || state.sending;
+    b.append(el("b", "", o.letter), document.createTextNode(o.text));
+    b.addEventListener("click", () => answerAsk(o.letter));
+    opts.append(b);
+  }
+  $("askHint").textContent = !state.writes.writes ? "Answering from the phone is off (Dungeon: Settings \u203a Phone)."
+    : d.options.length ? "Tap one; what you type below goes with it. Or write your own answer." : "Write your answer below.";
+}
+
+async function answerAsk(choice) {
+  const d = state.ask;
+  if (!d || state.sending) return;
+  const text = $("prompt").value.trim(), body = {};
+  if (choice) body.choice = choice;
+  if (text) body.text = text;
+  if (!choice && !text) return;
+  state.sending = true;
+  paintAsk();
+  tone("send");
+  const res = await postJSON("/api/decisions/" + d.id, body).catch(() => ({ ok: false, data: {} }));
+  state.sending = false;
+  if (!res.ok) {
+    $("composeHint").textContent = res.data.why || (res.status === 429 ? "Too many sends: wait a minute." : "Not answered (" + (res.status || "offline") + ").");
+    paintAsk();
+    return;
+  }
+  $("prompt").value = "";
+  growPrompt();
+  state.ask = null;
+  tone("done");
+  if (res.data.sent) state.running = true;
+  $("composeHint").textContent = res.data.sent ? "Answered: " + asker(d.from) + " goes on with it here." : "Answered: it is in " + asker(d.from) + "'s inbox.";
+  await loadDecisions();
+  showChat(res.data.room, $("chatRoom").textContent);
+}
+
+// in the page: the notice and the bell; page in the background over https: a system notification
+function announce(d, n) {
+  tone("decide");
+  $("noticeTitle").textContent = (n > 1 ? n + " new decisions \u00b7 " : "New decision \u00b7 ") + d.title;
+  $("noticeText").textContent = d.question;
+  $("notice").hidden = false;
+  state.noticeFor = d.id;
+  clearTimeout(state.noticeTimer);
+  state.noticeTimer = setTimeout(() => { $("notice").hidden = true; }, 9000);
+  if (document.hidden && window.isSecureContext && "Notification" in window && Notification.permission === "granted") {
+    try {
+      const note = new Notification("Decision \u00b7 " + d.title, { body: d.question, tag: "decide-" + d.id });
+      note.onclick = () => { window.focus(); note.close(); openAsk(d); };
+    } catch (_e) { /* no system notification on this browser */ }
+  }
+}
+
+function askPermission() {
+  if (!window.isSecureContext || !("Notification" in window) || Notification.permission !== "default") return;
+  const asked = Notification.requestPermission();
+  if (asked && asked.catch) asked.catch(() => {});
+}
+
+$("decideBtn").addEventListener("click", () => { askPermission(); $("decide").hidden = false; paintDecideSheet(); });
+$("decideClose").addEventListener("click", () => { $("decide").hidden = true; });
+$("decide").addEventListener("click", (e) => { if (e.target === $("decide")) $("decide").hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("decide").hidden) $("decide").hidden = true; });
+$("notice").addEventListener("click", () => {
+  $("notice").hidden = true;
+  askPermission();
+  const d = state.decisions.find((x) => x.id === state.noticeFor);
+  if (d) openAsk(d);
+});
+$("askClose").addEventListener("click", () => { state.ask = null; paintAsk(); });
+// browsers hold sound until the first tap: open the audio then, so a later bell can ring
+document.addEventListener("pointerdown", () => {
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (_e) { /* no audio */ }
+}, { once: true });
+
 // --- live updates --------------------------------------------------------------------------------
 let pending = null;
 function live() {
@@ -1118,19 +1267,21 @@ function chime() {
   } catch (_e) { soundOn = false; paintSound(); }
 }
 
-// a soft blip on send, a low two-note on a reply; same toggle as the zoom chime
+// a soft blip on send, a low two-note on a reply; same toggle as the zoom chime. The decision bell rings
+// unless sound was switched off by hand (DECIDE.1: sound by default).
 function tone(kind) {
-  if (!soundOn) return;
+  if (!soundOn && !(kind === "decide" && localStorage.getItem(soundKey) === null)) return;
   try {
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
     const t = audio.currentTime, out = audio.createGain();
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
-    out.gain.exponentialRampToValueAtTime(0.0001, t + (kind === "build" ? 1.1 : 0.45));
+    out.gain.exponentialRampToValueAtTime(0.0001, t + (kind === "build" || kind === "decide" ? 1.1 : 0.45));
     out.connect(audio.destination);
     const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : kind === "done" ? [[523.25, 0], [659.25, 0.09], [783.99, 0.18]]
       : kind === "build" ? [[130.81, 0], [196.0, 0.16], [261.63, 0.34], [392.0, 0.52]]
-      : kind === "failed" ? [[329.63, 0], [261.63, 0.12]] : [[392.0, 0], [523.25, 0.09]];
+      : kind === "failed" ? [[329.63, 0], [261.63, 0.12]]
+      : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {
       const o = audio.createOscillator();
       o.type = kind === "send" ? "square" : "triangle";
@@ -1139,7 +1290,7 @@ function tone(kind) {
       g.gain.value = kind === "send" ? 0.35 : 1;
       o.connect(g).connect(out);
       o.start(t + d);
-      o.stop(t + (kind === "build" ? 1.1 : 0.46));
+      o.stop(t + (kind === "build" || kind === "decide" ? 1.1 : 0.46));
     }
   } catch (_e) { soundOn = false; paintSound(); }
 }
