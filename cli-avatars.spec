@@ -43,6 +43,7 @@ hiddenimports = [
     "meetings",
     "messenger",
     "backlog_boss",
+    "voice",
     "needs_you",
     "overlay",
     "perchas",
