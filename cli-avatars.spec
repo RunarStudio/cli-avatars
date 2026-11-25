@@ -38,6 +38,7 @@ hiddenimports = [
     "hud",
     "inbox",
     "meetings",
+    "needs_you",
     "overlay",
     "perchas",
     "portal",
