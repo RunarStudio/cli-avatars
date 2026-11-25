@@ -18,6 +18,7 @@ from board.model import (
     COLUMNS,
     EVENT_TEXT_LIMIT,
     LEARNT_LIMIT,
+    MAX_CHATS,
     MAX_CHECKLIST,
     MAX_LABELS,
     PERSON,
@@ -179,6 +180,18 @@ class TaskEditor:
     def archive(self, card_id: str) -> Outcome:
         return self._run(lambda: self.registry.task_archive(card_id), "edited")
 
+    def chat_new(self, card_id: str, cli: str) -> Outcome:
+        """TASK-CHAT.1: a new chat on the card, its room ready. No CLI starts until Enter in that chat."""
+        from registry.task_chats import cli_ready, start_chat
+
+        ready, why = cli_ready(cli)
+        if not ready:
+            return Outcome(errors={"chats": why})
+        card = self.registry.task_get(card_id)
+        if card is not None and len(card["chats"]) >= MAX_CHATS:
+            return Outcome(errors={"chats": f"Up to {MAX_CHATS} chats per task."})
+        return self._run(lambda: start_chat(self.registry, card_id, cli)[0], "chat")
+
     def _project(self) -> str:
         if not valid_topic_id(self.topic):
             return ""
@@ -218,6 +231,23 @@ def assignee_choices(directory: Path | str, topic: str, live: Mapping[str, str])
     return choices
 
 
+def chat_rows(directory: Path | str, card: Mapping) -> list[dict]:
+    """The card's chats, oldest first: room, CLI, ``MM-DD HH:MM`` started, the room's last said line."""
+    from topics import topic_messages
+
+    rows = []
+    for chat in card.get("chats") or []:
+        try:
+            lines = topic_messages(directory, chat["room"])
+        except (EventRejected, OSError):
+            lines = []
+        said = [m for m in lines if m.get("icon") == "speech"] or lines
+        last = str(said[-1].get("text") or "") if said else ""
+        rows.append({"room": chat["room"], "cli": chat["cli"], "started": chat["created"][5:16].replace("T", " "),
+                     "last": (last if len(last) <= 80 else last[:79] + "…") or "no messages yet"})
+    return rows
+
+
 def _line(event: Mapping) -> str:
     kind, before, after = event["kind"], event.get("from"), event.get("to")
     text = event.get("text") or ""
@@ -235,6 +265,8 @@ def _line(event: Mapping) -> str:
         return f"status: {text}"
     if kind == "learnt":
         return f"learnt: {text}"
+    if kind == "chat":
+        return f"new {event.get('target')} chat"
     return kind
 
 

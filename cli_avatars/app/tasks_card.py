@@ -1,8 +1,8 @@
 """KANBAN.1: the card panel beside the board, inside the Dungeon's Tasks tab. No new window.
 
 A parchment sheet: new-card form, or one card's fields, column, assignee, checklist, progress,
-status note, comments and history. Every change calls ``act(name, *args)`` on the board panel,
-which writes through ``TaskEditor``. Card text is shown as text only.
+status note, comments, the card's chats (TASK-CHAT.1) and history. Every change calls
+``act(name, *args)`` on the board panel, which writes through ``TaskEditor``. Card text is shown as text only.
 """
 
 from __future__ import annotations
@@ -51,12 +51,17 @@ def button(parent, text: str, command, bg: str = WINE, fg: str = PAPER) -> tk.Bu
 
 
 class CardPanel:
-    """``act(name, *args, **kw)`` returns an ``Outcome``; ``choices()`` lists ``(value, label)`` assignees."""
+    """``act(name, *args, **kw)`` returns an ``Outcome``; ``choices()`` lists ``(value, label)`` assignees.
 
-    def __init__(self, parent, act, choices, close) -> None:
+    ``chats(card)`` lists the card's chat rows; ``open_chat(room, new)`` shows one in the chat dock.
+    """
+
+    def __init__(self, parent, act, choices, close, chats=lambda card: [], open_chat=lambda room, new: None) -> None:
         self._act = act
         self._choices = choices
         self._close = close
+        self._chats = chats
+        self._open_chat = open_chat
         self.card: dict | None = None
         self.status_badge: tk.Frame | None = None
         self.frame = tk.Frame(parent, bg=WOOD)
@@ -157,6 +162,7 @@ class CardPanel:
         self.comment_entry.bind("<Return>", lambda _e: self._comment())
         button(row, "Comment", self._comment).pack(side="left", padx=(4, 0))
         self._error("comment")
+        self._chats_section()
         self.history = tk.Label(self.sheet, bg=PARCH, fg=SOFT, font="DungeonBubble", anchor="nw", justify="left",
                                 wraplength=300)
         self.history.pack(fill="both", expand=True, padx=8, pady=(4, 0))
@@ -195,6 +201,56 @@ class CardPanel:
         auto = card["progress"] is None and shown is not None
         self.progress_caption.config(text=f"Progress {shown}%" if auto else "Progress")
         self.history.config(text="\n".join(history_lines(card)))
+        self._fill_chats(card)
+
+    def _chats_section(self) -> None:
+        from registry.task_chats import cli_ready
+
+        head = self._row()
+        tk.Label(head, text="Chats", bg=PARCH, fg=WINE, font="DungeonTitle", anchor="w").pack(side="left")
+        self.chat_buttons = {}
+        for cli, label in (("grok", "Grok"), ("claude", "New chat · Claude")):
+            ready, why = cli_ready(cli)
+            btn = button(head, label, lambda c=cli: self._new_chat(c), WINE if ready else "#8a7a5a")
+            btn.config(state="normal" if ready else "disabled", disabledforeground="#cdbf9a")
+            btn.pack(side="right", padx=(4, 0))
+            btn.why = why
+            self.chat_buttons[cli] = btn
+        why = self.chat_buttons["grok"].why
+        if why:
+            tk.Label(self.sheet, text=why, bg=PARCH, fg=SOFT, font="DungeonBubble", anchor="w", justify="left",
+                     wraplength=300).pack(fill="x", padx=8)
+        self.chat_list = tk.Frame(self.sheet, bg=PARCH)
+        self.chat_list.pack(fill="x", padx=8, pady=(2, 0))
+        self._error("chats")
+
+    def _fill_chats(self, card: dict) -> None:
+        for child in self.chat_list.winfo_children():
+            child.destroy()
+        rows = self._chats(card)
+        if not rows:
+            tk.Label(self.chat_list, text="No chats yet. New chat opens one with this task's context.",
+                     bg=PARCH, fg=SOFT, font="DungeonBubble", anchor="w", wraplength=300, justify="left").pack(fill="x")
+        for row in rows:
+            tile = tk.Frame(self.chat_list, bg=PAPER, highlightthickness=1, highlightbackground=EDGE, cursor="hand2")
+            tile.pack(fill="x", pady=1)
+            mark = "◆" if row["cli"] == "grok" else "●"
+            top = tk.Label(tile, text=f"{mark} {row['cli']} · {row['started']}", bg=PAPER, fg=WINE,
+                           font="DungeonBubble", anchor="w")
+            top.pack(fill="x", padx=4)
+            last = tk.Label(tile, text=row["last"], bg=PAPER, fg=INK, font="DungeonBubble", anchor="w",
+                            justify="left", wraplength=290)
+            last.pack(fill="x", padx=4)
+            for widget in (tile, top, last):
+                widget.bind("<Button-1>", lambda _e, room=row["room"]: self._open_chat(room, False))
+            tile.room = row["room"]
+
+    def _new_chat(self, cli: str) -> None:
+        if self.card is None:
+            return
+        out = self._act("chat_new", self.card["id"], cli)
+        if not out.errors and out.card is not None:
+            self._open_chat(out.card["chats"][-1]["room"], True)
 
     def ask_learnt(self) -> None:
         """The card just landed in done: put the cursor in "What did we learn?"."""

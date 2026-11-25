@@ -27,6 +27,7 @@ from cli_avatars.model.room import (
     set_working_dir,
 )
 from events import EventRejected
+from registry import task_chats
 from rooms import project_folder
 
 BG = "#0d0d1a"
@@ -52,6 +53,7 @@ class _Run:
     turn: object
     process: object = None
     events: queue.SimpleQueue = field(default_factory=queue.SimpleQueue)
+    texts: list = field(default_factory=list)
 
 
 class RoomPane:
@@ -181,6 +183,7 @@ class RoomPane:
         return SimpleNamespace(
             room_id=room.room_id, cli=cli, pin=pin, working_dir=room.working_dir, mode=room.permission_mode,
             session_id=room.session_id(cli), topic_title=title, open_cards=cards,
+            preamble=task_chats.preamble(directory, room.room_id),
             on_line=lambda line: run.events.put(("line", line)),
             on_done=lambda result: run.events.put(("done", result)),
             run=run,
@@ -299,6 +302,7 @@ class RoomPane:
             room_log.post_messages(directory, run.room.room_id, run.cli, messages)
         except (EventRejected, OSError):
             pass
+        run.texts.extend(m.text for m in messages if m.icon == "speech")
         if run.room.room_id != self.room_id:
             return
         for message in messages:
@@ -310,8 +314,14 @@ class RoomPane:
             room_log.finish_turn(self.window.directory(), run.room, run.cli, run.turn, result.outcome, result.stderr)
         except (EventRejected, OSError):
             pass
+        try:
+            changed = task_chats.apply_reply(self.window.directory(), run.room.room_id, run.texts)
+        except OSError:
+            changed = []
         self._paint()
         if run.room.room_id == self.room_id:
+            for line in changed:
+                self._write(f"  ✓ task: {line}\n", "error" if line.startswith("refused") else "ok")
             tag = "ok" if result.outcome == "ok" else "error"
             self._write(f"[{result.outcome}]\n\n", tag)
             self._status("Done. Type a follow-up: it resumes this session." if run.turn.session_id else "Done")
@@ -320,7 +330,7 @@ class RoomPane:
         if not self.room_id:
             return None
         try:
-            return load_room(self.window.directory(), self.room_id)
+            return task_chats.with_folder(self.window.directory(), load_room(self.window.directory(), self.room_id))
         except (EventRejected, OSError):
             return None
 
@@ -341,6 +351,9 @@ class RoomPane:
         if term is None or self.cli_target() is None:
             return
         self._clear()
+        task = task_chats.preamble(self.window.directory(), self.room_id)
+        if task:
+            self._write(task + "\n", "note")
         for sender, text in room_log.history(self.window.directory(), self.room_id, self.target):
             self._write(f"> {text}\n" if sender == "user" else text + "\n", "prompt" if sender == "user" else "reply")
         if self.room_id in self._runs:

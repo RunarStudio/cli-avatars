@@ -11,7 +11,7 @@ import time
 import tkinter as tk
 
 from cli_avatars.app.tasks_card import GOLD, PARCH, WINE, CardPanel, badge, button
-from cli_avatars.app.tasks_edit import TaskEditor, assignee_choices
+from cli_avatars.app.tasks_edit import TaskEditor, assignee_choices, chat_rows
 from cli_avatars.app.tasks_view import COLUMNS, STATUS_BADGES, Board, TaskCard, card_meta, load_board
 from topics import valid_topic_id
 
@@ -31,7 +31,7 @@ PANEL_W = 340
 class TasksPanel:
     """``directory``, ``topic`` and ``agents`` (id -> name) are callables; ``shown`` says whether the tab is visible."""
 
-    def __init__(self, parent, directory, topic, shown=lambda: True, agents=dict):
+    def __init__(self, parent, directory, topic, shown=lambda: True, agents=dict, open_chat=lambda room, new: None):
         self._directory = directory
         self._topic = topic
         self._shown = shown
@@ -52,7 +52,8 @@ class TasksPanel:
         self._main = tk.Frame(self.frame, bg=_BG)
         self._grid = tk.Frame(self._main, bg=_BG)
         self._grid.pack(side="left", fill="both", expand=True, padx=6, pady=6)
-        self.card_panel = CardPanel(self._main, self.act, self._choices, self.close_card)
+        self.card_panel = CardPanel(self._main, self.act, self._choices, self.close_card,
+                                    chats=lambda card: chat_rows(self._directory(), card), open_chat=open_chat)
         self.headers: dict[str, tk.Widget] = {}
         self._bodies: dict[str, tk.Frame] = {}
         self._columns: dict[tk.Widget, str] = {}
@@ -70,6 +71,16 @@ class TasksPanel:
         if board != self.board:
             self.board = board
             self._draw(board)
+            self._follow_open_card()
+
+    def _follow_open_card(self) -> None:
+        """A write from elsewhere (a task chat's tick) shows in the open card panel."""
+        panel = self.card_panel
+        if not panel.open or panel.card is None:
+            return
+        card = TaskEditor(self._directory(), self._topic()).registry.task_get(panel.card["id"])
+        if card is not None and card != panel.card:
+            panel.update(card)
 
     def toggle_done(self) -> None:
         self._done_open = not self._done_open
@@ -249,3 +260,15 @@ def _card(parent, card: TaskCard) -> tk.Frame:
         bar.bind("<Configure>", lambda e, p=card.progress: (
             bar.delete("all"), bar.create_rectangle(0, 0, e.width * p // 100, 4, fill=WINE, width=0)))
     return box
+
+
+def open_task_chat(app, room: str, new: bool) -> None:
+    """TASK-CHAT.1: a task's chat in the chat dock; a new one plays the arrival cue. No CLI starts here."""
+    from cli_avatars.app import cues
+
+    try:
+        app._show_chat(topic_id=room)
+    except Exception:
+        return
+    if new:
+        cues.play(app, "arrive")
