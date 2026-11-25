@@ -5,6 +5,8 @@ from __future__ import annotations
 import tkinter as tk
 
 from cli_avatars.app.close_choice import request_close
+from cli_avatars.app.dungeon_sash import make as sash
+from cli_avatars.app.dungeon_sash import reflow
 from cli_avatars.app.toolbar_kit import DESKTOP, PANEL, WINDOW
 from cli_avatars.app.toolbar_widgets import Tab, control, group, paint
 
@@ -67,7 +69,7 @@ def mount(view) -> None:
 
 
 def repack(view) -> None:
-    """Show or hide the side docks without destroying them."""
+    """Show or hide the side docks without destroying them. A hidden dock keeps its splitter as a thin edge."""
     view._left.pack_forget()
     view._sash_l.pack_forget()
     view._mid.pack_forget()
@@ -75,11 +77,12 @@ def repack(view) -> None:
     view._right.pack_forget()
     if getattr(view.app, "_rooms_shown", True):
         view._left.pack(side="left", fill="y")
-        view._sash_l.pack(side="left", fill="y")
+    view._sash_l.pack(side="left", fill="y")
     if getattr(view, "_right_open", True):
         view._right.pack(side="right", fill="y")
-        view._sash_r.pack(side="right", fill="y")
+    view._sash_r.pack(side="right", fill="y")
     view._mid.pack(side="left", fill="both", expand=True)
+    reflow(view)
 
 
 def show_center(view, name: str) -> None:
@@ -228,10 +231,11 @@ def _body(view, root) -> None:
     body.pack(fill="both", expand=True)
     view._left = tk.Frame(body, bg=_BG, width=280)
     view._left.pack_propagate(False)
-    view._sash_l = tk.Frame(body, bg="#2a2436", width=4, cursor="sb_h_double_arrow")
     view._right = tk.Frame(body, bg=_BG, width=360)
     view._right.pack_propagate(False)
-    view._sash_r = tk.Frame(body, bg="#2a2436", width=4, cursor="sb_h_double_arrow")
+    view._sash_l = sash(view, body, "left")
+    view._sash_r = sash(view, body, "right")
+    body.bind("<Configure>", lambda _e: reflow(view))
     view._mid = tk.Frame(body, bg=_BG)
     _header(view._left, "Topics", lambda: view.set_left(False))
     view._topics = tk.Frame(view._left, bg=_BG)
@@ -282,8 +286,6 @@ def _body(view, root) -> None:
     )
     view.app._chat_host = view._chat_host
     view._right_open = True
-    view._sash_l.bind("<B1-Motion>", lambda e: view.drag_dock(view._left, e, 160, 640))
-    view._sash_r.bind("<B1-Motion>", lambda e: view.drag_dock(view._right, e, 200, 720))
     repack(view)
     show_center(view, "dungeon")
 

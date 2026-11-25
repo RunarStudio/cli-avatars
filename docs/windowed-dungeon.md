@@ -147,6 +147,17 @@ Door closed: a needing avatar stays in, hops at the door and the arch flashes. S
 | Tray (7) | Kept: Show Dungeon (default item: tray click opens the Dungeon at its last rect), Door open/closed, Call home, Quit | Callbacks still go through `root.after(0, …)`. "Let them roam" waits for WIN-DUNGEON.8. |
 | Building window (8) | The central "Dungeon" tab | BLDG.2 becomes a widget (`app/building_view.py`), not a `Toplevel`. |
 
+**Resizable columns (LAYOUT.1).** A splitter (a thin stone edge with an ember grip, lit on hover) sits
+between the map and each side column. Drag it to make the column wider or narrower: Topics 160–640 px,
+the right dock (Chat, Needs you, Settings) 200–720 px, and never so wide that the map keeps under 200 px.
+Drag a column under half its minimum and it collapses; its splitter stays as a thin edge you drag out
+again. Double-click a splitter for the default width (280 and 360). The widths you pick are stored per
+monitor layout in `ui/dungeon_window.json` (`docks.left.width`, `docks.right.width`). A narrow window
+shrinks both columns so the map keeps at least 40 % of the width; widening the window gives the picked
+widths back. The map refits (or keeps its camera, NAV.1) at every window or column resize.
+Before LAYOUT.1 the right splitter measured from the column's own left edge, so every drag set it to its
+minimum and it stayed there, and the columns never shrank with the window. Code: `app/dungeon_sash.py`.
+
 **Tasks tab (TM.3).** Central tab "Tasks" beside Dungeon and Skins: a read-only kanban of the chat's
 topic cards from every board (todo, doing, review, done collapsed, blocked; assignee, progress,
 checklist done/total). `app/tasks_view.py` (no Tk) and `app/tasks_panel.py`; rooms tick, ≤ 1/s.

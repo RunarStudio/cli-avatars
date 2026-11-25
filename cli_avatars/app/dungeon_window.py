@@ -15,10 +15,10 @@ from cli_avatars.app.dungeon_geom import (
     areas_from_monitors,
     config_with_topmost,
     dungeon_prefs,
-    fit_dock_widths,
     resolve_rect,
 )
 from cli_avatars.app.dungeon_panes import mount, repack, show_center, show_right
+from cli_avatars.app.dungeon_sash import drag, prefs
 from cli_avatars.app.dungeon_store import (
     ChatBox,
     default_layout,
@@ -282,9 +282,7 @@ class DungeonWindow:
         self._schedule_save()
 
     def drag_dock(self, frame, event, low: int, high: int) -> None:
-        width = max(low, min(high, int(event.x_root - frame.winfo_rootx())))
-        frame.configure(width=width)
-        self._schedule_save()
+        drag(self, frame, event, low, high)
 
     def save_now(self) -> None:
         if self._offscreen or not self._signature:
@@ -298,9 +296,9 @@ class DungeonWindow:
             state=self._window_state(),
             pan=self._pan,
             left_open=bool(getattr(self.app, "_rooms_shown", True)),
-            left_width=_width(self._left, 280),
+            left_width=prefs(self)["left"],
             right_open=bool(self._right_open),
-            right_width=_width(self._right, 360),
+            right_width=prefs(self)["right"],
             right_tab=self._right_tab,
             center_tab=self._center if self._center in ("dungeon", "skins") else "dungeon",
         )
@@ -381,11 +379,7 @@ class DungeonWindow:
             self._zoom = saved.zoom
             self._pan = saved.pan
             left_w, right_w = saved.left_width, saved.right_width
-        left_w, right_w = fit_dock_widths(
-            window_w, left_w, right_w, bool(self.app._rooms_shown), bool(self._right_open),
-        )
-        self._left.configure(width=left_w)
-        self._right.configure(width=right_w)
+        prefs(self).update(left=left_w, right=right_w)
         repack(self)
         show_center(self, "dungeon")
         if self._right_open:
@@ -467,14 +461,6 @@ def _call(app, name: str) -> None:
     fn = getattr(app, name, None)
     if fn is not None:
         fn()
-
-
-def _width(frame, default: int) -> int:
-    try:
-        value = int(frame.winfo_width())
-    except tk.TclError:
-        return default
-    return value if value > 40 else default
 
 
 def _focus(widget):
