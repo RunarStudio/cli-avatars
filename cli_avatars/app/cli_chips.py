@@ -88,6 +88,28 @@ def line(pane, cli: str, text: str, tag: str) -> None:
     pane._write(("· " if tag == "tool" else "") + text + "\n", tag)
 
 
+def reload(pane) -> None:
+    """The room's CLI turns, oldest first, each tagged with its CLI, in place of the transcript."""
+    from board.model import CHAT_CLIS
+    from cli_avatars.app import room_log
+    from registry import task_chats
+
+    if pane._term is None or pane.cli_target() is None:
+        return
+    pane._clear()
+    if task := task_chats.shown(pane.window.directory(), pane.room_id):
+        pane._write(task + "\n", "note")
+    rows = sorted(((ts, cli, sender, text) for cli in CHAT_CLIS for sender, text, ts in
+                   room_log.history(pane.window.directory(), pane.room_id, cli, stamped=True)), key=lambda r: r[0])
+    for _ts, cli, sender, text in rows:
+        if sender == "user":
+            pane._write(f"> {text}\n", "prompt")
+        else:
+            pane._line(cli, text, "reply")
+    if pane.room_id in pane._runs:
+        pane._write("… still answering\n", "note")
+
+
 class TierChip(tk.Frame):
     """HIERARCHY.1: the tier a send from this room takes: its glyph (crown, banner, scroll, spark), model and effort."""
 

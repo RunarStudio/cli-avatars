@@ -31,6 +31,8 @@ NAV (``dungeon_nav``): ``whoosh``: a soft rush of air and one muffled footstep, 
 UPDATE-BAR and REPOS (``chime_cues``): ``ready``: an anvil tap and a rising fifth, when an update finishes;
 ``rune``: a low hum and a glassy ping, when a repo goes in use; ``summon``: a horn and a hall bell, when the main
 orchestrator is summoned (SUMMON.1).
+GROK-CHAT (``grok_cues``): ``grok-send``: a crystal flicked, when a prompt goes to Grok; ``grok-reply``: a diamond
+chime, when its reply lands.
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -116,6 +118,10 @@ def wav(name: str) -> bytes:
         from cli_avatars.app.boss_cues import sound as boss_sound
 
         return _pcm(boss_sound(name))
+    if name in ("grok-send", "grok-reply"):
+        from cli_avatars.app.grok_cues import sound as grok_sound
+
+        return _pcm(grok_sound(name))
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):

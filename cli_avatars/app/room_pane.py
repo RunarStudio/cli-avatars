@@ -1,6 +1,7 @@
 """Room chat pane in the chat dock (ROOM-CHAT.4/.7): target picker, folder, mode, transcript, Stop.
 
 CHAT-CTX.1: Inbox, Claude, Grok or Cursor (``cli_chips``), one session per task and CLI (``task_sessions``).
+GROK-CHAT: while Grok is lit, the Grok topics strip (``grok_list``) lists every Grok conversation to switch to.
 
 The pane never starts a process. ``ChatWindow``'s Enter or Send handler asks
 ``prepare`` for the room's settings and starts the CLI itself; ``tools`` holds
@@ -19,8 +20,9 @@ from tkinter import filedialog
 from types import SimpleNamespace
 
 from board.model import CHAT_CLIS
-from cli_avatars.app import cli_chips, cues, pack_pane, room_log, task_sessions, tiers
-from cli_avatars.app.chat_clis import COLORS, NAMES, short_path, state, template
+from cli_avatars.app import cli_chips, cues, grok_topics, pack_pane, room_log, task_sessions, tiers
+from cli_avatars.app.chat_clis import COLORS, NAMES, launch, short_path, state, template
+from cli_avatars.app.grok_list import GrokList
 from cli_avatars.model.room import (
     PERMISSION_MODES,
     Room,
@@ -91,6 +93,7 @@ class RoomPane:
         self._pin_age = None
         self._pin_text = None
         self._pin_next = 0.0
+        self.grok = None
 
     def mount(self, center, thread_wrap, composer, before) -> None:
         """Build the picker row above ``before`` and the transcript beside the thread."""
@@ -125,6 +128,7 @@ class RoomPane:
                            ("error", ERR_INK), ("note", META), *((f"src-{c}", COLORS[c]) for c in CHAT_CLIS)):
             term.tag_configure(tag, foreground=color)
         self._term = term
+        self.grok = GrokList(self, center)
         self._pin_box = tk.Frame(center, bg=PIN_BG, highlightthickness=1, highlightbackground=PIN_EDGE)
         band = tk.Frame(self._pin_box, bg=PIN_BG)
         band.pack(fill="x", padx=8, pady=(4, 0))
@@ -205,9 +209,10 @@ class RoomPane:
             if room is None or not room.working_dir:
                 return None
         directory = self.window.directory()
-        session = task_sessions.session(directory, room.room_id, cli)
+        fields = launch(directory, self.window._config(), room.room_id, cli)
+        session = fields["session_id"]
         title, cards = room_log.context(directory, room.room_id)
-        run = _Run(room, cli, room_log.new_turn(cli))
+        run = _Run(room, cli, room_log.new_turn(cli, fields["new_session_id"]))
         try:
             room_log.post_prompt(directory, room.room_id, cli, prompt)
         except (EventRejected, OSError):
@@ -218,7 +223,7 @@ class RoomPane:
             room_id=room.room_id, cli=cli, pin=pin, working_dir=room.working_dir, mode=room.permission_mode,
             session_id=session, topic_title=title, open_cards=cards, template=argv,
             preamble=task_chats.preamble(directory, room.room_id, fresh=session is None),
-            on_line=lambda line: run.events.put(("line", line)),
+            new_session_id=fields["new_session_id"], on_line=lambda line: run.events.put(("line", line)),
             on_done=lambda result: run.events.put(("done", result)),
             run=run, **tiers.launch(directory, self.window._config(), room.room_id, cli, session is None),
         )
@@ -231,6 +236,7 @@ class RoomPane:
         self._write(f"… {NAMES[request.cli]} is answering{' (resumed session)' if request.session_id else fresh}\n",
                     "note")
         pack_pane.started(self.window.directory(), self.window._config(), request)
+        self.grok.started(request.cli)
         self._status("Running. Output is shown, never run.")
         self._paint()
         if not self._draining:
@@ -332,7 +338,9 @@ class RoomPane:
             self._draining = False
 
     def _on_line(self, run: _Run, line: str) -> None:
-        messages = run.turn.feed(line)
+        self._messages(run, run.turn.feed(line))
+
+    def _messages(self, run: _Run, messages: list) -> None:
         if not messages:
             return
         directory = self.window.directory()
@@ -348,6 +356,7 @@ class RoomPane:
             self._line(run.cli, message.text, tag)
 
     def _on_done(self, run: _Run, result) -> None:
+        self._messages(run, run.turn.finish() if hasattr(run.turn, "finish") else [])
         try:
             room_log.finish_turn(self.window.directory(), run.room, run.cli, run.turn, result.outcome, result.stderr)
         except (EventRejected, OSError):
@@ -357,6 +366,7 @@ class RoomPane:
         except OSError:
             changed = []
         self._paint()
+        self.grok.done(run.cli, run.room.room_id, run.texts, result.outcome)
         if "summary updated" in changed:
             cues.play(SimpleNamespace(config=self.window._config()), "arrive")
             self._pin_refresh(force=True)
@@ -374,7 +384,9 @@ class RoomPane:
         if not self.room_id:
             return None
         try:
-            return task_chats.with_folder(self.window.directory(), load_room(self.window.directory(), self.room_id))
+            directory = self.window.directory()
+            room = task_chats.with_folder(directory, load_room(directory, self.room_id))
+            return grok_topics.with_folder(directory, room)
         except (EventRejected, OSError):
             return None
 
@@ -390,22 +402,7 @@ class RoomPane:
         except self.tools.rejected:
             self._resolved = SimpleNamespace(cli=cli, path="", found=False, settings_note="")
 
-    def _reload(self) -> None:
-        term = self._term
-        if term is None or self.cli_target() is None:
-            return
-        self._clear()
-        if task := task_chats.shown(self.window.directory(), self.room_id):
-            self._write(task + "\n", "note")
-        rows = sorted(((ts, cli, sender, text) for cli in CHAT_CLIS for sender, text, ts in
-                       room_log.history(self.window.directory(), self.room_id, cli, stamped=True)), key=lambda r: r[0])
-        for _ts, cli, sender, text in rows:
-            if sender == "user":
-                self._write(f"> {text}\n", "prompt")
-            else:
-                self._line(cli, text, "reply")
-        if self.room_id in self._runs:
-            self._write("… still answering\n", "note")
+    _reload = cli_chips.reload
 
     def _show(self) -> None:
         """Transcript in place of the thread while a CLI is the target; the picker shows the room's state."""
@@ -413,6 +410,7 @@ class RoomPane:
         if term is None or wrap is None:
             return
         try:
+            self.grok.show(self.target == "grok", self._composer)
             if self.cli_target() is None:
                 term.pack_forget()
                 wrap.pack(fill="both", expand=True, before=self._composer)
