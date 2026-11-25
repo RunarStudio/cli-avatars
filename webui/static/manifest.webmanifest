@@ -1,0 +1,10 @@
+{
+  "name": "Dungeon",
+  "short_name": "Dungeon",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#120e18",
+  "theme_color": "#120e18",
+  "icons": [{"src": "/static/icon.png", "sizes": "192x192", "type": "image/png"}]
+}

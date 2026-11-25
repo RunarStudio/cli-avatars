@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#120e18">
 <title>Dungeon</title>
 <link rel="stylesheet" href="/static/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
 <main id="app">
@@ -80,6 +83,9 @@
       <p id="updLine" class="upd-line" aria-live="polite"></p>
       <div class="upd-acts"><button id="updGo" class="send" type="button">Update app</button><button id="rstGo" class="ghost" type="button">Restart</button></div>
       <p id="updWhy" class="upd-why"></p>
+      <label class="push-row"><input id="pushToggle" type="checkbox"><span class="push-switch" aria-hidden="true"></span>
+        <span><b>Alerts when closed</b><small>A new decision or blocked task reaches this phone with the page shut.</small></span></label>
+      <p id="pushWhy" class="push-why" aria-live="polite"></p>
     </div>
   </div>
 </div>

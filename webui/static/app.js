@@ -1,6 +1,7 @@
 // PHONE.1/2/3/4: the Dungeon map, its tasks and the room chat; with writes on, open sessions, send prompts,
 // build and customize rooms, and Update. DECIDE.1: decisions waiting on Daniel, answered in their chat.
 // NEEDS-YOU.1: one list of what waits on Daniel, cleared by tap.
+// WEB-PUSH: alerts with the page closed (App sheet toggle, service worker); a tap opens the item.
 // Every text goes in with textContent.
 "use strict";
 
@@ -1343,6 +1344,84 @@ $("needsClose").addEventListener("click", () => { $("needs").hidden = true; });
 $("needs").addEventListener("click", (e) => { if (e.target === $("needs")) $("needs").hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("needs").hidden) $("needs").hidden = true; });
 
+// --- WEB-PUSH: alerts with the page closed: the App sheet's toggle subscribes this browser ---------------
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const STANDALONE = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const pushable = () => window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
+function b64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function unb64url(text) { return Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)); }
+
+async function pushSub() {
+  if (!pushable()) return null;
+  const reg = await navigator.serviceWorker.getRegistration("/");
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+
+async function paintPush(note) {
+  const box = $("pushToggle"), why = $("pushWhy");
+  const sub = await pushSub().catch(() => null);
+  box.checked = !!sub && Notification.permission === "granted";
+  box.disabled = true;
+  why.classList.remove("on");
+  if (IOS && !STANDALONE) why.textContent = "On iPhone and iPad this needs iOS 16.4 or later and the page on the Home Screen: Share › Add to Home Screen, open the Dungeon from that icon, then turn this on.";
+  else if (!window.isSecureContext) why.textContent = "Needs the page's https address (tailscale serve, see docs/phone-view.md).";
+  else if (!pushable()) why.textContent = "This browser cannot get alerts with the page closed.";
+  else if (Notification.permission === "denied") why.textContent = "Notifications are blocked for this page in the browser's settings.";
+  else if (!state.writes.writes && !box.checked) why.textContent = "Turning this on needs the Dungeon's Settings › Phone › Allow the phone to open sessions and send prompts.";
+  else {
+    box.disabled = false;
+    why.textContent = note || (box.checked ? "On: decisions and blocked tasks reach this phone with the page closed, with the system sound." : "");
+    why.classList.toggle("on", box.checked && !note);
+  }
+}
+
+async function togglePush(on) {
+  $("pushToggle").disabled = true;
+  let note = "";
+  try {
+    if (on) {
+      if (await Notification.requestPermission() !== "granted") throw new Error("Notifications were not allowed.");
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      const key = (await getJSON("/api/push")).key;
+      let sub = await reg.pushManager.getSubscription();
+      if (sub && b64url(sub.options.applicationServerKey) !== key) { await sub.unsubscribe(); sub = null; }
+      sub = sub || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64url(key) });
+      const res = await postJSON("/api/push/subscribe", sub.toJSON());
+      if (!res.ok) { await sub.unsubscribe(); throw new Error(res.status === 429 ? "Too many taps: wait a minute." : "Not turned on (" + (res.status || "offline") + ")."); }
+      tone("done");
+    } else {
+      const sub = await pushSub();
+      if (sub) { await postJSON("/api/push/unsubscribe", { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+    }
+  } catch (e) { note = e && e.message ? e.message : "Alerts could not be turned on."; }
+  await paintPush(note);
+}
+
+// a notification tap: "#need=<key>" opens that item (its slip, its task or its room)
+function openFromHash() {
+  const m = /^#need=([A-Za-z0-9:._-]{1,100})$/.exec(location.hash);
+  if (!m) return;
+  history.replaceState(null, "", location.pathname);
+  const key = m[1], n = state.needs.find((x) => x.key === key);
+  if (n) return openNeed(n);
+  const [kind, id] = key.split(":");
+  const d = kind === "decision" ? state.decisions.find((x) => x.id === id) : null;
+  if (d) openAsk(d);
+  else if (kind === "card" && state.cards.some((c) => c.id === id)) pickTask(id);
+}
+
+$("pushToggle").addEventListener("change", (e) => togglePush(e.target.checked));
+$("appBtn").addEventListener("click", () => { paintPush(); });
+window.addEventListener("hashchange", openFromHash);
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    const url = e.data && typeof e.data.open === "string" ? new URL(e.data.open, location.href) : null;
+    if (url && url.origin === location.origin) { location.hash = url.hash; openFromHash(); }
+  });
+}
+
 // --- live updates --------------------------------------------------------------------------------
 let pending = null;
 function live() {
@@ -1437,5 +1516,5 @@ if (window.visualViewport) {
 
 $("fit").addEventListener("click", leaveRoom);
 paintSound();
-load().then(loadUpdate).then(live).catch(() => {});
+load().then(openFromHash).then(loadUpdate).then(live).catch(() => {});
 requestAnimationFrame(frame);

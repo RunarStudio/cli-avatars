@@ -4,7 +4,8 @@ Routes are exact names; nothing in a URL becomes a path. Card ids are UUIDs, top
 a fixed list. ``/pair?t=<token>`` turns the web token into an HttpOnly cookie; everything else
 needs that cookie. Binds 127.0.0.1 unless one local interface IP is passed; never every interface.
 WEB.4 writes (``web.allow_writes``, off by default) also need the CSRF header, a JSON body under
-``MAX_BODY`` and the rate limit.
+``MAX_BODY`` and the rate limit. WEB-PUSH: ``/sw.js`` and the push routes; the manifest and its icon
+load unpaired (they hold no data).
 """
 
 from __future__ import annotations
@@ -23,12 +24,14 @@ from board.model import clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
 from topics import valid_topic_id
-from webui import auth, media, scene, writes
+from webui import auth, media, push, scene, writes
 
 STATIC = asset_path("webui", "static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/app.js": ("app.js", "text/javascript; charset=utf-8"),
-         "/static/app.css": ("app.css", "text/css; charset=utf-8")}
+         "/static/app.css": ("app.css", "text/css; charset=utf-8"),
+         "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
+OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048
 MAX_BODY = 16 * 1024
 MAX_STREAMS = 8
@@ -170,6 +173,12 @@ class Handler(BaseHTTPRequestHandler):
         decide = _DECIDE.match(path)
         if decide:
             return self._decide(decide.group(1), body)
+        if path == "/api/push/subscribe":
+            return self._json({"ok": True}) if push.subscribe(self.server.directory, body) else self._error(400)
+        if path == "/api/push/unsubscribe":
+            if set(body) != {"endpoint"} or not push.unsubscribe(self.server.directory, body["endpoint"]):
+                return self._error(400)
+            return self._json({"ok": True})
         if path == "/api/needs-you/clear":
             if set(body) != {"key"} or not needs_you.valid_key(body["key"]):
                 return self._error(400)
@@ -240,6 +249,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(400)
         if path == "/pair":
             return self._pair(query)
+        if path in OPEN:
+            name, ctype = OPEN[path]
+            return self._send(200, (STATIC / name).read_bytes(), ctype)
+        if path == "/static/icon.png":
+            return self._send(200, push.icon_png(), "image/png", {"Cache-Control": "public, max-age=86400"})
         if not self._paired():
             return self._error(401)
         try:
@@ -283,6 +297,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/needs-you":
             items = [{k: row[k] for k in NEEDS_KEYS} for row in needs_you.pending(directory)]
             return self._json({"items": items, "count": len(items)})
+        if path == "/api/push":
+            return self._json({"key": push.public_key(directory), "count": len(push.subscriptions(directory))})
         if path == "/api/sessions":
             state = {"writes": self.server.writes(), **self.server.actions.state()}
             if state["writes"]:
@@ -450,6 +466,11 @@ class PhoneServer(ThreadingHTTPServer):
         self.actions = actions or writes_actions(self.directory)
         self.updater = updater or NoUpdate()
         self._limiter = RateLimiter(WRITE_BURST, WRITE_WINDOW)
+        self.pusher = push.Watcher(self.directory, self.stopping)
+
+    def serve_forever(self, poll_interval: float = 0.5) -> None:
+        self.pusher.start()
+        super().serve_forever(poll_interval)
 
     def allow_write(self) -> bool:
         """At most ``WRITE_BURST`` writes in any ``WRITE_WINDOW`` seconds, every phone together.
