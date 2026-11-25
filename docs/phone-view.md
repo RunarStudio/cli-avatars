@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS, TIMELAPSE, MESSENGER, BACKLOG-BOSS)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS, TIMELAPSE, MESSENGER, BACKLOG-BOSS, PHONE-VOICE)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -170,6 +170,17 @@ The map shows the backlog boss, an oni in a pit in the Apothecary, with its HP b
 overdue tasks; when HP drops, each lost point plays a hit. Tap it for its sheet: HP, the week's burn-down and the tasks
 that feed it (tap one to pick it). Read-only over SSE; the phone never writes `boss.json`. No sound on the phone.
 Details: [backlog-boss.md](backlog-boss.md).
+
+## Talk to it
+
+Hold the rune mic on the decision slip, the selected task or **Needs you** and speak: "approve, ship it Friday",
+"reject because the glass cracked", "new task polish the lantern glass", or anything else as a draft reply. The
+**Speak** sheet shows the transcript and the action; one tap confirms it through the usual writes (answer, quick
+capture with a task chat; Claude starts only on your own Send), a draft only fills the reply box. **Speak summary**
+reads one line aloud (the task's done / now / next, or what waits on you), held while another task is in focus. A soft
+chime marks listening on and off. It uses the browser's own speech recognition over https (Android Chrome, iOS
+Safari), which may send the audio to the browser vendor's speech service; the text box on the sheet works everywhere.
+Details: [phone-voice.md](phone-voice.md).
 
 ## Web Push: alerts with the page closed
 
