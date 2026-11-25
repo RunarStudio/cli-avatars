@@ -175,6 +175,21 @@ h1, h2 { margin: 0; font-size: 13px; letter-spacing: .14em; text-transform: uppe
 .upd-steps li.bad { color: #ff9a7a; }
 .upd-steps li.bad::before { background: var(--blocked); box-shadow: 0 0 0 1px #ff9a7a; }
 @keyframes march { to { background-position: 24px 0; } }
+/* UPDATE-BAR.1: parchment frame, ember fill, red on a failure, a glint where a phase has no measurable progress */
+.upd-bar { position: relative; height: 14px; margin: 2px 3px 12px; background: #171022; overflow: hidden;
+  border: 2px solid #ead9b0; box-shadow: 0 0 0 2px #6b4a26, inset 0 2px 0 #241a33, 0 4px 0 2px #0b081166; }
+.upd-bar[hidden] { display: none; }
+.upd-fill { position: relative; overflow: hidden; display: block; height: 100%; width: 0; transition: width .5s steps(10);
+  background: repeating-linear-gradient(90deg, transparent 0 14px, #a8340e88 14px 16px),
+    linear-gradient(#ffc44a 0 2px, #ff7a1e 2px calc(100% - 2px), #a8340e calc(100% - 2px)); }
+.upd-bar.busy .upd-fill { box-shadow: inset -2px 0 #fff0a0, 4px 0 10px #ff7a1e88; }
+.upd-bar.ok { border-color: #ffcf4a; } .upd-bar.ok .upd-fill { box-shadow: 0 0 10px #ffcf4a66; }
+.upd-bar.bad .upd-fill { background: repeating-linear-gradient(90deg, transparent 0 14px, #6e102088 14px 16px),
+  linear-gradient(#ff6a70 0 2px, #c0283c 2px calc(100% - 2px), #6e1020 calc(100% - 2px)); }
+.upd-bar.shimmer .upd-fill::after { content: ""; position: absolute; top: 2px; bottom: 2px; left: -18px; width: 18px;
+  background: linear-gradient(90deg, transparent, #fff0a0aa, transparent); animation: glint 1.2s steps(12) infinite; }
+@keyframes glint { to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .upd-bar.shimmer .upd-fill::after { animation: none; opacity: .5; } }
 .upd-line { margin: 0; min-height: 1.35em; padding: 2px 0; overflow-wrap: anywhere; }
 .upd-line.busy { color: var(--torch-2); } .upd-line.busy::before { content: "\25B8 "; animation: flick 1s steps(2) infinite; }
 .upd-line.ok { color: #5ad16a; text-shadow: 0 0 8px #5ad16a55; } .upd-line.ok::before { content: "\2714 "; }

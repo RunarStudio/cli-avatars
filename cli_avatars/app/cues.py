@@ -27,6 +27,8 @@ BACKLOG-BOSS (``boss_cues``): ``roar``: a low growl, when the oni grows a stage;
 closed task hits it; ``fanfare``: three rising brass notes and a chord, when the last hit defeats it.
 SELECT-LIGHT (``room_rise``): ``shimmer``: glassy pings rising over a faint airy swell, when a selected room's light
 rises from its floor.
+UPDATE-BAR and REPOS (``chime_cues``): ``ready``: an anvil tap and a rising fifth, when an update finishes;
+``rune``: a low hum and a glassy ping, when a repo goes in use.
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -96,6 +98,10 @@ def wav(name: str) -> bytes:
         from cli_avatars.app.courier_cues import sound as courier_sound
 
         return _pcm(courier_sound(name))
+    if name in ("ready", "rune"):
+        from cli_avatars.app.chime_cues import sound as chime_sound
+
+        return _pcm(chime_sound(name))
     if name == "shimmer":
         from cli_avatars.app.room_rise import shimmer
 

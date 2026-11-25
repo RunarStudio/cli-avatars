@@ -1162,6 +1162,12 @@ function paintUpdate(u) {
   const at = stepOf(u), bad = !u.running && DONE[u.phase] === "bad", list = $("updSteps");
   list.hidden = at < 0;
   list.replaceChildren(...STEPS.map(([, label], i) => el("li", i < at ? "done" : i === at ? (bad ? "bad" : "now") : "", label)));
+  // UPDATE-BAR.1: the share the app worked out (u.pct, u.tone); u.shimmer where the phase has no measurable progress
+  const bar = $("updBar"), pct = state.restarting && state.restartFrom === null ? 100 : u.pct || 0;
+  bar.hidden = (u.tone || "idle") === "idle" || state.restartFrom !== null;
+  bar.className = "upd-bar " + (u.tone || "idle") + (u.shimmer ? " shimmer" : "");
+  bar.setAttribute("aria-valuenow", String(pct));
+  $("updFill").style.width = pct + "%";
   const line = $("updLine");
   line.className = "upd-line " + (u.running || state.restarting ? "busy" : state.backAt ? "ok" : DONE[u.phase] || "");
   if (state.restarting) line.textContent = state.retry || "Restarting the Dungeon. The page reconnects on its own.";

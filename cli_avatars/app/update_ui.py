@@ -1,8 +1,8 @@
 """Update app in the Settings dock and on the status bar.
 
 The button, the tray item and the phone (``PhoneUpdate``) call ``start_update``. Progress replaces the
-status-bar text. No extra window is created. A missing git or PyInstaller
-leaves the button disabled and names the reason.
+status-bar text and fills the update bar there and in Settings (UPDATE-BAR.1). No extra window is created.
+A missing git or PyInstaller leaves the button disabled and names the reason.
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ import threading
 import tkinter as tk
 from pathlib import Path
 
+from cli_avatars.app.update_bar import UpdateBar
+from cli_avatars.update import progress
 from cli_avatars.update.config import update_config
 from cli_avatars.update.machine import (
     PHASE_CURRENT,
@@ -49,6 +51,8 @@ def mount_update_status(app) -> None:
     label = tk.Label(parent, text="", bg="#111018", fg=_DIM, font=("Courier", 10), anchor="w")
     label.pack(side="left", padx=(10, 4))
     app._update_label = label
+    bar = _bars(app)["status"] = UpdateBar(parent, 132, 12, "#111018", side="left", padx=(10, 0), before=label)
+    bar.show(_progress(app))
 
 
 def mount_update_settings(app, win) -> None:
@@ -101,6 +105,7 @@ def start_update(app) -> str:
         return SOURCE_REASON
     app._update_running = True
     app._update_phase = ""
+    app._update_pct = 0
     _set_button(app, enabled=False)
     _set_status(app, "Update: checking dev")
     threading.Thread(target=_worker, args=(app, install, toolchain), name="cli-avatars-update", daemon=True).start()
@@ -133,6 +138,10 @@ def _finish(app, result: UpdateResult) -> None:
     refresh = getattr(app, "_refresh_update_panel", None)
     if refresh is not None:
         refresh()
+    if result.phase in (PHASE_CURRENT, PHASE_STAGED):
+        from cli_avatars.app.chime_cues import cue
+
+        cue(app, "ready")
     if result.phase != PHASE_STAGED or not result.helper_argv or result.helper_cwd is None:
         _set_button(app, enabled=not getattr(app, "_update_block", ""))
         return
@@ -182,6 +191,8 @@ def _fill(app) -> None:
         font=("Courier", 9, "bold"), relief="flat", padx=10, pady=4, cursor="hand2",
     )
     button.pack(anchor="w", padx=8, pady=(0, 4))
+    bar = _bars(app)["settings"] = UpdateBar(frame, 220, 14, _BG, anchor="w", padx=8, pady=(0, 4))
+    bar.show(_progress(app))
     if reason or running:
         button.config(state="disabled", cursor="")
     if reason:
@@ -199,9 +210,29 @@ def _bar(result: UpdateResult) -> str:
     return result.message
 
 
+def _bars(app) -> dict:
+    found = getattr(app, "_update_bars", None)
+    if found is None:
+        found = app._update_bars = {}
+    return found
+
+
+def _progress(app) -> progress.Bar:
+    """The bar for the latest line; a running phase raises the share a failure keeps."""
+    running = bool(getattr(app, "_update_running", False))
+    line = getattr(app, "_update_line", "")
+    bar = progress.bar(line, getattr(app, "_update_phase", ""), running, getattr(app, "_update_pct", 0))
+    if running:
+        app._update_pct = bar.pct
+    return bar
+
+
 def _set_status(app, text: str) -> None:
     app._update_line = text
     app._update_seq = getattr(app, "_update_seq", 0) + 1
+    bar = _progress(app)
+    for shown in _bars(app).values():
+        shown.show(bar)
     label = getattr(app, "_update_label", None)
     if label is None:
         return
@@ -271,9 +302,11 @@ class PhoneUpdate:
                 phase, note = "updated", f"Updated to {commit}"
             else:
                 phase, note = "rolled_back", f"The new build failed its boot check; back on {commit or 'the old build'}"
+        bar = progress.bar(line, phase, running, getattr(app, "_update_pct", 0))
         return {"version": version, "commit": commit, "channel": "dev", "last_checked": state.get("last_checked", ""),
                 "enabled": not reason and not running, "reason": reason, "running": running,
-                "line": line, "phase": phase, "note": note, "started": getattr(app, "_ops_started", 0)}
+                "line": line, "phase": phase, "note": note, "started": getattr(app, "_ops_started", 0),
+                "pct": bar.pct, "tone": bar.tone, "shimmer": bar.shimmer}
 
     def start(self) -> str:
         """``""`` when the update started, else why not (running, a missing tool, from source)."""

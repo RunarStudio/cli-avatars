@@ -63,6 +63,21 @@ The app then starts `python -m cli_avatars.update.helper` from the clone and exi
 
 Git inherits the environment, including an existing credential helper, and `GIT_TERMINAL_PROMPT` is set to `0` so a missing login fails instead of waiting. Chat, inbox, hooks, and MCP arguments are not commands and are not passed to these processes.
 
+### Progress bar (UPDATE-BAR.1)
+
+A bar drawn in code fills as the update moves: on the status bar beside the progress line, under **Update app** in Settings, and in the phone's App sheet (the same share, sent over the existing `update` stream). It has a parchment frame round an ink well and an ember fill; it hides until an update starts. Each phase sets a share (`cli_avatars/update/progress.py`):
+
+| Phase | Share | Glint |
+|-------|-------|-------|
+| checking dev (fetch) | 12% | yes |
+| pulling | 30% | no |
+| selftest | 45% | no |
+| boot check | 58% | no |
+| building (PyInstaller) | 72% | yes |
+| restarting, or up to date | 100% | no |
+
+Fetch and PyInstaller report no progress of their own, so only those two phases carry a moving glint; the other steps are short. A failure turns the bar red where it stopped, with the reason on the line. A finished update (up to date, or the new build staged) plays a soft `ready` cue on Windows: an anvil tap and a rising fifth. It waits while a task is in focus, and `sound.cues: false` turns it off with the other cues.
+
 ## Build the installer
 
 From the repository root, with PyInstaller and Inno Setup 6.6 or newer installed:
