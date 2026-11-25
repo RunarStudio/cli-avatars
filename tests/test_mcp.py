@@ -507,6 +507,7 @@ class TestStdio(unittest.TestCase):
                     "say",
                     "status_set",
                     "task_check",
+                    "task_decide",
                     "task_get",
                     "task_list",
                     "task_progress",

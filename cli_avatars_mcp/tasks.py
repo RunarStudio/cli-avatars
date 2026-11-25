@@ -81,6 +81,13 @@ def topic_state(agent_id: str, topic: str, status: str, *,
     return AgentApi(_registry(registry, directory), via=VIA).topic_state(agent_id, topic, status)
 
 
+def task_decide(agent_id: str, card_id: str, question: str, options: list[str] | None = None, *,
+                registry: Registry | None = None, directory: Path | str | None = None) -> dict:
+    """Ask the user a decision on your card; the card waits on the user until the answer reaches your inbox."""
+    _capped(agent_id=agent_id, card_id=card_id, question=question, options=options)
+    return AgentApi(_registry(registry, directory), via=VIA).decision_ask(agent_id, card_id, question, options)
+
+
 def task_propose(agent_id: str, project: str, title: str, topic: str, *,
                  registry: Registry | None = None, directory: Path | str | None = None) -> dict:
     """A ``todo`` card labelled ``proposed``; ``switched_off`` unless ``agents_may_create``."""

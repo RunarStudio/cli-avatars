@@ -21,7 +21,7 @@ from topics import clean_project, valid_topic_id
 
 COLUMNS = ("todo", "doing", "review", "done", "blocked")
 KINDS = ("created", "edited", "moved", "assigned", "commented", "checklist", "linked_pr", "prompt", "progress",
-         "status", "learnt", "chat")
+         "status", "learnt", "chat", "decision")
 VIA = ("mcp", "hook", "emit", "chat")
 PROMPT_TARGETS = ("claude", "grok", "both")
 PROMPT_OUTCOMES = ("ok", "error", "stopped", "timeout")

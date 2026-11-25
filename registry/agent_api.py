@@ -2,7 +2,8 @@
 
 An agent changes a card's column, progress, status note, what it learnt (with the move to
 ``review``) or one checklist tick, and a topic's status between ``open`` and
-``waiting_on_user``. There is no call that deletes,
+``waiting_on_user``. It may ask Daniel a decision on a card it may change (DECIDE.1).
+There is no call that deletes,
 retitles, re-bodies, relabels or reassigns. Creating is ``task_propose``, off unless
 ``Registry.agents_may_create``. In a topic that lists the agent, it may also add and edit
 resources (TM.1: links, relative file paths, notes); none is deleted, opened or fetched.
@@ -23,6 +24,7 @@ from events import EventRejected, directory_lock
 from registry.facade import Registry, learnt_text
 from registry.limits import Limits
 from registry.policy import (
+    DECIDE_LIMITS,
     PROPOSE_LIMITS,
     PROPOSED_LABEL,
     WRITE_LIMITS,
@@ -146,6 +148,23 @@ class AgentApi:
         if agent not in _members(self._registry.directory, card["topic"], self._registry.timeout):
             raise EventRejected("not_owner")
         return self._registry.store.put(card, actor=agent, timeout=self._registry.timeout, via=self.via)
+
+    def decision_ask(self, agent: str, card_id: str, question: str, options: list[str] | None = None) -> dict:
+        """Ask Daniel a decision on a card the agent may change (Decision D); its topic waits on him (DECIDE.1).
+
+        Options are none or two to six labels; text is redacted, paths hashed, capped. 10 an hour.
+        """
+        from registry import task_decisions
+
+        agent = self._take(agent)
+        registry = self._registry
+        card = registry.task_get(card_id)
+        if card is None:
+            raise EventRejected("missing")
+        check_owner(card, agent, _members(registry.directory, card["topic"], registry.timeout))
+        task_decisions.check_card(card)
+        self._limits.take("decide:" + agent, DECIDE_LIMITS, self._clock(), timeout=registry.timeout)
+        return task_decisions.ask(registry, agent, card, question, options, via=self.via)
 
     def resource_add(self, agent: str, topic: str, kind: str, title: str, *, url: str | None = None,
                      path: str | None = None, body: str | None = None, card_id: str | None = None) -> dict:

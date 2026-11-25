@@ -57,7 +57,7 @@ Unknown fields are dropped. `token` is never stored.
 | `ts` | ISO 8601 UTC. |
 | `card` | Card UUID, or `null` for a board-level event (a room prompt, see [room-chat.md](room-chat.md)). |
 | `actor` | `daniel`, an agent id, `agent@machine`, or `emit:mcp`. |
-| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`, `learnt`, `chat`. |
+| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`, `learnt`, `chat`, `decision`. |
 | `from`, `to` | Optional. Old and new column or assignee; for `progress`, old and new ints 0–100. |
 | `via` | Optional. `mcp`, `hook`, `emit` or `chat` (a task chat's reply): the path an agent write came through. Anything else is rejected. |
 | `text` | Optional. Sanitised, at most 2,000. A comment's text lives here. |
@@ -68,6 +68,8 @@ A `checklist` event may add `index` (0–19) and `done` (bool). A `status` event
 A `prompt` event adds `room`, `target` (`claude`, `grok`, `both`), and `outcome` (`ok`, `error`, `stopped`, `timeout`). It does not copy the prompt text; that is already on the topic channel.
 
 A `chat` event adds `room` (`task-<8 hex>-<n>`) and `target` (`claude`, `grok`): a chat started from the card.
+
+A `decision` event carries `text`: `asks: <question>` (the asking agent) or `answered: <answer>` (`daniel`). The decision itself lives in `decisions.jsonl`; see [decisions.md](decisions.md).
 
 ## Stores
 

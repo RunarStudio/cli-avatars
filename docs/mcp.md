@@ -83,6 +83,7 @@ Phase 1 has no MCP tool that writes a project or a key-value. Phase 2 tools writ
 | `task_check` | `agent_id`, `card_id`, `index`, `done?` | Tick one checklist item; `done` false unticks it. The text cannot change. |
 | `topic_state` | `agent_id`, `topic`, `status` | `open` ↔ `waiting_on_user` on a topic you are a member of. Never `done`. |
 | `task_propose` | `agent_id`, `project`, `title`, `topic` | A `todo` card labelled `proposed`. Rejected `switched_off` unless `registry.agents_may_create` is on (off by default). |
+| `task_decide` | `agent_id`, `card_id`, `question`, `options?` | Ask the user a decision on your card: none or two to six options. The card's topic waits on the user; the answer arrives in your inbox as `decision_answer`. 10 an hour. See [decisions.md](decisions.md). |
 
 `agent_id` is `source:id` (for example `claude:` plus the 8-character session id) or a bare session id. A bare id is sent with source `emit`. Pass your own id. The tool emits one event. It does not update anyone else and it does not write a project.
 

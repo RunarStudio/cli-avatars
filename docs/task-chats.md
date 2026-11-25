@@ -55,7 +55,10 @@ description:
 [end task context]
 You may update this task, and only this one, with lines of their own in your reply:
 TASK check <n> | TASK uncheck <n> | TASK note <one-line status> | TASK comment <text>
+To ask Daniel a decision: TASK ask <question> | <option> | <option> (options optional)
 ```
+
+After `learnt`, the block lists the card's newest three decisions ([decisions.md](decisions.md)).
 
 Lines without a value are left out. The block is redacted (`redaction.redact`) and capped at 3,000 characters; the description is cut first. The chat transcript shows the same block when the chat opens.
 
@@ -68,6 +71,7 @@ After a reply, the app reads its text for whole lines `TASK check <n>`, `TASK un
 | `TASK check <n>` / `TASK uncheck <n>` | Checklist item `n` (1-based) done or not. | `checklist` |
 | `TASK note <text>` | `status_note`, sanitised, paths hashed, 240 max. | `status` |
 | `TASK comment <text>` | A comment, paths hashed. | `commented` |
+| `TASK ask <question> \| <option> \| …` | A decision for Daniel in this chat's room; the card waits on him ([decisions.md](decisions.md)). | `decision` |
 
 - The actor is `<cli>:<room>`, `via` is `chat`, and the usual `emit:registry` line goes to the card's topic.
 - A chat may write only the card whose `chats` list its room. Any other card is `not_owner`. There is no move, retitle, assign or delete.

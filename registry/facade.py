@@ -142,6 +142,12 @@ class Registry:
 
         return self.change(card_id, change, PERSON)
 
+    def decision_answer(self, decision_id: str, choice: str | None = None, text: str | None = None) -> dict:
+        """Answer a task decision (DECIDE.1): a letter, free text, or both. Text is stored, not run."""
+        from registry import task_decisions
+
+        return task_decisions.answer(self, decision_id, choice, text)
+
     def topic_set(self, topic: str, *, title: str | None = None, status: str | None = None,
                   project: str | None = None) -> dict:
         from topics import set_topic

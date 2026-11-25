@@ -7,7 +7,7 @@ Every refusal is ``EventRejected`` with a short reason:
 - ``not_allowed``: the move, topic status or field is not open to agents.
 - ``switched_off``: ``task_propose`` while ``registry.agents_may_create`` is false, outside an
   orchestrator room's own topic (ORCH.ROOM).
-- ``rate_limited``: over 30 writes a minute, 300 an hour, or 5 proposals an hour.
+- ``rate_limited``: over 30 writes a minute, 300 an hour, 5 proposals or 10 decisions an hour.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ ARCHIVED_LABEL = "archived"
 
 WRITE_LIMITS = ((60.0, 30), (3600.0, 300))
 PROPOSE_LIMITS = ((3600.0, 5),)
+DECIDE_LIMITS = ((3600.0, 10),)
 KEEP_SECONDS = 3600.0
 
 _WINDOWS_PATH = re.compile(r"(?<![\w/\\])(?:[A-Za-z]:[\\/]|\\\\)[^\s\"'<>|]*")

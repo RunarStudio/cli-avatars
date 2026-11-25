@@ -39,13 +39,14 @@ DECISIONS_NAME = "decisions.jsonl"
 LETTERS = "abcdef"
 QUESTION_LIMIT = 240
 OPTION_LIMIT = 120
+ANSWER_LIMIT = 1000
 ANSWERED_KEEP = 8
 MAX_LINE_BYTES = 64 * 1024
 MAX_FILE_BYTES = 8 * 1024 * 1024
 
 _LIST_KEYS = (
     "id", "ts", "from", "room", "kind", "status", "question", "options",
-    "choice", "answered_ts", "answer_id",
+    "choice", "answered_ts", "answer_id", "card", "answer",
 )
 
 
@@ -92,12 +93,14 @@ def ask_decision(
     options: object,
     ts: float | None = None,
     decision_id: str | None = None,
+    card: str | None = None,
     timeout: float = LOCK_TIMEOUT,
 ) -> dict[str, object]:
     """Append one open decision to the index and to the channel log.
 
     The question is capped at 240 characters. ``agent`` is the asking
-    session. The record is data. It is not a command.
+    session. ``card`` links a task card (DECIDE.1); then options may be
+    empty. The record is data. It is not a command.
     """
     record = _new_record(
         agent=agent,
@@ -106,6 +109,7 @@ def ask_decision(
         options=options,
         ts=time.time() if ts is None else ts,
         decision_id=decision_id or str(uuid.uuid4()),
+        card=card,
     )
     from topics import ensure_topic
     ensure_topic(directory, str(record["room"]), ts=float(record["ts"]), timeout=timeout)
@@ -122,8 +126,9 @@ def ask_decision(
 def answer_decision(
     directory: Path | str,
     decision_id: str,
-    choice: str,
+    choice: str | None,
     *,
+    text: object = None,
     ts: float | None = None,
     answer_id: str | None = None,
     timeout: float = LOCK_TIMEOUT,
@@ -131,12 +136,18 @@ def answer_decision(
     """Write the person's choice and mark that decision answered.
 
     The answer goes to the asking agent's inbox and to the channel.
-    ``from`` is ``user``. A second answer, an unknown id, or a letter
-    that is not one of the options writes nothing.
+    ``from`` is ``user``. ``text`` is a free answer, alone or as a note on
+    the choice. A second answer, an unknown id, a letter that is not one
+    of the options, or neither a letter nor text writes nothing.
     """
     if not isinstance(decision_id, str) or UUID_RE.fullmatch(decision_id) is None:
         raise EventRejected("schema")
-    if not isinstance(choice, str) or len(choice) != 1 or choice not in LETTERS:
+    free = sanitize_text(text, ANSWER_LIMIT) if text is not None else ""
+    if text is not None and not free:
+        raise EventRejected("schema")
+    if choice is not None and (not isinstance(choice, str) or len(choice) != 1 or choice not in LETTERS):
+        raise EventRejected("schema")
+    if choice is None and not free:
         raise EventRejected("schema")
     wanted = decision_id.lower()
     root = _prepare_root(directory)
@@ -148,10 +159,11 @@ def answer_decision(
         if current["status"] != "open":
             raise EventRejected("answered")
         labels = {str(item["letter"]): str(item["text"]) for item in current["options"]}  # type: ignore[index]
-        if choice not in labels:
+        if choice is not None and choice not in labels:
             raise EventRejected("schema")
+        said = ": ".join(part for part in (labels.get(choice or ""), free) if part)
         moment = time.time() if ts is None else _finite(ts)
-        answer = store_inbox(root, {
+        reply = {
             "id": answer_id or str(uuid.uuid4()),
             "ts": moment,
             "from": "user",
@@ -159,10 +171,12 @@ def answer_decision(
             "room": current["room"],
             "topic": current["room"],
             "kind": "decision_answer",
-            "text": labels[choice],
+            "text": said,
             "decision_id": current["id"],
-            "choice": choice,
-        })
+        }
+        if choice is not None:
+            reply["choice"] = choice
+        answer = store_inbox(root, reply)
         _append_channel_answer(root, answer)
         updated = {
             "id": current["id"],
@@ -173,10 +187,15 @@ def answer_decision(
             "status": "answered",
             "question": current["question"],
             "options": current["options"],
-            "choice": choice,
             "answered_ts": answer["ts"],
             "answer_id": answer["id"],
         }
+        if choice is not None:
+            updated["choice"] = choice
+        if free:
+            updated["answer"] = free
+        if current.get("card"):
+            updated["card"] = current["card"]
         _append_line(path, _validate_decision(updated))
     return answer
 
@@ -357,6 +376,7 @@ def _new_record(
     options: object,
     ts: object,
     decision_id: str,
+    card: object = None,
 ) -> dict[str, object]:
     if not isinstance(decision_id, str) or UUID_RE.fullmatch(decision_id) is None:
         raise EventRejected("schema")
@@ -365,7 +385,7 @@ def _new_record(
     text = sanitize_text(question, QUESTION_LIMIT)
     if not text:
         raise EventRejected("schema")
-    return {
+    record = {
         "id": decision_id.lower(),
         "ts": _finite(ts),
         "from": sender,
@@ -373,8 +393,17 @@ def _new_record(
         "kind": "decision",
         "status": "open",
         "question": text,
-        "options": parse_options(options),
+        "options": [] if card is not None and not options else parse_options(options),
     }
+    if card is not None:
+        record["card"] = _clean_card(card)
+    return record
+
+
+def _clean_card(card: object) -> str:
+    if not isinstance(card, str) or UUID_RE.fullmatch(card) is None or card != card.lower():
+        raise EventRejected("schema")
+    return card
 
 
 def _clean_agent(agent: object) -> str:
@@ -448,16 +477,22 @@ def _validate_decision(obj: object) -> dict[str, object]:
         "kind": "decision",
         "status": status,
         "question": sanitize_text(obj.get("question"), QUESTION_LIMIT),
-        "options": _validate_options(obj.get("options")),
     }
+    if obj.get("card") is not None:
+        record["card"] = _clean_card(obj.get("card"))
+    record["options"] = [] if "card" in record and obj.get("options") == [] else _validate_options(obj.get("options"))
     if not record["question"]:
         raise EventRejected("schema")
     if status == "answered":
         choice = obj.get("choice")
         letters = {item["letter"] for item in record["options"]}  # type: ignore[index]
-        if not isinstance(choice, str) or choice not in letters:
+        answer = sanitize_text(obj.get("answer"), ANSWER_LIMIT) if obj.get("answer") is not None else ""
+        if not (isinstance(choice, str) and choice in letters) and not (choice is None and answer):
             raise EventRejected("schema")
-        record["choice"] = choice
+        if choice is not None:
+            record["choice"] = choice
+        if answer:
+            record["answer"] = answer
         record["answered_ts"] = _finite(obj.get("answered_ts", obj.get("ts")))
         answer_id = obj.get("answer_id")
         if isinstance(answer_id, str) and UUID_RE.fullmatch(answer_id):
@@ -598,6 +633,7 @@ def _append_channel_decision(directory: Path, record: dict[str, object]) -> None
         "status": "open",
         "question": record["question"],
         "options": record["options"],
+        **({"card": record["card"]} if record.get("card") else {}),
     })
 
 
@@ -610,7 +646,7 @@ def _append_channel_answer(directory: Path, answer: dict[str, object]) -> None:
         "to": answer["to"],
         "channel": answer["room"],
         "icon": "decision",
-        "note": f"{choice}: {text}",
+        "note": f"{choice}: {text}" if choice else str(text),
         "name": "You",
         "id": answer["id"],
         "kind": "decision_answer",
