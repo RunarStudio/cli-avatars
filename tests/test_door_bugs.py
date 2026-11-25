@@ -184,6 +184,23 @@ class Places(unittest.TestCase):
         self.assertEqual(book.desktop_ids(), {"hero"})
 
 
+class Diagnostics(unittest.TestCase):
+    def test_line_counts_monitors_windows_avatars_and_door_only(self):
+        from types import SimpleNamespace
+
+        from cli_avatars.app.diagnostics import line
+
+        app = SimpleNamespace(
+            overlays=SimpleNamespace(layout=SimpleNamespace(monitors=("a", "b", "c"))),
+            terrain=SimpleNamespace(get_snapshot=lambda: ([], [], [1, 1, 2], {1: (0, 0), 2: (0, 0), 9: (0, 0)})),
+            places=SimpleNamespace(desktop_ids=lambda: {"hero", "imp"}, inside_ids=lambda: {"owl"},
+                                   door=lambda: "open"),
+        )
+        self.assertEqual(line(app), "monitors 3 · windows 3 · perches 2 · avatars out 2 / in 1 · door open")
+        self.assertEqual(line(SimpleNamespace()),
+                         "monitors 0 · windows 0 · perches 0 · avatars out 0 / in 0 · door ?")
+
+
 class Quit(unittest.TestCase):
     """Real ``main()`` with a stuck room run: each way to quit exits within 3 s, nothing left running."""
 

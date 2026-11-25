@@ -9,6 +9,7 @@ from cli_avatars.app.bots_ui import build_bots_settings
 from cli_avatars.app.close_choice import mount_setting as mount_close_setting
 from cli_avatars.app.config_file import save_config_with
 from cli_avatars.app.cues import enabled as cue_enabled
+from cli_avatars.app.diagnostics import mount as mount_diagnostics
 from cli_avatars.desktop.settings import desktop_settings, with_bootcheck
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
@@ -162,6 +163,7 @@ def _build_config_ui(self, win):
 
     row(td, "Boot check", boot_widget)
     mount_close_setting(self, td)
+    mount_diagnostics(self, td)
 
     current = getattr(self, "bubbles_cfg", None) or bubble_settings(getattr(self, "config", {}))
     v_act = tk.BooleanVar(win, current.activity)
