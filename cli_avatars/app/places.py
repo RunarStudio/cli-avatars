@@ -435,20 +435,16 @@ class PlaceBook:
         return ring_centers(self, count)
 
     def _paint_inside(self, scene, aid, spot, photos, dragging, now, posed: bool) -> None:
+        from cli_avatars.app.body_view import dressed
         from cli_avatars.app.crossing import pose
-        from cli_avatars.app.dungeon_rooms import rooms_scale
-        from cli_avatars.app.inside_roster import dress, hall, wearing
+        from cli_avatars.app.inside_roster import wearing
 
         av = self.app._inside.get(aid)
         if av is None:
             return
         av.monitor_layout = None
         av._board = None
-        photos, look = dress(av, photos, rooms_scale(scene), hall(self).hues)
-        if not posed:
-            from cli_avatars.app.body_view import photos as body_photos
-
-            photos = body_photos(self, aid, av, photos, look, rooms_scale(scene), now)
+        photos, look = dressed(self, aid, av, photos, scene, now, posed)
         shown = pose(self, aid, now) if posed else None
         if shown is not None:
             av.x, av.y = shown.x, shown.y

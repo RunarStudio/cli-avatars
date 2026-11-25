@@ -82,6 +82,16 @@ def photos(book, aid: str, av, shown, look, scale: int, now: float):
     return PosePhotos(shown, look, scale, getattr(av, "dir", 1) < 0, sig)
 
 
+def dressed(book, aid: str, av, shown, scene, now: float, crossing: bool):
+    """``inside_roster.dress`` for an inside avatar, its pose drawn in unless it is crossing the edge."""
+    from cli_avatars.app.dungeon_rooms import rooms_scale
+    from cli_avatars.app.inside_roster import dress, hall
+
+    scale = rooms_scale(scene)
+    shown, look = dress(av, shown, scale, hall(book).hues)
+    return (shown if crossing else photos(book, aid, av, shown, look, scale, now)), look
+
+
 class PosePhotos:
     """The roster cache with the pose bent into each frame at native pixels, then scaled whole."""
 
