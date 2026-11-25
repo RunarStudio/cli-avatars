@@ -38,6 +38,13 @@ The guest helper (`frost_wanderer`) sits at the desk. The guest is a helper, not
 
 `python tools/shot_atelier.py` shows it with made-up data: Ash's guest card sends Ash to the desk.
 
+## Morning standup (STANDUP)
+
+Once a day the lord sounds a horn, and the agents with a task walk in through the hall door to the spots in front of
+the dais. Each says one line in a parchment bubble (done, next, and stuck in red wax), and then they walk back out.
+Keys on the room: Space or → for the next bubble, S to skip, R to replay, U to call it now. The show only changes the
+seating and canvas images, so no window opens. Details: [standup.md](standup.md).
+
 ## Drawing
 
 - One 760x460 image at 1x, shown at the largest integer scale that fits (nearest neighbour).

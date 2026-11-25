@@ -30,6 +30,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `recap.py` | DAILY-RECAP: one local day per agent and task from the board logs and today's hook file basenames (`docs/daily-recap.md`) |
 | `focus.py` | FOCUS: one task in focus (`focus.json`); `gate` holds alerts for other tasks, `leave` hands them back once, oldest first (`docs/focus-mode.md`) |
 | `mailroom.py` | MAILROOM: letters (captures, messages to you, hook questions) in `mailroom.json`; a local sorter proposes topic, task chat and draft decision; `approve` files as Daniel, `bounce` to Unsorted then drops (`docs/mailroom.md`) |
+| `standup.py` | STANDUP: once a day one line per agent with a task (done/next/stuck from summary, recap, blocked state, decisions) in `standup.json`, pinned to each card by the orchestrator; `standup_panel.py`, `standup_show.py`, `standup_art.py` play it in the throne room (`docs/standup.md`) |
 | `topics.py` | Topic summaries, pins, previews |
 | `cli_avatars/app/door_counts.py` | DOOR-COUNTS: counts per room, project and in total (no Tk); `door_plaque.py` and `door_totals.py` draw them (`docs/door-counts.md`) |
 | `routing.py` | Composer → orchestrator routing |
@@ -115,6 +116,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Door counts (desktop and phone) | `docs/door-counts.md` |
 | Focus mode (desktop and phone) | `docs/focus-mode.md` |
 | Mailroom (desktop and phone) | `docs/mailroom.md` |
+| Morning standup (desktop and phone) | `docs/standup.md` |
 | Bot roster and status | `docs/bot-status.md` |
 | Check, restart, update the running app | `docs/agent-ops.md` |
 
