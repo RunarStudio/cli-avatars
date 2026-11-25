@@ -86,7 +86,8 @@ class TasksPanel:
         self._grid.pack(side="left", fill="both", expand=True, padx=6, pady=6)
         self.card_panel = CardPanel(self._main, self.act, self._choices, self.close_card,
                                     chats=lambda card: chat_rows(self._directory(), card), open_chat=open_chat,
-                                    decisions=lambda card: for_card(self._directory(), card["id"]))
+                                    decisions=lambda card: for_card(self._directory(), card["id"]),
+                                    pack_dir=self._directory)
         self.headers: dict[str, tk.Widget] = {}
         self._bodies: dict[str, tk.Frame] = {}
         self._columns: dict[tk.Widget, str] = {}

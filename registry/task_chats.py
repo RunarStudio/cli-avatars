@@ -93,6 +93,12 @@ def start_chat(registry: Registry, card_id: str, cli: str) -> tuple[dict, dict]:
     add_participant(registry.directory, chat["room"], cli, timeout=registry.timeout)
     registry.say("emit:board", chat["room"], f"Chat on task {card['id'][:8]}: {card['title']}. "
                  "Every prompt here carries the task's context.", icon="ok")
+    try:
+        import context_packs
+
+        context_packs.opening(registry.directory, card, chat["room"])
+    except (EventRejected, OSError):
+        pass
     return card, chat
 
 
@@ -146,10 +152,43 @@ def context(directory: Path | str, card: dict) -> str:
     return f"{HEAD}\n{inner}\n{END}\n{FOOTER}"
 
 
-def preamble(directory: Path | str, room: str) -> str:
-    """The task context for a prompt in ``room``; empty for a room that is not a task chat."""
+def preamble(directory: Path | str, room: str, fresh: bool = False) -> str:
+    """The task context for a prompt in ``room``; a ``fresh`` session gets the context pack first (CONTEXT-PACKS).
+
+    Empty for a room that is not a task chat.
+    """
+    import context_packs
+
     card = task_for(directory, room)
-    return context(directory, card) if card is not None else ""
+    if card is None:
+        return ""
+    return (context_packs.opening(directory, card, room) if fresh else "") + context(directory, card)
+
+
+def shown(directory: Path | str, room: str) -> str:
+    """What the transcript shows on top: the pack when the chat started with it, then the task context."""
+    import context_packs
+
+    card = task_for(directory, room)
+    if card is None:
+        return ""
+    pack = context_packs.block(context_packs.build(directory, card)) if context_packs.started_with(directory, room) \
+        else ""
+    return pack + context(directory, card)
+
+
+def chat_sessions(directory: Path | str, card: dict) -> list[str]:
+    """The CLI session ids the card's chats reported (CONTEXT-PACKS reads their touched files)."""
+    from cli_avatars.model.room import load_room
+
+    found = []
+    for chat in card.get("chats") or []:
+        try:
+            room = load_room(directory, chat["room"])
+        except (EventRejected, OSError):
+            continue
+        found += [sid for sid in room.session_ids.values() if isinstance(sid, str)]
+    return found
 
 
 def with_folder(directory: Path | str, room):

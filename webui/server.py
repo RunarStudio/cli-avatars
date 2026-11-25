@@ -11,6 +11,7 @@ FOCUS: ``/api/focus`` (read), ``POST /api/focus`` and ``/api/focus/leave`` (writ
 needs-you list and the decisions show only its items, and the SSE ``focus`` event carries the state.
 MAILROOM: ``/api/mailroom`` (read) and its writes live in ``mail_routes``; the SSE ``mailroom`` event has the counts.
 STANDUP: ``/api/standup`` (read) and ``POST /api/standup/run`` live in ``standup_routes``; SSE ``standup`` on a new one.
+CONTEXT-PACKS: ``/api/cards/<id>/pack`` (read, and pin/unpin as a write) lives in ``pack_routes``; SSE ``pack``.
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ from board.model import BODY_LIMIT, COLUMNS, clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
 from topics import valid_topic_id
-from webui import auth, mail_routes, media, push, scene, standup_routes, writes
+from webui import auth, mail_routes, media, pack_routes, push, scene, standup_routes, writes
 
 STATIC = asset_path("webui", "static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -42,6 +43,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/mailroom.css": ("mailroom.css", "text/css; charset=utf-8"),
          "/static/standup.js": ("standup.js", "text/javascript; charset=utf-8"),
          "/static/standup.css": ("standup.css", "text/css; charset=utf-8"),
+         "/static/pack.js": ("pack.js", "text/javascript; charset=utf-8"),
+         "/static/pack.css": ("pack.css", "text/css; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048
@@ -222,6 +225,9 @@ class Handler(BaseHTTPRequestHandler):
             return mail_routes.write(self, path, body)
         if path == "/api/standup/run":
             return standup_routes.write(self, body)
+        pack = pack_routes.PATH.match(path)
+        if pack:
+            return pack_routes.write(self, pack.group(1), body)
         move = _MOVE.match(path)
         if move:
             if set(body) != {"column"} or body["column"] not in COLUMNS:
@@ -336,6 +342,9 @@ class Handler(BaseHTTPRequestHandler):
             for card in board:
                 card["room"] = built["tasks"].get(card["id"], scene.room_for_topic(built, card["topic"]))
             return self._json({"cards": board})
+        pack = pack_routes.PATH.match(path)
+        if pack:
+            return pack_routes.read(self, pack.group(1))
         if path.startswith("/api/cards/"):
             card_id = path[len("/api/cards/"):]
             found = next((c for c in scene.cards(directory) if c["id"] == card_id), None) \
@@ -491,6 +500,7 @@ class Handler(BaseHTTPRequestHandler):
             focused = scene.focus_now(self.server.directory)
             mailed = mail_routes.summary(self.server.directory)
             stood = standup_routes.summary(self.server.directory)
+            packed = pack_routes.summary(self.server.directory)
             updater, update_seq = self.server.updater, self.server.updater.seq()
             while not self.server.stopping.wait(min(self.server.poll, AVATAR_TICK)):
                 if updater.seq() != update_seq:
@@ -528,6 +538,10 @@ class Handler(BaseHTTPRequestHandler):
                 if standup_routes.summary(self.server.directory) != stood:
                     stood, quiet = standup_routes.summary(self.server.directory), time.monotonic()
                     self.wfile.write(b"event: standup\ndata: {}\n\n")
+                    self.wfile.flush()
+                if pack_routes.summary(self.server.directory) != packed:
+                    packed, quiet = pack_routes.summary(self.server.directory), time.monotonic()
+                    self.wfile.write(b"event: pack\ndata: {}\n\n")
                     self.wfile.flush()
                 now = scene.stamp(self.server.directory)
                 if now != last:

@@ -4,6 +4,7 @@ import logging
 import time
 from typing import Any
 
+import context_packs
 import recap
 from bubbles import blocked_indicator, integer_scale, place_blocked_mark, render_bubble
 from cli_avatars.app import decide_watch, focus_mode, mail_panel, needs_panel, recap_panel, standup_panel
@@ -214,6 +215,8 @@ class BubblesView:
         bus = getattr(getattr(app, "scanner", None), "bus", None)
         if bus is not None:
             bus.subscribe(recap.TALLY.on_event)
+            if callable(getattr(app, "_chat_directory", None)):
+                bus.subscribe(context_packs.FileFeed(app._chat_directory).on_event)
 
     def step(self, frame: Any = None) -> None:
         now = getattr(frame, "now", None) if frame is not None else None

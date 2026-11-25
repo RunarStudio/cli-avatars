@@ -1,8 +1,9 @@
 """KANBAN.1: the card panel beside the board, inside the Dungeon's Tasks tab. No new window.
 
-A parchment sheet: new-card form, or one card's "where we are" slip (TASK-SUMMARY), fields, column, assignee,
-checklist, progress, status note, comments, the card's chats (TASK-CHAT.1), its open decisions (DECIDE.1) and
-history. Every change calls ``act(name, *args)`` on the board panel, which writes through ``TaskEditor``.
+A parchment sheet: new-card form, or one card's "where we are" slip (TASK-SUMMARY), its context pack
+(CONTEXT-PACKS), fields, column, assignee, checklist, progress, status note, comments, the card's chats (TASK-CHAT.1),
+its open decisions (DECIDE.1) and history. Every change calls ``act(name, *args)`` on the board panel, which
+writes through ``TaskEditor``.
 Card text is shown as text only.
 """
 
@@ -46,6 +47,12 @@ def badge(parent, column: str) -> tk.Frame:
     return box
 
 
+def _satchel(parent) -> tk.Canvas:
+    from cli_avatars.app.pack_art import icon
+
+    return icon(parent, PAPER, scale=1)
+
+
 def button(parent, text: str, command, bg: str = WINE, fg: str = PAPER) -> tk.Button:
     return tk.Button(parent, text=text, command=command, bg=bg, fg=fg, activebackground=GOLD,
                      activeforeground=INK, relief="flat", bd=0, font="DungeonText", padx=8, pady=1,
@@ -56,17 +63,19 @@ class CardPanel:
     """``act(name, *args, **kw)`` returns an ``Outcome``; ``choices()`` lists ``(value, label)`` assignees.
 
     ``chats(card)`` lists the card's chat rows; ``open_chat(room, new)`` shows one in the chat dock.
-    ``decisions(card)`` lists the card's decision rows (DECIDE.1).
+    ``decisions(card)`` lists the card's decision rows (DECIDE.1); ``pack_dir()`` is the data dir of the Pack slip.
     """
 
     def __init__(self, parent, act, choices, close, chats=lambda card: [], open_chat=lambda room, new: None,
-                 decisions=lambda card: []) -> None:
+                 decisions=lambda card: [], pack_dir=None) -> None:
         self._act = act
         self._choices = choices
         self._close = close
         self._chats = chats
         self._open_chat = open_chat
         self._decisions = decisions
+        self._pack_dir = pack_dir
+        self.pack = None
         self._decide_sig: tuple | None = None
         self.decide_rows: dict[str, dict] = {}
         self.decide_entries: dict[str, tk.Entry] = {}
@@ -106,6 +115,10 @@ class CardPanel:
         self.decide_box.pack(fill="x", padx=8)
         self._decide_sig = None
         self._error("decide", self.decide_box)
+        if self._pack_dir is not None:
+            from cli_avatars.app.pack_card import PackSection
+
+            self.pack = PackSection(self.sheet, self._pack_dir, self.decide_box)
         self.title = self._field("title", "Title", _entry(self.sheet))
         self.body = self._field("body", "Notes", self._text(2))
         two = self._row()
@@ -218,9 +231,13 @@ class CardPanel:
         self._fill_where(card)
         self._fill_chats(card)
         self._fill_decisions(card)
+        if self.pack is not None:
+            self.pack.fill(card)
 
     def tick(self, now: float | None = None) -> None:
-        """Keep "updated Nm ago" current; touches one label, only when its text changes."""
+        """Keep "updated Nm ago" current, touching one label only when its text changes; the Pack checks its store."""
+        if self.pack is not None:
+            self.pack.tick()
         if self.card is None or self.where_ts is None:
             return
         age = summary_age(self.card.get("summary_at"), now)
@@ -338,6 +355,9 @@ class CardPanel:
             top = tk.Label(tile, text=f"{mark} {row['cli']} · {row['started']}", bg=PAPER, fg=WINE,
                            font="DungeonBubble", anchor="w")
             top.pack(fill="x", padx=4)
+            if row.get("pack"):
+                top.config(text=top.cget("text") + " · starts with pack")
+                _satchel(tile).place(relx=1.0, x=-4, y=3, anchor="ne")
             last = tk.Label(tile, text=row["last"], bg=PAPER, fg=INK, font="DungeonBubble", anchor="w",
                             justify="left", wraplength=290)
             last.pack(fill="x", padx=4)
@@ -409,6 +429,7 @@ class CardPanel:
             child.destroy()
         self.errors = {}
         self.status_badge = None
+        self.pack = None
 
     def _head(self, title: str, sub: str) -> None:
         self.head = head = tk.Frame(self.sheet, bg=WINE)

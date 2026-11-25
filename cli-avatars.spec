@@ -29,6 +29,7 @@ hiddenimports = [
     "chatlog",
     "claude_chat_hooks",
     "cli_avatars_emit",
+    "context_packs",
     "decisions",
     "emit_app",
     "emit_phone",

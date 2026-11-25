@@ -246,7 +246,8 @@ class Actions:
         request = SimpleNamespace(room_id=topic, cli=cli, pin=pin, working_dir=room.working_dir,
                                   mode=room.permission_mode, session_id=room.session_id(cli), topic_title=title,
                                   open_cards=cards, on_line=on_line, on_done=on_done,
-                                  preamble=task_chats.preamble(self.directory, topic))
+                                  preamble=task_chats.preamble(self.directory, topic,
+                                                               fresh=room.session_id(cli) is None))
         try:
             launch_cli(request, text, "phone-send")
         except room_tools().rejected as exc:

@@ -8,6 +8,7 @@
 // FOCUS: one task in focus: the other rooms dim, other tasks grey, alerts for them wait; Leave focus lets them in.
 // MAILROOM (mailroom.js): letters to sort; the capture sheet's Mailroom mode sends a thought there unfiled.
 // STANDUP (standup.js): the day's standup, one line per agent; a low "gather" horn when a new one comes in.
+// CONTEXT-PACKS (pack.js): the selected task's pack under it; pin and unpin with writes on.
 // Every text goes in with textContent.
 "use strict";
 
@@ -464,6 +465,7 @@ function renderTasks() {
     b.addEventListener("click", () => pickTask(c.id));
     li.append(b);
     if (c.id === state.sel) li.append(taskChats(c), focusButton(c));
+    if (c.id === state.sel && typeof packBox === "function") li.append(packBox(c));
     list.append(li);
   }
   renderBoard();
@@ -2027,6 +2029,8 @@ function live() {
   });
   src.addEventListener("mailroom", () => { if (typeof mailEvent === "function") mailEvent(); });
   src.addEventListener("standup", () => { if (typeof standupEvent === "function") standupEvent(); });
+  src.addEventListener("pack", () => { if (typeof packEvent === "function") packEvent(); });
+  src.addEventListener("change", () => { if (typeof packEvent === "function") packEvent(); });
   src.addEventListener("avatars", (e) => {
     if (!state.scene) return;
     let data;

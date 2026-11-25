@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from tkinter import filedialog
 from types import SimpleNamespace
 
-from cli_avatars.app import cues, room_log
+from cli_avatars.app import cues, pack_pane, room_log
 from cli_avatars.app.tasks_view import summary_age
 from cli_avatars.model.room import (
     PERMISSION_MODES,
@@ -209,7 +209,7 @@ class RoomPane:
         return SimpleNamespace(
             room_id=room.room_id, cli=cli, pin=pin, working_dir=room.working_dir, mode=room.permission_mode,
             session_id=room.session_id(cli), topic_title=title, open_cards=cards,
-            preamble=task_chats.preamble(directory, room.room_id),
+            preamble=task_chats.preamble(directory, room.room_id, fresh=room.session_id(cli) is None),
             on_line=lambda line: run.events.put(("line", line)),
             on_done=lambda result: run.events.put(("done", result)),
             run=run,
@@ -220,6 +220,7 @@ class RoomPane:
         self._runs[request.room_id] = request.run
         resume = " (resumed session)" if request.session_id else ""
         self._write(f"… {request.cli} is answering{resume}\n", "note")
+        pack_pane.started(self.window.directory(), self.window._config(), request)
         self._status("Running. Output is shown, never run.")
         self._paint()
         if not self._draining:
@@ -369,7 +370,7 @@ class RoomPane:
             if card is None:
                 self._pin_box.pack_forget()
                 return
-            title = f"WHERE WE ARE · {card['title'][:28]}"
+            title = pack_pane.pin_title(self, card)
             for label, text in ((self._pin_title, title), (self._pin_text, task_chats.pin_text(card)),
                                 (self._pin_age, summary_age(card.get("summary_at")))):
                 if label.cget("text") != text:
@@ -404,8 +405,7 @@ class RoomPane:
         if term is None or self.cli_target() is None:
             return
         self._clear()
-        task = task_chats.preamble(self.window.directory(), self.room_id)
-        if task:
+        if task := task_chats.shown(self.window.directory(), self.room_id):
             self._write(task + "\n", "note")
         for sender, text in room_log.history(self.window.directory(), self.room_id, self.target):
             self._write(f"> {text}\n" if sender == "user" else text + "\n", "prompt" if sender == "user" else "reply")

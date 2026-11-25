@@ -12,6 +12,8 @@ with one soft bell strike after it, when alerts waited: one cue for the whole ba
 Mailroom letters. ``filed``: a wax seal pressed (a low thud, a knock) and a small bright pluck, when one is filed.
 ``gather``: a herald's horn call (two brass notes, the second held) and a soft hall bell, when the standup starts.
 ``blip``: one soft wooden blip as each standup bubble opens (STANDUP).
+``pack``: a leather satchel flap set down (a soft low thump) and its brass buckle clicked shut, when a task chat
+starts with its context pack (CONTEXT-PACKS).
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -63,6 +65,8 @@ def wav(name: str) -> bytes:
         return _pcm(_horn())
     if name == "blip":
         return _pcm(_blip())
+    if name == "pack":
+        return _pcm(_satchel())
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):
@@ -252,6 +256,23 @@ def _blip() -> np.ndarray:
     tone = np.sin(2 * np.pi * np.cumsum(f) / RATE) * np.exp(-t * 32) * np.minimum(1.0, t * 900)
     knock = np.sin(2 * np.pi * 220.0 * t) * np.exp(-t * 90) * 0.4
     return (tone + knock).astype(np.float32)
+
+
+def _satchel() -> np.ndarray:
+    """A leather flap laid down (low filtered noise and a 110 Hz thump), then two bright brass buckle clicks."""
+    rng = np.random.default_rng(31)
+    out = np.zeros(int(RATE * 0.5), np.float32)
+    n = int(RATE * 0.14)
+    t = np.arange(n) / RATE
+    flap = np.convolve(rng.standard_normal(n), np.ones(40) / 40, "same") * np.exp(-t * 30) * 2.0
+    out[:n] += (flap + np.sin(2 * np.pi * 110.0 * t) * np.exp(-t * 35) * 0.8).astype(np.float32)
+    for at, gain in ((0.2, 0.55), (0.27, 0.8)):
+        n = int(RATE * 0.09)
+        t = np.arange(n) / RATE
+        click = (np.sin(2 * np.pi * 2350.0 * t) + 0.6 * np.sin(2 * np.pi * 3710.0 * t)) * np.exp(-t * 70)
+        start = int(RATE * at)
+        out[start:start + n] += (click * np.minimum(1.0, t * 2000) * gain).astype(np.float32)
+    return out
 
 
 def _pcm(out: np.ndarray) -> bytes:

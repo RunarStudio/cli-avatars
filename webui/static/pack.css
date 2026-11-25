@@ -1,0 +1,30 @@
+/* CONTEXT-PACKS: the task's pack under the selected task: a leather satchel band over a parchment slip. */
+.pack { margin: -2px 0 8px 14px; font-size: 12px; color: #2a1c10;
+  background: radial-gradient(120% 90% at 50% 30%, #efe3c2 0%, #e2cfa0 70%, #b89460 100%);
+  box-shadow: 0 0 0 1px #8a6a3a, 0 0 0 3px var(--deep), 0 4px 9px #000a; }
+.pack-head { display: flex; align-items: center; gap: 7px; padding: 4px 8px; color: var(--torch-2);
+  background: linear-gradient(180deg, #6b4423, #4a2e16); box-shadow: inset 0 -2px 0 #2e1c0c, inset 0 1px 0 #8a5a2b; }
+.pack-head b { font: 700 10px var(--mono); letter-spacing: .14em; }
+.pack-size { margin-left: auto; color: #d8c8a0; font-size: 10px; }
+.satchel { position: relative; width: 14px; height: 12px; flex: none; background: #8a5a2b;
+  box-shadow: 0 0 0 1px #3a2412, inset 0 5px 0 #c08a4a, inset 0 6px 0 #3a2412; }
+.satchel::before { content: ""; position: absolute; left: 3px; top: -4px; width: 6px; height: 3px;
+  border: 1px solid #3a2412; border-bottom: 0; }
+.satchel::after { content: ""; position: absolute; left: 5px; top: 5px; width: 4px; height: 4px; background: #ffcf4a;
+  box-shadow: inset 1px 1px 0 #fff2c0, inset -1px -1px 0 #b0862a; }
+.pack-part { padding: 4px 8px 2px; border-top: 1px dashed #b89460; }
+.pack-part:first-of-type { border-top: 0; }
+.pack-label { display: block; font: 700 9px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: #7a1f3d; }
+.pack-label::before { content: "\25C6 "; color: #b0862a; }
+.pack-line { display: flex; align-items: baseline; gap: 6px; padding: 1px 0; }
+.pack-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pack-line.pinned .pack-text::before { content: ""; display: inline-block; width: 6px; height: 8px; margin-right: 5px;
+  background: #ffcf4a; box-shadow: 0 0 0 1px #7a1f3d; clip-path: polygon(0 0, 100% 0, 100% 60%, 60% 60%, 60% 100%, 40% 100%, 40% 60%, 0 60%); }
+.pack-btn { font: 10px var(--mono); color: #efe3c2; background: #4a2e16; border: 0; padding: 1px 6px; cursor: pointer;
+  box-shadow: 0 0 0 1px #2e1c0c; }
+.pack-btn.pin { background: #7a1f3d; }
+.pack-none, .pack-note { margin: 4px 8px; color: #6b5233; font-size: 11px; }
+.pack-note { font-style: italic; }
+.pack-add { display: flex; gap: 4px; padding: 4px 8px 6px; }
+.pack-add select, .pack-add input { font: 11px var(--mono); color: #2a1c10; background: #f6eed6; border: 1px solid #8a6a3a; min-width: 0; }
+.pack-add input { flex: 1; }

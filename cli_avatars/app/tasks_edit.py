@@ -248,7 +248,8 @@ def assignee_choices(directory: Path | str, topic: str, live: Mapping[str, str])
 
 
 def chat_rows(directory: Path | str, card: Mapping) -> list[dict]:
-    """The card's chats, oldest first: room, CLI, ``MM-DD HH:MM`` started, the room's last said line."""
+    """The card's chats, oldest first: room, CLI, ``MM-DD HH:MM`` started, the room's last said line, ``pack``."""
+    from context_packs import started_with
     from topics import topic_messages
 
     rows = []
@@ -260,7 +261,8 @@ def chat_rows(directory: Path | str, card: Mapping) -> list[dict]:
         said = [m for m in lines if m.get("icon") == "speech"] or lines
         last = str(said[-1].get("text") or "") if said else ""
         rows.append({"room": chat["room"], "cli": chat["cli"], "started": chat["created"][5:16].replace("T", " "),
-                     "last": (last if len(last) <= 80 else last[:79] + "…") or "no messages yet"})
+                     "last": (last if len(last) <= 80 else last[:79] + "…") or "no messages yet",
+                     "pack": started_with(directory, chat["room"])})
     return rows
 
 
