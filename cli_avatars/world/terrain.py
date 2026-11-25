@@ -101,13 +101,13 @@ class WindowTerrain:
                 wins = self._list_windows()
                 if not screen:
                     return
-                snapshot = terrain_from_windows(wins, screen)
+                snapshot = terrain_from_windows(wins, screen, monitors)
             except Exception as e:
                 print(f"[WARN] Terrain (win32): {e}")
                 return
             self._apply(_clip_snapshot(snapshot, monitors))
             return
-        snapshot = scan_live(self._own, screen)
+        snapshot = scan_live(self._own, screen, monitors)
         if snapshot is None:
             return
         self._apply(_clip_snapshot(snapshot, monitors))

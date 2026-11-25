@@ -96,6 +96,52 @@ class Tick(unittest.TestCase):
         self.assertEqual(len(logged.records), 1)
 
 
+class Discovery(unittest.TestCase):
+    """Fixture monitors (negative origins, 125 % and 150 % scale) and fixture terminal windows. No Win32."""
+
+    def _world(self):
+        from cli_avatars.desktop.monitors import monitors_from_raw
+        from cli_avatars.world.monitors import build_layout
+
+        found = monitors_from_raw([
+            ("DISPLAY1", (0, 0, 1920, 1080), (0, 0, 1920, 1040), 120, True),
+            ("DISPLAY2", (-1280, -400, 0, 624), (-1280, -400, 0, 584), 144, False),
+            ("DISPLAY3", (1920, -1080, 3840, 0), (1920, -1080, 3840, -40), 96, False),
+        ])
+        layout = build_layout(found, 96)
+        return found, layout
+
+    def test_monitors_are_found_with_their_scale_and_origin(self):
+        found, layout = self._world()
+        self.assertEqual([m.dpi for m in found], [120, 144, 96])
+        self.assertTrue(found[0].primary)
+        self.assertEqual(layout.bounds, (-1280, -1080, 3840, 1080))
+
+    def test_terminals_on_every_monitor_become_perches(self):
+        from dataclasses import dataclass
+
+        from cli_avatars.world.terrain import WindowTerrain
+
+        @dataclass(frozen=True)
+        class Term:
+            hwnd: int
+            rect: tuple
+            maximized: bool = False
+
+        terms = [
+            Term(1, (200, 300, 1000, 900)),
+            Term(2, (-1100, -300, -300, 400)),
+            Term(3, (2100, -900, 3000, -300)),
+            Term(4, (-1200, -390, -700, 100)),
+        ]
+        _found, layout = self._world()
+        terrain = WindowTerrain("Dungeon", layout.bounds, list_windows=lambda: list(terms))
+        terrain.set_world(layout.bounds, layout.monitors)
+        terrain._scan()
+        _floors, _walls, hwnds, _pos = terrain.get_snapshot()
+        self.assertEqual(sorted(set(hwnds)), [1, 2, 3])
+
+
 class Places(unittest.TestCase):
     def test_avatars_are_out_after_a_door_cycle(self):
         from tests.test_crossing import _book

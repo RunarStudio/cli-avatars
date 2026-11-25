@@ -47,10 +47,10 @@ def occlusion_covers(hwnd: int) -> tuple[int, list]:
     return (int(mine.z), covers)
 
 
-def terrain_from_windows(wins: list, screen: tuple) -> tuple:
+def terrain_from_windows(wins: list, screen: tuple, monitors=()) -> tuple:
     """Perches = visible pieces of non-maximized window tops (perchas.py)."""
     built = perchas.build_perches(wins, screen, min_len=PERCH_MIN_LEN)
-    kept = [p for p in built if p.y >= PERCH_MIN_Y]
+    kept = [p for p in built if p.y >= _top_under(p, monitors, screen) + PERCH_MIN_Y]
     floors = [(p.x1, p.y, p.x2, p.y + FLOOR_MARGIN) for p in kept]
     hwnds = [p.hwnd for p in kept]
     walls = perchas.build_walls(wins, screen, min_len=PERCH_MIN_LEN)
@@ -58,7 +58,7 @@ def terrain_from_windows(wins: list, screen: tuple) -> tuple:
     return floors, walls, hwnds, pos
 
 
-def scan_live(own_title: str, screen: tuple | None) -> tuple | None:
+def scan_live(own_title: str, screen: tuple | None, monitors=()) -> tuple | None:
     """(floors, walls, hwnds, positions), or None to keep the last snapshot.
 
     The pywinctl fallback returns empty hwnds and positions. It includes
@@ -67,7 +67,7 @@ def scan_live(own_title: str, screen: tuple | None) -> tuple | None:
     if HAS_W32 and screen:
         try:
             wins = w32.list_windows()      # skips minimized, cloaked, our own process
-            return terrain_from_windows(wins, screen)
+            return terrain_from_windows(wins, screen, monitors)
         except Exception as e:
             print(f"[WARN] Terrain (win32): {e}")
             return None
@@ -108,6 +108,16 @@ def _scan_pwc(own_title):
         walls.append((x1, y1, y2))   # left edge
         walls.append((x2, y1, y2))   # right edge
     return floors, walls, [], {}
+
+
+def _top_under(perch, monitors, screen: tuple) -> int:
+    """Top of the monitor the perch is on. A monitor left of or above the primary has a negative top."""
+    mid = (perch.x1 + perch.x2) / 2.0
+    for monitor in monitors or ():
+        left, top, right, bottom = monitor.rect
+        if left <= mid < right and top <= perch.y < bottom:
+            return int(top)
+    return int(screen[1])
 
 
 def window_moves(prev: dict, cur: dict) -> dict:
