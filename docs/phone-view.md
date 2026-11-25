@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS, TIMELAPSE)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -141,6 +141,15 @@ turns, summaries, cards created and moved, decisions asked and answered, blocked
 commits named in task notes). ◄ / ► (or the arrow keys) walk back through the last 30 days. Tap a task to open it
 in the list. Read-only, works with writes off; while it is open it reloads on each SSE `change`. Opening it plays a
 low three-note when sound is on. Details: [daily-recap.md](daily-recap.md).
+
+## Time-lapse
+
+The sand-glass in the map bar (beside the recap scroll) lays the day over the map: the map fits above a stone panel
+with ◄ day ►, the clock, play (x1/x4/x16) and Leave, and a sundial strip with a gem per chat moment. Drag the strip
+to scrub; the map tints to the hour and the avatars of that day walk between rooms through the doors, with fading
+trails. Tap a gem or a ghost: the chat opens at the message nearest that time, lit for a moment. Read-only, works
+with writes off; the SSE event `timelapse` reloads only today. A soft tick while scrubbing and a two-note chime on a
+moment, both silent during focus. Details: [time-lapse.md](time-lapse.md).
 
 ## Web Push: alerts with the page closed
 

@@ -241,6 +241,15 @@ or pin a typed one. A chat that started with the pack is marked in the Chats lis
 pack, and the room pin shows the satchel. A `pack` cue (satchel flap, buckle click) plays when a chat starts with
 it, except during focus. No new window opens. Details: [context-packs.md](context-packs.md).
 
+#### Time-lapse (TIMELAPSE)
+
+On the Dungeon floor, the **TIME-LAPSE** plate (bottom left) turns the floor into the day's time-lapse in the same
+window: the map tinted to the hour, ghosts walking the real doors with trails, and a stone sundial bar (◄ day ►,
+sky band, gems, sand-glass playhead, play, x1/x4/x16, LEAVE). Click or drag to scrub (a tick); a gem, a ghost or
+Enter opens the task chat in the chat dock at that moment (sand-hiss and chimes); Esc or LEAVE returns to the live
+floor. While it is on, its own bindtag takes the floor's clicks, so nothing pans or drags out. No new window.
+Details: [time-lapse.md](time-lapse.md).
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 

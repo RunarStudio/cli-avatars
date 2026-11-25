@@ -51,6 +51,12 @@ The **Recap** tab in the Dungeon's centre, beside Throne. No new window. See
 The scroll button in the map bar opens the **Daily recap** sheet. `GET /api/recap?day=YYYY-MM-DD` (default today);
 a malformed day is `400`, a day outside the kept window is an empty recap. See [phone-view.md](phone-view.md#daily-recap).
 
+## Time-lapse
+
+The same board logs, with the chat logs and a small room log, feed the Dungeon time-lapse: scrub the day and watch the
+avatars walk between rooms, tap a moment to open its chat there. Same 30-day window and ←/→ days. See
+[time-lapse.md](time-lapse.md).
+
 ## Code
 
 `recap.py` (no Tk: `build`, `days`, `step`, `stamp`, `FileTally`), `cli_avatars/app/recap_panel.py` (the tab),
