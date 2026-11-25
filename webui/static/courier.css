@@ -1,0 +1,12 @@
+/* MESSENGER: the lit card and its ribbon */
+.courier-lit { box-shadow: 0 0 0 2px #ffce6e, 0 0 16px #ffce6e88 !important; animation: courier-glow 1.6s ease-in-out infinite; }
+@keyframes courier-glow { 50% { box-shadow: 0 0 0 2px #ffce6e, 0 0 26px #ffce6ecc; } }
+.courier-ribbon { display: block; width: calc(100% + 8px); margin: -2px -4px 5px; padding: 3px 8px; border: 0;
+  border-top: 1px solid #e2b24a; border-bottom: 1px solid #60101e; background: #a41e30; color: #faeece;
+  font: 700 11px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; text-align: left; cursor: pointer;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 50%, 100% 100%, 0 100%, 6px 50%); }
+.courier-slip { display: grid; gap: 2px; margin: 0 0 6px; padding: 6px 8px; background: #ecdeb8; color: #3a2414;
+  border-left: 3px solid #c4282e; font-size: 12px; }
+.courier-slip b { color: #8a1c2a; }
+.courier-slip small { color: #7a5a3a; }
+.courier-slip[hidden] { display: none; }

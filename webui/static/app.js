@@ -209,6 +209,7 @@ function frame(now) {
     if (!lapsing && typeof drawBodyUnder === "function") drawBodyUnder(now);
     if (!lapsing) drawAvatars(now);
     if (!lapsing && typeof drawBodyOver === "function") drawBodyOver(now);
+    if (!lapsing && typeof drawCourierOver === "function") drawCourierOver(now);
     drawFocus(now);
     ctx.restore();
     drawLabels();
@@ -472,6 +473,7 @@ function renderTasks() {
     if (note) b.append(el("span", "note", note));
     b.addEventListener("click", () => pickTask(c.id));
     li.append(b);
+    if (typeof courierMark === "function") courierMark(li, c);
     if (c.id === state.sel) li.append(taskChats(c), focusButton(c));
     if (c.id === state.sel && typeof packBox === "function") li.append(packBox(c));
     if (c.id === state.sel && typeof sandboxBox === "function") li.append(sandboxBox(c));
@@ -536,6 +538,7 @@ function renderBoard() {
 function boardCard(c) {
   const li = el("li", "bcard" + (c.id === state.sel ? " sel" : "") + (c.id === state.fresh ? " fresh" : "") + focusClass(c));
   li.dataset.id = c.id;
+  if (typeof courierMark === "function") courierMark(li, c);
   const top = el("div", "bc-top");
   top.append(el("span", "title", c.title));
   if (c.decisions) top.append(el("span", "badge decide", "DECIDE"));

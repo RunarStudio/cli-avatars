@@ -32,6 +32,7 @@ SHEETS = {"caine": ("caine.png", 48, 48), "michimaru": ("Michimaru.png", 40, 51)
 # roster look -> the Dungeon's AV.1 look; a Grok bot's own hue is "grok-<0..359>"
 _LOOK = re.compile(r"^(user|orchestrator|grok|subagent)(?:-(\d{1,3}))?$")
 FEET_UP = 0.08
+COURIER_FEET = 0.04
 ORDER = {name: i for i, name in enumerate(("doing", "blocked", "review", "todo", "done"))}
 MAX_CARDS = 300
 FULL_BYTES = 512 * 1024
@@ -107,6 +108,8 @@ def sprite_png(skin: str) -> tuple[bytes, int, int, int] | None:
     """``(png strip, frame w, frame h, frames)`` of a known sheet's idle row, or a roster look's idle and walk."""
     if _LOOK.match(skin):
         return _look_png(skin)
+    if skin == "courier":
+        return _courier_png()
     if skin not in SHEETS:
         return None
     with _LOCK:
@@ -136,6 +139,28 @@ def sprite_png(skin: str) -> tuple[bytes, int, int, int] | None:
     found = (out.getvalue(), fw, fh, len(frames))
     with _LOCK:
         _SPRITES[skin] = found
+    return found
+
+
+def _courier_png() -> tuple[bytes, int, int, int]:
+    """MESSENGER: the courier drawn in code, idle and walk rows of six frames."""
+    from PIL import Image
+
+    from cli_avatars.app import courier_art as art
+
+    with _LOCK:
+        if "courier" in _SPRITES:
+            return _SPRITES["courier"]
+    strip = Image.new("RGBA", (art.W * art.STEPS, art.H * 2), (0, 0, 0, 0))
+    for row, walking in enumerate((False, True)):
+        for i in range(art.STEPS):
+            frame = art.courier(i, walking)
+            strip.paste(frame, (i * art.W, row * art.H), frame)
+    out = io.BytesIO()
+    strip.save(out, "PNG")
+    found = (out.getvalue(), art.W, art.H, art.STEPS)
+    with _LOCK:
+        _SPRITES["courier"] = found
     return found
 
 
@@ -194,7 +219,7 @@ def public_avatars(lay: dict, origin: tuple[int, int], now: float) -> list[dict]
     left, top = origin
     out = []
     for row in live.rows(lay, now):
-        if row.get("kind") not in live.KINDS:
+        if row.get("kind") not in (*live.KINDS, "courier"):
             continue
         u, v = row["feet"]
         smoke = row.get("smoke")
@@ -271,11 +296,24 @@ def build_scene(directory: Path | str) -> dict:
     for key in sorted({a["sprite"] for a in avatars}):
         strip = sprite_png(key)
         if strip:
-            sprites[key] = {"w": strip[1], "h": strip[2], "frames": strip[3], "feet": FEET_UP}
+            sprites[key] = {"w": strip[1], "h": strip[2], "frames": strip[3],
+                            "feet": COURIER_FEET if key == "courier" else FEET_UP}
     scene = {"map": {"w": w, "h": h, "origin": [left, top]}, "rooms": rooms, "avatars": avatars, "sprites": sprites,
              "counts": {"total": counts.total, "projects": counts.projects}}
     scene["tasks"] = {c["id"]: room_for_topic(scene, c.get("topic")) for c in cards(directory)}
+    scene["couriers"] = [{"room": room_for_topic(scene, row["to_topic"]), "card": row["to"], "key": row["key"],
+                          "from": room_for_topic(scene, row["from_topic"])} for row in lit(directory)]
     return scene
+
+
+def lit(directory: Path | str) -> list[dict]:
+    """MESSENGER: couriers that reached their card and wait to be opened, with what they carry."""
+    import messenger
+
+    try:
+        return messenger.details(directory, [r for r in messenger.waiting(directory) if r["state"] == "arrived"])
+    except (EventRejected, OSError):
+        return []
 
 
 def _session_key(rows) -> tuple:
@@ -348,7 +386,15 @@ def cards(directory: Path | str, project: str | None = None) -> list[dict]:
     found = found[:MAX_CARDS]
     waiting = open_by_card(directory)
     digest = chat_digest(directory, [chat["room"] for card in found for chat in card.get("chats") or []])
-    return [_public(c, waiting, digest) for c in found]
+    news = {row["to"]: row for row in lit(directory)}
+    return [_courier(_public(c, waiting, digest), news.get(c["id"])) for c in found]
+
+
+def _courier(card: dict, row: dict | None) -> dict:
+    if row is not None:
+        card["courier"] = {"from": row["from_topic"] or APOTHECARY, "title": row["from_title"],
+                           "question": row["question"], "answer": row["answer"], "reason": row["reason"]}
+    return card
 
 
 def decisions(directory: Path | str) -> list[dict]:
@@ -421,7 +467,7 @@ def _full_notes(directory: Path | str, topic: str) -> dict:
 def stamp(directory: Path | str) -> tuple:
     """Sizes and mtimes of what the page shows: session rooms, boards, chat, topics."""
     root = Path(directory)
-    paths = [root / "ui" / "session_rooms.json", root / "needs_you.json", root / "focus.json"]
+    paths = [root / "ui" / "session_rooms.json", root / "needs_you.json", root / "focus.json", root / "couriers.json"]
     for pattern in ("board/*/events.jsonl", "board/*/cards", "channel/*.jsonl", "topics", "web/media.json",
                     "decisions.jsonl"):
         try:
