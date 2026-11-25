@@ -220,10 +220,11 @@ class Hall:
         self.hues = bot_hues(aid for aid, agent in agents.items() if kind_of(agent) == GROK)
         self._meet(agents, now)
         topics, cards = self._rooms()
-        from cli_avatars.app import body_view, courier_view
+        from cli_avatars.app import body_view, boss_view, courier_view
 
         posed = body_view.update(self.book, self, plan, agents, topics, cards, now)
         courier_view.update(self.book, self, plan, now)
+        boss_view.update(self.book, self, plan, now)
         need = set(needing(topics, cards, agents)) - posed
         user = self._where(plan, USER_ID, now)[0]
         self._feet[USER_ID] = user
@@ -257,6 +258,7 @@ class Hall:
         sandbox_view.paint(self.book, self.book._scene(), self, now)
         door_plaque.paint(self.book, self.book._scene(), self, now)
         courier_view.paint(self.book, self.book._scene(), self, now)
+        boss_view.paint(self.book, self.book._scene(), self, now)
         focus_veil.paint(self.book, self.book._scene(), self, now)
         return moved
 
