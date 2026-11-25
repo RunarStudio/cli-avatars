@@ -230,8 +230,19 @@ class BubblesView:
         recap_panel.step(self.app)
         mail_panel.step(self.app)
         standup_panel.step(self.app)
+        _repos_step(self.app)
         _draw_decision_bubbles(self.app)
         _draw_blocked_marks(self.app)
         if now is None:
             now = time.time()
         self.activity.step(self.app, now)
+
+
+def _repos_step(app) -> None:
+    """REPOS.1: which agents work in Daniel's repos; a failure never stops the tick."""
+    from cli_avatars.app import repos_panel
+
+    try:
+        repos_panel.step(app)
+    except Exception:
+        logging.getLogger("cli_avatars.repos").exception("repos step failed")

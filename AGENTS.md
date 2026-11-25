@@ -39,6 +39,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `context_packs.py` | CONTEXT-PACKS: per-task pack (summary, decisions, files from hook events, links; pins, unpins, edits) in `packs.json`, capped at 1,500 characters; a fresh task-chat session gets it on stdin ahead of the task context; `pack_card.py`, `pack_art.py`, `pack_pane.py` show it (`docs/context-packs.md`) |
 | `sandbox.py` | SANDBOX: Try it risky makes a git worktree on a `sandbox/` branch beside the task's repo and a task chat in it; Promote keeps the branch, Bin removes worktree and branch (asks when dirty); `sandboxes.json`; git only via `cli_runner.run_git` (allow-list `cli_avatars/runner/sandbox_git.py`); `sandbox_card.py`, `sandbox_rooms.py`, `sandbox_art.py`, `sandbox_view.py` show it (`docs/sandbox-room.md`) |
 | `topics.py` | Topic summaries, pins, previews |
+| `repos.py` | REPOS.1: repos as project records with a folder (add, remove), which agents work in each by role (Caine, sub-orchestrators, subagents) and since when; `repos_live.py`, `repos_panel.py`, `repo_badge.py`, `repo_art.py` show it, `webui/repo_routes.py` on the phone (`docs/repos.md`) |
 | `cli_avatars/app/door_counts.py` | DOOR-COUNTS: counts per room, project and in total (no Tk); `door_plaque.py` and `door_totals.py` draw them (`docs/door-counts.md`) |
 | `routing.py` | Composer → orchestrator routing |
 | `cli_avatars_emit.py` | `python -m cli_avatars_emit` — state, say, inbox, hooks installer |
@@ -133,5 +134,6 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Talk to it from the phone (voice) | `docs/phone-voice.md` |
 | Bot roster and status | `docs/bot-status.md` |
 | Check, restart, update the running app | `docs/agent-ops.md` |
+| Repos and which agents use them (desktop and phone) | `docs/repos.md` |
 
 Hooks: install with `python -m cli_avatars_emit hooks install --apply`; do not rely on removed `claude_hooks_example.py`.

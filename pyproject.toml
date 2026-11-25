@@ -48,6 +48,7 @@ py-modules = [
     "portal",
     "recap",
     "redaction",
+    "repos",
     "rooms",
     "routing",
     "sandbox",

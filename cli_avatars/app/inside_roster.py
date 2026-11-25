@@ -251,12 +251,13 @@ class Hall:
             av.frame, av.dir = int(now * 5), face
             moved[aid] = self._spot(feet, av)
         self._publish(plan)
-        from cli_avatars.app import door_plaque, door_signs, focus_veil, sandbox_view
+        from cli_avatars.app import door_plaque, door_signs, focus_veil, repo_badge, sandbox_view
 
         body_view.paint(self.book, self.book._scene(), self, now)
         door_signs.paint(self.book, self.book._scene(), self, now)
         sandbox_view.paint(self.book, self.book._scene(), self, now)
         door_plaque.paint(self.book, self.book._scene(), self, now)
+        repo_badge.paint(self.book, self.book._scene(), self, now)
         courier_view.paint(self.book, self.book._scene(), self, now)
         boss_view.paint(self.book, self.book._scene(), self, now)
         focus_veil.paint(self.book, self.book._scene(), self, now)

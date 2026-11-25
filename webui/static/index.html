@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="/static/courier.css">
 <link rel="stylesheet" href="/static/boss.css">
 <link rel="stylesheet" href="/static/voice.css">
+<link rel="stylesheet" href="/static/repos.css">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -33,7 +34,7 @@
       <button id="lapseBtn" class="icon lapse-btn" type="button" aria-pressed="false" title="Time-lapse: scrub the day and watch the avatars move"><span class="glass-ico" aria-hidden="true"></span></button>
       <button id="editRoom" class="icon" type="button" title="Edit this room" aria-haspopup="dialog" hidden>&#9998;</button>
       <button id="roomsBtn" class="icon" type="button" title="Rooms: add and customize" aria-haspopup="dialog">&#9638;</button>
-      <button id="appBtn" class="icon app" type="button" title="App: version and Update" aria-haspopup="dialog">&#9881;</button>
+      <button id="appBtn" class="icon app" type="button" title="App: version, Update and repos" aria-haspopup="dialog">&#9881;</button>
       <button id="sound" class="icon" type="button" aria-pressed="false" title="Sound: zoom, send and reply">&#9835;</button>
       <button id="fit" class="icon" type="button" title="Whole map">&#10530;</button>
     </header>
@@ -115,6 +116,16 @@
       <p id="updLine" class="upd-line" aria-live="polite"></p>
       <div class="upd-acts"><button id="updGo" class="send" type="button">Update app</button><button id="rstGo" class="ghost" type="button">Restart</button></div>
       <p id="updWhy" class="upd-why"></p>
+      <section class="repos" aria-labelledby="reposTitle">
+        <h3 id="reposTitle"><span class="repo-seal" aria-hidden="true"></span>Repos</h3>
+        <ul id="repoRows" class="repo-rows" aria-live="polite"></ul>
+        <form id="repoForm" class="repo-form" hidden autocomplete="off">
+          <input id="repoName" maxlength="80" enterkeyhint="next" placeholder="Name" aria-label="Repo name">
+          <input id="repoPath" maxlength="240" enterkeyhint="done" placeholder="Full folder path on the Dungeon's PC" aria-label="Folder">
+          <button class="send" type="submit">Add repo</button>
+        </form>
+        <p id="repoNote" class="hint" aria-live="polite"></p>
+      </section>
       <label class="push-row"><input id="pushToggle" type="checkbox"><span class="push-switch" aria-hidden="true"></span>
         <span><b>Alerts when closed</b><small>A new decision or blocked task reaches this phone with the page shut.</small></span></label>
       <p id="pushWhy" class="push-why" aria-live="polite"></p>
@@ -295,5 +306,6 @@
 <script src="/static/boss.js"></script>
 <script src="/static/voice.js"></script>
 <script src="/static/rise.js"></script>
+<script src="/static/repos.js"></script>
 </body>
 </html>

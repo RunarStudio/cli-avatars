@@ -10,7 +10,7 @@ from dataclasses import replace
 
 from cli_avatars.app import door_counts
 from events import app_data_dir
-from webui import auth, config, live, qr, server, writes
+from webui import auth, config, live, qr, repo_routes, server, writes
 
 _BG, _FG, _SEL, _DIM, _BAD = "#0d0d1a", "#aaccff", "#223366", "#9a98b8", "#ff8866"
 _FONT = ("Courier", 9)
@@ -38,12 +38,14 @@ def start(app, settings: config.WebSettings) -> str:
     app._phone_calls = calls
     live.set_roster(lambda _lay, _now: live.dungeon_roster(app))
     live.set_sessions(lambda: door_counts.session_rows(app))
+    repo_routes.set_seen(lambda: getattr(app, "_repo_seen", {}))
     return ""
 
 
 def stop(app) -> None:
     live.set_roster(None)
     live.set_sessions(None)
+    repo_routes.set_seen(None)
     server.stop(getattr(app, "_phone_server", None))
     app._phone_server = None
     calls = getattr(app, "_phone_calls", None)

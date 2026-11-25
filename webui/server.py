@@ -38,7 +38,19 @@ from board.model import BODY_LIMIT, COLUMNS, clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
 from topics import valid_topic_id
-from webui import auth, lapse, mail_routes, media, pack_routes, push, sandbox_routes, scene, standup_routes, writes
+from webui import (
+    auth,
+    lapse,
+    mail_routes,
+    media,
+    pack_routes,
+    push,
+    repo_routes,
+    sandbox_routes,
+    scene,
+    standup_routes,
+    writes,
+)
 
 STATIC = asset_path("webui", "static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -62,6 +74,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/voice.js": ("voice.js", "text/javascript; charset=utf-8"),
          "/static/voice.css": ("voice.css", "text/css; charset=utf-8"),
          "/static/rise.js": ("rise.js", "text/javascript; charset=utf-8"),
+         "/static/repos.js": ("repos.js", "text/javascript; charset=utf-8"),
+         "/static/repos.css": ("repos.css", "text/css; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048
@@ -243,6 +257,9 @@ class Handler(BaseHTTPRequestHandler):
             return mail_routes.write(self, path, body)
         if path == "/api/standup/run":
             return standup_routes.write(self, body)
+        repo = repo_routes.PATH.match(path)
+        if repo:
+            return repo_routes.write(self, repo.group(1), body)
         pack = pack_routes.PATH.match(path)
         if pack:
             return pack_routes.write(self, pack.group(1), body)
@@ -395,6 +412,8 @@ class Handler(BaseHTTPRequestHandler):
             return mail_routes.read(self)
         if path == "/api/standup":
             return standup_routes.read(self)
+        if path == "/api/repos":
+            return repo_routes.read(self)
         if path.startswith("/api/voice/"):
             from webui import voice_routes
 

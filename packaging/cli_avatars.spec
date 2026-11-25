@@ -78,6 +78,7 @@ hiddenimports = [
     "perchas",
     "portal",
     "redaction",
+    "repos",
     "rooms",
     "routing",
     "sessions",

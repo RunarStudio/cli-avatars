@@ -217,6 +217,26 @@ def remember_cwd(cwd, now: Optional[float] = None) -> None:
             _live_cwds.pop(next(iter(_live_cwds)))
 
 
+# REPOS.1: each live session's working folder by agent id, for "which repo is in use". Memory only, like above.
+_agent_cwds: dict = {}
+
+
+def remember_agent_cwd(agent_id: str, cwd) -> None:
+    if not isinstance(cwd, str) or not cwd.strip() or len(cwd) > 1024 or "\x00" in cwd:
+        return
+    with _live_cwds_lock:
+        _agent_cwds.pop(agent_id, None)
+        _agent_cwds[agent_id] = cwd
+        while len(_agent_cwds) > LIVE_CWD_MAX * 4:
+            _agent_cwds.pop(next(iter(_agent_cwds)))
+
+
+def agent_cwd(agent_id: str) -> str:
+    """The working folder last seen for ``agent_id`` (merged id: ``grok:`` prefixed for Grok); ``""`` if none."""
+    with _live_cwds_lock:
+        return _agent_cwds.get(agent_id, "")
+
+
 def live_cwds(now: Optional[float] = None) -> list:
     """Working folders seen in the last ``LIVE_CWD_TTL`` seconds, newest first."""
     stamp = time.time() if now is None else now
@@ -226,6 +246,11 @@ def live_cwds(now: Optional[float] = None) -> list:
 
 def _folder_in_text(text: str) -> str:
     """First ``cwd`` folder name in ``text``. The rest of the path is dropped."""
+    return project_folder(_cwd_in_text(text))
+
+
+def _cwd_in_text(text: str) -> str:
+    """First ``cwd`` in ``text`` that names a folder; it is remembered for the memory map."""
     for line in text.splitlines():
         if '"cwd"' not in line:
             continue
@@ -237,7 +262,7 @@ def _folder_in_text(text: str) -> str:
             folder = project_folder(obj.get("cwd"))
             if folder:
                 remember_cwd(obj.get("cwd"))
-                return folder
+                return obj.get("cwd")
     return ""
 
 
@@ -299,6 +324,8 @@ class ClaudeJsonlSource(SessionSource):
                                if sf.stat().st_mtime > cutoff)
                 else:
                     subs = 0
+                cwd = self._project_cwd(f)
+                remember_agent_cwd(aid, cwd)
                 found.append(SessionInfo(
                     agent_id=aid,
                     name=f"Claude-{aid[:4]}",
@@ -307,7 +334,7 @@ class ClaudeJsonlSource(SessionSource):
                     skin="__new__", is_demo=False,
                     workspace_hash=f.parent.name,
                     source=self.name, parent_id=None,
-                    project=self._project_name(f), failed=failed,
+                    project=project_folder(cwd), failed=failed,
                     file=basename))
             except Exception:
                 pass
@@ -350,8 +377,8 @@ class ClaudeJsonlSource(SessionSource):
             pass
         return IDLE, "", False, ""
 
-    def _project_name(self, path) -> str:
-        """Folder name from a ``cwd`` field. The path itself is not kept."""
+    def _project_cwd(self, path) -> str:
+        """The session's ``cwd``: the transcript's tail, else its head."""
         try:
             with open(path, "rb") as handle:
                 head = handle.read(4096)
@@ -364,9 +391,9 @@ class ClaudeJsonlSource(SessionSource):
             return ""
         # The tail is the current cwd. The head covers a short transcript.
         for blob in (tail, head):
-            folder = _folder_in_text(blob.decode("utf-8", errors="ignore"))
-            if folder:
-                return folder
+            cwd = _cwd_in_text(blob.decode("utf-8", errors="ignore"))
+            if cwd:
+                return cwd
         return ""
 
 
@@ -757,6 +784,7 @@ class GrokBuildSource(SessionSource):
             project = project_folder(cwd)
             if project:
                 remember_cwd(cwd)
+                remember_agent_cwd(f"{self.name}:{agent_id}", cwd)
             title = _summary_title(summary)
             status, tool, failed = grok_state_from_updates(_read_tail(updates_path))
             subs, child_ids = self._subagents(session)

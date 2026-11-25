@@ -50,6 +50,7 @@ hiddenimports = [
     "portal",
     "recap",
     "redaction",
+    "repos",
     "rooms",
     "routing",
     "sandbox",
