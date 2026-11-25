@@ -1,0 +1,65 @@
+# Orchestrator hierarchy (SUMMON.1, HIERARCHY.1)
+
+![The four tiers](img/orchestrator-hierarchy.png)
+
+## Talk to the main orchestrator
+
+The main orchestrator lives in the **throne room**. Open the Dungeon's **Throne** tab, or click its room on the
+floor: the chat opens on its topic with **Claude** lit and a gold crown chip on the Run row. Type and press Enter.
+
+## Create one
+
+- **Summon orchestrator** (gold plate): shown on the Throne tab and at the top of the Sessions panel while no main
+  session is open. One click opens the main session (the throne room rises) and starts its CLI with the main role and
+  the throne pack (open topic rooms, the four tiers). The first Summon asks for the project folder once; the folder is
+  stored in that room's chat file only and `ui/summon.json` keeps the topic name, so later Summons reuse it. A `summon`
+  cue (horn and hall bell) plays on Windows, held while a task is in focus.
+- **Sessions panel**: pick *Main: throne* or *Simple room*, Claude or Grok, a folder, **Open session**. This opens
+  the room only; the CLI starts on your first Enter. One main at a time; up to three simple rooms.
+- The phone shows "No orchestrator: summon it on the PC" while none is open. It never starts one.
+
+## The four tiers
+
+| Tier | Where it starts | Chip | Default | What it does |
+|------|-----------------|------|---------|--------------|
+| main | throne room | crown | Claude `fable`, high | plans, splits into topics, delegates; never does the work |
+| topic | simple room | banner | Claude `fable`, high | turns its topic into tasks, one task chat each |
+| task | a card's task chat | scroll | Claude `opus`, medium | does one task; sends quick lookups to subagents |
+| subagent | inside a task chat | spark | Claude `haiku`, low | one narrow job, fast and cheap, then reports back |
+
+Why: planning and splitting work is where a wrong call costs most, so the two orchestrator tiers get the strongest
+model and high effort. A task chat does the work on a strong model at medium effort. Subagents do the many small,
+mechanical jobs on the fastest, cheapest model.
+
+Each launch takes its tier from where it starts. A fresh session gets the tier's role text on stdin (after the context
+pack and task, before your prompt), naming who it delegates to and on which model. The app cannot pick a subagent's
+model itself: the task role tells the task chat which model to ask for. The chip (crown, banner, scroll, spark) with
+model and effort shows on the composer's Run row and hangs under each room's door sign; the phone shows the same
+chips and a legend, read-only.
+
+## Change them
+
+`config.json`, any tier, any field; a bad value keeps the default:
+
+```json
+{ "chat": { "tiers": {
+  "task":     { "cli": "claude", "model": "sonnet", "effort": "high" },
+  "subagent": { "model": "haiku", "effort": "low" }
+} } }
+```
+
+Model and effort reach the argv only when the launch runs the tier's CLI:
+
+| CLI | Model | Effort | Source |
+|-----|-------|--------|--------|
+| Claude | `--model <name>` | `--effort low\|medium\|high\|xhigh\|max` | `claude --help` (built in) |
+| Cursor | `--model <name>` (template piece `model`) | none published: add an `effort` piece if one exists | Cursor CLI docs |
+| Grok | set in `config.json` | set in `config.json` | no headless flags published |
+
+A template CLI takes them as pieces next to its `argv`, one slot each, checked like the rest of the template:
+
+```json
+{ "chat": { "clis": { "grok": { "argv": ["<flags>"], "model": ["<flag>", "{model}"], "effort": ["<flag>={effort}"] } } } }
+```
+
+Values are plain names (letters, digits, `.`, `_`, `-`); anything else is refused and nothing starts.
