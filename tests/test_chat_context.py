@@ -45,7 +45,7 @@ class TemplateTest(unittest.TestCase):
         self.assertEqual(chat_clis.template({}, "cursor"),
                          {"argv": ["-p", "--output-format", "stream-json", "--mode", "plan"],
                           "resume": ["--resume", "{session}"], "model": ["--model", "{model}"]})
-        self.assertIsNone(chat_clis.template({}, "grok"))
+        self.assertEqual(chat_clis.template({}, "grok"), chat_clis.DEFAULTS["grok"])
         self.assertEqual(chat_clis.template({"chat": {"clis": {"grok": GROK}}}, "grok"), GROK)
 
     def test_config_overrides_and_bad_templates_read_as_unset(self):
@@ -184,9 +184,10 @@ class StateTest(_Data):
         return chat_clis.state(self.data, config, cli, resolve)
 
     def test_missing_and_unset_clis_are_greyed_with_a_hint(self):
-        grok = self._state("grok", {}, True)
+        grok = self._state("grok", {"chat": {"clis": {"grok": {"argv": ["--yolo"]}}}}, True)
         self.assertFalse(grok.enabled)
         self.assertIn("chat.clis.grok.argv", grok.why)
+        self.assertTrue(self._state("grok", {}, True).enabled)
         cursor = self._state("cursor", {}, False)
         self.assertFalse(cursor.enabled)
         self.assertIn("not found", cursor.why)

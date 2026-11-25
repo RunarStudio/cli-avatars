@@ -128,7 +128,8 @@ again = send("claude", "Go on")
 check("claude_resumes_its_session", again["argv"][-2:] == ["--resume", session("claude", 1)], again["argv"])
 check("resume_has_task_not_pack", context_packs.HEAD not in again["stdin"]
       and "[cli-avatars task context" in again["stdin"])
-check("no_pack_cue_on_resume", played == ["pack"] * 3, played)
+check("no_pack_cue_on_resume", [n for n in played if n == "pack"] == ["pack"] * 3
+      and [n for n in played if n != "pack"] == ["grok-send", "grok-reply"], played)
 check("one_session_per_cli", [task_sessions.session(data, room, c) for c in ("claude", "grok", "cursor")]
       == [session("claude", 1), session("grok", 2), session("cursor", 3)])
 grok2 = send("grok", "And?")
@@ -171,7 +172,7 @@ check("copy_context_is_the_pack_and_task", clip.startswith(context_packs.HEAD) a
 check("copy_is_quiet_in_focus", played == [], played)
 check("copy_starts_nothing", len(popen_calls) == calls)
 
-config["chat"] = {}
+config["chat"] = {"clis": {"grok": {"argv": ["--yolo"]}}}  # a refused template reads as unset
 pane.refresh_clis()
 root.update()
 grey = pane.chips["grok"]

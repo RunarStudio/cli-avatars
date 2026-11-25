@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -76,12 +77,13 @@ class TaskChats(unittest.TestCase):
             self._start()
 
     def test_grok_waits_for_its_runner(self):
-        ready, why = tc.cli_ready("grok")
-        self.assertFalse(ready)
-        self.assertIn("grok login", why)
-        self.assertEqual(tc.cli_ready("claude"), (True, ""))
-        with self.assertRaises(EventRejected):
-            self._start("grok")
+        with unittest.mock.patch("cli_avatars.app.chat_clis.template", return_value=None):
+            ready, why = tc.cli_ready("grok")
+            self.assertFalse(ready)
+            self.assertIn("chat.clis.grok.argv", why)
+            self.assertEqual(tc.cli_ready("claude"), (True, ""))
+            with self.assertRaises(EventRejected):
+                self._start("grok")
         self.assertEqual(self.reg.task_get(self.card["id"])["chats"], [])
 
     def test_the_chat_and_the_task_point_at_each_other(self):

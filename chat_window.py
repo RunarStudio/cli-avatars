@@ -120,6 +120,7 @@ def launch_cli(request, prompt: str, event=None):
         argv_template=getattr(request, "template", None),
         model=getattr(request, "model", None),
         effort=getattr(request, "effort", None),
+        new_session_id=getattr(request, "new_session_id", None),
     )
     if not _STOP_ON_EXIT:
         _STOP_ON_EXIT.append(atexit.register(runner.stop_all))
@@ -142,6 +143,7 @@ def room_tools() -> SimpleNamespace:
         enabled=lambda cli: bool(runner.CLI_ALLOWLIST.get(cli)),
         check_template=runner.check_template,
         header=runner.build_context_header,
+        running=runner.running,
     )
 
 

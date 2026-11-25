@@ -33,7 +33,12 @@ def cli_sender(cli: str) -> str:
     return f"{cli}:{AGENT_ID}"
 
 
-def new_turn(cli: str) -> Turn:
+def new_turn(cli: str, planned: str | None = None) -> Turn:
+    """Claude's stream-json parser; Grok's own (GROK-CHAT), which keeps the id the app named a fresh session with."""
+    if cli == "grok":
+        from cli_avatars.app.grok_stream import GrokTurn
+
+        return GrokTurn(cli, AGENT_ID, planned)
     return Turn(cli, AGENT_ID)
 
 
@@ -58,10 +63,12 @@ def post_messages(directory: Path | str, room_id: str, cli: str, messages: list[
 def finish_turn(
     directory: Path | str, room: Room, cli: str, turn: Turn, outcome: str, stderr: str = "",
 ) -> dict:
-    """After a run: keep the reported session id for resume, log stderr, append the board event."""
-    if turn.session_id:
-        set_session_id(directory, room.room_id, cli, turn.session_id)
-        task_sessions.remember(directory, room.room_id, cli, turn.session_id)
+    """After a run: keep the reported (or, on an ok turn, the app-named) session id for resume, log stderr, append
+    the board event."""
+    session = turn.session_id or (getattr(turn, "planned", None) if outcome == "ok" else None)
+    if session:
+        set_session_id(directory, room.room_id, cli, session)
+        task_sessions.remember(directory, room.room_id, cli, session)
     add_participant(directory, room.room_id, cli)
     if stderr:
         _log.info("room=%s cli=%s stderr: %s", room.room_id, cli, stderr[:STDERR_LOG_LIMIT])

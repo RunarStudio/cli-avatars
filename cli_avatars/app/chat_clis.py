@@ -1,8 +1,8 @@
 """CHAT-CTX.1: the composer's CLIs (Claude, Grok, Cursor): names, colours, argv templates, availability. No Tk.
 
 Claude's argv is built into the runner. Grok and Cursor run from an argv template in ``config.json``
-(``chat.clis.<name>.argv`` and ``.resume``), checked by the runner's ``check_template``; Cursor has a default
-from its CLI docs, Grok has none until it is set (docs/task-chats.md "Per-task sessions"). Nothing here starts a CLI.
+(``chat.clis.<name>.argv`` and ``.resume``), checked by the runner's ``check_template``; Cursor and Grok have a default
+from their CLI docs (docs/task-chats.md "Per-task sessions", docs/grok-chat.md). Nothing here starts a CLI.
 """
 
 from __future__ import annotations
@@ -24,8 +24,14 @@ NAMES = {"claude": "Claude", "grok": "Grok", "cursor": "Cursor"}
 COLORS = {INBOX: "#a8a6c8", "claude": "#e07a4a", "grok": "#7aa7e0", "cursor": "#c8d0e8"}
 # From Cursor's CLI docs (parameters, output format); prompt on stdin is assumed, so config may override it.
 # HIERARCHY.1: ``--model`` is in those docs; no effort flag is, so ``effort`` stays a piece config may add.
+# GROK-CHAT: from xAI's Grok Build docs (headless, sessions, sandbox, enterprise permissions); prompt on stdin is not
+# in them, so config may override it. ``new`` names a fresh session with the id the app picks (``-s <uuid>``).
 DEFAULTS = {"cursor": {"argv": ["-p", "--output-format", "stream-json", "--mode", "plan"],
-                       "resume": ["--resume", "{session}"], "model": ["--model", "{model}"]}}
+                       "resume": ["--resume", "{session}"], "model": ["--model", "{model}"]},
+            "grok": {"argv": ["-p", "--output-format", "streaming-json", "--no-auto-update",
+                              "--permission-mode", "dontAsk", "--sandbox", "read-only"],
+                     "resume": ["-r", "{session}"], "new": ["-s", "{session}"],
+                     "model": ["-m", "{model}"], "effort": ["--effort", "{effort}"]}}
 
 
 def targets() -> tuple[str, ...]:
@@ -72,10 +78,24 @@ def state(directory, config: object, cli: str, resolve) -> SimpleNamespace:
     except tools.rejected:
         resolved = None
     if resolved is None or not resolved.found:
-        why = f"{name} CLI not found on PATH. Install it, or use Copy context and paste it in {name}."
+        how = "Install Grok Build and run grok login" if cli == "grok" else "Install it"
+        why = f"{name} CLI not found on PATH. {how}, or use Copy context and paste it in {name}."
         return SimpleNamespace(cli=cli, enabled=False, ready=False, why=why, resolved=None)
     why = f"{name} CLI found: {short_path(resolved.path)}. Click Use this binary to confirm it."
     return SimpleNamespace(cli=cli, enabled=True, ready=False, why=why, resolved=resolved)
+
+
+def launch(directory, config: object, room: str, cli: str) -> dict:
+    """One send's template, the session it resumes and, for a fresh one whose template has a ``new`` piece, the id
+    the app names it with (GROK-CHAT: ``grok -s <uuid>``, so resume never waits on the CLI to report it)."""
+    import uuid
+
+    from cli_avatars.app import task_sessions
+
+    argv = template(config, cli)
+    session = task_sessions.session(directory, room, cli)
+    fresh = str(uuid.uuid4()) if session is None and argv is not None and "new" in argv else None
+    return {"template": argv, "session_id": session, "new_session_id": fresh}
 
 
 def short_path(path: str) -> str:

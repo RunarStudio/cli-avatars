@@ -704,14 +704,16 @@ def build_argv(
 def check_template(template: object) -> dict[str, list[str]]:
     """A config argv template: ``argv`` (fixed flags) and ``resume`` (with one ``{session}``). Raises ``CliRejected``.
 
+    ``new`` (GROK-CHAT, optional) names a fresh session with an id the app picks, one ``{session}`` slot like resume.
+
     Only flag-shaped constants pass: no path, no shell character, no prompt slot, no skip-permission flag.
     ``model`` and ``effort`` (HIERARCHY.1, optional) are pieces with one ``{model}`` or ``{effort}`` slot each.
     """
     if not isinstance(template, Mapping):
         raise CliRejected("argv template is not an object")
-    argv, resume = template.get("argv"), template.get("resume", [])
+    argv, resume, fresh = template.get("argv"), template.get("resume", []), template.get("new", [])
     pieces = {name: template[name] for name in TIER_SLOTS if name in template}
-    lists = [argv, resume, *pieces.values()]
+    lists = [argv, resume, fresh, *pieces.values()]
     if not all(isinstance(x, list) for x in lists) or sum(len(x) for x in lists) > TEMPLATE_MAX_ARGS:
         raise CliRejected("argv template is not a short list")
     for name, piece in pieces.items():
@@ -720,26 +722,30 @@ def check_template(template: object) -> dict[str, list[str]]:
         if sum(p.count(slot) for p in piece if isinstance(p, str)) != 1 \
                 or not all(isinstance(p, str) and _TEMPLATE_ARG.fullmatch(p) for p in filled):
             raise CliRejected(f"{name} piece needs one {slot} slot")
-    for part in argv + resume + [p for piece in pieces.values() for p in piece]:
+    for part in argv + resume + fresh + [p for piece in pieces.values() for p in piece]:
         if not isinstance(part, str) or len(part) > 64:
             raise CliRejected("argv template part is not usable")
         if any(word in part.casefold() for word in _TEMPLATE_FORBIDDEN) or part in _ARGV_FORBIDDEN:
             raise CliRejected("refusing a forbidden flag")
     if not all(_TEMPLATE_ARG.fullmatch(part) for part in argv):
         raise CliRejected("argv template part is not a plain flag")
-    slots = [part for part in resume if SESSION_SLOT in part]
-    if resume and (len(slots) != 1 or not _TEMPLATE_RESUME.fullmatch(slots[0])
-                   or not all(_TEMPLATE_ARG.fullmatch(p) for p in resume if p not in slots)):
-        raise CliRejected("resume template needs one {session} slot")
-    return {"argv": list(argv), "resume": list(resume), **{name: list(p) for name, p in pieces.items()}}
+    for name, piece in (("resume", resume), ("new", fresh)):
+        slots = [part for part in piece if SESSION_SLOT in part]
+        if piece and (len(slots) != 1 or not _TEMPLATE_RESUME.fullmatch(slots[0])
+                      or not all(_TEMPLATE_ARG.fullmatch(p) for p in piece if p not in slots)):
+            raise CliRejected(f"{name} template needs one {{session}} slot")
+    out = {"argv": list(argv), "resume": list(resume), **{name: list(p) for name, p in pieces.items()}}
+    return {**out, "new": list(fresh)} if fresh else out
 
 
 def build_template_argv(
-    binary: str, template: object, session_id: str | None, model: str | None = None, effort: str | None = None
+    binary: str, template: object, session_id: str | None, model: str | None = None, effort: str | None = None,
+    new_session_id: str | None = None,
 ) -> list[str]:
     """Fixed command line from a checked template; the session id fills ``{session}`` after the UUID check.
 
     A checked ``model`` or ``effort`` fills its piece; a template without that piece leaves it out.
+    Without a session to resume, ``new_session_id`` fills the ``new`` piece (a template without one leaves it out).
     """
     if not isinstance(binary, str) or not binary or any(ord(ch) < 32 or ord(ch) == 127 for ch in binary):
         raise CliRejected("binary path is not usable")
@@ -755,6 +761,10 @@ def build_template_argv(
         if not checked["resume"]:
             raise CliRejected("this CLI has no resume template")
         argv.extend(part.replace(SESSION_SLOT, session_id) for part in checked["resume"])
+    elif new_session_id is not None and "new" in checked:
+        if type(new_session_id) is not str or SESSION_ID_RE.fullmatch(new_session_id) is None:
+            raise CliRejected("new session id is not a session UUID")
+        argv.extend(part.replace(SESSION_SLOT, new_session_id) for part in checked["new"])
     return argv
 
 
@@ -976,6 +986,7 @@ def start(
     argv_template: Mapping[str, object] | None = None,
     model: str | None = None,
     effort: str | None = None,
+    new_session_id: str | None = None,
 ) -> RoomProcess:
     """Start one allowlisted CLI for one explicit UI action.
 
@@ -992,6 +1003,7 @@ def start(
     raises ``CliRejected`` and starts nothing. Grok and Cursor need
     ``argv_template`` (CHAT-CTX.1); Claude refuses one and keeps its own argv.
     ``model`` and ``effort`` are the launch's tier (HIERARCHY.1), checked like every other argv part.
+    ``new_session_id`` names a fresh session through the template's ``new`` piece (GROK-CHAT).
     """
     _consume_user_action(user_action)
     key_cli = _known_cli(cli)
@@ -1003,7 +1015,7 @@ def start(
             return build_argv(path, mode, session_id, model, effort)
         if type(mode) is not str or mode not in PERMISSION_MODES:
             raise CliRejected("permission mode is not allowlisted")
-        return build_template_argv(path, argv_template, session_id, model, effort)
+        return build_template_argv(path, argv_template, session_id, model, effort, new_session_id)
 
     if not isinstance(binary, ConfirmedBinary) or binary.cli != key_cli:
         raise CliRejected("binary was not confirmed for this cli")

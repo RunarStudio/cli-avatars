@@ -60,8 +60,8 @@ panel.open_card(card_id)
 root.update()
 check("card shows an empty chats list", card.open and not [w for w in card.chat_list.winfo_children()
                                                           if isinstance(w, tk.Frame)])
-check("grok waits with its reason", str(card.chat_buttons["grok"].cget("state")) == "disabled"
-      and "grok login" in card.chat_buttons["grok"].why)
+check("grok is on with its default command", str(card.chat_buttons["grok"].cget("state")) == "normal"
+      and card.chat_buttons["grok"].why == "")
 check("no cli started yet", not shown and not played)
 card.chat_buttons["claude"].invoke()
 root.update()

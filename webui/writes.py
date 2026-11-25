@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from cli_avatars.app import room_log, task_sessions, tiers
+from cli_avatars.app import room_log, tiers
 from cli_avatars.app import session_rooms as sr
 from cli_avatars.app import session_walks as sw
 from cli_avatars.model.room import PARTICIPANTS, ROOM_DIR_NAME, add_participant, load_binary_pin, load_room
@@ -33,7 +33,7 @@ MAX_PROMPT = 8000
 MAX_ANSWER = 1000
 MAX_FOLDERS = 50
 NO_FOLDER = "Pick this room's folder once in the Dungeon's chat (Folder…), then send from the phone."
-NO_BINARY = "Confirm the Claude binary once in the Dungeon's chat, then send from the phone."
+NO_BINARY = "Confirm the {name} binary once in the Dungeon's chat, then send from the phone."
 
 
 class Actions:
@@ -197,25 +197,33 @@ class Actions:
         answered = next(r for r in list_decisions(self.directory) if r["id"] == decision_id)
         return room, "", not self.send(room, f'Daniel answered your question "{row["question"]}": {said(answered)}')
 
-    def send(self, topic: str, text: str) -> str:
-        """Start one run for the phone's Send tap; ``""`` when it started, else why not."""
+    def send(self, topic: str, text: str, cli: str | None = None) -> str:
+        """Start one run for the phone's Send tap; ``""`` when it started, else why not.
+
+        ``cli`` (GROK-CHAT) is the lane the phone shows, e.g. a Grok topic; else the room's own.
+        """
         from chat_window import launch_cli, room_tools
+        from cli_avatars.app import chat_clis, grok_topics
 
         room = _room(self.directory, topic)
         if hasattr(room, "room_id"):
-            room = task_chats.with_folder(self.directory, room)
-        cli = self._cli(topic, room)
+            room = grok_topics.with_folder(self.directory, task_chats.with_folder(self.directory, room))
+        cli = cli if cli in PARTICIPANTS else self._cli(topic, room)
         if not room.working_dir:
             return NO_FOLDER
         pin = load_binary_pin(self.directory, cli)
         if pin is None:
-            return NO_BINARY
+            return NO_BINARY.format(name=chat_clis.NAMES[cli])
+        config = load_config(config_path())
+        fields = chat_clis.launch(self.directory, config, topic, cli)
+        if cli != "claude" and fields["template"] is None:
+            return chat_clis.state(self.directory, config, cli, lambda *_a, **_k: None).why
         with self._lock:
             if topic in self.running:
                 return "Still answering here. Wait for the reply."
             self.running.add(topic)
         title, cards = room_log.context(self.directory, topic)
-        turn = room_log.new_turn(cli)
+        turn = room_log.new_turn(cli, fields["new_session_id"])
         before = media.snapshot(room.working_dir)
         try:
             room_log.post_prompt(self.directory, topic, cli, text)
@@ -235,7 +243,11 @@ class Actions:
                     pass
 
         def on_done(result) -> None:
+            tail = turn.finish() if hasattr(turn, "finish") else []
             try:
+                if tail:
+                    texts.extend(m.text for m in tail if m.icon == "speech")
+                    room_log.post_messages(self.directory, topic, cli, tail)
                 media.collect(self.directory, topic, room.working_dir, before, room_log.cli_sender(cli))
                 room_log.finish_turn(self.directory, room, cli, turn, result.outcome, result.stderr)
                 task_chats.apply_reply(self.directory, topic, texts, result.outcome)
@@ -244,13 +256,13 @@ class Actions:
             finally:
                 self.running.discard(topic)
 
-        session = task_sessions.session(self.directory, topic, cli)
+        session = fields["session_id"]
         request = SimpleNamespace(room_id=topic, cli=cli, pin=pin, working_dir=room.working_dir,
                                   mode=room.permission_mode, session_id=session, topic_title=title,
-                                  open_cards=cards, on_line=on_line, on_done=on_done,
+                                  open_cards=cards, on_line=on_line, on_done=on_done, template=fields["template"],
+                                  new_session_id=fields["new_session_id"],
                                   preamble=task_chats.preamble(self.directory, topic, fresh=session is None),
-                                  **tiers.launch(self.directory, load_config(config_path()), topic, cli,
-                                                 session is None))
+                                  **tiers.launch(self.directory, config, topic, cli, session is None))
         try:
             launch_cli(request, text, "phone-send")
         except room_tools().rejected as exc:

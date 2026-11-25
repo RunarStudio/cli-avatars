@@ -4,6 +4,7 @@ import json
 import sys
 import time
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -35,9 +36,10 @@ class PhoneTaskChats(_Writes):
 
     def test_bad_new_chat_requests(self):
         path = f"/api/cards/{self.card['id']}/chats"
-        status, body = self.request(path, "POST", {"cli": "grok"})
+        with unittest.mock.patch("cli_avatars.app.chat_clis.template", return_value=None):
+            status, body = self.request(path, "POST", {"cli": "grok"})
         self.assertEqual(status, 409)
-        self.assertIn("grok login", body["why"])
+        self.assertIn("chat.clis.grok.argv", body["why"])
         self.assertEqual(self.request(path, "POST", {"cli": "bash"})[0], 400)
         self.assertEqual(self.request(path, "POST", {"cli": "claude", "folder": "/tmp"})[0], 400)
         self.assertEqual(self.request("/api/cards/0b9d6f1e-3c1a-4c55-9d1e-0a1b2c3d4e5f/chats", "POST",

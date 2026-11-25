@@ -3,6 +3,7 @@
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,8 +43,9 @@ class Editor(unittest.TestCase):
         self.assertEqual(chat_rows(self.dir, out.card)[1]["last"], "Wicks trimmed, both sconces lit")
 
     def test_grok_and_the_cap_are_field_errors(self):
-        out = self.ed.chat_new(self.card["id"], "grok")
-        self.assertIn("grok login", out.errors["chats"])
+        with unittest.mock.patch("cli_avatars.app.chat_clis.template", return_value=None):
+            out = self.ed.chat_new(self.card["id"], "grok")
+        self.assertIn("chat.clis.grok.argv", out.errors["chats"])
         for _ in range(tc.MAX_CHATS):
             self.ed.chat_new(self.card["id"], "claude")
         self.assertIn("chats", self.ed.chat_new(self.card["id"], "claude").errors)
@@ -62,7 +64,7 @@ class CardPanelChats(unittest.TestCase):
         if proc.returncode == 77:
             self.skipTest("tkinter has no display")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        for name in ("card shows an empty chats list", "grok waits with its reason", "no cli started yet",
+        for name in ("card shows an empty chats list", "grok is on with its default command", "no cli started yet",
                      "new chat opens its room with the cue", "board stays on the card's topic", "two chats listed",
                      "click reopens a chat", "no new toplevel", "the chat's tick shows in the open card"):
             self.assertIn(f"ok {name}", proc.stdout)

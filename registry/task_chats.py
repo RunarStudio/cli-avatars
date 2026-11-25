@@ -55,8 +55,16 @@ def cli_ready(cli: str) -> tuple[bool, str]:
 
     if cli == "cursor":
         return False, "Cursor runs from a chat's Run row (CHAT-CTX.1); start the chat with Claude."
+    if cli == "grok":
+        from cli_avatars.app.chat_clis import template
+        from cli_avatars.paths import config_path
+        from rooms import load_config
+
+        if template(load_config(config_path()), "grok") is None:
+            return False, "Grok: no command set. Add chat.clis.grok.argv to config.json (docs/grok-chat.md)."
+        return True, ""
     if cli not in CHAT_CLIS or not room_tools().enabled(cli):
-        return False, "Grok launches after grok login (ROOM-CHAT.6); use Claude for now."
+        return False, "Not a chat CLI."
     return True, ""
 
 

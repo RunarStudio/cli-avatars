@@ -277,13 +277,19 @@ class Handler(BaseHTTPRequestHandler):
             if why:
                 return self._error(404 if why == "missing" else 409)
             return self._json({"id": card["id"], "column": card["column"]})
+        if path.startswith("/api/grok/"):
+            from webui import grok_routes
+
+            return grok_routes.write(self, path, body)
         if path.startswith("/api/chat/"):
-            topic, text = path[len("/api/chat/"):], body.get("text")
+            topic, text, cli = path[len("/api/chat/"):], body.get("text"), body.get("cli")
             if not valid_topic_id(topic) or not isinstance(text, str) or not text.strip():
+                return self._error(400)
+            if not set(body) <= {"text", "cli"} or cli not in (None, "claude", "grok"):
                 return self._error(400)
             if len(text) > writes.MAX_PROMPT:
                 return self._error(413)
-            why = actions.send(topic, text)
+            why = actions.send(topic, text, cli)
             return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
         self._error(404)
 
@@ -422,6 +428,10 @@ class Handler(BaseHTTPRequestHandler):
             return standup_routes.read(self)
         if path == "/api/repos":
             return repo_routes.read(self)
+        if path == "/api/grok":
+            from webui import grok_routes
+
+            return grok_routes.read(self)
         if path.startswith("/api/voice/"):
             from webui import voice_routes
 
