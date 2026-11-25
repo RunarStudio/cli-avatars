@@ -2,7 +2,8 @@
 
 A chip is a plate with a pixel gem drawn in code in the CLI's colour (Claude a round stone, Grok a diamond, Cursor
 an arrow, Inbox a letter). The lit chip takes its colour as its edge; a greyed chip keeps its hint in ``why`` and
-shows it in the status line when clicked. Picking a chip starts nothing.
+shows it in the status line when clicked. Picking a chip starts nothing. HIERARCHY.1: a tier chip at the row's end
+shows the room's tier with its model and effort.
 """
 
 from __future__ import annotations
@@ -87,17 +88,49 @@ def line(pane, cli: str, text: str, tag: str) -> None:
     pane._write(("· " if tag == "tool" else "") + text + "\n", tag)
 
 
+class TierChip(tk.Frame):
+    """HIERARCHY.1: the tier a send from this room takes: its glyph (crown, banner, scroll, spark), model and effort."""
+
+    def __init__(self, parent) -> None:
+        super().__init__(parent, bg=EDGE, padx=1, pady=1)
+        face = tk.Frame(self, bg=PLATE)
+        face.pack()
+        self.gem = tk.Canvas(face, width=7 * PX, height=5 * PX, bg=PLATE, highlightthickness=0)
+        self.gem.pack(side="left", padx=(5, 3), pady=3)
+        self.label = tk.Label(face, text="", bg=PLATE, fg=INK, font=FONT)
+        self.label.pack(side="left", padx=(0, 6))
+        self.shown: dict | None = None
+
+    def set(self, chip: dict) -> None:
+        if chip == self.shown:
+            return
+        self.shown = chip
+        self.config(bg=chip["color"])
+        self.label.config(text=chip["label"], fg=chip["color"])
+        self.gem.delete("all")
+        for y, row in enumerate(chip["rows"]):
+            for x, bit in enumerate(row):
+                if bit == "1":
+                    self.gem.create_rectangle(x * PX, y * PX, x * PX + PX - 1, y * PX + PX - 1, fill=chip["color"],
+                                              width=0)
+
+
 def build(parent, on_pick) -> dict[str, Chip]:
     chips = {}
     for key in targets():
         chip = Chip(parent, key, on_pick)
         chip.pack(side="left", padx=2)
         chips[key] = chip
+    parent.tier_chip = TierChip(parent)
+    parent.tier_chip.pack(side="right", padx=2)
     return chips
 
 
-def paint(chips: dict[str, Chip], target: str, states: dict) -> None:
+def paint(chips: dict[str, Chip], target: str, states: dict, tier: dict | None = None) -> None:
     for key, chip in chips.items():
         state = states.get(key)
         enabled = True if state is None else state.enabled
         chip.set(enabled, key == target, "" if state is None else state.why)
+    bar = next(iter(chips.values())).master if chips else None
+    if tier is not None and getattr(bar, "tier_chip", None) is not None:
+        bar.tier_chip.set(tier)

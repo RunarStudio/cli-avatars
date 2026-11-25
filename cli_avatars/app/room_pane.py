@@ -19,7 +19,7 @@ from tkinter import filedialog
 from types import SimpleNamespace
 
 from board.model import CHAT_CLIS
-from cli_avatars.app import cli_chips, cues, pack_pane, room_log, task_sessions
+from cli_avatars.app import cli_chips, cues, pack_pane, room_log, task_sessions, tiers
 from cli_avatars.app.chat_clis import COLORS, NAMES, short_path, state, template
 from cli_avatars.model.room import (
     PERMISSION_MODES,
@@ -220,7 +220,7 @@ class RoomPane:
             preamble=task_chats.preamble(directory, room.room_id, fresh=session is None),
             on_line=lambda line: run.events.put(("line", line)),
             on_done=lambda result: run.events.put(("done", result)),
-            run=run,
+            run=run, **tiers.launch(directory, self.window._config(), room.room_id, cli, session is None),
         )
 
     def started(self, request, process) -> None:
@@ -270,12 +270,12 @@ class RoomPane:
             return
         self._paint()
 
-    def pick_folder(self) -> Room | None:
-        """The folder dialog is the only way a working dir reaches the room file."""
+    def pick_folder(self, ask=None) -> Room | None:
+        """The folder dialog (or Summon's, ``ask``) is the only way a working dir reaches the room file."""
         room = self._room()
         if room is None:
             return None
-        picked = self._ask_folder()
+        picked = self._ask_folder() if ask is None else ask()
         if not picked:
             self._status("No folder picked")
             return None
@@ -435,7 +435,8 @@ class RoomPane:
 
     def _paint(self) -> None:
         room = self._room()
-        cli_chips.paint(self.chips, self.target, self._states)
+        cli_chips.paint(self.chips, self.target, self._states,
+                        tiers.room_chip(self.window.directory(), self.window._config(), self.room_id))
         try:
             cli_on = self.cli_target() is not None
             running = room is not None and room.room_id in self._runs

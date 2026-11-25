@@ -100,7 +100,8 @@ def launch_cli(request, prompt: str, event=None):
     """Start one CLI run for a prompt the user sent: Enter or Send here, or Send on the phone page (PHONE.2).
 
     Argv is fixed by the runner; the prompt and the room context go on stdin, a task chat's
-    context (``request.preamble``, TASK-CHAT.1) before the prompt. Raises ``CliRejected``.
+    context (``request.preamble``, TASK-CHAT.1) and a fresh session's tier role (``request.role``,
+    HIERARCHY.1) before the prompt; the tier's ``model`` and ``effort`` go to the runner. Raises ``CliRejected``.
     """
     runner = _runner()
     process = runner.start(
@@ -109,7 +110,7 @@ def launch_cli(request, prompt: str, event=None):
         cli=request.cli,
         binary=runner.ConfirmedBinary(cli=request.cli, **request.pin),
         working_dir=request.working_dir,
-        prompt=getattr(request, "preamble", "") + prompt,
+        prompt=getattr(request, "preamble", "") + getattr(request, "role", "") + prompt,
         topic_title=request.topic_title,
         open_cards=request.open_cards,
         permission_mode=request.mode,
@@ -117,6 +118,8 @@ def launch_cli(request, prompt: str, event=None):
         on_stdout_line=request.on_line,
         on_done=request.on_done,
         argv_template=getattr(request, "template", None),
+        model=getattr(request, "model", None),
+        effort=getattr(request, "effort", None),
     )
     if not _STOP_ON_EXIT:
         _STOP_ON_EXIT.append(atexit.register(runner.stop_all))
