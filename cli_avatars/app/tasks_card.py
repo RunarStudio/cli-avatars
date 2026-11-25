@@ -223,6 +223,7 @@ class CardPanel:
         self._decide_sig = sig
         for child in self.decide_box.winfo_children():
             child.destroy()
+        self.decide_box.configure(height=1)  # an emptied frame keeps its old height otherwise
         self.decide_rows = {row["id"]: row for row in rows}
         self.decide_entries = {}
         for row in rows:

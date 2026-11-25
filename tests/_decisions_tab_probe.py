@@ -82,6 +82,8 @@ row = next(r for r in list_decisions(DIR) if r["id"] == ASKED)
 check("answered from the card", row["status"] == "answered" and row["choice"] == "b" and row["answer"] == "thin",
       str(row))
 check("slip gone", not panel.card_panel.decide_box.winfo_children())
+check("no gap left", panel.card_panel.decide_box.winfo_height() <= 2,
+      str(panel.card_panel.decide_box.winfo_height()))
 check("count drops", panel.decisions_button.cget("text") == "Decisions (1)", panel.decisions_button.cget("text"))
 check("no new toplevel", not [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)])
 root.destroy()
