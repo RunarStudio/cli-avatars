@@ -4,6 +4,8 @@
 only when it moved. Rows are kept per item and changed in place; between reads only the age text moves.
 An item that enters plays the soft ``arrive`` cue (a new decision already rings ``decide``). The first
 read after a start is quiet. A row click opens the task card or the room chat; Clear clears that row.
+FOCUS: while a task is in focus only its rows show; new rows of other tasks are held (``focus.gate``), silent,
+and the note says how many wait.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import logging
 import time
 import tkinter as tk
 
+import focus
 import needs_you
 from cli_avatars.app import cues
 from cli_avatars.app.throttle import StoreThrottle
@@ -46,9 +49,9 @@ def step(app, now: float | None = None) -> None:
     gate.mark(now)
     try:
         directory = app._chat_directory()
-        mark = needs_you.stamp(directory)
+        mark = (needs_you.stamp(directory), focus.stamp(directory))
         if mark != getattr(app, "_needs_stamp", None):
-            items = needs_you.pending(directory)
+            items, app._needs_waiting = focus.gate(directory, needs_you.pending(directory))
             app._needs_stamp = mark
             _take(app, items)
     except (EventRejected, OSError):
@@ -77,7 +80,7 @@ def paint(app) -> None:
             tab.button.config(text=text)
     panel = getattr(app, "_needs_panel", None)
     if panel is not None:
-        panel.show(items, time.time())
+        panel.show(items, time.time(), getattr(app, "_needs_waiting", 0))
 
 
 def ensure(view) -> None:
@@ -145,7 +148,7 @@ class NeedsPanel:
         self.rows: dict[str, _Row] = {}
         self.order: list[str] = []
 
-    def show(self, items: list[dict], now: float) -> None:
+    def show(self, items: list[dict], now: float, waiting: int = 0) -> None:
         keys = [item["key"] for item in items]
         for key in set(self.rows) - set(keys):
             self.rows.pop(key).frame.destroy()
@@ -165,6 +168,8 @@ class NeedsPanel:
         elif not keys and not self.empty.winfo_manager():
             self.empty.pack(pady=24)
         note = f"{len(keys)} item{'s' if len(keys) != 1 else ''}" if keys else ""
+        if waiting:
+            note = f"{note} · {waiting} waiting (focus)" if note else f"{waiting} waiting (focus)"
         if self.note.cget("text") != note:
             self.note.config(text=note)
 

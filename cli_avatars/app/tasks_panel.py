@@ -6,7 +6,8 @@ write through ``TaskEditor`` as ``daniel``. Card text is shown, never run. DECID
 and its column marks open decisions; "Decisions (N)" shows every card that waits on Daniel.
 TASKBACK.5: project and topic filters; each card shows its chat count and last reply (click: the chat);
 a card moves by drag, its right-click menu or Ctrl+Left/Right, with the ``move`` cue. A redraw rebuilds
-only the cards that changed, so live agent updates do not blink.
+only the cards that changed, so live agent updates do not blink. FOCUS: the card menu or F on a card puts it in
+focus; the board then shows that card alone, titled Focus, with Leave focus in the bar.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ from __future__ import annotations
 import time
 import tkinter as tk
 
+import focus
+from cli_avatars.app.focus_mode import narrow
 from cli_avatars.app.tasks_card import GOLD, PARCH, WINE, CardPanel, button
 from cli_avatars.app.tasks_edit import TaskEditor, assignee_choices, chat_rows
 from cli_avatars.app.tasks_tiles import card_tile, refit, set_text, shape
@@ -60,6 +63,7 @@ class TasksPanel:
         self._decisions_only = False
         self._last = 0.0
         self._drag: dict | None = None
+        self.focused: str | None = None
         self.board: Board | None = None
         self.frame = tk.Frame(parent, bg=_BG)
         self.frame.pack(fill="both", expand=True)
@@ -75,6 +79,7 @@ class TasksPanel:
         self.new_button.pack(side="right")
         self.decisions_button = button(bar, "Decisions (0)", self.toggle_decisions, _COL, _HEAD)
         self.decisions_button.pack(side="right", padx=(0, 6))
+        self.leave_button = button(bar, "◉ Leave focus", self.leave_focus, GOLD, _INK)
         self.empty = tk.Label(self.frame, text="", bg=_BG, fg="#9a98b8", font="DungeonText")
         self._main = tk.Frame(self.frame, bg=_BG)
         self._grid = tk.Frame(self._main, bg=_BG)
@@ -129,12 +134,14 @@ class TasksPanel:
         self._last = now
         self.card_panel.tick()
         try:
-            board = load_board(self._directory(), self._topic(), self._done_open, self._decisions_only,
-                               self._project)
+            task = focus.current(self._directory())
+            board = load_board(self._directory(), ALL if task else self._topic(), self._done_open or bool(task),
+                               self._decisions_only and not task, None if task else self._project)
         except OSError:
             return
-        if board != self.board:
-            self.board = board
+        board = narrow(board, task)
+        if board != self.board or task != self.focused:
+            self.focused, self.board = task, board
             self._draw(board)
             self._follow_open_card()
 
@@ -222,6 +229,19 @@ class TasksPanel:
         box.config(highlightbackground=GOLD, highlightthickness=2)
         box.after(1400, lambda: box.winfo_exists() and box.config(highlightbackground="#8a6a3a", highlightthickness=1))
 
+    def toggle_focus(self, card_id: str) -> str:
+        """F or the card menu: focus on this card, or leave focus when it already has it."""
+        if self.focused == card_id:
+            self.leave_focus()
+        else:
+            focus.start(self._directory(), card_id)
+            self.refresh(force=True)
+        return "break"
+
+    def leave_focus(self) -> None:
+        focus.leave(self._directory())
+        self.refresh(force=True)
+
     def column_of(self, card_id: str) -> str | None:
         tile = self._tiles.get(card_id)
         return tile[0].column if tile else None
@@ -237,6 +257,8 @@ class TasksPanel:
                 menu.add_command(label=f"  {STATUS_BADGES[name][0]}", command=lambda n=name: self.move(card_id, n))
         menu.add_separator()
         menu.add_command(label="Open card", command=lambda: self.open_card(card_id))
+        menu.add_command(label="Leave focus" if self.focused == card_id else "Focus on this task   F",
+                         command=lambda: self.toggle_focus(card_id))
         return menu
 
     def _post_menu(self, card_id: str, event) -> str:
@@ -266,7 +288,15 @@ class TasksPanel:
         topic = "every topic" if board.topic == ALL else board.topic
         where = " · ".join(part for part in (board.project, topic) if part)
         title = f"Board · {where}" if where else "Board"
+        if self.focused:
+            card = next((c for col in board.columns for c in col.cards), None)
+            title = f"Focus · {card.title}" if card else "Focus"
         set_text(self.title, "Decisions · every topic" if board.decisions_only else title)
+        if bool(self.focused) != bool(self.leave_button.winfo_manager()):
+            if self.focused:
+                self.leave_button.pack(side="right", padx=(0, 6))
+            else:
+                self.leave_button.pack_forget()
         set_text(self.project_button, f"{board.project or 'All projects'} ▾")
         set_text(self.topic_button, f"{'Chat topic' if self._topic_pick is None else topic or 'no topic'} ▾")
         lit = board.decisions_only
@@ -356,6 +386,8 @@ class TasksPanel:
         box.bind("<Control-Right>", lambda e, c=card_id: self._step(c, 1))
         box.bind("<Shift-F10>", lambda e, c=card_id: self._post_menu(c, e))
         box.bind("<Return>", lambda e, c=card_id: self.open_card(c))
+        for key in ("<KeyPress-f>", "<KeyPress-F>"):
+            box.bind(key, lambda e, c=card_id: self.toggle_focus(c))
 
     def _press(self, card_id: str, event) -> None:
         self._drag = {"card": card_id, "x": event.x_root, "y": event.y_root, "moved": False}

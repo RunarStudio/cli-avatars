@@ -2,13 +2,15 @@
 
 Read at most twice a second from the overlay tick, beside the decision bubbles. The first read only learns
 what is already open, so a restart does not ring. ``app._decision_asking`` holds the askers' avatar ids for
-the DOOR.1 find walk. No Tk here.
+the DOOR.1 find walk. FOCUS: while a task is in focus, decisions on other tasks neither ring, toast nor walk;
+they come back with the one ``release`` cue when focus ends. No Tk here.
 """
 
 from __future__ import annotations
 
 import logging
 
+import focus
 from cli_avatars.app import cues
 from cli_avatars.app.throttle import StoreThrottle
 from events import EventRejected
@@ -36,6 +38,8 @@ def step(app, now: float | None = None) -> None:
     ids = {row["id"] for row in rows}
     seen = getattr(app, "_decision_seen", None)
     app._decision_seen = ids
+    task = focus.current(directory)
+    rows = [row for row in rows if task is None or focus.belongs(row, task)]
     app._decision_asking = frozenset(_avatar_ids(row["from"] for row in rows))
     if seen is None:
         return

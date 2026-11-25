@@ -5,6 +5,9 @@ knock when a guest orchestrator reaches the host's room. ``decide``: a rising th
 asks Daniel a decision (DECIDE.1). ``move``: a card slid across the board and set down (TASKBACK.5).
 ``capture``: a quill's quick scratch and a soft pinned-note pluck when a thought is saved (QUICK-CAPTURE).
 ``scroll``: parchment unrolled (a soft papery rustle) and its wooden rod settling, when the Recap opens (DAILY-RECAP).
+``focus``: torches snuffed (a falling breath of noise) under a low settling two-note, when a task takes focus (FOCUS).
+``unfocus``: torches catching again (a rising crackle) and a lifting two-note, when focus ends; ``release`` is the same
+with one soft bell strike after it, when alerts waited: one cue for the whole batch.
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -44,6 +47,10 @@ def wav(name: str) -> bytes:
         return _pcm(_quill())
     if name == "scroll":
         return _pcm(_unroll())
+    if name == "focus":
+        return _pcm(_snuff())
+    if name in ("unfocus", "release"):
+        return _pcm(_relight(name == "release"))
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):
@@ -121,6 +128,50 @@ def _unroll() -> np.ndarray:
     knock = np.sin(2 * np.pi * 140.0 * t) * np.exp(-t * 38) + np.sin(2 * np.pi * 330.0 * t) * np.exp(-t * 70) * 0.3
     start = int(RATE * 0.36)
     out[start:start + n] += (knock * 0.55).astype(np.float32)
+    return out
+
+
+def _snuff() -> np.ndarray:
+    """Torches snuffed: a short breath of noise falling in pitch, then a low two-note settling (A3, E3)."""
+    rng = np.random.default_rng(41)
+    out = np.zeros(int(RATE * 0.75), np.float32)
+    n = int(RATE * 0.28)
+    t = np.arange(n) / RATE
+    breath = np.convolve(rng.standard_normal(n), np.ones(9) / 9, "same")
+    out[:n] += (breath * np.exp(-t * 9) * np.sin(np.pi * t / t[-1]) * 0.5).astype(np.float32)
+    for at, pitch in ((0.12, 220.0), (0.3, 164.81)):
+        n = int(RATE * 0.42)
+        t = np.arange(n) / RATE
+        tone = (np.sin(2 * np.pi * pitch * t) + 0.2 * np.sin(2 * np.pi * pitch * 2 * t)) * np.exp(-t * 6)
+        start = int(RATE * at)
+        out[start:start + n] += (tone * np.minimum(1.0, t * 200) * 0.6).astype(np.float32)
+    return out
+
+
+def _relight(bell: bool) -> np.ndarray:
+    """Torches catching: a rising crackle of noise, a lifting two-note (E3, B3); ``bell`` adds one soft strike."""
+    rng = np.random.default_rng(43)
+    out = np.zeros(int(RATE * (1.25 if bell else 0.75)), np.float32)
+    n = int(RATE * 0.3)
+    t = np.arange(n) / RATE
+    rush = np.diff(np.convolve(rng.standard_normal(n + 1), np.ones(4) / 4, "same"))
+    out[:n] += (rush * (t / t[-1]) ** 1.5 * np.exp(-np.maximum(0, t - 0.24) * 40) * 0.4).astype(np.float32)
+    for at in rng.uniform(0.04, 0.3, 6):
+        k = int(RATE * 0.006)
+        start = int(RATE * at)
+        out[start:start + k] += (rng.standard_normal(k) * np.exp(-np.arange(k) / 30) * 0.3).astype(np.float32)
+    for at, pitch in ((0.18, 164.81), (0.34, 246.94)):
+        n = int(RATE * 0.4)
+        t = np.arange(n) / RATE
+        tone = (np.sin(2 * np.pi * pitch * t) + 0.2 * np.sin(2 * np.pi * pitch * 2 * t)) * np.exp(-t * 6)
+        start = int(RATE * at)
+        out[start:start + n] += (tone * np.minimum(1.0, t * 200) * 0.6).astype(np.float32)
+    if bell:
+        n = int(RATE * 0.55)
+        t = np.arange(n) / RATE
+        strike = (np.sin(2 * np.pi * 987.77 * t) + 0.3 * np.sin(2 * np.pi * 1985.5 * t)) * np.exp(-t * 7)
+        start = int(RATE * 0.68)
+        out[start:start + n] += (strike * np.minimum(1.0, t * 400) * 0.45).astype(np.float32)
     return out
 
 
