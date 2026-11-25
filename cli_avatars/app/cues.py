@@ -21,6 +21,8 @@ TIMELAPSE (``timelapse_cues``): ``tick``: a soft clockwork tick while scrubbing 
 two low chimes, when a moment opens its chat.
 BODY (``body_cues``): ``sigh``: a soft out-breath over a falling hum, when an agent slumps on the bench; ``knock``: two
 soft raps on a door, when one starts waiting on Daniel; ``crackle``: a low hearth, when a room starts to smoke.
+MESSENGER (``courier_cues``): ``rustle``: two soft footsteps and a papery rustle, when a courier sets off with news;
+``stamp``: a wax seal pressed (a thud, a squish) and a small warm chime, when it arrives and the card lights up.
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -86,6 +88,10 @@ def wav(name: str) -> bytes:
         from cli_avatars.app.body_cues import sound as body_sound
 
         return _pcm(body_sound(name))
+    if name in ("rustle", "stamp"):
+        from cli_avatars.app.courier_cues import sound as courier_sound
+
+        return _pcm(courier_sound(name))
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):

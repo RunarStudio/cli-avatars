@@ -203,6 +203,32 @@ def lit(directory: Path | str) -> dict[str, dict]:
     return out
 
 
+def details(directory: Path | str, rows: Iterable[Mapping]) -> list[dict]:
+    """What a courier carries, to show: both cards' titles and topics, the question, the answer and the reason."""
+    from decisions import list_decisions
+    from registry.facade import Registry
+
+    rows = list(rows)
+    if not rows:
+        return []
+    registry = Registry(directory)
+    try:
+        asked = {r["id"]: r for r in list_decisions(directory)}
+    except (EventRejected, OSError):
+        asked = {}
+    out = []
+    for row in rows:
+        a, b = registry.task_get(row.get("from", "")), registry.task_get(row["to"])
+        if a is None or b is None:
+            continue
+        decision = asked.get(row.get("decision")) or {}
+        out.append({"key": row["key"], "state": row["state"], "ts": row["ts"], "reason": row.get("reason", ""),
+                    "from": a["id"], "from_title": a["title"], "from_topic": a.get("topic") or "",
+                    "to": b["id"], "to_title": b["title"], "to_topic": b.get("topic") or "",
+                    "question": str(decision.get("question") or ""), "answer": said(decision)})
+    return out
+
+
 def needs_rows(directory: Path | str) -> list[dict]:
     """NEEDS-YOU rows: an arrived courier whose card waits on Daniel (blocked, an open decision, a waiting topic)."""
     shown = lit(directory)

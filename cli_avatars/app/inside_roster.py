@@ -220,9 +220,10 @@ class Hall:
         self.hues = bot_hues(aid for aid, agent in agents.items() if kind_of(agent) == GROK)
         self._meet(agents, now)
         topics, cards = self._rooms()
-        from cli_avatars.app import body_view
+        from cli_avatars.app import body_view, courier_view
 
         posed = body_view.update(self.book, self, plan, agents, topics, cards, now)
+        courier_view.update(self.book, self, plan, now)
         need = set(needing(topics, cards, agents)) - posed
         user = self._where(plan, USER_ID, now)[0]
         self._feet[USER_ID] = user
@@ -255,6 +256,7 @@ class Hall:
         door_signs.paint(self.book, self.book._scene(), self, now)
         sandbox_view.paint(self.book, self.book._scene(), self, now)
         door_plaque.paint(self.book, self.book._scene(), self, now)
+        courier_view.paint(self.book, self.book._scene(), self, now)
         focus_veil.paint(self.book, self.book._scene(), self, now)
         return moved
 
@@ -314,7 +316,10 @@ class Hall:
         rooms = {aid: plan.room_at(*spot) for aid, spot in feet.items()}
         view = getattr(self.book, "_body", None)
         body = view.public({aid: self.room_of(aid) for aid in feet}) if view is not None else None
-        self.snapshot = (stamp, roster_rows(feet, self.book.app._inside, rooms, self.hues, walking, body))
+        from cli_avatars.app.courier_view import rows as courier_rows
+
+        found = roster_rows(feet, self.book.app._inside, rooms, self.hues, walking, body)
+        self.snapshot = (stamp, found + courier_rows(self.book))
 
     def _where(self, plan: Plan, aid: str, now: float) -> tuple[tuple[float, float], int]:
         trip = self._trips.get(aid)

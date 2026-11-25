@@ -104,6 +104,11 @@ def open_item(app, item: dict) -> None:
     if item.get("kind") == "mail" and view is not None:
         view.show_center("mailroom")
         return
+    if item.get("kind") == "courier" and getattr(app, "places", None) is not None:
+        from cli_avatars.app.courier_view import view_for
+
+        view_for(app.places).open(item["key"].split(":", 1)[1])
+        return
     if item.get("card") and view is not None:
         view.show_center("tasks")
         panel = getattr(app, "_tasks_panel", None)
