@@ -437,14 +437,14 @@ class PlaceBook:
     def _paint_inside(self, scene, aid, spot, photos, dragging, now, posed: bool) -> None:
         from cli_avatars.app.body_view import dressed
         from cli_avatars.app.crossing import pose
-        from cli_avatars.app.inside_roster import wearing
+        from cli_avatars.app.inside_roster import dress, hall, wearing
 
         av = self.app._inside.get(aid)
         if av is None:
             return
         av.monitor_layout = None
         av._board = None
-        photos, look = dressed(self, aid, av, photos, scene, now, posed)
+        photos, look = dressed(self, aid, av, photos, scene, now, posed, dress, hall(self).hues)
         shown = pose(self, aid, now) if posed else None
         if shown is not None:
             av.x, av.y = shown.x, shown.y

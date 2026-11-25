@@ -82,13 +82,12 @@ def photos(book, aid: str, av, shown, look, scale: int, now: float):
     return PosePhotos(shown, look, scale, getattr(av, "dir", 1) < 0, sig)
 
 
-def dressed(book, aid: str, av, shown, scene, now: float, crossing: bool):
-    """``inside_roster.dress`` for an inside avatar, its pose drawn in unless it is crossing the edge."""
+def dressed(book, aid: str, av, shown, scene, now: float, crossing: bool, dress, hues):
+    """``dress`` (``inside_roster.dress``) for an inside avatar, its pose drawn in unless it is crossing the edge."""
     from cli_avatars.app.dungeon_rooms import rooms_scale
-    from cli_avatars.app.inside_roster import dress, hall
 
     scale = rooms_scale(scene)
-    shown, look = dress(av, shown, scale, hall(book).hues)
+    shown, look = dress(av, shown, scale, hues)
     return (shown if crossing else photos(book, aid, av, shown, look, scale, now)), look
 
 
@@ -174,7 +173,7 @@ class BodyView:
         return set(targets)
 
     def _targets(self, plan, hall, homes: dict) -> dict:
-        from cli_avatars.app.inside_roster import USER_ID
+        from cli_avatars.app.av_roster import USER_ID
 
         layout = getattr(getattr(self.book._scene(), "_rooms_painter", None), "layout", None) or {}
         rooms = {r.get("name"): r for r in layout.get("rooms") or [] if isinstance(r, dict)}
