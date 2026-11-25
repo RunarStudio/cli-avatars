@@ -10,6 +10,7 @@
 // STANDUP (standup.js): the day's standup, one line per agent; a low "gather" horn when a new one comes in.
 // CONTEXT-PACKS (pack.js): the selected task's pack under it; pin and unpin with writes on.
 // SANDBOX (sandbox.js): the selected task's sandbox under it; promote and bin with writes on.
+// PHONE-VOICE (voice.js): hold the rune mic on the decision, the task or Needs you; confirm what it heard in one tap.
 // TIMELAPSE (timelapse.js): scrub a day over the map; drawLapse stands in for the live avatars while it is on.
 // Every text goes in with textContent.
 "use strict";
@@ -479,6 +480,7 @@ function renderTasks() {
     if (c.id === state.sel) li.append(taskChats(c), focusButton(c));
     if (c.id === state.sel && typeof packBox === "function") li.append(packBox(c));
     if (c.id === state.sel && typeof sandboxBox === "function") li.append(sandboxBox(c));
+    if (c.id === state.sel && typeof voiceRow === "function") li.append(voiceRow(c));
     list.append(li);
   }
   renderBoard();
@@ -1598,6 +1600,7 @@ function paintAsk() {
     b.addEventListener("click", () => answerAsk(o.letter));
     opts.append(b);
   }
+  if (typeof voiceMic === "function") $("askVoice").replaceChildren(voiceMic("ask"), voiceSpeak("ask"));
   $("askHint").textContent = !state.writes.writes ? "Answering from the phone is off (Dungeon: Settings \u203a Phone)."
     : d.options.length ? "Tap one; what you type below goes with it. Or write your own answer." : "Write your answer below.";
 }
@@ -1717,6 +1720,7 @@ function paintNeedsSheet() {
     li.append(open, clear);
     list.append(li);
   }
+  if (typeof voiceMic === "function") $("needsVoice").replaceChildren(voiceMic("needs"), voiceSpeak("needs"));
   $("needsNote").textContent = state.writes.writes ? "Tap one to open it. Clear hides it until it changes."
     : "Reading only: clearing from the phone is off (Dungeon: Settings \u203a Phone).";
 }
@@ -2122,6 +2126,7 @@ function tone(kind) {
       : kind === "focus" ? [[220.0, 0], [164.81, 0.14]] : kind === "unfocus" ? [[164.81, 0], [246.94, 0.14]]
       : kind === "release" ? [[164.81, 0], [246.94, 0.14], [987.77, 0.4]]
       : kind === "gather" ? [[196.0, 0], [261.63, 0.14], [392.0, 0.34]]
+      : kind === "listen" ? [[880.0, 0], [1318.5, 0.07]] : kind === "unlisten" ? [[1318.5, 0], [880.0, 0.07]]
       : kind === "tick" ? [[1567.98, 0]] : kind === "moment" ? [[392.0, 0], [587.33, 0.12]]
       : kind === "letter" ? [[587.33, 0], [440.0, 0.08]] : kind === "filed" ? [[196.0, 0], [783.99, 0.12]]
       : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];

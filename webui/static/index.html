@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="/static/timelapse.css">
 <link rel="stylesheet" href="/static/courier.css">
 <link rel="stylesheet" href="/static/boss.css">
+<link rel="stylesheet" href="/static/voice.css">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -68,6 +69,7 @@
       <p id="askQ" class="ask-q"></p>
       <div id="askOpts" class="ask-opts"></div>
       <p id="askHint" class="ask-hint"></p>
+      <div id="askVoice" class="voice-row"></div>
     </div>
     <ol id="chat" class="chat" aria-live="polite"></ol>
     <div id="typing" class="typing" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="typingText"></span></div>
@@ -195,6 +197,7 @@
   <div class="sheet-card">
     <header class="bar"><h2 id="needsTitle"><span class="bell" aria-hidden="true"></span>Needs you</h2><button id="needsClose" class="icon" type="button" title="Close">&#10005;</button></header>
     <div class="sheet-body">
+      <div id="needsVoice" class="voice-row"></div>
       <ul id="needsRows" class="needs-rows"></ul>
       <p id="needsNote" class="hint"></p>
     </div>
@@ -253,6 +256,27 @@
 </div>
 <button id="capBtn" class="fab" type="button" title="Quick capture" aria-haspopup="dialog"><span class="quill" aria-hidden="true"></span><b>+</b></button>
 <p id="capToast" class="cap-toast" hidden aria-live="polite"></p>
+<div id="voice" class="sheet voice" hidden role="dialog" aria-modal="true" aria-labelledby="voiceTitle">
+  <div class="sheet-card voice-card">
+    <header class="bar"><h2 id="voiceTitle"><span class="rune-tiny" aria-hidden="true"></span>Speak</h2><span id="voiceWhere" class="voice-where"></span><button id="voiceClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <div class="voice-stage"><canvas id="voiceWave" class="voice-wave" aria-hidden="true"></canvas>
+        <button id="voiceHold" class="rune-mic big" type="button" aria-label="Hold to speak"></button></div>
+      <p id="voiceState" class="voice-state" aria-live="polite"></p>
+      <p id="voiceHeard" class="voice-heard"></p>
+      <form id="voiceForm" class="voice-form" autocomplete="off"><input id="voiceText" maxlength="1000" enterkeyhint="go" placeholder="Or type what you would say" aria-label="What to do"><button class="ghost" type="submit">Read</button></form>
+      <div id="voicePlan" class="voice-plan" hidden>
+        <p class="vp-head"><span id="voiceKind" class="vp-kind"></span><b id="voiceWhat"></b></p>
+        <p id="voiceDetail" class="vp-detail"></p>
+        <select id="voiceTopic" class="vp-topic" hidden aria-label="Topic"></select>
+        <div class="ask-row"><button id="voiceNo" class="ghost" type="button">Cancel</button><button id="voiceYes" class="send" type="button">Confirm</button></div>
+      </div>
+      <div class="voice-say"><button id="voiceSpeak" class="voice-speak" type="button">Speak summary</button><p id="voiceLine" class="voice-line" aria-live="polite"></p></div>
+      <p id="voiceNote" class="hint" aria-live="polite"></p>
+    </div>
+  </div>
+</div>
+<p id="voiceCaption" class="voice-caption" hidden aria-live="polite"></p>
 <button id="notice" class="notice" type="button" hidden aria-live="assertive"><span class="seal" aria-hidden="true"></span><span><b id="noticeTitle"></b><span id="noticeText"></span></span></button>
 <div id="viewer" class="viewer" hidden role="dialog" aria-modal="true" aria-label="Full view">
   <button id="viewerClose" class="icon" type="button" title="Close">&#10005;</button>
@@ -268,5 +292,6 @@
 <script src="/static/body.js"></script>
 <script src="/static/courier.js"></script>
 <script src="/static/boss.js"></script>
+<script src="/static/voice.js"></script>
 </body>
 </html>

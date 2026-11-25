@@ -1,0 +1,86 @@
+/* PHONE-VOICE: a glowing rune mic (stone disc, turning rune ring, cyan glow while held), the Speak sheet with its
+   rune waveform, the parsed action on a parchment slip, and the spoken-summary caption. */
+.rune-mic { position: relative; width: 44px; height: 44px; flex: none; border-radius: 50%; padding: 0; cursor: pointer;
+  border: 2px solid var(--deep); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  background: radial-gradient(circle at 50% 38%, #4a3d63 0%, #2a2140 55%, #15101f 100%);
+  box-shadow: 0 0 0 2px #5a4a7a, inset 0 2px 0 #6a5a8a, inset 0 -3px 0 #0b0811, 0 0 12px #5ef0d833; }
+.rune-mic::before { content: ""; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, #5ef0d8 0 5deg, transparent 5deg 15deg, #9a7aff 15deg 18deg, transparent 18deg 30deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 58%, #000 60% 66%, transparent 68%);
+  mask: radial-gradient(circle, transparent 0 58%, #000 60% 66%, transparent 68%);
+  opacity: .55; animation: rune-turn 14s linear infinite; }
+.rune-mic .mic-glyph { position: absolute; left: 50%; top: 22%; width: 30%; height: 38%; transform: translateX(-50%);
+  border-radius: 40% 40% 45% 45%; background: linear-gradient(180deg, #b8fff2, #5ef0d8 55%, #2a9a8a);
+  box-shadow: 0 0 6px #5ef0d8, inset 0 -2px 0 #1f6a6a; }
+.rune-mic .mic-glyph::before { content: ""; position: absolute; left: -32%; right: -32%; top: 48%; height: 55%;
+  border: 2px solid #8af5e2; border-top: 0; border-radius: 0 0 50% 50% / 0 0 80% 80%; }
+.rune-mic .mic-glyph::after { content: ""; position: absolute; left: 50%; top: 108%; width: 2px; height: 34%;
+  transform: translateX(-50%); background: #8af5e2; box-shadow: -5px 7px 0 -0px #8af5e2, 5px 7px 0 0 #8af5e2; }
+.rune-mic:hover::before { opacity: .8; }
+.rune-mic.on { background: radial-gradient(circle at 50% 38%, #2a8a80 0%, #1a4a5a 55%, #0d1a24 100%);
+  box-shadow: 0 0 0 2px #5ef0d8, 0 0 22px #5ef0d8aa, 0 0 44px #9a7aff66; animation: rune-pulse .9s ease-in-out infinite; }
+.rune-mic.on::before { opacity: 1; animation-duration: 3s; }
+.rune-mic.big { width: 88px; height: 88px; }
+.rune-mic.big::before { inset: -10px; }
+@keyframes rune-turn { to { transform: rotate(360deg); } }
+@keyframes rune-pulse { 50% { transform: scale(1.06); } }
+
+.voice-row { display: flex; align-items: center; gap: 10px; margin: 6px 0 8px 14px; }
+.voice-row:empty { display: none; }
+#needsVoice { margin: 4px 0 8px; }
+.ask-slip .voice-row { margin: 6px 0 2px; }
+.voice-tip { color: #8af5e2; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.voice-speak { min-height: 36px; padding: 0 12px; font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  color: #e8fffb; background: linear-gradient(180deg, #2a5a6a, #183844); border: 2px solid var(--deep);
+  box-shadow: inset 0 0 0 1px #5ef0d866, 0 0 10px #5ef0d822; cursor: pointer; }
+.voice-row .voice-speak { margin-left: auto; }
+.voice-speak::before { content: "\25B6\FE0E  "; color: #5ef0d8; }
+
+.voice .sheet-card { box-shadow: 0 0 0 2px #2a6a6a, 0 0 36px #5ef0d833, 0 -10px 30px #000a; }
+.voice .bar h2 { display: flex; align-items: center; gap: 8px; }
+.voice-where { color: #8af5e2; font-size: 11px; }
+#voiceClose { margin-left: auto; }
+.voice-stage { position: relative; display: grid; place-items: center; height: 120px; margin: 6px 0 2px;
+  background: radial-gradient(60% 80% at 50% 50%, #1a3a44 0%, transparent 70%),
+    repeating-linear-gradient(90deg, transparent 0 31px, #ffffff08 31px 32px);
+  box-shadow: inset 0 0 0 1px #2a6a6a55; }
+.voice-wave { position: absolute; inset: 24px 8px; width: calc(100% - 16px); height: 72px; }
+.voice.listening .voice-stage { background: radial-gradient(60% 90% at 50% 50%, #1f5a5a 0%, transparent 72%),
+  repeating-linear-gradient(90deg, transparent 0 31px, #5ef0d80d 31px 32px); }
+.voice.typed .voice-stage { display: none; }
+.voice-state { margin: 6px 0 2px; text-align: center; color: var(--torch-2); font-size: 12px; letter-spacing: .06em; }
+.voice-heard { margin: 4px 0 8px; min-height: 1.4em; text-align: center; font: 600 16px/1.35 var(--mono); color: #f2ead8; }
+.voice-heard:not(:empty)::before { content: "\201C"; color: #5ef0d8; }
+.voice-heard:not(:empty)::after { content: "\201D"; color: #5ef0d8; }
+.voice-form { display: flex; gap: 6px; }
+.voice-form input { flex: 1; min-width: 0; min-height: 44px; padding: 0 10px; font: 14px var(--mono); color: var(--ink);
+  background: #120d1a; border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px var(--edge); }
+.voice-form .ghost { min-height: 44px; padding: 0 12px; }
+.voice-plan { margin: 10px 0 4px; padding: 8px 10px 10px; color: #2a1c10;
+  background: radial-gradient(120% 90% at 50% 30%, #efe3c2 0%, #e2cfa0 70%, #b89460 100%);
+  box-shadow: 0 0 0 1px #8a6a3a, 0 0 0 3px var(--deep), 0 4px 9px #000a; animation: rise-up .22s ease-out; }
+.vp-head { display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px; flex-wrap: wrap; }
+.vp-kind { font: 700 9px var(--mono); letter-spacing: .16em; padding: 2px 6px; color: #efe3c2; background: #7a1f3d; }
+.voice-plan[data-kind="task"] .vp-kind { background: #2f6a3a; }
+.voice-plan[data-kind="draft"] .vp-kind { background: #4a2e16; }
+.vp-head b { font-size: 15px; overflow-wrap: anywhere; }
+.vp-detail { margin: 0 0 8px; font-size: 12px; color: #4a3520; overflow-wrap: anywhere; }
+.vp-topic { width: 100%; margin: 0 0 8px; min-height: 36px; font: 13px var(--mono); color: #2a1c10; background: #f6eed6;
+  border: 1px solid #8a6a3a; }
+.voice.sealed .voice-state { color: #8af5a0; animation: landed 1.4s ease-out 1; }
+.voice-say { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.voice-line { margin: 0; color: #b8fff2; font-size: 12px; font-style: italic; }
+.voice-line:empty { display: none; }
+
+.rune-tiny { display: inline-block; width: 12px; height: 12px; flex: none; border-radius: 50%;
+  background: radial-gradient(circle, #b8fff2 0 25%, #5ef0d8 30%, transparent 62%); box-shadow: 0 0 8px #5ef0d8; }
+.voice-caption { position: fixed; z-index: 15; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; width: max-content; max-width: min(520px, calc(100vw - 32px)); margin: 0;
+  padding: 10px 14px; font: 600 14px/1.35 var(--mono); color: #e8fffb; cursor: pointer;
+  background: linear-gradient(180deg, #17323a, #0f2128); border: 2px solid var(--deep);
+  box-shadow: 0 0 0 1px #5ef0d8, 0 0 24px #5ef0d855, 0 8px 20px #000a; animation: rise-up .22s ease-out; }
+.voice-caption[hidden] { display: none; }
+.voice-caption .rune-tiny { animation: rune-pulse .7s ease-in-out infinite; }
+.voice-caption.held { color: #d8c8a0; box-shadow: 0 0 0 1px #b0862a, 0 8px 20px #000a; }
+.voice-caption.held .rune-tiny { animation: none; filter: grayscale(1); }
+@media (prefers-reduced-motion: reduce) { .rune-mic::before, .rune-mic.on, .voice-caption .rune-tiny { animation: none; } }

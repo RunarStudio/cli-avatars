@@ -13,6 +13,7 @@ MAILROOM: ``/api/mailroom`` (read) and its writes live in ``mail_routes``; the S
 STANDUP: ``/api/standup`` (read) and ``POST /api/standup/run`` live in ``standup_routes``; SSE ``standup`` on a new one.
 CONTEXT-PACKS: ``/api/cards/<id>/pack`` (read, and pin/unpin as a write) lives in ``pack_routes``; SSE ``pack``.
 SANDBOX: ``/api/cards/<id>/sandbox`` (read, and promote/bin as a write) lives in ``sandbox_routes``; SSE ``sandbox``.
+PHONE-VOICE: ``/api/voice/parse`` and ``/api/voice/summary`` (reads) live in ``voice_routes``.
 TIMELAPSE: ``/api/timelapse?day=`` (read) is one day of ghosts in map pixels; ``/api/chat/<topic>?around=<ts>``
 opens a chat at a moment; SSE ``timelapse`` when the day's logs change.
 """
@@ -58,6 +59,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/courier.css": ("courier.css", "text/css; charset=utf-8"),
          "/static/boss.js": ("boss.js", "text/javascript; charset=utf-8"),
          "/static/boss.css": ("boss.css", "text/css; charset=utf-8"),
+         "/static/voice.js": ("voice.js", "text/javascript; charset=utf-8"),
+         "/static/voice.css": ("voice.css", "text/css; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048
@@ -391,6 +394,10 @@ class Handler(BaseHTTPRequestHandler):
             return mail_routes.read(self)
         if path == "/api/standup":
             return standup_routes.read(self)
+        if path.startswith("/api/voice/"):
+            from webui import voice_routes
+
+            return voice_routes.read(self, path, query)
         if path == "/api/capture/suggest":
             return self._suggest(query)
         if path == "/api/push":
