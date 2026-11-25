@@ -221,6 +221,8 @@ class Stage:
             if frame.phase in ("horn", "gather"):
                 lord = (self.record or {}).get("lord_name") or "The orchestrator"
                 items.append(("banner", f"{lord} calls the hall", ox + tm.WIDTH * k // 2, oy + 132 * k, "n"))
+                if (self.record or {}).get("boss"):
+                    items.append(("banner", self.record["boss"], ox + tm.WIDTH * k // 2, oy + 146 * k, "n"))
             if frame.speaker is not None:
                 items.append(("bubble", frame.speaker) + self._anchor(frame.speaker, ox, oy, k) + ("s",))
             n = len(self.show.entries)

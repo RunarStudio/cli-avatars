@@ -160,8 +160,8 @@ def standup_line(directory: Path | str, today: date) -> str:
     if today.weekday() != 4:
         return ""
     series = week(load(directory)["days"], today)
-    mark = lambda v: "–" if v is None else str(v)  # noqa: E731
-    return f"Backlog boss: HP {mark(series[-1]['hp'])} (Mon {mark(series[0]['hp'])} → Fri {mark(series[-1]['hp'])})"
+    mark = lambda v: "-" if v is None else str(v)  # noqa: E731
+    return f"Backlog boss: HP {mark(series[-1]['hp'])} (Mon {mark(series[0]['hp'])} > Fri {mark(series[-1]['hp'])})"
 
 
 def cards_in(directory: Path | str) -> list[dict]:

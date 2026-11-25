@@ -15,6 +15,7 @@ import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+import backlog_boss
 import focus
 import recap
 from board.model import PERSON, new_event, valid_assignee
@@ -97,7 +98,8 @@ def build(directory: Path | str, lord: str = "", lord_name: str = "", names: dic
                         "tasks": len(live)})
     entries.sort(key=lambda e: (e["name"].lower(), e["agent"]))
     return {"day": today.isoformat(), "label": recap.day_label(today, date.today()), "lord": lord,
-            "lord_name": recap.clean(lord_name, 40) or "Orchestrator", "entries": entries}
+            "lord_name": recap.clean(lord_name, 40) or "Orchestrator", "entries": entries,
+            "boss": backlog_boss.standup_line(directory, today)}
 
 
 def run(directory: Path | str, lord: str = "", lord_name: str = "", names: dict | None = None,

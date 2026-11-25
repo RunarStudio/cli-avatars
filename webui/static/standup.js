@@ -31,7 +31,7 @@ function paintStandup(ring) {
 function paintStandupSheet() {
   const s = state.standup, rec = s.standup;
   const when = rec ? new Date(rec.at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-  $("standupWhen").textContent = rec ? rec.label + " " + when + " · called by " + rec.lord_name
+  $("standupWhen").textContent = rec ? rec.label + " " + when + " · called by " + rec.lord_name + (rec.boss ? " · " + rec.boss : "")
     : "Not called yet. It runs at " + String(s.hour).padStart(2, "0") + ":00 when the Dungeon opens.";
   $("standupRows").replaceChildren(...(rec ? rec.entries : []).map(standupRow));
   if (rec && !rec.entries.length) $("standupRows").append(el("li", "empty", "No agent has a task."));

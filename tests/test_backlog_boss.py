@@ -140,8 +140,15 @@ class Store(unittest.TestCase):
 
     def test_standup_line_on_friday_only(self):
         boss.sync(self.dir, [_card(1, "blocked")], NOW)
-        self.assertEqual(boss.standup_line(self.dir, FRIDAY), "Backlog boss: HP 1 (Mon – → Fri 1)")
+        self.assertEqual(boss.standup_line(self.dir, FRIDAY), "Backlog boss: HP 1 (Mon - > Fri 1)")
         self.assertEqual(boss.standup_line(self.dir, FRIDAY - timedelta(days=1)), "")
+
+    def test_the_friday_standup_carries_the_line(self):
+        import standup
+
+        boss.sync(self.dir, [_card(1, "blocked")], NOW)
+        self.assertEqual(standup.build(self.dir, today=FRIDAY)["boss"], "Backlog boss: HP 1 (Mon - > Fri 1)")
+        self.assertEqual(standup.build(self.dir, today=FRIDAY - timedelta(days=1))["boss"], "")
 
 
 if __name__ == "__main__":
