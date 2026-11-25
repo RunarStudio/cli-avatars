@@ -70,6 +70,7 @@ hiddenimports = [
     "hud",
     "inbox",
     "meetings",
+    "messenger",
     "needs_you",
     "overlay",
     "perchas",

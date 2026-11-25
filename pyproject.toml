@@ -39,6 +39,7 @@ py-modules = [
     "inbox",
     "mailroom",
     "meetings",
+    "messenger",
     "needs_you",
     "overlay",
     "perchas",
