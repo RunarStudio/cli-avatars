@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -91,6 +91,15 @@ topics as pixel icons with numbers (only the non-zero ones), and a red seal with
 totals line under the map bar shows **All**; tap it for each project. The Rooms sheet lists each room's counts. The
 SSE event `counts` updates them in place. Details: [door-counts.md](door-counts.md).
 
+## Focus mode
+
+**◉ Focus** on a board card (or under the open task in the list) puts that task in focus, here and in the Dungeon: the
+map dims every other room, the other tasks grey out, and a focus bar under the map bar shows the task, a wax seal with
+**N waiting** and **Leave focus**. Alerts for other tasks (the bell, the decision notice, Web Push) wait until you
+leave; then they come in together with one tone, and Web Push sends them with one sound. Starting and leaving need
+**Allow the phone to open sessions and send prompts**; with it off the bar is read-only. The SSE event `focus` keeps
+it live. Details: [focus-mode.md](focus-mode.md).
+
 ## Daily recap
 
 The scroll button in the map bar (beside the bell) opens **Daily recap**: what each agent did today, per task, on a
@@ -146,7 +155,7 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `/api/chat/<topic>?tail=N` | The room's last messages (default 30, at most 200). |
 | `/api/map.png` | The Dungeon map, composed from the kit exactly as the Dungeon window draws it. |
 | `/api/sprite/<look>.png` | Idle and walk rows of a roster look (`user`, `orchestrator`, `grok`, `grok-<hue>`, `subagent`), cut as the Dungeon cuts them. |
-| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change. |
+| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change; `focus` with the focus state when it starts, ends or holds one more alert. |
 | `/api/sessions` | Open sessions, the rooms the phone may open (title and folder name, never a path), whether writes are on, and then the CSRF value. |
 | `POST /api/sessions` | Writes on: open a session `{"kind", "cli", "topic"}` on a room whose folder was picked in the Dungeon. |
 | `POST /api/sessions/<topic>/end` | Writes on: end it; its avatars walk back to the Apothecary. |
@@ -163,6 +172,8 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `POST /api/decisions/<id>` | Writes on: answer `{"choice": "a"}`, `{"text"}` (at most 1,000 characters) or both; 200 with `room` and `sent` (a task chat's turn started), 404 unknown, 409 already answered. |
 | `/api/capture/suggest?q=<text>&current=<topic>` | Topics for the text, best first (at most 12): `id`, `title`; and whether writes are on. Read-only. |
 | `POST /api/capture` | Writes on: `{"text", "topic", "chat"}` (text at most 4,000, `chat` true or false); 200 with `id`, `topic` and `room` (the task chat, or null); 400 empty or malformed, 404 no such topic. |
+| `/api/focus` | FOCUS: the task in focus (or null), its title and room, how many alerts wait, whether writes are on. |
+| `POST /api/focus`, `POST /api/focus/leave` | Writes on: `{"task"}` starts focus on that card (404 unknown); `{}` leaves it, 200 with `released`. |
 | `/api/media/<id>` | A picture or video a phone-sent turn wrote in the room's folder, by its id; byte ranges for video. |
 
 The page keeps the Send box above the phone's keyboard: while you type, the task list folds away and the map shrinks.

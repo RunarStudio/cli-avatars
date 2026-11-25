@@ -206,6 +206,15 @@ red wax seal with the count while decisions wait. Hover shows the full breakdown
 pins it. The top of the Topics dock holds **Behind the doors**: the total and each project as plaques. Images change only
 when a count changes (no blink); no window opens and no sound plays. Details: [door-counts.md](door-counts.md).
 
+#### Focus mode (FOCUS)
+
+Pick one task: the card's menu **Focus on this task**, or **F** on a selected card. The task's room stays lit; every
+other room and corridor goes under a dark dithered veil with its torches snuffed, while the lit room's torches burn
+brighter. A banner at the top of the floor names the task, shows a red wax seal with how many alerts wait, and holds
+**Leave focus** (also in the board bar). The Tasks tab shows that card alone; Needs you shows only its rows. Alerts for
+other tasks (needs-you rows, the decision bell and toast, Web Push) wait silently and come back once, oldest first, with
+one `release` cue when focus ends. Canvas items changed in place; no window opens. Details: [focus-mode.md](focus-mode.md).
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 

@@ -28,6 +28,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `decisions.py` | Decision cards store |
 | `needs_you.py` | NEEDS-YOU.1: decisions, blocked cards, unread replies and ended runs as one list; per-item clear (`docs/needs-you.md`) |
 | `recap.py` | DAILY-RECAP: one local day per agent and task from the board logs and today's hook file basenames (`docs/daily-recap.md`) |
+| `focus.py` | FOCUS: one task in focus (`focus.json`); `gate` holds alerts for other tasks, `leave` hands them back once, oldest first (`docs/focus-mode.md`) |
 | `topics.py` | Topic summaries, pins, previews |
 | `cli_avatars/app/door_counts.py` | DOOR-COUNTS: counts per room, project and in total (no Tk); `door_plaque.py` and `door_totals.py` draw them (`docs/door-counts.md`) |
 | `routing.py` | Composer → orchestrator routing |
@@ -111,6 +112,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Needs you list (desktop and phone) | `docs/needs-you.md` |
 | Daily recap (desktop and phone) | `docs/daily-recap.md` |
 | Door counts (desktop and phone) | `docs/door-counts.md` |
+| Focus mode (desktop and phone) | `docs/focus-mode.md` |
 | Bot roster and status | `docs/bot-status.md` |
 | Check, restart, update the running app | `docs/agent-ops.md` |
 
