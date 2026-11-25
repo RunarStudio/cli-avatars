@@ -60,5 +60,83 @@ class Overlays(unittest.TestCase):
         probe(self, "deadzone", ("dead zone draw", "others untouched"))
 
 
+class Tick(unittest.TestCase):
+    def _app(self, log):
+        from types import SimpleNamespace
+
+        class Step:
+            def __init__(self, name):
+                self.name = name
+
+            def __getattr__(self, method):
+                def call(_frame=None):
+                    if self.name == "pool" and method == "step_avatars":
+                        raise RuntimeError("draw failed")
+                    log.append(f"{self.name}.{method}")
+                return call
+
+        app = SimpleNamespace(_last_win_pos={}, _tick=lambda: None)
+        for name in ("pool", "render", "subagents", "portal", "bubbles", "hud", "rooms", "chat"):
+            setattr(app, name, Step(name))
+        app.scanner = SimpleNamespace(get_agents=dict)
+        app.terrain = SimpleNamespace(get_snapshot=lambda: ([], [], [], {}))
+        app.root = SimpleNamespace(after=lambda _ms, _fn: log.append("schedule"))
+        return app
+
+    def test_a_failed_step_keeps_the_frame_loop_running(self):
+        from cli_avatars.app.tick import TickLoop
+
+        log = []
+        loop = TickLoop(self._app(log))
+        with self.assertLogs("cli_avatars.tick", "ERROR") as logged:
+            loop.step()
+            loop.step()
+        self.assertEqual(log.count("schedule"), 2)
+        self.assertIn("bubbles.step", log)
+        self.assertEqual(len(logged.records), 1)
+
+
+class Places(unittest.TestCase):
+    def test_avatars_are_out_after_a_door_cycle(self):
+        from tests.test_crossing import _book
+
+        import time
+
+        book, app, agents, avatar = _book("idle", "open")
+        now = time.time()
+        book.tick(agents, now)
+        book.tick(agents, now + 2.0)
+        self.assertEqual(book.toggle_door(), "closed")
+        book.tick(agents, now + 4.0)
+        book.tick(agents, now + 6.0)
+        self.assertEqual(book._actors["hero"].where, "inside")
+        self.assertEqual(book.toggle_door(), "open")
+        book.tick(agents, now + 8.0)
+        book.tick(agents, now + 10.0)
+        self.assertEqual(book._actors["hero"].where, "desktop")
+        self.assertIs(app.avatars.get("hero"), avatar)
+
+    def test_a_desktop_avatar_is_still_out_after_a_restart(self):
+        import tempfile
+        import time
+        from types import SimpleNamespace
+
+        from cli_avatars.app.place_store import empty_file, remember, save_file
+        from cli_avatars.app.places import PlaceBook
+        from tests.test_crossing import _agent, _book
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "avatar_places.json"
+            save_file(path, remember(empty_file(), "hero", "a1b2c3d4", 120, 300, time.time()))
+            _old, app, agents, _av = _book("idle", "open")
+            monitor = SimpleNamespace(id="a1b2c3d4", work=(0, 0, 640, 380))
+            app.overlays.layout = SimpleNamespace(monitors=(monitor,), monitor=lambda _ident: monitor)
+            app._inside.clear()
+            book = PlaceBook(app, path=path)
+            book.reconcile({"hero": _agent("hero")})
+        self.assertEqual(book._actors["hero"].where, "desktop")
+        self.assertEqual(book.desktop_ids(), {"hero"})
+
+
 if __name__ == "__main__":
     unittest.main()

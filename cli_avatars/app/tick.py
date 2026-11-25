@@ -74,6 +74,7 @@ class TickLoop:
         self._tick_n = 0
         self._tick_samples: list[float] = []
         self._tick_reported = False
+        self._failed: set = set()
 
     def snapshot(self) -> Frame:
         app = self.app
@@ -136,10 +137,21 @@ class TickLoop:
                 except Exception:
                     logging.getLogger(logger).exception(message)
             else:
-                fn(frame)
+                try:
+                    fn(frame)
+                except Exception as exc:
+                    self._log_failure(name, method, exc)
         refresh_overlay_visibility(self.app)
         self._note_tick(started)
         self.schedule()
+
+    def _log_failure(self, name: str, method: str, exc: Exception) -> None:
+        """A failed step skips this frame only. The same failure is logged once, not 20 times a second."""
+        key = (name, method, type(exc).__name__, str(exc))
+        if key in self._failed:
+            return
+        self._failed.add(key)
+        logging.getLogger("cli_avatars.tick").exception("%s.%s failed", name, method)
 
     def schedule(self) -> None:
         self.app.root.after(1000 // TUNING.overlay_fps, self.app._tick)
