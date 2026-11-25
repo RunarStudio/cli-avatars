@@ -123,7 +123,7 @@ strip = door_totals.attach(app, dock, below)
 strip._read = StoreThrottle(0.0)
 strip.refresh(app)
 root.update()
-check("totals rows", list(strip.rows) == [door_totals.ALL, "glass-orchard", "lantern", "moon-forge"],
+check("totals rows", list(strip.rows) == [door_totals.ALL, "lantern"],
       str(list(strip.rows)))
 check("totals above topics", dock.pack_slaves()[0] is strip.frame)
 row, image = strip.rows[door_totals.ALL]

@@ -3,8 +3,9 @@
 Six counts: orchestrators, agents, subagents (``model.tree``, CHAT-TREE), conversations (room chats and
 task chats), open topics (room-chat topics open or waiting on you) and pending decisions. ``build`` is pure:
 an orchestrator lives in the session room of its CLI and project folder (START.1 binding) with everything
-under it; a topic, its task chats and its decisions live in the room of that topic (a session room, else a
-room you built with that topic), else in the Apothecary. Clock, status and walks are not read, so counts
+under it, and counts for its folder's topic's project (else the folder); a topic, its task chats and its
+decisions live in the room of that topic (a session room, else a room you built with that topic), else in
+the Apothecary. Clock, status and walks are not read, so counts
 change only when a session, topic, chat or decision comes or goes. ``read`` gathers the inputs from disk.
 """
 
@@ -93,15 +94,25 @@ def build(layout: dict | None, sessions: object, topics: object, cards: object, 
     def room_of(topic: str) -> str:
         return by_topic.get(topic, APOTHECARY)
 
+    topic_rows = {}
+    for row in _rows(topics):
+        topic_id = _text(_get(row, "id"))
+        if topic_id:
+            topic_rows[topic_id] = row
+
+    def topic_project(topic: str) -> str:
+        return _text(_get(topic_rows.get(topic) or {}, "project"))
+
     tree = build_tree([row for row in _rows(sessions) if _text(_get(row, "agent_id") or _get(row, "session_id"))])
     for project in tree.roots:
+        topic = topic_slug(project.name)
         for node in project.children:
             if node.kind != ORCHESTRATOR:
                 continue
-            room = session_rooms.get((topic_slug(project.name), node.cli), APOTHECARY)
+            room = session_rooms.get((topic, node.cli), APOTHECARY)
             for key, n in tree.counts(node.node_id).items():
                 if key in TREE_KEYS and n:
-                    add(room, project.name, key, n)
+                    add(room, topic_project(topic) or project.name, key, n)
 
     card_by_id, chat_card = {}, {}
     for card in _rows(cards):
@@ -113,15 +124,6 @@ def build(layout: dict | None, sessions: object, topics: object, cards: object, 
             room_id = _text(_get(chat, "room"))
             if valid_chat_room(room_id):
                 chat_card[room_id] = card
-
-    topic_rows = {}
-    for row in _rows(topics):
-        topic_id = _text(_get(row, "id"))
-        if topic_id:
-            topic_rows[topic_id] = row
-
-    def topic_project(topic: str) -> str:
-        return _text(_get(topic_rows.get(topic) or {}, "project"))
 
     for topic_id, row in sorted(topic_rows.items()):
         if valid_chat_room(topic_id):

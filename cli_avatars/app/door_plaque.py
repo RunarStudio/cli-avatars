@@ -230,7 +230,7 @@ class Plaques:
             self._hide(scene)
             return
         counts = self.counts.rooms.get(name) or door_counts.zeros()
-        key = ("tip", name, tuple(counts[k] for k in door_counts.KEYS), scale)
+        key = ("tip", name, tuple(counts[k] for k in door_counts.KEYS), max(2, scale))
         x, y = (box[0] + box[2]) // 2, box[3] + 2 * scale
         if self._tip is not None and scene.find_withtag(self._tip[1]):
             tip = self._tip[1]

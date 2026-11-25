@@ -524,8 +524,8 @@ button.rtitle .gem { background: #7a1f3d; box-shadow: inset 2px 2px 0 #fff6; }
   border-bottom: 2px solid var(--deep); background: #140f1d; color: var(--dim); font: 11px var(--mono); text-align: left;
   white-space: nowrap; overflow: hidden; cursor: pointer; }
 .totals:empty { display: none; }
-.totals .ico, .count-row .ico { flex: none; width: 10px; height: 10px; image-rendering: pixelated; }
-.totals b, .count-row b { color: var(--ink); font-weight: 700; margin-right: 4px; }
+.totals .ico, .count-row .ico, .totals-projects .ico { flex: none; width: 10px; height: 10px; image-rendering: pixelated; }
+.totals b, .count-row b, .totals-projects b { color: var(--ink); font-weight: 700; margin-right: 4px; }
 .totals .lead { color: var(--torch-2); letter-spacing: .08em; text-transform: uppercase; margin-right: 2px; }
 .tseal { flex: none; display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
   background: radial-gradient(circle at 35% 30%, var(--seal-2), var(--seal) 60%, #5a0f1e); color: #ffe6b0; font: 700 11px var(--mono);

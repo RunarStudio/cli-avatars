@@ -118,9 +118,15 @@ class PerProjectAndTotal(unittest.TestCase):
         self.assertEqual(got["lantern"]["open_topics"], 2)
         self.assertEqual(got["lantern"]["decisions"], 3)
         self.assertEqual(got["dunes"]["decisions"], 1)
+        self.assertEqual(got["lantern"]["orchestrators"], 2)
+        self.assertEqual(got["lantern"]["subagents"], 2)
+        self.assertEqual(got["dunes"]["orchestrators"], 1)
+        self.assertEqual(set(got), {"lantern", "dunes"})
+
+    def test_a_folder_without_a_topic_is_its_own_project(self):
+        got = build(topics=[]).projects
         self.assertEqual(got["moon-forge"]["orchestrators"], 1)
-        self.assertEqual(got["moon-forge"]["subagents"], 2)
-        self.assertEqual(got["sand-clock"]["orchestrators"], 1)
+        self.assertEqual(got["glass-orchard"]["orchestrators"], 1)
 
     def test_demo_sessions_do_not_count(self):
         got = build(sessions=[dict(SESSIONS[0], is_demo=True)])
