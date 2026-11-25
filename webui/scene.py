@@ -344,7 +344,7 @@ def _full_notes(directory: Path | str, topic: str) -> dict:
 def stamp(directory: Path | str) -> tuple:
     """Sizes and mtimes of what the page shows: session rooms, boards, chat, topics."""
     root = Path(directory)
-    paths = [root / "ui" / "session_rooms.json"]
+    paths = [root / "ui" / "session_rooms.json", root / "needs_you.json"]
     for pattern in ("board/*/events.jsonl", "board/*/cards", "channel/*.jsonl", "topics", "web/media.json",
                     "decisions.jsonl"):
         try:

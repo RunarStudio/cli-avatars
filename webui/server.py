@@ -18,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+import needs_you
 from board.model import clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
@@ -45,6 +46,7 @@ _SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
 _ROOM = re.compile(r"^/api/rooms/([A-Za-z0-9][A-Za-z0-9-]{0,39})(/delete)?$")
 _SKIN = re.compile(r"^/api/skins/([a-z-]{1,32})/([SMLT])\.png$")
 _DECIDE = re.compile(r"^/api/decisions/([^/]{1,64})$")
+NEEDS_KEYS = ("key", "kind", "ts", "title", "detail", "room", "card")
 ROOM_ADD = ("name", "topic", "size", "skin", "at", "point")
 ROOM_EDIT = ("name", "topic", "size", "skin")
 HEADERS = {
@@ -168,6 +170,10 @@ class Handler(BaseHTTPRequestHandler):
         decide = _DECIDE.match(path)
         if decide:
             return self._decide(decide.group(1), body)
+        if path == "/api/needs-you/clear":
+            if set(body) != {"key"} or not needs_you.valid_key(body["key"]):
+                return self._error(400)
+            return self._json({"ok": True}) if needs_you.clear(self.server.directory, body["key"]) else self._error(404)
         chats = _CHATS.match(path)
         if chats:
             if set(body) != {"cli"} or body["cli"] not in ("claude", "grok"):
@@ -274,6 +280,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/decisions":
             pending = scene.decisions(directory)
             return self._json({"decisions": pending, "count": len(pending)})
+        if path == "/api/needs-you":
+            items = [{k: row[k] for k in NEEDS_KEYS} for row in needs_you.pending(directory)]
+            return self._json({"items": items, "count": len(items)})
         if path == "/api/sessions":
             state = {"writes": self.server.writes(), **self.server.actions.state()}
             if state["writes"]:

@@ -1,5 +1,6 @@
 // PHONE.1/2/3/4: the Dungeon map, its tasks and the room chat; with writes on, open sessions, send prompts,
 // build and customize rooms, and Update. DECIDE.1: decisions waiting on Daniel, answered in their chat.
+// NEEDS-YOU.1: one list of what waits on Daniel, cleared by tap.
 // Every text goes in with textContent.
 "use strict";
 
@@ -663,7 +664,7 @@ async function endSession(sid) {
 }
 
 async function load() {
-  const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites(), loadDecisions()]);
+  const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites(), loadDecisions(), loadNeeds()]);
   const oldOrigin = state.scene && state.scene.map ? state.scene.map.origin : null;
   state.scene = scene;
   state.cards = board.cards;
@@ -1242,6 +1243,83 @@ $("askClose").addEventListener("click", () => { state.ask = null; paintAsk(); })
 document.addEventListener("pointerdown", () => {
   try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (_e) { /* no audio */ }
 }, { once: true });
+
+// --- NEEDS-YOU.1: one list of what waits on Daniel: bell badge, sheet, open by tap, clear by tap ---------
+state.needs = [];
+state.needsSeen = null;
+const NEED_TAGS = { decision: "Decision", blocked: "Blocked", reply: "Reply", run: "Run ended" };
+
+async function loadNeeds() {
+  let data;
+  try { data = await getJSON("/api/needs-you"); } catch (_e) { return; }
+  const rows = data.items || [];
+  const fresh = state.needsSeen ? rows.filter((n) => !state.needsSeen.has(n.key) && n.kind !== "decision") : [];
+  state.needsSeen = new Set(rows.map((n) => n.key));
+  state.needs = rows;
+  paintNeeds(fresh.length > 0);
+  if (fresh.length) tone("reply");
+}
+
+function ago(ts) {
+  const s = Math.max(0, Date.now() / 1000 - ts);
+  return s < 60 ? "now" : s < 3600 ? Math.floor(s / 60) + "m ago" : s < 86400 ? Math.floor(s / 3600) + "h ago"
+    : Math.floor(s / 86400) + "d ago";
+}
+
+function paintNeeds(ring) {
+  const n = state.needs.length, btn = $("needsBtn");
+  $("needsCount").hidden = !n;
+  $("needsCount").textContent = String(n);
+  btn.classList.toggle("on", n > 0);
+  btn.title = n ? n + (n > 1 ? " things wait" : " thing waits") + " on you" : "Nothing waits on you";
+  if (ring) { btn.classList.remove("ring"); void btn.offsetWidth; btn.classList.add("ring"); }
+  if (!$("needs").hidden) paintNeedsSheet();
+}
+
+function paintNeedsSheet() {
+  const list = $("needsRows");
+  list.replaceChildren();
+  if (!state.needs.length) list.append(el("li", "empty", "Nothing waits on you."));
+  for (const n of state.needs) {
+    const li = el("li"), open = el("button", "open"), clear = el("button", "clear", "Clear");
+    li.dataset.kind = n.kind;
+    open.type = clear.type = "button";
+    open.append(el("span", "gem"), el("span", "tag", NEED_TAGS[n.kind] || n.kind), el("span", "age", ago(n.ts)),
+      el("b", "", n.title), el("small", "", n.detail));
+    open.addEventListener("click", () => { $("needs").hidden = true; openNeed(n); });
+    clear.disabled = !state.writes.writes;
+    clear.title = state.writes.writes ? "Clear: it comes back when it changes" : "Clearing from the phone is off";
+    clear.addEventListener("click", () => clearNeed(n, li, clear));
+    li.append(open, clear);
+    list.append(li);
+  }
+  $("needsNote").textContent = state.writes.writes ? "Tap one to open it. Clear hides it until it changes."
+    : "Reading only: clearing from the phone is off (Dungeon: Settings \u203a Phone).";
+}
+
+function openNeed(n) {
+  const d = n.kind === "decision" ? state.decisions.find((x) => "decision:" + x.id === n.key) : null;
+  if (d) return openAsk(d);
+  if (n.card && state.cards.some((c) => c.id === n.card)) return pickTask(n.card);
+  if (n.room) showChat(n.room, n.title);
+}
+
+async function clearNeed(n, li, btn) {
+  btn.disabled = true;
+  const res = await postJSON("/api/needs-you/clear", { key: n.key }).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) {
+    btn.disabled = false;
+    $("needsNote").textContent = res.status === 429 ? "Too many taps: wait a minute." : "Not cleared (" + (res.status || "offline") + ").";
+    return;
+  }
+  li.classList.add("going");
+  await loadNeeds();
+}
+
+$("needsBtn").addEventListener("click", () => { $("needs").hidden = false; paintNeedsSheet(); });
+$("needsClose").addEventListener("click", () => { $("needs").hidden = true; });
+$("needs").addEventListener("click", (e) => { if (e.target === $("needs")) $("needs").hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("needs").hidden) $("needs").hidden = true; });
 
 // --- live updates --------------------------------------------------------------------------------
 let pending = null;
