@@ -187,7 +187,7 @@ class DungeonWindow:
         _call(self.app, "_paint_rooms_button")
 
     def set_right(self, open_: bool, tab: str | None = None) -> None:
-        if tab in ("chat", "settings"):
+        if tab in ("chat", "needs", "settings"):
             self._right_tab = tab
         self._right_open = bool(open_)
         self.app._chat_shown = self._right_open and self._right_tab == "chat" and self._pop is None

@@ -22,6 +22,7 @@ CONTROLS: dict[str, tuple[str, str]] = {
     "menu": (WINDOW, "Window: quit"),
     "dock_chat": (TAB, "Tab: chat in this panel"),
     "dock_settings": (TAB, "Tab: settings in this panel"),
+    "dock_needs": (TAB, "Tab: what waits on you in this panel"),
     "pop": (WINDOW, "Window: opens the chat in a separate window"),
 }
 
@@ -196,6 +197,16 @@ ICONS: dict[str, tuple[str, ...]] = {
         "kas..sak",
         ".kassak.",
         ".kkaakk.",
+        "...kk...",
+    ),
+    "dock_needs": (
+        "...kk...",
+        "..kaak..",
+        ".kaaaak.",
+        ".kaaaak.",
+        ".kaaaak.",
+        "kaaaaaak",
+        "kkkkkkkk",
         "...kk...",
     ),
     "menu": (

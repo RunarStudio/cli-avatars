@@ -26,7 +26,7 @@ SCHEMA_VERSION = 1
 MAX_LAYOUTS = 8
 MAX_BYTES = 64 * 1024
 _SIG = re.compile(r"^[0-9a-f]{12}$")
-_RIGHT = ("chat", "settings")
+_RIGHT = ("chat", "needs", "settings")
 _CENTER = ("dungeon", "skins")
 
 

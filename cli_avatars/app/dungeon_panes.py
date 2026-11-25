@@ -120,7 +120,9 @@ def show_center(view, name: str) -> None:
 def show_right(view) -> None:
     mark(view._rtab_chat, view._right_tab == "chat")
     mark(view._rtab_settings, view._right_tab == "settings")
+    mark(view._rtab_needs, view._right_tab == "needs")
     view._settings.pack_forget()
+    view._needs.pack_forget()
     view._pop_note.pack_forget()
     try:
         view._chat_host.pack_forget()
@@ -129,6 +131,12 @@ def show_right(view) -> None:
     if view._right_tab == "settings":
         view._ensure_settings()
         view._settings.pack(in_=view._right_body, fill="both", expand=True)
+        return
+    if view._right_tab == "needs":
+        from cli_avatars.app.needs_panel import ensure
+
+        ensure(view)
+        view._needs.pack(in_=view._right_body, fill="both", expand=True)
         return
     if view._pop is not None:
         view._pop_note.pack(fill="both", expand=True)
@@ -212,6 +220,8 @@ def _body(view, root) -> None:
     rstrip.pack(fill="x")
     view._rtab_chat = Tab(rstrip, "dock_chat", text="Chat", command=lambda: view.set_right(True, "chat"))
     view._rtab_chat.pack(side="left", anchor="s", padx=(6, 2), pady=(4, 0))
+    view._rtab_needs = Tab(rstrip, "dock_needs", text="Needs you", command=lambda: view.set_right(True, "needs"))
+    view._rtab_needs.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._rtab_settings = Tab(
         rstrip, "dock_settings", text="Settings", command=lambda: view.set_right(True, "settings"),
     )
@@ -223,6 +233,7 @@ def _body(view, root) -> None:
     # Parent is the root so the chat frame can be packed into a popped-out Toplevel.
     view._chat_host = tk.Frame(root, bg=_BG)
     view._settings = tk.Frame(view._right_body, bg=_BG)
+    view._needs = tk.Frame(view._right_body, bg=_BG)
     view._pop_note = tk.Label(
         view._right_body, text="Chat is in its own window.", bg=_BG, fg=_DIM, font="DungeonText",
     )
