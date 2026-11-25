@@ -23,9 +23,9 @@ COLUMNS = ("todo", "doing", "review", "done", "blocked")
 KINDS = ("created", "edited", "moved", "assigned", "commented", "checklist", "linked_pr", "prompt", "progress",
          "status", "learnt", "chat", "decision", "summary")
 VIA = ("mcp", "hook", "emit", "chat")
-PROMPT_TARGETS = ("claude", "grok", "both")
+PROMPT_TARGETS = ("claude", "grok", "both", "cursor")
 PROMPT_OUTCOMES = ("ok", "error", "stopped", "timeout")
-CHAT_CLIS = ("claude", "grok")
+CHAT_CLIS = ("claude", "grok", "cursor")
 PERSON = "daniel"
 
 TITLE_LIMIT = 120

@@ -53,6 +53,8 @@ def cli_ready(cli: str) -> tuple[bool, str]:
     """Whether the runner can launch ``cli`` for a chat, and why not."""
     from chat_window import room_tools
 
+    if cli == "cursor":
+        return False, "Cursor runs from a chat's Run row (CHAT-CTX.1); start the chat with Claude."
     if cli not in CHAT_CLIS or not room_tools().enabled(cli):
         return False, "Grok launches after grok login (ROOM-CHAT.6); use Claude for now."
     return True, ""

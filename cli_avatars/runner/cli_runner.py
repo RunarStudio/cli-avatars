@@ -9,7 +9,8 @@ to the child's stdin and is never a command.
 
 Rules (AGENTS.md 3 and 4, docs/room-chat.md, docs/architecture.md 6.1):
 
-- Allowlist: ``claude`` (enabled) and ``grok`` (present, disabled).
+- Allowlist: ``claude`` (enabled), ``grok`` and ``cursor`` (CHAT-CTX.1: they run only
+  with an argv template from ``config.json``, checked by ``check_template``).
 - The binary is resolved once for Settings. Launch uses the confirmed
   path, size, and mtime. It does not search ``PATH`` again.
 - Argv is a fixed list. ``shell=False``. The prompt and the context
@@ -51,10 +52,19 @@ _log.addHandler(logging.NullHandler())
 # or `--add-dir`.
 CLI_CLAUDE = "claude"
 CLI_GROK = "grok"
+CLI_CURSOR = "cursor"
+# False: the CLI has no built-in argv and starts only with a template (``argv_template``).
 CLI_ALLOWLIST: dict[str, bool] = {
     CLI_CLAUDE: True,
     CLI_GROK: False,
+    CLI_CURSOR: False,
 }
+BINARY_NAMES: dict[str, tuple[str, ...]] = {CLI_CURSOR: ("cursor-agent", "agent")}
+SESSION_SLOT = "{session}"
+TEMPLATE_MAX_ARGS = 16
+_TEMPLATE_ARG = re.compile(r"^(?:-{1,2}[A-Za-z][A-Za-z0-9-]*(?:=[A-Za-z0-9._:-]+)?|[A-Za-z0-9][A-Za-z0-9._:-]*)$")
+_TEMPLATE_RESUME = re.compile(r"^(?:-{1,2}[A-Za-z][A-Za-z0-9-]*=)?\{session\}$")
+_TEMPLATE_FORBIDDEN = ("force", "yolo", "danger", "bypass", "skip-perm", "approve", "allowedtools", "add-dir")
 
 PERMISSION_PLAN = "plan"
 PERMISSION_ACCEPT_EDITS = "acceptEdits"
@@ -600,19 +610,21 @@ def resolve_binary(
     finder: BinaryFinder | None = None,
     path: str | None = None,
     platform: str | None = None,
+    templated: bool = False,
 ) -> ResolvedBinary:
     """Resolve an allowlisted CLI once, for the Settings confirmation screen.
 
     ``finder`` is a test hook. It is called with the allowlisted name only
-    (``claude`` or ``grok``), never with a prompt, a path, or a mode.
+    (or its ``BINARY_NAMES``), never with a prompt, a path, or a mode.
     Production Settings calls this with no finder. Launch does not call it
     again: ``start`` uses the ``ConfirmedBinary`` Settings stored.
+    ``templated``: config holds an argv template, so a template CLI is enabled.
     """
     key = _known_cli(cli)
-    enabled = CLI_ALLOWLIST[key]
+    enabled = CLI_ALLOWLIST[key] or bool(templated)
     system = platform if platform is not None else sys.platform
     try:
-        located, shim = _locate(key, finder=finder, path_env=path, platform=system)
+        located, shim = _locate_any(key, finder=finder, path_env=path, platform=system)
     except CliRejected:
         if not enabled:
             return ResolvedBinary(key, "", False, False, False)
@@ -673,6 +685,46 @@ def build_argv(binary: str, permission_mode: str, session_id: str | None) -> lis
             part.startswith(flag + "=") for flag in _ARGV_FORBIDDEN
         ):
             raise CliRejected("refusing a forbidden flag")
+    return argv
+
+
+def check_template(template: object) -> dict[str, list[str]]:
+    """A config argv template: ``argv`` (fixed flags) and ``resume`` (with one ``{session}``). Raises ``CliRejected``.
+
+    Only flag-shaped constants pass: no path, no shell character, no prompt slot, no skip-permission flag.
+    """
+    if not isinstance(template, Mapping):
+        raise CliRejected("argv template is not an object")
+    argv, resume = template.get("argv"), template.get("resume", [])
+    if not isinstance(argv, list) or not isinstance(resume, list) or len(argv) + len(resume) > TEMPLATE_MAX_ARGS:
+        raise CliRejected("argv template is not a short list")
+    for part in argv + resume:
+        if not isinstance(part, str) or len(part) > 64:
+            raise CliRejected("argv template part is not usable")
+        if any(word in part.casefold() for word in _TEMPLATE_FORBIDDEN) or part in _ARGV_FORBIDDEN:
+            raise CliRejected("refusing a forbidden flag")
+    if not all(_TEMPLATE_ARG.fullmatch(part) for part in argv):
+        raise CliRejected("argv template part is not a plain flag")
+    slots = [part for part in resume if SESSION_SLOT in part]
+    if resume and (len(slots) != 1 or not _TEMPLATE_RESUME.fullmatch(slots[0])
+                   or not all(_TEMPLATE_ARG.fullmatch(p) for p in resume if p not in slots)):
+        raise CliRejected("resume template needs one {session} slot")
+    return {"argv": list(argv), "resume": list(resume)}
+
+
+def build_template_argv(binary: str, template: object, session_id: str | None) -> list[str]:
+    """Fixed command line from a checked template; the session id fills ``{session}`` after the UUID check."""
+    if not isinstance(binary, str) or not binary or any(ord(ch) < 32 or ord(ch) == 127 for ch in binary):
+        raise CliRejected("binary path is not usable")
+    _check_shim_path(binary)
+    checked = check_template(template)
+    argv = [binary, *checked["argv"]]
+    if session_id is not None:
+        if type(session_id) is not str or SESSION_ID_RE.fullmatch(session_id) is None:
+            raise CliRejected("resume id is not a session UUID")
+        if not checked["resume"]:
+            raise CliRejected("this CLI has no resume template")
+        argv.extend(part.replace(SESSION_SLOT, session_id) for part in checked["resume"])
     return argv
 
 
@@ -883,6 +935,7 @@ def start(
     timeout_s: float = DEFAULT_TIMEOUT_S,
     stdout_cap_bytes: int = DEFAULT_STDOUT_CAP_BYTES,
     stderr_cap_bytes: int = DEFAULT_STDERR_CAP_BYTES,
+    argv_template: Mapping[str, object] | None = None,
 ) -> RoomProcess:
     """Start one allowlisted CLI for one explicit UI action.
 
@@ -896,12 +949,21 @@ def start(
     after ``on_done`` has been entered.
 
     A second call for the same room and CLI, while the first is running,
-    raises ``CliRejected`` and starts nothing.
+    raises ``CliRejected`` and starts nothing. Grok and Cursor need
+    ``argv_template`` (CHAT-CTX.1); Claude refuses one and keeps its own argv.
     """
     _consume_user_action(user_action)
     key_cli = _known_cli(cli)
-    if not CLI_ALLOWLIST[key_cli]:
-        raise CliRejected("cli is not enabled")
+    if CLI_ALLOWLIST[key_cli] == (argv_template is not None):
+        raise CliRejected("cli is not enabled" if argv_template is None else "claude keeps its built-in argv")
+
+    def argv_for(path: str) -> list[str]:
+        if argv_template is None:
+            return build_argv(path, mode, session_id)
+        if type(mode) is not str or mode not in PERMISSION_MODES:
+            raise CliRejected("permission mode is not allowlisted")
+        return build_template_argv(path, argv_template, session_id)
+
     if not isinstance(binary, ConfirmedBinary) or binary.cli != key_cli:
         raise CliRejected("binary was not confirmed for this cli")
     if on_stdout_line is not None and not callable(on_stdout_line):
@@ -913,7 +975,7 @@ def start(
     mode = permission_mode
     _pinned_binary(binary)
     validate_working_dir(working_dir)
-    build_argv(binary.path, mode, session_id)
+    argv_for(binary.path)
     env = _child_env()
     payload = build_stdin_payload(prompt, topic_title, open_cards)
     key = (room, key_cli)
@@ -923,7 +985,7 @@ def start(
             raise CliRejected("a prompt is already running for this room and CLI")
         pinned = _pinned_binary(binary)
         folder = validate_working_dir(working_dir)
-        argv = build_argv(str(pinned), mode, session_id)
+        argv = argv_for(str(pinned))
         try:
             proc = _popen(argv, folder, env)
         except OSError as exc:
@@ -1017,6 +1079,22 @@ def _locate(
     if not which_hit:
         raise CliRejected("binary not found")
     return Path(which_hit).resolve(), False
+
+
+def _locate_any(
+    key: str,
+    *,
+    finder: BinaryFinder | None,
+    path_env: str | None,
+    platform: str,
+) -> tuple[Path, bool]:
+    """The first of the CLI's binary names that is found."""
+    for name in BINARY_NAMES.get(key, (key,)):
+        try:
+            return _locate(name, finder=finder, path_env=path_env, platform=platform)
+        except CliRejected:
+            continue
+    raise CliRejected("binary not found")
 
 
 def _search_path(name: str, suffixes: tuple[str, ...], path_env: str) -> Path | None:

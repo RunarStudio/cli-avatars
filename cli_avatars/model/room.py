@@ -19,7 +19,7 @@ from events import LOCK_TIMEOUT, EventRejected, _restrict_to_user, directory_loc
 from topics import valid_topic_id
 
 ROOM_DIR_NAME = "room_chat"
-PARTICIPANTS = ("claude", "grok")
+PARTICIPANTS = ("claude", "grok", "cursor")
 PERMISSION_MODES = ("plan", "acceptEdits")
 DEFAULT_MODE = "plan"
 MAX_FILE_BYTES = 64 * 1024
