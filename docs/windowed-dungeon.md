@@ -408,7 +408,8 @@ Uses kit and existing pieces only; no new art required.
   hood (`ember_mage`), a Claude orchestrator is `caine`, a Grok bot is `amongo` with its body
   moved to a hue taken from the bot id (visor and outline kept), a subagent is a `bubble` beside
   its parent. Avatars show a 40x40 cell, subagents 32x32, native pixels at the whole rooms scale.
-  The desktop overlay and the skin picker keep the agent's own skin.
+  The desktop overlay keeps the agent's own skin. A skin picked for an avatar (click it, Skin, Apply) wins
+  over both, on the phone map too, and is kept per agent in `ui/avatar_skins.json` (`skin_picks.py`).
 - A room needs the user while one of its cards is `blocked` or its topic is `waiting_on_user`
   (`cli_avatars/app/needs_walk.py`). Its avatar (card assignee, else topic members, else agents
   on that project) walks to the user's side with the amber mark and walks back home when the

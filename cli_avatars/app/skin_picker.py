@@ -95,14 +95,14 @@ def _build_picker_ui(self, win, agent_id=None, on_apply=None):
     cache: dict = {}
     draws: list = []            # (canvas, item_id, fn() -> (skin, row, hue), box, floor_y, cx)
 
-    agents = self.scanner.get_agents()
+    agents = _pickable(self)
     agent_ids = list(agents.keys())
-    labels = [f"{a.name} {'[demo]' if a.is_demo else ''}".strip() for a in agents.values()]
-    lbl_to_id = dict(zip(labels, agent_ids, strict=False))
+    labels = _labels(agents)
+    lbl_to_id = dict(zip(labels, agent_ids, strict=True))
 
     raw = REGISTRY.list_sheets() if REGISTRY else []
     skins = [n for n in raw if not re.search(r"_h\d+$", n) and not _is_subagent_sheet(n)]
-    state = {"skin": (agents[agent_ids[0]].skin.split("_h")[0] if agent_ids else
+    state = {"skin": (_shown(self, agent_ids[0], agents[agent_ids[0]]).split("_h")[0] if agent_ids else
                       (skins[0] if skins else "")), "row": 0}
     if state["skin"] not in skins and skins:
         state["skin"] = skins[0]
@@ -245,7 +245,7 @@ def _build_picker_ui(self, win, agent_id=None, on_apply=None):
         for w in sess_box.winfo_children():
             w.destroy()
         draws[:] = [d for d in draws if not getattr(d[0], "_sess", False)]
-        live = self.scanner.get_agents()
+        live = _pickable(self)
         for _aid, a in list(live.items())[:6]:
             r = tk.Frame(sess_box, bg=P["slot"], highlightthickness=2, highlightbackground=P["line"])
             r.pack(fill="x", pady=2)
@@ -254,7 +254,8 @@ def _build_picker_ui(self, win, agent_id=None, on_apply=None):
             cv.pack(side="left", padx=4, pady=2)
             it = cv.create_image(20, 40, anchor="s")
             row = next((rw for rw, _, st in self.PICK_ANIMS if st == a.status), 0)
-            draws.append((cv, it, (lambda s=a.skin, rw=row: (s, rw, 0)), 36, 38, 20))
+            shown = _shown(self, _aid, a)
+            draws.append((cv, it, (lambda s=shown, rw=row: (s, rw, 0)), 36, 38, 20))
             tk.Label(r, text=a.name[:18], font=SMALL, bg=P["slot"], fg=P["ink"]).pack(side="left")
             tk.Label(r, text=a.status, font=SMALL, bg=P["slot"], fg=P["dim"]).pack(side="right", padx=6)
         if not live:
@@ -305,9 +306,9 @@ def _build_picker_ui(self, win, agent_id=None, on_apply=None):
 
     def on_agent(*_):
         aid = lbl_to_id.get(sel_agent.get())
-        live = self.scanner.get_agents()
+        live = _pickable(self)
         if aid in live:
-            sk = live[aid].skin
+            sk = _shown(self, aid, live[aid])
             m = re.search(r"_h(\d+)$", sk)
             hue_var.set(int(m.group(1)) if m else 0)
             state["skin"] = sk[:m.start()] if m else sk
@@ -355,13 +356,44 @@ def _build_picker_ui(self, win, agent_id=None, on_apply=None):
     self._picker_kick = _kick
     if getattr(self, "_picker_live", True):
         tick()
-    return {"agent": sel_agent, "skin": lambda: state["skin"], "select": select, "apply": apply}
+    return {"agent": sel_agent, "skin": lambda: state["skin"], "select": select, "apply": apply,
+            "id": lambda: lbl_to_id.get(sel_agent.get()), "hue": hue_var}
+
+
+def _pickable(self):
+    """Every avatar on screen by id: the scanner's sessions, then the Dungeon's and the desktop's (bots too)."""
+    found = dict(self.scanner.get_agents())
+    for group in (getattr(self, "_inside", None) or {}, getattr(self, "avatars", None) or {}):
+        for aid, av in list(group.items()):
+            agent = getattr(av, "agent", None)
+            if agent is not None and getattr(agent, "source", "") != "user":
+                found.setdefault(aid, agent)
+    return found
+
+
+def _labels(agents):
+    """One label per avatar; a name two avatars share gets the end of its id."""
+    names = [f"{a.name} {'[demo]' if a.is_demo else ''}".strip() for a in agents.values()]
+    return [f"{n} · {aid[-4:]}" if names.count(n) > 1 else n for n, aid in zip(names, agents, strict=True)]
+
+
+def _shown(self, aid, agent):
+    """The skin the avatar wears on screen: its pick, else the Dungeon's roster look, else its own."""
+    from cli_avatars.app import skin_picks
+    from cli_avatars.app.av_roster import look_for
+
+    picked = skin_picks.mapping(self).get(aid)
+    if picked:
+        return picked
+    if aid in (getattr(self, "_inside", None) or {}):
+        return look_for(agent, {}).skin
+    return agent.skin
 
 
 def _apply_skin(self, agent_id, skin):
-    with self.scanner._lock:
-        if agent_id in self.scanner._agents:
-            self.scanner._agents[agent_id].skin = skin
+    from cli_avatars.app import skin_picks
+
+    skin_picks.apply(self, agent_id, skin, time.time())
 
 
 class SkinPicker:
