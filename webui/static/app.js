@@ -1284,7 +1284,7 @@ function paintNeedsSheet() {
     const li = el("li"), open = el("button", "open"), clear = el("button", "clear", "Clear");
     li.dataset.kind = n.kind;
     open.type = clear.type = "button";
-    open.append(el("span", "gem"), el("span", "tag", NEED_TAGS[n.kind] || n.kind), el("span", "age", ago(n.ts)),
+    open.append(el("span", "gem"), el("span", "kind", NEED_TAGS[n.kind] || n.kind), el("span", "age", ago(n.ts)),
       el("b", "", n.title), el("small", "", n.detail));
     open.addEventListener("click", () => { $("needs").hidden = true; openNeed(n); });
     clear.disabled = !state.writes.writes;
