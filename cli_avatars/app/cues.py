@@ -1,7 +1,8 @@
 """Event sounds: a short cue drawn in code, played without blocking. On by default, off in Settings.
 
-``config.json`` key ``sound.cues`` (true unless set false). The only cue so far is ``arrive``: two soft
-footsteps and a low door knock when a guest orchestrator reaches the host's room. Windows plays it
+``config.json`` key ``sound.cues`` (true unless set false). ``arrive``: two soft footsteps and a low door
+knock when a guest orchestrator reaches the host's room. ``decide``: a rising three-note bell when an agent
+asks Daniel a decision (DECIDE.1). Windows plays it
 through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
@@ -33,6 +34,8 @@ def play(app, name: str) -> None:
 @lru_cache(maxsize=4)
 def wav(name: str) -> bytes:
     """16-bit mono WAV of the cue: thuds of filtered noise under a short decay. Same bytes every run."""
+    if name == "decide":
+        return _pcm(_bell())
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):
@@ -42,7 +45,23 @@ def wav(name: str) -> bytes:
         grit = np.convolve(rng.standard_normal(n), np.ones(24) / 24, "same") * np.exp(-t * 60) * 0.5
         start = int(RATE * at)
         out[start:start + n] += (body + grit).astype(np.float32) * gain
-    out *= VOLUME / max(1e-6, float(np.abs(out).max()))
+    return _pcm(out)
+
+
+def _bell() -> np.ndarray:
+    """Three rising bell strikes (E5, G#5, B5) with a soft octave partial, like a hand bell at a desk."""
+    out = np.zeros(int(RATE * 0.9), np.float32)
+    for at, pitch in ((0.0, 659.25), (0.11, 830.61), (0.22, 987.77)):
+        n = int(RATE * 0.6)
+        t = np.arange(n) / RATE
+        tone = (np.sin(2 * np.pi * pitch * t) + 0.3 * np.sin(2 * np.pi * pitch * 2.01 * t)) * np.exp(-t * 7)
+        start = int(RATE * at)
+        out[start:start + n] += (tone * np.minimum(1.0, t * 400)).astype(np.float32)
+    return out
+
+
+def _pcm(out: np.ndarray) -> bytes:
+    out = out * (VOLUME / max(1e-6, float(np.abs(out).max())))
     pcm = (out * 32767).astype("<i2").tobytes()
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:

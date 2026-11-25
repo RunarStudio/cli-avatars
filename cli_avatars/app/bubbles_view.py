@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from bubbles import blocked_indicator, integer_scale, place_blocked_mark, render_bubble
+from cli_avatars.app import decide_watch
 from cli_avatars.app.activity_view import ActivityDraw
 from cli_avatars.app.render import photos_for, sync_images
 from cli_avatars.app.throttle import StoreThrottle
@@ -213,6 +214,7 @@ class BubblesView:
     def step(self, frame: Any = None) -> None:
         now = getattr(frame, "now", None) if frame is not None else None
         _draw_talk_bubbles(self.app, now)
+        decide_watch.step(self.app)
         _draw_decision_bubbles(self.app)
         _draw_blocked_marks(self.app)
         if now is None:

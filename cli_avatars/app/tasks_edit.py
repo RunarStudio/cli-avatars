@@ -36,6 +36,7 @@ _REASONS = {
     "schema": "The board refused that change.",
     "io": "The board file could not be written.",
     "timeout": "The board is busy; try again.",
+    "answered": "That decision is already answered.",
 }
 
 
@@ -192,6 +193,21 @@ class TaskEditor:
             return Outcome(errors={"chats": f"Up to {MAX_CHATS} chats per task."})
         return self._run(lambda: start_chat(self.registry, card_id, cli)[0], "chat")
 
+    def decide(self, card_id: str, decision_id: str, choice: str | None = None, text: str = "") -> Outcome:
+        """DECIDE.1: Daniel answers a decision on the card: an option, free text, or both."""
+        from decisions import ANSWER_LIMIT
+
+        text = (text or "").strip()
+        error = "Pick an option or write an answer." if choice is None and not text else _too_long(text, ANSWER_LIMIT)
+        if error:
+            return Outcome(errors={"decide": error})
+
+        def answer():
+            self.registry.decision_answer(decision_id, choice, text or None)
+            return self.registry.task_get(card_id)
+
+        return self._run(answer, "decision")
+
     def _project(self) -> str:
         if not valid_topic_id(self.topic):
             return ""
@@ -267,6 +283,8 @@ def _line(event: Mapping) -> str:
         return f"learnt: {text}"
     if kind == "chat":
         return f"new {event.get('target')} chat"
+    if kind == "decision":
+        return text
     return kind
 
 

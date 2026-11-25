@@ -43,3 +43,14 @@ A task chat sees its card's newest three decisions in the task context on every 
 - `registry.task_decisions.pending(directory)`: open decisions on live cards, oldest first, with the card's `title`, `topic`, `project`, `column`.
 - `open_by_card(directory)`: card id → open count. `for_card(directory, card_id)`: every decision on one card.
 - MCP `decisions_list(open_only)` lists them too (with `card` and `answer`).
+
+## Desktop
+
+- **Tasks tab** ([board.md](board.md)): a gold DECIDE tag on the card (`DECIDE ×2` for two), `◆<n>` on the column head, and the "Decisions (N)" filter. It turns wine while any decision is open and gold while on; it shows the waiting cards from every topic.
+- **Card panel**: one gold slip per open decision at the top: `<agent> asks`, the question, a button per option, a text box and "Answer" (Enter works). An option click sends the typed text as its note. A decision from a task chat opens that chat in the dock after the answer. The history shows `asks: …` and `answered: …`.
+- **Notice** (`cli_avatars/app/decide_watch.py`, read twice a second from the overlay tick): when a new decision arrives,
+  - the `decide` cue plays: three rising bell strikes, distinct from the `arrive` knock (`cues.py`, off with `sound.cues` false; Windows plays it, elsewhere it is silent);
+  - the tray icon shows a toast `Decision · <task title>` with the question (pystray `notify`; no tray, no toast);
+  - the asking agent needs Daniel (DOOR.1): on the desktop its avatar walks to the pointer, inside the Dungeon it waits at the door and the closed arch flashes; its topic is `waiting_on_user`, so the AV.1 walk brings it beside him there. A click on the avatar stops the walk until the next decision.
+  The first read after a start learns what is already open and stays quiet. No new window.
+- The chat panel shows a task decision with options like any decision card; one without options says to answer on the task card or the phone.

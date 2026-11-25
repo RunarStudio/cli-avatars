@@ -184,9 +184,11 @@ shows an error under it and nothing is written. Everything happens inside the Du
 | What we learnt | A card dropped in Done (or the "done" button) opens the card panel at "What did we learn?". Type one line, "Save" (or Enter); "Skip" closes it. The text stays on the card and can be changed later. Empty or over 240 characters is a field error. | `learnt` |
 | Comment | "Comment": the text goes into the card's history. | `commented` |
 | Chats | "New chat · Claude" opens a chat with the card's context; the list reopens one. See [task-chats.md](task-chats.md). | `chat` |
+| Decisions | A card an agent asked a decision on wears a gold DECIDE tag; its column head shows `◆<n>`. "Decisions (N)" (N open, every topic) shows only those cards, from every topic; again goes back. The card panel shows each open one on a gold slip: who asks, the question, one button per option, a text box and "Answer". See [decisions.md](decisions.md). | `decision` |
 | Archive | "Archive" adds the `archived` label; the card leaves the board, the file and `events.jsonl` keep it. There is no hard delete, so the event log never points at a missing card. | `edited` |
 
-The app has no sound path; a card event (Done included) shows as the redrawn board and the history line.
+A card event (Done included) shows as the redrawn board and the history line. A new decision rings the
+`decide` cue ([decisions.md](decisions.md)).
 
 ## Learnt export (for the Now system)
 

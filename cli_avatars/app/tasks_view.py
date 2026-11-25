@@ -1,6 +1,7 @@
 """Tasks tab view-model (TM.3): the selected topic's cards in the board columns. Read-only, no Tk.
 
 Cards are read through the registry on every project board; nothing here writes (edits: ``tasks_edit``).
+DECIDE.1: each card counts its open decisions; ``decisions_only`` shows every card that waits on Daniel.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ class TaskCard:
     column: str
     status_note: str
     learnt: str
+    decisions: int = 0
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,8 @@ class Board:
     topic: str
     columns: tuple[Column, ...]
     empty: bool
+    pending: int = 0
+    decisions_only: bool = False
 
 
 def selected_topic(app) -> str:
@@ -109,26 +113,42 @@ def topic_cards(directory: Path | str, topic: str) -> list[dict]:
     return sorted(found, key=lambda c: c["updated"], reverse=True)
 
 
-def task_card(card: Mapping) -> TaskCard:
+def task_card(card: Mapping, decisions: int = 0) -> TaskCard:
     items = card.get("checklist") or []
     return TaskCard(
         id=card["id"], title=card["title"], assignee=card.get("assignee"),
         progress=effective_progress(card), checks=(sum(1 for i in items if i["done"]), len(items)),
         column=card["column"], status_note=card.get("status_note") or "", learnt=card.get("learnt") or "",
+        decisions=decisions,
     )
 
 
-def build_board(cards: list[Mapping], topic: str, done_open: bool = False) -> Board:
+def build_board(cards: list[Mapping], topic: str, done_open: bool = False, decisions: Mapping | None = None,
+                decisions_only: bool = False) -> Board:
+    """``decisions`` is card id -> open decisions; ``pending`` counts them on every board."""
+    decisions = decisions or {}
     columns = []
     for name in COLUMNS:
-        shown = tuple(task_card(c) for c in cards if c["column"] == name)
+        shown = tuple(task_card(c, decisions.get(c["id"], 0)) for c in cards if c["column"] == name)
         collapsed = name in COLLAPSED and not done_open
         columns.append(Column(name, () if collapsed else shown, len(shown), collapsed))
-    return Board(topic, tuple(columns), not cards)
+    return Board(topic, tuple(columns), not cards, sum(decisions.values()), decisions_only)
 
 
-def load_board(directory: Path | str, topic: str, done_open: bool = False) -> Board:
-    return build_board(topic_cards(directory, topic), topic, done_open)
+def load_board(directory: Path | str, topic: str, done_open: bool = False, decisions_only: bool = False) -> Board:
+    from registry.task_decisions import open_by_card
+
+    try:
+        decisions = open_by_card(directory)
+    except EventRejected:
+        decisions = {}
+    if decisions_only:
+        registry = Registry(directory)
+        cards = [card for card in (registry.task_get(cid) for cid in decisions) if card is not None]
+        cards.sort(key=lambda c: c["updated"], reverse=True)
+    else:
+        cards = topic_cards(directory, topic)
+    return build_board(cards, topic, done_open, decisions, decisions_only)
 
 
 def card_meta(card: TaskCard) -> str:

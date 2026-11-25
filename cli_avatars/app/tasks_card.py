@@ -1,7 +1,7 @@
 """KANBAN.1: the card panel beside the board, inside the Dungeon's Tasks tab. No new window.
 
 A parchment sheet: new-card form, or one card's fields, column, assignee, checklist, progress,
-status note, comments, the card's chats (TASK-CHAT.1) and history. Every change calls
+status note, comments, the card's chats (TASK-CHAT.1), its open decisions (DECIDE.1) and history. Every change calls
 ``act(name, *args)`` on the board panel, which writes through ``TaskEditor``. Card text is shown as text only.
 """
 
@@ -54,14 +54,20 @@ class CardPanel:
     """``act(name, *args, **kw)`` returns an ``Outcome``; ``choices()`` lists ``(value, label)`` assignees.
 
     ``chats(card)`` lists the card's chat rows; ``open_chat(room, new)`` shows one in the chat dock.
+    ``decisions(card)`` lists the card's decision rows (DECIDE.1).
     """
 
-    def __init__(self, parent, act, choices, close, chats=lambda card: [], open_chat=lambda room, new: None) -> None:
+    def __init__(self, parent, act, choices, close, chats=lambda card: [], open_chat=lambda room, new: None,
+                 decisions=lambda card: []) -> None:
         self._act = act
         self._choices = choices
         self._close = close
         self._chats = chats
         self._open_chat = open_chat
+        self._decisions = decisions
+        self._decide_sig: tuple | None = None
+        self.decide_rows: dict[str, dict] = {}
+        self.decide_entries: dict[str, tk.Entry] = {}
         self.card: dict | None = None
         self.status_badge: tk.Frame | None = None
         self.frame = tk.Frame(parent, bg=WOOD)
@@ -92,6 +98,10 @@ class CardPanel:
         self.card = card
         self._clear()
         self._head(card["title"], card["id"][:8])
+        self.decide_box = tk.Frame(self.sheet, bg=PARCH)
+        self.decide_box.pack(fill="x", padx=8)
+        self._decide_sig = None
+        self._error("decide", self.decide_box)
         self.title = self._field("title", "Title", _entry(self.sheet))
         self.body = self._field("body", "Notes", self._text(2))
         two = self._row()
@@ -202,6 +212,51 @@ class CardPanel:
         self.progress_caption.config(text=f"Progress {shown}%" if auto else "Progress")
         self.history.config(text="\n".join(history_lines(card)))
         self._fill_chats(card)
+        self._fill_decisions(card)
+
+    def _fill_decisions(self, card: dict) -> None:
+        """One gold-edged slip per open decision: who asks, the question, option buttons, a free answer."""
+        rows = [row for row in self._decisions(card) if row.get("status") == "open"]
+        sig = tuple(row["id"] for row in rows)
+        if sig == self._decide_sig:
+            return
+        self._decide_sig = sig
+        for child in self.decide_box.winfo_children():
+            child.destroy()
+        self.decide_rows = {row["id"]: row for row in rows}
+        self.decide_entries = {}
+        for row in rows:
+            slip = tk.Frame(self.decide_box, bg=PAPER, highlightthickness=2, highlightbackground=GOLD)
+            slip.pack(fill="x", pady=(6, 0))
+            top = tk.Frame(slip, bg=GOLD)
+            top.pack(fill="x")
+            tk.Label(top, text="◆ DECISION", bg=GOLD, fg=INK, font="DungeonBubble").pack(side="left", padx=4)
+            tk.Label(top, text=f"{row['from']} asks", bg=GOLD, fg=WINE, font="DungeonBubble").pack(side="right",
+                                                                                                    padx=4)
+            tk.Label(slip, text=row["question"], bg=PAPER, fg=INK, font="DungeonText", anchor="w", justify="left",
+                     wraplength=290).pack(fill="x", padx=6, pady=(3, 2))
+            for option in row["options"]:
+                pick = button(slip, f"{option['letter']}  {option['text']}",
+                              lambda d=row["id"], letter=option["letter"]: self._decide(d, letter))
+                pick.config(anchor="w")
+                pick.pack(fill="x", padx=6, pady=1)
+            line = tk.Frame(slip, bg=PAPER)
+            line.pack(fill="x", padx=6, pady=(2, 5))
+            entry = _entry(line, 18)
+            entry.pack(side="left", fill="x", expand=True)
+            entry.bind("<Return>", lambda _e, d=row["id"]: self._decide(d, None))
+            button(line, "Answer", lambda d=row["id"]: self._decide(d, None)).pack(side="left", padx=(4, 0))
+            self.decide_entries[row["id"]] = entry
+
+    def _decide(self, decision_id: str, choice: str | None) -> None:
+        """An option (the typed text rides along as a note) or the free answer; a task chat's opens after."""
+        if self.card is None:
+            return
+        row = self.decide_rows.get(decision_id) or {}
+        entry = self.decide_entries.get(decision_id)
+        out = self._act("decide", self.card["id"], decision_id, choice, entry.get() if entry else "")
+        if not out.errors and str(row.get("room", "")).startswith("task-"):
+            self._open_chat(row["room"], False)
 
     def _chats_section(self) -> None:
         from registry.task_chats import cli_ready

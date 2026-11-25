@@ -862,6 +862,8 @@ class ChatWindow:
                 if isinstance(item, dict) and item.get("letter") == choice:
                     label = f"{choice}  {item.get('text') or ''}"
                     break
+            if row.get("answer"):
+                label = f"{label}  {row['answer']}".strip()
             tk.Label(body, text="Answered " + label, bg=bg, fg=META, font=FONT,
                      anchor="w").pack(anchor="w")
             tk.Button(
@@ -873,6 +875,9 @@ class ChatWindow:
             return
         decision_id = str(row.get("id") or "")
         options = row.get("options") if isinstance(row.get("options"), list) else []
+        if not options:
+            tk.Label(body, text="Answer it on the task card (Tasks tab) or from the phone.", bg=bg, fg=META,
+                     font=FONT, anchor="w").pack(anchor="w")
         for item in options:
             if not isinstance(item, dict):
                 continue
