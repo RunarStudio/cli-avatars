@@ -194,6 +194,9 @@ def _build_rooms_win(self) -> None:
     inner.bind("<Configure>", _on_inner)
     canvas.bind("<Configure>", _on_canvas)
     canvas.pack(fill="both", expand=True)
+    from cli_avatars.app import door_totals
+
+    door_totals.attach(self, parent, canvas)
     self._bind_rooms_scroll(canvas)
     from cli_avatars.app.memmap_panel import attach
 
@@ -206,6 +209,9 @@ def _update_rooms_win(self, force: bool = False) -> None:
     win = getattr(self, "_rooms_win", None)
     if win is None or not win.winfo_exists():
         return
+    from cli_avatars.app import door_totals
+
+    door_totals.refresh(self)
     cards = build_rooms(self._rooms_records(), time.time())
     self._sync_topics(force)
     directory = self._chat_directory()
