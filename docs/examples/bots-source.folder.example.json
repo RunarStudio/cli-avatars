@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "kind": "folder",
+  "folder": "status-local",
+  "interval_s": 60
+}
