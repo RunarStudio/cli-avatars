@@ -1594,6 +1594,109 @@ $("needsClose").addEventListener("click", () => { $("needs").hidden = true; });
 $("needs").addEventListener("click", (e) => { if (e.target === $("needs")) $("needs").hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("needs").hidden) $("needs").hidden = true; });
 
+// --- DAILY-RECAP: what each agent did on one day, per task; read-only, live over SSE ---------------------
+state.recap = { day: null, data: null };
+const RECAP_WORDS = [["turns", "turn", "turns"], ["summaries", "summary", "summaries"], ["created", "created", "created"],
+  ["moved", "moved", "moved"], ["asked", "asked", "asked"], ["answered", "answered", "answered"],
+  ["blocked", "blocked", "blocked"], ["unblocked", "unblocked", "unblocked"], ["files", "file", "files"],
+  ["commits", "commit", "commits"]];
+const SEALS = ["#7a1f3d", "#2a4a8a", "#2f6a3a", "#a0661a", "#5a2a7a", "#1f6a6a"];
+const RECAP_SHOWN = 8;
+
+function recapCounts(c) {
+  return RECAP_WORDS.filter(([k]) => c[k]).map(([k, one, many]) => c[k] + " " + (c[k] === 1 ? one : many)).join(" \u00b7 ");
+}
+
+function sealOf(agent) {
+  if (agent === "daniel") return "#c8962a";
+  let n = 0;
+  for (const ch of new TextEncoder().encode(agent)) n += ch;
+  return SEALS[n % SEALS.length];
+}
+
+function isoShift(iso, delta) {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + delta);
+  const pad = (v) => String(v).padStart(2, "0");
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+}
+
+async function loadRecap() {
+  let data;
+  try { data = await getJSON("/api/recap" + (state.recap.day ? "?day=" + state.recap.day : "")); } catch (_e) { return; }
+  state.recap.data = data;
+  paintRecap();
+}
+
+function paintRecap() {
+  const d = state.recap.data;
+  if (!d) return;
+  const date = new Date(d.day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  $("recapDay").textContent = d.label === "Today" || d.label === "Yesterday" ? d.label + " \u00b7 " + date : date;
+  $("recapPrev").disabled = d.day <= d.first;
+  $("recapNext").disabled = d.day >= d.today;
+  const tasks = d.agents.reduce((n, a) => n + a.tasks.length, 0), total = recapCounts(d.totals);
+  $("recapTotals").textContent = d.agents.length ? d.agents.length + (d.agents.length === 1 ? " agent" : " agents") + " \u00b7 "
+    + tasks + (tasks === 1 ? " task" : " tasks") + (total ? " \u00b7 " + total : "") : "";
+  const list = $("recapRows");
+  list.replaceChildren();
+  if (!d.agents.length) list.append(el("li", "empty", "Nothing was logged this day."));
+  for (const a of d.agents) {
+    const li = el("li", "ragent"), head = el("p", "who"), seal = el("span", "seal");
+    seal.style.setProperty("--s", sealOf(a.agent));
+    head.append(seal, el("b", "", a.name), el("small", "", recapCounts(a.counts)));
+    const ul = el("ul", "rtasks");
+    for (const t of a.tasks) {
+      const tli = el("li"), title = el(t.card ? "button" : "p", "rtitle");
+      if (t.card) {
+        title.type = "button";
+        title.addEventListener("click", () => openRecapTask(t.card));
+      }
+      title.append(el("span", "gem"), el("b", "", t.title), el("small", "", recapCounts(t.counts)));
+      const meta = t.lines.filter((ln) => ln.startsWith("files: ") || ln.startsWith("commits: "));
+      let body = t.lines.filter((ln) => !meta.includes(ln));
+      const lines = el("ol", "rlines");
+      if (body.length > RECAP_SHOWN) {
+        lines.append(el("li", "more", "\u2026 " + (body.length - RECAP_SHOWN) + " earlier"));
+        body = body.slice(-RECAP_SHOWN);
+      }
+      for (const ln of body) lines.append(el("li", "", ln));
+      for (const ln of meta) lines.append(el("li", "meta", ln));
+      tli.append(title, lines);
+      ul.append(tli);
+    }
+    li.append(head, ul);
+    list.append(li);
+  }
+}
+
+function openRecapTask(card) {
+  if (!state.cards.some((c) => c.id === card)) return;
+  $("recap").hidden = true;
+  pickTask(card);
+}
+
+function recapDay(delta) {
+  const d = state.recap.data;
+  if (!d) return;
+  const day = isoShift(d.day, delta);
+  if (day < d.first || day > d.today) return;
+  state.recap.day = day === d.today ? null : day;
+  loadRecap();
+}
+
+$("recapBtn").addEventListener("click", () => { $("recap").hidden = false; tone("scroll"); loadRecap(); });
+$("recapClose").addEventListener("click", () => { $("recap").hidden = true; });
+$("recap").addEventListener("click", (e) => { if (e.target === $("recap")) $("recap").hidden = true; });
+$("recapPrev").addEventListener("click", () => recapDay(-1));
+$("recapNext").addEventListener("click", () => recapDay(1));
+document.addEventListener("keydown", (e) => {
+  if ($("recap").hidden) return;
+  if (e.key === "Escape") $("recap").hidden = true;
+  else if (e.key === "ArrowLeft") recapDay(-1);
+  else if (e.key === "ArrowRight") recapDay(1);
+});
+
 // --- WEB-PUSH: alerts with the page closed: the App sheet's toggle subscribes this browser ---------------
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const STANDALONE = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
@@ -1688,6 +1791,7 @@ function live() {
   src.addEventListener("change", () => {
     clearTimeout(pending);
     pending = setTimeout(() => load().catch(() => {}), 150);
+    if (!$("recap").hidden) loadRecap();
   });
   src.addEventListener("avatars", (e) => {
     if (!state.scene) return;
@@ -1741,6 +1845,7 @@ function tone(kind) {
       : kind === "build" ? [[130.81, 0], [196.0, 0.16], [261.63, 0.34], [392.0, 0.52]]
       : kind === "failed" ? [[329.63, 0], [261.63, 0.12]] : kind === "move" ? [[293.66, 0], [440.0, 0.07]]
       : kind === "capture" ? [[987.77, 0], [783.99, 0.05], [1174.66, 0.12]]
+      : kind === "scroll" ? [[220.0, 0], [329.63, 0.07], [293.66, 0.16]]
       : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {
       const o = audio.createOscillator();

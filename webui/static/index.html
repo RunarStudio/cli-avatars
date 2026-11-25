@@ -19,6 +19,7 @@
       <span id="live" class="live" title="Live updates"></span>
       <button id="decideBtn" class="icon decide" type="button" title="Decisions waiting on you" aria-haspopup="dialog">&#9670;<span id="decideCount" class="decide-count" hidden></span></button>
       <button id="needsBtn" class="icon needs" type="button" title="Nothing waits on you" aria-haspopup="dialog"><span class="bell" aria-hidden="true"></span><span id="needsCount" class="needs-count" hidden></span></button>
+      <button id="recapBtn" class="icon recap" type="button" title="Daily recap: what each agent did" aria-haspopup="dialog"><span class="scroll-ico" aria-hidden="true"></span></button>
       <button id="editRoom" class="icon" type="button" title="Edit this room" aria-haspopup="dialog" hidden>&#9998;</button>
       <button id="roomsBtn" class="icon" type="button" title="Rooms: add and customize" aria-haspopup="dialog">&#9638;</button>
       <button id="appBtn" class="icon app" type="button" title="App: version and Update" aria-haspopup="dialog">&#9881;</button>
@@ -174,6 +175,20 @@
     <div class="sheet-body">
       <ul id="needsRows" class="needs-rows"></ul>
       <p id="needsNote" class="hint"></p>
+    </div>
+  </div>
+</div>
+<div id="recap" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="recapTitle">
+  <div class="sheet-card recap-card">
+    <header class="bar"><h2 id="recapTitle"><span class="scroll-ico" aria-hidden="true"></span>Daily recap</h2><button id="recapClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="scroll">
+      <div class="rod" aria-hidden="true"></div>
+      <div class="parch">
+        <div class="recap-nav"><button id="recapPrev" type="button" aria-label="Previous day">&#9664;</button><span id="recapDay"></span><button id="recapNext" type="button" aria-label="Next day">&#9654;</button></div>
+        <p id="recapTotals" class="recap-totals"></p>
+        <ol id="recapRows" class="recap-rows" aria-live="polite"></ol>
+      </div>
+      <div class="rod low" aria-hidden="true"></div>
     </div>
   </div>
 </div>

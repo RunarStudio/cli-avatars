@@ -16,11 +16,13 @@ import json
 import re
 import threading
 import time
+from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import needs_you
+import recap
 from board.model import BODY_LIMIT, COLUMNS, clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
@@ -52,6 +54,7 @@ _SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
 _ROOM = re.compile(r"^/api/rooms/([A-Za-z0-9][A-Za-z0-9-]{0,39})(/delete)?$")
 _SKIN = re.compile(r"^/api/skins/([a-z-]{1,32})/([SMLT])\.png$")
 _DECIDE = re.compile(r"^/api/decisions/([^/]{1,64})$")
+_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 NEEDS_KEYS = ("key", "kind", "ts", "title", "detail", "room", "card")
 ROOM_ADD = ("name", "topic", "size", "skin", "at", "point")
 ROOM_EDIT = ("name", "topic", "size", "skin")
@@ -323,6 +326,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/needs-you":
             items = [{k: row[k] for k in NEEDS_KEYS} for row in needs_you.pending(directory)]
             return self._json({"items": items, "count": len(items)})
+        if path == "/api/recap":
+            return self._recap(query)
         if path == "/api/capture/suggest":
             return self._suggest(query)
         if path == "/api/push":
@@ -361,6 +366,19 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/media/"):
             return self._media(path[len("/api/media/"):])
         self._error(404)
+
+    def _recap(self, query) -> None:
+        """DAILY-RECAP: one local day (``?day=YYYY-MM-DD``, default today), read-only."""
+        raw = (query.get("day") or [""])[0]
+        today = date.today()
+        try:
+            day = date.fromisoformat(raw) if _DAY.fullmatch(raw) else (today if raw == "" else None)
+        except ValueError:
+            day = None
+        if day is None:
+            return self._error(400)
+        built = recap.build(self.server.directory, day, today=today)
+        return self._json({**built, "today": today.isoformat(), "first": recap.days(today)[-1].isoformat()})
 
     def _suggest(self, query) -> None:
         """QUICK-CAPTURE: topics for ``q`` best first (local ranker), ``current`` when nothing matches."""
