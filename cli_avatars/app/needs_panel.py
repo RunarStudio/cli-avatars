@@ -39,6 +39,8 @@ KINDS = {
                                      "..a.....", "........")),
     "mail": ("#e0b878", "MAILROOM", ("........", "aaaaaaaa", "aa####aa", "a#aa#a#a", "a##aa##a", "a######a",
                                      "aaaaaaaa", "........")),
+    "courier": ("#c9a2ff", "NEWS", ("..aaaa..", ".a####a.", "aa#aa#aa", "a######a", "a#aaaa#a", "aa####aa",
+                                     ".aaaaaa.", "...aa...")),
 }
 
 
