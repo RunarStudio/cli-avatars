@@ -5,6 +5,7 @@ its room appears in the Dungeon; End takes the room away. Opening starts no CLI:
 the session's topic and the CLI starts only on Send or Enter there (``docs/room-chat.md``). The
 folder here names the topic; the chat's own folder dialog stays the only place that stores a
 working dir, so the first Enter asks for it once.
+SUMMON.1: while no main session is open, Summon orchestrator opens it and starts its CLI in one click (``summon``).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from tkinter import filedialog
 
 from cli_avatars.app import session_rooms as sr
 from cli_avatars.app import session_walks as sw
+from cli_avatars.app import summon, summon_ui
 
 BG = "#141018"
 ROW = "#1c1626"
@@ -39,6 +41,8 @@ class SessionPanel:
         head = tk.Frame(self.frame, bg="#111018")
         head.pack(fill="x")
         tk.Label(head, text="  Sessions", bg="#111018", fg="#88aaff", font="DungeonTitle").pack(side="left")
+        self._head = head
+        self.summon_btn = summon_ui.button(self.frame, self.summon)
         self._choice_row(self.kind, _KINDS)
         self._choice_row(self.cli, _CLIS)
         row = tk.Frame(self.frame, bg=BG)
@@ -127,12 +131,22 @@ class SessionPanel:
         except (EventRejected, OSError):
             self.say("The room is open, but its chat was not stored.", True)
 
+    def summon(self) -> None:
+        """Daniel's click: the main session opens in the throne room and its CLI starts (``summon``)."""
+        started, text = summon.summon(self.app, self._ask_folder)
+        self.refresh()
+        self.say(text, not started)
+
     def end(self, sid: str) -> None:
         sw.end_session(getattr(self.app, "places", None), self._model(), sid, time.time())
         self.refresh()
         self.say(f"{sid} ended. Its avatars walk back to the Apothecary.")
 
     def refresh(self) -> None:
+        if summon.wanted(self._model()):
+            self.summon_btn.pack(fill="x", padx=6, pady=(4, 2), after=self._head)
+        else:
+            self.summon_btn.pack_forget()
         for child in self.rows.winfo_children():
             child.destroy()
         for session in [s for s in self._model().sessions if not s.closing]:

@@ -1,7 +1,9 @@
 """UPDATE-BAR and REPOS cues, drawn in code like the others in ``cues``.
 
 ``ready``: a soft anvil tap and a warm rising fifth, when an update finishes (up to date, or the new build staged).
-``rune``: a low hum and a glassy ping, when one of Daniel's repos goes in use. Both wait while a task is in focus.
+``rune``: a low hum and a glassy ping, when one of Daniel's repos goes in use. ``summon`` (SUMMON.1): a herald's
+horn rising a fourth over a low drum, then a hall bell, when the main orchestrator is summoned. All wait while a task
+is in focus.
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ def cue(app, name: str) -> None:
 
 
 def sound(name: str) -> np.ndarray:
-    return {"ready": _ready, "rune": _rune}[name]()
+    return {"ready": _ready, "rune": _rune, "summon": _summon}[name]()
 
 
 def _env(n: int, attack: float, decay: float) -> np.ndarray:
@@ -67,4 +69,23 @@ def _rune() -> np.ndarray:
     t = np.arange(m) / RATE
     ping = np.sin(2 * np.pi * 1318.5 * t) + 0.35 * np.sin(2 * np.pi * 1975.5 * t)
     _add(out, 0.18, ping * _env(m, 0.002, 7) * 0.3)
+    return out
+
+
+def _summon() -> np.ndarray:
+    """A low drum, a brass horn D4 rising to G4 (held, with a slow swell), then one bright hall bell over it."""
+    out = np.zeros(int(RATE * 1.9), np.float32)
+    n = int(RATE * 0.4)
+    t = np.arange(n) / RATE
+    _add(out, 0.0, np.sin(2 * np.pi * (70.0 - 25.0 * t) * t) * _env(n, 0.002, 9) * 0.55)
+    for at, pitch, length in ((0.08, 293.66, 0.28), (0.36, 392.0, 1.0)):
+        n = int(RATE * length)
+        t = np.arange(n) / RATE
+        brass = sum(np.sin(2 * np.pi * pitch * h * t) / h ** 1.2 for h in range(1, 7))
+        swell = np.minimum(1.0, t / 0.05) * np.minimum(1.0, (length - t) / 0.12)
+        _add(out, at, brass * swell * (1 + 0.15 * np.sin(2 * np.pi * 5 * t)) * 0.22)
+    n = int(RATE * 1.0)
+    t = np.arange(n) / RATE
+    bell = np.sin(2 * np.pi * 1174.66 * t) + 0.5 * np.sin(2 * np.pi * 2349.3 * t) + 0.25 * np.sin(2 * np.pi * 3290 * t)
+    _add(out, 0.85, bell * _env(n, 0.002, 4.5) * 0.28)
     return out

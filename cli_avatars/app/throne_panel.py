@@ -4,7 +4,8 @@ Live agents, the lord's board and the state crystals are read once a second whil
 tab shows. A changed room is drawn on a worker thread; the Tk thread only swaps images
 and cycles the torch frames. A click on the door goes back to the Dungeon tab. A bot
 whose blocked card is labelled ``guest`` walks to the atelier desk (``atelier``). The daily standup plays here
-(``standup_panel.Stage``).
+(``standup_panel.Stage``). SUMMON.1: with no main session open, a Summon plate sits at the foot of the hall; once
+one is open, its room's newest session is the lord.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import time
 import tkinter as tk
 
 from cli_avatars.app import atelier as at
+from cli_avatars.app import summon_ui
 from cli_avatars.app import throne_model as tm
 from cli_avatars.app.dungeon_rooms import fit_scale
 from cli_avatars.app.needs_walk import read_rooms
@@ -107,13 +109,14 @@ class ThronePanel:
         """ORCH.ROOM: the selected topic's room and its lord; every agent when no orchestrator room is selected."""
         from cli_avatars.app.orch_rooms import room_agents
         from cli_avatars.app.session_rooms import model_for
+        from cli_avatars.app.summon import throne_room
         from cli_avatars.app.tasks_view import selected_topic
 
         try:
             layout = model_for(self.app).layout(time.time())
         except Exception:
             return agents, ""
-        return room_agents(layout, agents, selected_topic(self.app))
+        return room_agents(layout, agents, throne_room(layout, agents, selected_topic(self.app)))
 
     def _agents(self) -> dict:
         app, agents = self.app, {}
@@ -186,6 +189,7 @@ class ThronePanel:
         if not self._live:
             return
         try:
+            summon_ui.sync_throne(self)
             self.stage.tick()
             scene = self.scene()
             key = (scene.seating, scene.columns, scene.lights, scene.marked,
