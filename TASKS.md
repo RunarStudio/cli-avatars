@@ -543,7 +543,7 @@ Product features only (see Scope). Team process items remain on the board elsewh
 - [x] [CHAT][feat] CHAT-HARNESS-READ @agents: Read agent specs from each harness (Claude Code user and project agents, hooks config; Grok harness) read-only, as data. New module harness.py, with tests. (M) (ported on wip/integrate-27 from Spidey #27 @ dbc7374; tick after the Windows check) (SpiderHost green b688c8f)
 - [x] [CHAT][feat] CHAT-TREE @pixel: Recursive tree project → orchestrator → agents → subagents at any depth, built from live sessions, with a pluggable spec source that CHAT-HARNESS-READ fills; stable node ids; one API for rooms, Building and web. (M) (daily 2026-11-23)
 - [x] [CHAT][feat] CHAT-BLOCKED @pixel: New 'blocked' agent state (waiting on a decision, permission or reply), emitted on the bus and shown in the HUD and rooms. (S) (daily 2026-11-23)
-- [ ] [CHAT][feat] CHAT-COUNTS @agents: Counts of orchestrators, agents, subagents, conversations and open topics per project and in total, from CHAT-TREE. (S)
+- [x] [CHAT][feat] CHAT-COUNTS @agents: Counts of orchestrators, agents, subagents, conversations and open topics per project and in total, from CHAT-TREE. (S) (DOOR-COUNTS: door plaques, Topics strip, phone; docs/door-counts.md)
 - [ ] [CHAT][feat] CHAT-SEND-CLAUDE @agents: MVP1: send to a live Claude Code session through its inbox, delivered by the hook or MCP; explicit click or Enter only (after CLAUDE-HOOK-INSTALL). (M)
 - [ ] [CHAT][feat] CHAT-SEND-GROK @agents: MVP2: the same for Grok sessions. Blocked by GROK-LOGIN. (M)
 

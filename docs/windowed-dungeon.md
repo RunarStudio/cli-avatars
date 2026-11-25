@@ -198,6 +198,14 @@ painted at half size and scaled 2× nearest). No new window.
 What the lines mean and where they come from: [daily-recap.md](daily-recap.md). `app/recap_panel.py`.
 Tests: `tests/test_daily_recap_desktop.py`.
 
+#### Door counts (DOOR-COUNTS)
+
+Each room on the Dungeon floor carries a small code-drawn plaque on its door (under a session room's door sign, on the
+Apothecary's back wall): orchestrators, agents, subagents, conversations and open topics as tiny icons and numbers, and a
+red wax seal with the count while decisions wait. Hover shows the full breakdown on a parchment on the canvas; a click
+pins it. The top of the Topics dock holds **Behind the doors**: the total and each project as plaques. Images change only
+when a count changes (no blink); no window opens and no sound plays. Details: [door-counts.md](door-counts.md).
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 

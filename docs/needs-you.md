@@ -26,7 +26,7 @@ One list, on the desktop and the phone, of what waits on Daniel. Each row names 
 
 - The right dock has a **Needs you (N)** tab beside Chat (no new window). The count is on the tab.
 - Read at most once a second from the overlay tick, and only when a source file changed. Rows change in place; only the age text moves.
-- A row click: a card opens on the Tasks tab with its card panel; a room opens its chat in the dock. **Clear** on the row clears it.
+- A row click: a card opens on the Tasks tab with its card panel (the board turns to the card's topic when it shows another or none); a room opens its chat in the dock. **Clear** on the row clears it.
 - An item that enters plays the soft `arrive` cue (`cues.py`, off with `sound.cues` false; Windows plays it). A new decision rings the `decide` bell instead. The first read after a start is quiet.
 
 ## Phone

@@ -84,6 +84,13 @@ The new card glows for a moment in the list and on the Board, a toast says where
 
 The bell in the map bar lights with a count when something waits on you: a decision, a blocked task, a reply you have not answered, a run that ended. Tap it for the list, tap a row to open it, **Clear** to hide it until it changes (clearing needs the same switch as above). Details: [needs-you.md](needs-you.md).
 
+## Door counts
+
+Each room's label on the map has a small plaque above it: orchestrators, agents, subagents, conversations and open
+topics as pixel icons with numbers (only the non-zero ones), and a red seal with the count while decisions wait. A
+totals line under the map bar shows **All**; tap it for each project. The Rooms sheet lists each room's counts. The
+SSE event `counts` updates them in place. Details: [door-counts.md](door-counts.md).
+
 ## Daily recap
 
 The scroll button in the map bar (beside the bell) opens **Daily recap**: what each agent did today, per task, on a
@@ -133,13 +140,13 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 |-------|------|
 | `/pair?t=<token>` | Checks the token and sets the pairing cookie, then redirects to `/`. |
 | `/` and `/static/app.js`, `/static/app.css` | The page. Vanilla JS, no build step. |
-| `/api/scene` | Rooms with their floor outline and box in map pixels, every avatar (you, sessions, bots, subagents, the Apothecary's roamers) with feet, facing and walk, task id to room. |
+| `/api/scene` | Rooms with their floor outline and box in map pixels and their door counts, every avatar (you, sessions, bots, subagents, the Apothecary's roamers) with feet, facing and walk, task id to room, the counts per project and in total. |
 | `/api/board`, `/api/cards/<id>` | Open cards of every board, busiest column first, each with its room, `chat_count`, `chat_room` (the chat replied in last) and `last_reply` (one redacted line, at most 80). |
 | `POST /api/cards/<id>/move` | Writes on: `{"column"}` (todo, doing, review, done, blocked) moves the card as Daniel; 200 with `id` and `column`, 400 for another column or key, 404 for no card. |
 | `/api/chat/<topic>?tail=N` | The room's last messages (default 30, at most 200). |
 | `/api/map.png` | The Dungeon map, composed from the kit exactly as the Dungeon window draws it. |
 | `/api/sprite/<look>.png` | Idle and walk rows of a roster look (`user`, `orchestrator`, `grok`, `grok-<hue>`, `subagent`), cut as the Dungeon cuts them. |
-| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line. |
+| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change. |
 | `/api/sessions` | Open sessions, the rooms the phone may open (title and folder name, never a path), whether writes are on, and then the CSRF value. |
 | `POST /api/sessions` | Writes on: open a session `{"kind", "cli", "topic"}` on a room whose folder was picked in the Dungeon. |
 | `POST /api/sessions/<topic>/end` | Writes on: end it; its avatars walk back to the Apothecary. |
