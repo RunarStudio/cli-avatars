@@ -78,6 +78,7 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/rise.js": ("rise.js", "text/javascript; charset=utf-8"),
          "/static/repos.js": ("repos.js", "text/javascript; charset=utf-8"),
          "/static/repos.css": ("repos.css", "text/css; charset=utf-8"),
+         "/static/tiers.js": ("tiers.js", "text/javascript; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048
@@ -395,7 +396,12 @@ class Handler(BaseHTTPRequestHandler):
                 if valid_uuid(card_id) else None
             return self._json(found) if found else self._error(404)
         if path == "/api/scene":
-            return self._json(scene.build_scene(directory))
+            from cli_avatars.app.tiers import phone
+            from cli_avatars.paths import config_path
+            from rooms import load_config
+
+            return self._json({**scene.build_scene(directory),
+                               "hierarchy": phone(directory, load_config(config_path()))})
         if path == "/api/decisions":
             task = focus.current(directory)
             pending = [d for d in scene.decisions(directory) if task is None or focus.belongs(d, task)]

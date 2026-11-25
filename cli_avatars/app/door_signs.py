@@ -2,7 +2,8 @@
 
 A small wooden board hung on two chains, the 3x5 pixel font of the throne room, drawn at the rooms'
 own scale so it stays crisp. The note line and the rim turn amber while a card of the topic is
-blocked. Cards are read at most every ``READ_S`` through ``StoreThrottle``.
+blocked. HIERARCHY.1: the room's tier chip (crown or banner, model and effort) hangs under the board.
+Cards are read at most every ``READ_S`` through ``StoreThrottle``.
 """
 
 from __future__ import annotations
@@ -22,8 +23,8 @@ INK = "#f0e6c8"
 WOOD, WOOD_HI, WOOD_LO, FACE = "#8a5a34", "#b07a48", "#4e3018", "#171022"
 
 
-def sign_image(lines: tuple[str, str, str], amber: bool):
-    """The sign at 1x as a PIL image: chains on top, then the board."""
+def sign_image(lines: tuple[str, str, str], amber: bool, chip: dict | None = None):
+    """The sign at 1x as a PIL image: chains on top, then the board; a tier ``chip`` hangs under it (HIERARCHY.1)."""
     width = max(28, max(len(t) for t in lines) * 4 - 1) + 8
     b = Buf(width, 6 + 25)
     for x in (4, width - 5):
@@ -41,7 +42,23 @@ def sign_image(lines: tuple[str, str, str], amber: bool):
     t35(b, width // 2, 10, lines[0], GOLD, align="c", sh="#3e2614")
     t35(b, width // 2, 16, lines[1], INK, align="c", sh="#08060c")
     t35(b, width // 2, 22, lines[2], AMBER if amber else "#9a98b8", align="c", sh="#08060c")
-    return to_image(b)
+    return to_image(b) if chip is None else hang(to_image(b), chip)
+
+
+def hang(board, chip: dict):
+    """The tier chip on two short links under the board, centred."""
+    from PIL import Image
+
+    from cli_avatars.app.tier_art import chip_image
+
+    tag = chip_image(chip)
+    out = Image.new("RGBA", (max(board.width, tag.width), board.height + 3 + tag.height))
+    out.paste(board, ((out.width - board.width) // 2, 0))
+    x = (out.width - tag.width) // 2
+    for lx in (x + 3, x + tag.width - 4):
+        out.paste((106, 106, 128, 255), (lx, board.height, lx + 1, board.height + 3))
+    out.paste(tag, (x, board.height + 3))
+    return out
 
 
 def signs_for(book) -> "Signs":
@@ -76,6 +93,19 @@ def anchors(layout: dict | None, plan) -> dict[str, tuple[float, float]]:
     return out
 
 
+def tier_chips(layout: dict | None, config: object) -> dict[str, tuple]:
+    """Session topic to its tier chip (the throne is main, a simple room a topic), hashable for the photo cache."""
+    from cli_avatars.app import tiers
+
+    rows = tiers.table(config)
+    out = {}
+    for room in (layout or {}).get("rooms") or []:
+        if isinstance(room, dict) and room.get("session") and room.get("kind") and not room.get("corridor"):
+            chip = tiers.chip("main" if room.get("throne") else "topic", rows)
+            out[room["session"]] = tuple((k, tuple(v) if isinstance(v, list) else v) for k, v in chip.items())
+    return out
+
+
 class Signs:
     def __init__(self) -> None:
         self._read = StoreThrottle(READ_S)
@@ -106,12 +136,13 @@ class Signs:
             return
         cards = self.cards(book.app)
         scale = max(1, int(painter._scale))
+        chips = tier_chips(painter.layout, getattr(book.app, "config", None))
         for topic, (u, v) in spots.items():
             at = painter.to_canvas(u, v)
             if at is None:
                 continue
             lines, amber = door_sign(topic, cards)
-            key = (lines, amber, scale)
+            key = (lines, amber, scale, chips.get(topic))
             photo = self._photo(scene, key)
             x, y = round(at[0]), round(at[1] - LIFT * scale)
             item = self._items.get(topic)
@@ -128,8 +159,8 @@ class Signs:
         if found is None:
             from PIL import Image, ImageTk
 
-            lines, amber, scale = key
-            image = sign_image(lines, amber)
+            lines, amber, scale, chip = key
+            image = sign_image(lines, amber, dict(chip) if chip else None)
             if scale > 1:
                 image = image.resize((image.width * scale, image.height * scale), Image.NEAREST)
             found = self._photos[key] = ImageTk.PhotoImage(image, master=scene)

@@ -217,6 +217,7 @@ function frame(now) {
     drawFocus(now);
     ctx.restore();
     drawLabels();
+    if (!lapsing && typeof drawTiers === "function") drawTiers();
     if (!lapsing) drawNames();
   }
   requestAnimationFrame(frame);
