@@ -37,6 +37,7 @@ MAX_CARDS = 300
 FULL_BYTES = 512 * 1024
 WALL_PX = 48
 POSES = ("stride", "slump", "tap", "idle")
+NEEDS = ("decision", "blocked", "reply", "run")
 SMOKE_LIFT, BRAZIER_LIFT = 48, 14
 _LOCK = threading.Lock()
 _MAPS: dict[str, tuple[bytes, tuple[int, int], tuple[int, int]]] = {}
@@ -204,6 +205,10 @@ def public_avatars(lay: dict, origin: tuple[int, int], now: float) -> list[dict]
                     "sprite": sprite_key(row), "at": _px(u, v, left, top), "face": -1 if row.get("face") == -1 else 1,
                     "walk": bool(row.get("walk")), "pose": row["pose"] if row.get("pose") in POSES else "idle",
                     "smoke": round(min(1.0, max(0.0, float(smoke))), 3) if type(smoke) in (int, float) else 0.0})
+        if row.get("need") in NEEDS:
+            out[-1]["need"] = row["need"]
+        if row["kind"] == "user" and type(row.get("badge")) is int and row["badge"] > 0:
+            out[-1]["badge"] = min(99, row["badge"])
     return out
 
 

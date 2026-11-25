@@ -219,6 +219,7 @@ function frame(now) {
     drawLabels();
     if (!lapsing && typeof drawTiers === "function") drawTiers();
     if (!lapsing) drawNames();
+    if (!lapsing && typeof drawYouOver === "function") drawYouOver(now);
   }
   requestAnimationFrame(frame);
 }
