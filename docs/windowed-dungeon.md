@@ -250,6 +250,14 @@ Enter opens the task chat in the chat dock at that moment (sand-hiss and chimes)
 floor. While it is on, its own bindtag takes the floor's clicks, so nothing pans or drags out. No new window.
 Details: [time-lapse.md](time-lapse.md).
 
+#### Body language (BODY)
+
+On the rooms floor an avatar's body shows its state: a flowing agent strides (lean, bob, heel dust), a stuck one
+walks the doors to its room's bench and slumps, one waiting on you taps its foot inside the door on the way to you,
+and a room whose run passes 20 minutes smokes from its brazier or a chimney, thicker up to an hour. Changes ease
+over 0.4 s; hover an avatar for its word. `sigh`, `knock` and `crackle` cues, held in focus. Posed avatars skip the
+needs-me walk; `body.enabled: false` brings it back. No new window. Details: [body-language.md](body-language.md).
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 

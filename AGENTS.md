@@ -29,6 +29,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `needs_you.py` | NEEDS-YOU.1: decisions, blocked cards, unread replies and ended runs as one list; per-item clear (`docs/needs-you.md`) |
 | `recap.py` | DAILY-RECAP: one local day per agent and task from the board logs and today's hook file basenames (`docs/daily-recap.md`) |
 | `timelapse.py` | TIMELAPSE: one day as per-minute frames, chat moments and room paths from the board logs, channel logs and `timelapse/<day>.jsonl` (room and state changes, 30 days); `timelapse_view.py`, `timelapse_ghosts.py`, `timelapse_art.py`, `timelapse_cues.py` play it on the floor, `webui/lapse.py` on the phone (`docs/time-lapse.md`) |
+| `body.py` | BODY: status to pose (stride, slump, tap, idle) and room smoke from hook states, blocked cards, waiting topics and needs-you; thresholds in `config.json` `body`; `body_view.py`, `body_spots.py`, `body_art.py`, `body_cues.py` draw it on the floor, `webui/static/body.js` on the phone (`docs/body-language.md`) |
 | `focus.py` | FOCUS: one task in focus (`focus.json`); `gate` holds alerts for other tasks, `leave` hands them back once, oldest first (`docs/focus-mode.md`) |
 | `mailroom.py` | MAILROOM: letters (captures, messages to you, hook questions) in `mailroom.json`; a local sorter proposes topic, task chat and draft decision; `approve` files as Daniel, `bounce` to Unsorted then drops (`docs/mailroom.md`) |
 | `standup.py` | STANDUP: once a day one line per agent with a task (done/next/stuck from summary, recap, blocked state, decisions) in `standup.json`, pinned to each card by the orchestrator; `standup_panel.py`, `standup_show.py`, `standup_art.py` play it in the throne room (`docs/standup.md`) |
@@ -123,6 +124,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Context packs (desktop and phone) | `docs/context-packs.md` |
 | Sandbox room (desktop and phone) | `docs/sandbox-room.md` |
 | Dungeon time-lapse (desktop and phone) | `docs/time-lapse.md` |
+| Body language (desktop and phone) | `docs/body-language.md` |
 | Bot roster and status | `docs/bot-status.md` |
 | Check, restart, update the running app | `docs/agent-ops.md` |
 

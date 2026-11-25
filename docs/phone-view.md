@@ -151,6 +151,12 @@ trails. Tap a gem or a ghost: the chat opens at the message nearest that time, l
 with writes off; the SSE event `timelapse` reloads only today. A soft tick while scrubbing and a two-note chime on a
 moment, both silent during focus. Details: [time-lapse.md](time-lapse.md).
 
+## Body language
+
+The map shows each avatar's pose as on the Dungeon floor: flowing ones stride, stuck ones slump by a bench, one
+waiting on you taps its foot by the door, and a long-running room smokes, thicker with time. Read-only: `pose` and
+`smoke` ride the scene and the SSE `avatars` event. No sound on the phone. Details: [body-language.md](body-language.md).
+
 ## Web Push: alerts with the page closed
 
 A new decision or a newly blocked task reaches the phone as a system notification (the phone's own sound) even when the page is shut. It names the kind and the task (`Decision · Lantern room`, `Blocked · Polish the lantern glass`); a tap opens the page on that item. Replies and ended runs stay in the bell list only.
