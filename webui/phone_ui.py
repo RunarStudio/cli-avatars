@@ -8,6 +8,7 @@ from __future__ import annotations
 import tkinter as tk
 from dataclasses import replace
 
+from cli_avatars.app import door_counts
 from events import app_data_dir
 from webui import auth, config, live, qr, server, writes
 
@@ -36,11 +37,13 @@ def start(app, settings: config.WebSettings) -> str:
         return f"Could not serve on {settings.bind}:{settings.port}: {exc}"
     app._phone_calls = calls
     live.set_roster(lambda _lay, _now: live.dungeon_roster(app))
+    live.set_sessions(lambda: door_counts.session_rows(app))
     return ""
 
 
 def stop(app) -> None:
     live.set_roster(None)
+    live.set_sessions(None)
     server.stop(getattr(app, "_phone_server", None))
     app._phone_server = None
     calls = getattr(app, "_phone_calls", None)

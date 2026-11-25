@@ -17,6 +17,8 @@ from pathlib import Path
 from board.model import COLUMNS, effective_progress
 from bundle_paths import asset_path
 from cli_avatars.app.av_roster import LOOKS, shift_body
+from cli_avatars.app.door_counts import read as read_counts
+from cli_avatars.app.door_counts import zeros
 from cli_avatars.app.dungeon_rooms import TILE_HALF_H, TILE_HALF_W, compose, load_manifest
 from cli_avatars.app.session_rooms import APOTHECARY, SessionRooms
 from events import EventRejected
@@ -37,6 +39,7 @@ WALL_PX = 48
 _LOCK = threading.Lock()
 _MAPS: dict[str, tuple[bytes, tuple[int, int], tuple[int, int]]] = {}
 _SPRITES: dict[str, tuple[bytes, int, int, int]] = {}
+_COUNTS: dict[str, tuple] = {}
 
 
 def layout(directory: Path | str) -> dict | None:
@@ -244,15 +247,46 @@ def build_scene(directory: Path | str) -> dict:
             board = board_cards(directory) if board is None else board
             lines, amber = door_sign(name, board)
             rooms[-1]["sign"] = {"lines": list(lines), "amber": amber}
+    counts = _counts(directory, lay)
+    for row in rooms:
+        row["counts"] = counts.rooms.get(row["name"]) or zeros()
     avatars = public_avatars(lay, (left, top), time.time())
     sprites = {}
     for key in sorted({a["sprite"] for a in avatars}):
         strip = sprite_png(key)
         if strip:
             sprites[key] = {"w": strip[1], "h": strip[2], "frames": strip[3], "feet": FEET_UP}
-    scene = {"map": {"w": w, "h": h, "origin": [left, top]}, "rooms": rooms, "avatars": avatars, "sprites": sprites}
+    scene = {"map": {"w": w, "h": h, "origin": [left, top]}, "rooms": rooms, "avatars": avatars, "sprites": sprites,
+             "counts": {"total": counts.total, "projects": counts.projects}}
     scene["tasks"] = {c["id"]: room_for_topic(scene, c.get("topic")) for c in cards(directory)}
     return scene
+
+
+def _session_key(rows) -> tuple:
+    """What of the live sessions the counts read: who, under whom, where; not the clock or the state."""
+    from cli_avatars.model.tree import adapt_sessions
+
+    return tuple(sorted((r["agent_id"], r["parent_id"], r["project"], r["cli"], r["subagents"])
+                        for r in adapt_sessions(rows)))
+
+
+def _counts(directory: Path | str, lay: dict | None):
+    """DOOR-COUNTS for the layout, read again only when the files or the live sessions changed."""
+    rows = live.sessions()
+    key = (str(directory), stamp(directory), _session_key(rows))
+    with _LOCK:
+        found = _COUNTS.get("last")
+        if found is not None and found[0] == key:
+            return found[1]
+    counts = read_counts(directory, lay, rows)
+    with _LOCK:
+        _COUNTS["last"] = (key, counts)
+    return counts
+
+
+def counts_now(directory: Path | str) -> dict:
+    """The counts one SSE tick sends: per room, per project and the total."""
+    return _counts(directory, layout(directory)).to_json()
 
 
 def room_for_topic(scene: dict, topic: str | None) -> str:

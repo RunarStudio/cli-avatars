@@ -456,7 +456,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(b"retry: 3000\n\n")
             self.wfile.flush()
             last, quiet = scene.stamp(self.server.directory), time.monotonic()
-            checked, sent = quiet, None
+            checked, sent, counted = quiet, None, scene.counts_now(self.server.directory)
             updater, update_seq = self.server.updater, self.server.updater.seq()
             while not self.server.stopping.wait(min(self.server.poll, AVATAR_TICK)):
                 if updater.seq() != update_seq:
@@ -473,6 +473,12 @@ class Handler(BaseHTTPRequestHandler):
                 if time.monotonic() - checked < self.server.poll:
                     continue
                 checked = time.monotonic()
+                counts = scene.counts_now(self.server.directory)
+                if counts != counted:
+                    counted, quiet = counts, time.monotonic()
+                    data = json.dumps(counts, separators=(",", ":"))
+                    self.wfile.write(f"event: counts\ndata: {data}\n\n".encode("utf-8"))
+                    self.wfile.flush()
                 now = scene.stamp(self.server.directory)
                 if now != last:
                     last, quiet = now, time.monotonic()

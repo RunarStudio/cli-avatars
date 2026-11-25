@@ -24,6 +24,13 @@ TASKS = (
 ROAMERS = ({"id": "claude:quill", "kind": "orchestrator", "name": "Quill"},
            {"id": "bot:night-owl", "kind": "grok", "name": "Night owl"},
            {"id": "claude:quill/sub", "kind": "subagent", "name": "Quill helper"})
+SESSIONS = (
+    {"agent_id": "mf01", "name": "Quill", "source": "claude", "project": "moon-forge", "status": "busy"},
+    {"agent_id": "mf02", "name": "Scout", "source": "claude", "project": "moon-forge", "parent_id": "mf01",
+     "status": "busy", "subagents": 2},
+    {"agent_id": "go01", "name": "Owl", "source": "grok", "project": "glass-orchard", "status": "idle"},
+    {"agent_id": "el01", "name": "Ember", "source": "claude", "project": "ember-ledger", "status": "blocked"},
+)
 CHAT = {
     "moon-forge": (("user", "Gate status?"), ("claude", "Hinges are oiled. The runes on the left leaf are faint."),
                    ("claude", "Re-cutting rune 3 of 7 now."), ("user", "Keep the old pattern."),

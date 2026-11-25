@@ -317,6 +317,7 @@ function drawLabels() {
     ctx.fillStyle = on ? "#ffd27a" : "#e9dcbc";
     ctx.fillText(text, Math.round(x), Math.round(y) + 1);
     if (r.sign) drawSign(r.sign, x, y + th, px);
+    if (r.counts) drawCounts(r.counts, x, y - th * 1.05, px);
   }
   ctx.globalAlpha = 1;
 }
@@ -334,6 +335,99 @@ function drawSign(sign, x, y, px) {
   ctx.fillStyle = sign.amber ? "#ffbe3c" : "#f0e6c8";
   ctx.fillText(text, Math.round(x), Math.round(y) + 1);
 }
+
+// DOOR-COUNTS: the room's plaque on the map, with the same 5x5 pixel icons as the Dungeon's door plaques
+const COUNT_ICONS = [
+  ["orchestrators", "#e0aa3e", ["1.1.1", "11111", "11111", "1...1", "11111"], "orchestrator"],
+  ["agents", "#f0e6c8", [".11..", ".11..", "1111.", ".11..", "1..1."], "agent"],
+  ["subagents", "#b48cff", ["..1..", ".111.", "11111", ".111.", "..1.."], "subagent"],
+  ["conversations", "#8fd0ff", ["11111", "1...1", "11111", ".1...", "1...."], "conversation"],
+  ["open_topics", "#8fe08a", ["1111.", "11111", "1111.", "1....", "1...."], "open topic"],
+];
+function drawIcon(rows, color, x, y, k) {
+  ctx.fillStyle = color;
+  rows.forEach((row, dy) => { for (let dx = 0; dx < row.length; dx++) if (row[dx] === "1") ctx.fillRect(x + dx * k, y + dy * k, k, k); });
+}
+function drawCounts(c, x, y, px) {
+  const cells = COUNT_ICONS.filter(([key]) => c[key]);
+  const pending = c.decisions || 0;
+  if (!cells.length && !pending) return;
+  const k = Math.max(1, Math.round(px / 6)), gap = Math.round(px * 0.55), pad = Math.round(px * 0.5);
+  ctx.font = `700 ${px}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.textAlign = "left";
+  const widths = cells.map(([key]) => 5 * k + 3 + ctx.measureText(String(c[key])).width);
+  const h = Math.round(px * 1.55), seal = pending ? h + 2 : 0;
+  const w = Math.round(widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, cells.length - 1) + pad * 2);
+  const left = Math.round(x - (w + seal) / 2), top = Math.round(y - h / 2);
+  if (cells.length) {
+    ctx.fillStyle = "rgba(23,16,34,.94)";
+    ctx.fillRect(left, top, w, h);
+    ctx.strokeStyle = pending ? "#c0283c" : "#8a5a34";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(left + 1, top + 1, w - 2, h - 2);
+    let cx = left + pad;
+    cells.forEach(([key, color, rows], i) => {
+      drawIcon(rows, color, cx, Math.round(top + (h - 5 * k) / 2), k);
+      ctx.fillStyle = "#f0e6c8";
+      ctx.fillText(String(c[key]), cx + 5 * k + 3, Math.round(top + h / 2) + 1);
+      cx += widths[i] + gap;
+    });
+  }
+  if (pending) {
+    const r = seal / 2, sx = left + w + r - (cells.length ? 2 : 0), sy = top + h / 2;
+    const g = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.35, 1, sx, sy, r);
+    g.addColorStop(0, "#ff6a70"); g.addColorStop(0.6, "#c0283c"); g.addColorStop(1, "#6e1020");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ffe6b0";
+    ctx.textAlign = "center";
+    ctx.fillText(pending > 9 ? "9+" : String(pending), sx, sy + 1);
+  }
+  ctx.textAlign = "center";
+}
+
+function countIcon(rows, color) {
+  const c = document.createElement("canvas");
+  c.width = 5; c.height = 5;
+  c.className = "ico";
+  const g = c.getContext("2d");
+  g.fillStyle = color;
+  rows.forEach((row, dy) => { for (let dx = 0; dx < 5; dx++) if (row[dx] === "1") g.fillRect(dx, dy, 1, 1); });
+  return c;
+}
+function countParts(c, all) {
+  const out = [];
+  for (const [key, color, rows, noun] of COUNT_ICONS) {
+    if (!all && !c[key]) continue;
+    const icon = countIcon(rows, color);
+    icon.title = `${c[key] || 0} ${noun}${c[key] === 1 ? "" : "s"}`;
+    out.push(icon, el("b", "", c[key] || 0));
+  }
+  if (c.decisions) {
+    const seal = el("span", "tseal", c.decisions);
+    seal.title = `${c.decisions} decision${c.decisions === 1 ? " waits" : "s wait"} on you`;
+    out.push(seal);
+  }
+  return out;
+}
+function paintTotals() {
+  const counts = state.scene && state.scene.counts;
+  const line = $("totals"), list = $("totalsProjects");
+  if (!counts) { line.replaceChildren(); list.hidden = true; return; }
+  line.replaceChildren(el("span", "lead", "All"), ...countParts(counts.total, true));
+  list.replaceChildren();
+  for (const [name, c] of Object.entries(counts.projects)) {
+    const li = el("li");
+    li.append(el("span", "", name), ...countParts(c, false));
+    list.append(li);
+  }
+  if (!list.children.length) list.append(el("li", "", "No project yet."));
+}
+$("totals").addEventListener("click", () => {
+  const list = $("totalsProjects");
+  list.hidden = !list.hidden;
+  $("totals").setAttribute("aria-expanded", list.hidden ? "false" : "true");
+});
 
 // --- tasks and chat ------------------------------------------------------------------------------
 function renderTasks() {
@@ -941,6 +1035,7 @@ async function load() {
   const oldOrigin = state.scene && state.scene.map ? state.scene.map.origin : null;
   state.scene = scene;
   state.cards = board.cards;
+  paintTotals();
   if (scene.map) {
     const key = JSON.stringify([scene.map, scene.rooms.map((r) => [r.name, r.build])]);
     if (key !== state.mapKey) {
@@ -1196,6 +1291,8 @@ function paintRoomList() {
     const tag = el("span", "tag " + (r.kind === "custom" ? "custom" : "lock"), KIND_TAG[r.kind] || r.kind);
     b.append(tag, el("b", "", r.name), el("span", "size", r.size));
     b.append(el("small", "", skinName(r.skin) + (r.topic ? " · " + r.topic : "")));
+    const seen = state.scene && state.scene.rooms.find((s) => s.id === r.id);
+    if (seen && seen.counts) { const row = el("span", "count-row"); row.append(...countParts(seen.counts, false)); b.append(row); }
     b.addEventListener("click", () => editRoom(r));
     li.append(b);
     list.append(li);
@@ -1792,6 +1889,15 @@ function live() {
     clearTimeout(pending);
     pending = setTimeout(() => load().catch(() => {}), 150);
     if (!$("recap").hidden) loadRecap();
+  });
+  src.addEventListener("counts", (e) => {
+    if (!state.scene) return;
+    let data;
+    try { data = JSON.parse(e.data); } catch (_e) { return; }
+    for (const r of state.scene.rooms) if (data.rooms[r.name]) r.counts = data.rooms[r.name];
+    state.scene.counts = { total: data.total, projects: data.projects };
+    paintTotals();
+    if (!$("rooms").hidden && !$("roomList").hidden && state.rooms.rooms) paintRoomList();
   });
   src.addEventListener("avatars", (e) => {
     if (!state.scene) return;

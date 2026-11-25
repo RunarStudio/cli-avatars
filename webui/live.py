@@ -16,12 +16,29 @@ from cli_avatars.app.session_rooms import APOTHECARY
 KINDS = ("user", "orchestrator", "grok", "subagent")
 USER_ID = "__you__"
 _ROSTER: Callable | None = None
+_SESSIONS: Callable | None = None
 
 
 def set_roster(provider: Callable | None) -> None:
     """``provider(layout, now)`` returns rows, or None to use the fallback."""
     global _ROSTER
     _ROSTER = provider
+
+
+def set_sessions(provider: Callable | None) -> None:
+    """DOOR-COUNTS: ``provider()`` returns the live session rows the app holds; None means none."""
+    global _SESSIONS
+    _SESSIONS = provider
+
+
+def sessions() -> list:
+    provider = _SESSIONS
+    if provider is None:
+        return []
+    try:
+        return list(provider())
+    except Exception:
+        return []
 
 
 def rows(lay: dict | None, now: float) -> list[dict]:

@@ -31,11 +31,12 @@ def main(argv: list[str] | None = None) -> int:
         import tempfile
 
         from webui import live
-        from webui.demo import roster, seed
+        from webui.demo import SESSIONS, roster, seed
 
         directory = Path(tempfile.mkdtemp(prefix="cli-avatars-demo-"))
         seed(directory)
         live.set_roster(roster)
+        live.set_sessions(lambda: SESSIONS)
     token = auth.rotate_token(directory) if args.new_token else auth.load_token(directory)
     httpd = server.make_server(directory, settings.bind, settings.port)
     link = config.phone_link(settings, token)
