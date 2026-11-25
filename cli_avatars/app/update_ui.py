@@ -273,7 +273,7 @@ class PhoneUpdate:
                 phase, note = "rolled_back", f"The new build failed its boot check; back on {commit or 'the old build'}"
         return {"version": version, "commit": commit, "channel": "dev", "last_checked": state.get("last_checked", ""),
                 "enabled": not reason and not running, "reason": reason, "running": running,
-                "line": line, "phase": phase, "note": note}
+                "line": line, "phase": phase, "note": note, "started": getattr(app, "_ops_started", 0)}
 
     def start(self) -> str:
         """``""`` when the update started, else why not (running, a missing tool, from source)."""
@@ -281,3 +281,14 @@ class PhoneUpdate:
             return self._call(lambda: start_update(self.app)) or ""
         except Exception:
             return "The Dungeon did not answer. Try again."
+
+    def restart(self) -> str:
+        """OPS.1: ``""`` when the Dungeon quits to relaunch, else why not (an update is running)."""
+        from cli_avatars.app import ops
+
+        try:
+            why = self._call(lambda: ops.restart(self.app)) or ""
+        except Exception:
+            return "The Dungeon did not answer. Try again."
+        ops.log_line(ops.app_data_dir(), "restart from the phone: " + (why or "started"))
+        return why

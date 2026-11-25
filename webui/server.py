@@ -152,6 +152,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/update":
             why = self.server.updater.start()
             return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
+        if path == "/api/restart":
+            why = self.server.updater.restart()
+            return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
         if path == "/api/sessions":
             if set(body) - {"kind", "cli", "topic"}:
                 return self._error(400)
@@ -420,6 +423,9 @@ class NoUpdate:
 
     def start(self) -> str:
         return self.REASON
+
+    def restart(self) -> str:
+        return "Restart runs in the Dungeon app. Start the app to restart it from here."
 
 
 class PhoneServer(ThreadingHTTPServer):

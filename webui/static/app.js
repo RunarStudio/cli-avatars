@@ -707,12 +707,15 @@ const STEPS = [["checking dev", "Check"], ["pulling", "Pull"], ["selftest", "Sel
 const DONE = { up_to_date: "ok", updated: "ok", failed: "bad", rolled_back: "bad", blocked: "bad" };
 state.upd = null;
 state.restarting = false;
+state.restartFrom = null; // OPS.1: the old app's start time while a plain Restart is under way
+state.backAt = "";
 
 async function loadUpdate() {
   try { paintUpdate(await getJSON("/api/update")); } catch (_e) { /* offline */ }
 }
 
 function stepOf(u) {
+  if (state.restartFrom !== null) return -1;
   if (u.phase === "staged" || u.phase === "rolled_back" || state.restarting) return STEPS.length - 1;
   if (u.phase === "updated") return STEPS.length;
   const line = (u.line || "").toLowerCase(), found = STEPS.findIndex(([key]) => line.includes(key));
@@ -734,8 +737,9 @@ function paintUpdate(u) {
   list.hidden = at < 0;
   list.replaceChildren(...STEPS.map(([, label], i) => el("li", i < at ? "done" : i === at ? (bad ? "bad" : "now") : "", label)));
   const line = $("updLine");
-  line.className = "upd-line " + (u.running || state.restarting ? "busy" : DONE[u.phase] || "");
+  line.className = "upd-line " + (u.running || state.restarting ? "busy" : state.backAt ? "ok" : DONE[u.phase] || "");
   if (state.restarting) line.textContent = state.retry || "Restarting the Dungeon. The page reconnects on its own.";
+  else if (state.backAt && !u.running) line.textContent = "Back up at " + state.backAt + ".";
   else if (u.running) line.textContent = u.line || "Update: checking dev";
   else if (u.phase === "up_to_date") line.textContent = "Up to date on " + (u.commit || "dev");
   else if (u.phase === "updated" || u.phase === "rolled_back") line.textContent = u.note;
@@ -743,7 +747,9 @@ function paintUpdate(u) {
   else line.textContent = "";
   const writes = state.writes.writes;
   $("updGo").disabled = !u.enabled || !writes || state.restarting;
-  $("updGo").textContent = u.running || state.restarting ? "Updating…" : "Update app";
+  $("updGo").textContent = u.running || (state.restarting && state.restartFrom === null) ? "Updating…" : "Update app";
+  $("rstGo").disabled = !writes || !!u.running || state.restarting || u.started === undefined;
+  $("rstGo").textContent = state.restartFrom !== null ? "Restarting…" : "Restart";
   $("updWhy").textContent = u.running || state.restarting ? "" : u.reason
     || (writes ? "" : "Updating from the phone is off. In the Dungeon: Settings › Phone › Allow the phone to open sessions and send prompts.");
   $("appBtn").classList.toggle("busy", !!u.running || state.restarting);
@@ -759,9 +765,28 @@ $("updAsk").addEventListener("click", (e) => { if (e.target === $("updAsk")) $("
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (!$("updAsk").hidden) $("updAsk").hidden = true;
+  else if (!$("rstAsk").hidden) $("rstAsk").hidden = true;
   else if (!$("upd").hidden) $("upd").hidden = true;
 });
+$("rstGo").addEventListener("click", () => { $("rstAsk").hidden = false; $("rstYes").focus(); });
+$("rstNo").addEventListener("click", () => { $("rstAsk").hidden = true; });
+$("rstAsk").addEventListener("click", (e) => { if (e.target === $("rstAsk")) $("rstAsk").hidden = true; });
+$("rstYes").addEventListener("click", async () => {
+  $("rstAsk").hidden = true;
+  $("rstGo").disabled = true;
+  tone("send");
+  const res = await postJSON("/api/restart", {}).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) {
+    $("updWhy").textContent = res.data.why || (res.status === 429 ? "Too many taps: wait a minute." : "Not restarted (" + (res.status || "offline") + ").");
+    return loadUpdate();
+  }
+  state.backAt = "";
+  state.restartFrom = state.upd ? state.upd.started : 0;
+  state.restarting = true;
+  if (state.upd) paintUpdate(state.upd);
+});
 $("updYes").addEventListener("click", async () => {
+  state.backAt = "";
   $("updAsk").hidden = true;
   $("updGo").disabled = true;
   tone("send");
@@ -783,6 +808,11 @@ async function reconnect(src) {
       if (!res.ok) continue;
       const u = await res.json();
       if (u.phase === "staged") continue;
+      if (state.restartFrom !== null && u.started === state.restartFrom) continue;
+      if (state.restartFrom !== null && u.started) {
+        state.backAt = new Date(u.started * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+      state.restartFrom = null;
       state.restarting = false;
       state.retry = "";
       paintUpdate(u);
