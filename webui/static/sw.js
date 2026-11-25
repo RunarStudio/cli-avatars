@@ -1,5 +1,6 @@
 // WEB-PUSH: alerts with the page closed. A push shows a system notification (system sound) naming the
-// kind and the task; a tap focuses the page and opens that item, or opens the page on it.
+// kind and the task; a tap focuses the page and opens that item, or opens the page on it. FOCUS: alerts held
+// while a task was in focus arrive together; all but the last are silent, so the batch sounds once.
 "use strict";
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -10,7 +11,7 @@ self.addEventListener("push", (e) => {
   try { d = e.data ? e.data.json() : {}; } catch (_e) { d = {}; }
   e.waitUntil(self.registration.showNotification(d.title || "Dungeon", {
     body: d.body || "Something waits on you.", tag: d.key || "dungeon", data: { url: d.url || "/" },
-    icon: "/static/icon.png", badge: "/static/icon.png",
+    icon: "/static/icon.png", badge: "/static/icon.png", silent: !!d.silent,
   }));
 });
 

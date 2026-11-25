@@ -3,7 +3,8 @@
 VAPID key (RFC 8292) made once in ``web/vapid.pem`` (owner-only, never logged); subscriptions and what was
 sent in ``web/push.json``. A new decision or blocked task in the needs-you list (``needs_you``) is pushed
 once to every subscription, encrypted per RFC 8291 (aes128gcm). A cleared item is not pushed again; one that
-leaves the list and comes back is. A push service answering 404 or 410 drops that subscription.
+leaves the list and comes back is. A push service answering 404 or 410 drops that subscription. FOCUS: while one
+task is in focus only its items go out; the rest go when focus ends, oldest first, all but the last silent.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import focus
 import needs_you
 from events import _restrict_to_user, directory_lock, ensure_private_dir
 
@@ -209,11 +211,18 @@ def post(url: str, headers: dict, body: bytes) -> int:
         return 0
 
 
-def message(item: dict) -> bytes:
+def message(item: dict, silent: bool = False) -> bytes:
     """What the notification shows: kind and task, the detail, and the page link that opens the item."""
-    return json.dumps({"title": f"{KINDS[item['kind']]} · {item['title']}"[:120], "body": item["detail"],
-                       "key": item["key"], "kind": item["kind"], "url": f"/#need={item['key']}"},
-                      separators=(",", ":")).encode("utf-8")
+    body = {"title": f"{KINDS[item['kind']]} · {item['title']}"[:120], "body": item["detail"],
+            "key": item["key"], "kind": item["kind"], "url": f"/#need={item['key']}"}
+    if silent:
+        body["silent"] = True
+    return json.dumps(body, separators=(",", ":")).encode("utf-8")
+
+
+def stamp(directory: Path | str) -> tuple:
+    """It moves when the pushable list may have: a needs-you source, or focus starting or ending."""
+    return needs_you.stamp(directory), focus.stamp(directory)
 
 
 def tick(directory: Path | str, post=post, now: float | None = None) -> int:
@@ -222,10 +231,12 @@ def tick(directory: Path | str, post=post, now: float | None = None) -> int:
     if not data["subs"]:
         return 0
     live = _pushable(directory)
-    fresh = [r for r in needs_you.pending(directory) if r["kind"] in KINDS and r["key"] not in data["sent"]]
+    shown, _waiting = focus.gate(directory, needs_you.pending(directory))
+    fresh = sorted((r for r in shown if r["kind"] in KINDS and r["key"] not in data["sent"]),
+                   key=lambda r: (r["ts"], r["key"]))
     gone = set()
-    for item in fresh:
-        body = message(item)
+    for i, item in enumerate(fresh):
+        body = message(item, silent=i < len(fresh) - 1)
         for sub in data["subs"]:
             if sub["endpoint"] in gone:
                 continue
@@ -263,10 +274,10 @@ class Watcher:
                 if not _load(self.directory)["subs"]:
                     last = None
                     continue
-                stamp = needs_you.stamp(self.directory)
-                if stamp != last:
+                moved = stamp(self.directory)
+                if moved != last:
                     tick(self.directory, post=self.post)
-                    last = stamp
+                    last = moved
             except Exception:
                 continue
 

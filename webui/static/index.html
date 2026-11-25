@@ -26,6 +26,9 @@
       <button id="sound" class="icon" type="button" aria-pressed="false" title="Sound: zoom, send and reply">&#9835;</button>
       <button id="fit" class="icon" type="button" title="Whole map">&#10530;</button>
     </header>
+    <div id="focusBar" class="focus-bar" hidden role="status" aria-live="polite"><span class="candle" aria-hidden="true"></span>
+      <b>Focus</b><span id="focusTitle" class="focus-title"></span><span id="focusWaiting" class="tseal" title="Alerts waiting until you leave focus"></span>
+      <button id="focusLeave" class="focus-leave" type="button">Leave focus</button></div>
     <button id="totals" class="totals" type="button" aria-expanded="false" title="Behind the doors: tap for each project"></button>
     <ul id="totalsProjects" class="totals-projects" hidden></ul>
     <div class="stage"><canvas id="map"></canvas></div>

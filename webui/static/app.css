@@ -535,3 +535,24 @@ button.rtitle .gem { background: #7a1f3d; box-shadow: inset 2px 2px 0 #fff6; }
 .totals-projects li { display: flex; align-items: center; gap: 6px; padding: 3px 0; color: var(--dim); }
 .totals-projects li > span:first-child { flex: 0 0 9em; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
 .count-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 11px; color: var(--dim); }
+
+/* FOCUS: the bar under the map bar, dimmed tasks, the focus buttons */
+.focus-bar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; min-height: 30px; border-bottom: 2px solid var(--deep);
+  background: linear-gradient(180deg, #2a1a2c, #1a1226); box-shadow: inset 0 1px 0 #e0a83c66, inset 0 -1px 0 #0c0812; font: 12px var(--mono); }
+.focus-bar[hidden] { display: none; }
+.focus-bar b { color: var(--torch-2); letter-spacing: .1em; text-transform: uppercase; }
+.focus-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.focus-bar .tseal { --seal: #c0283c; --seal-2: #ff6a70; }
+.focus-bar .tseal.none { filter: grayscale(.8) brightness(.6); }
+.candle { flex: none; width: 6px; height: 14px; background: linear-gradient(180deg, #ffd76a 0 3px, #ff9a2a 3px 5px, transparent 5px 6px, #e8dcc0 6px);
+  box-shadow: 0 -2px 8px #ffb03088; animation: flick 1.4s steps(3) infinite; }
+@keyframes flick { 50% { box-shadow: 0 -2px 5px #ffb03055; } }
+.focus-leave, .focus-btn { flex: none; padding: 4px 9px; border: 0; background: #7a2436; color: var(--ink); font: 600 11px var(--mono);
+  letter-spacing: .06em; box-shadow: inset 0 1px 0 #b04a5c, 0 0 0 1px #0c0812; cursor: pointer; }
+.focus-leave:disabled, .focus-btn:disabled { opacity: .45; cursor: not-allowed; }
+.focus-btn { margin: 6px 0 0 6px; }
+.task-chats + .focus-btn { margin: -2px 0 8px 14px; }
+.focus-btn.on { background: #e0a83c; color: #1a1226; box-shadow: inset 0 1px 0 #ffd27a, 0 0 0 1px #0c0812; }
+.task.dimmed, .bcard.dimmed { filter: grayscale(.85) brightness(.55); }
+.task.focused { box-shadow: inset 3px 0 0 var(--torch-2), inset 0 0 0 1px #e0a83c, 0 0 16px #ffd27a44; }
+.bcard.focused { box-shadow: inset 0 0 0 2px var(--torch-2), 0 0 16px #ffd27a66; }

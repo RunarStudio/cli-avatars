@@ -34,6 +34,7 @@ hiddenimports = [
     "emit_phone",
     "emit_tasks",
     "events",
+    "focus",
     "harness",
     "hud",
     "inbox",

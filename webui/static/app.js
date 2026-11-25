@@ -5,6 +5,7 @@
 // TASKBACK.5: the Board view: columns as swipeable lanes, project and topic filters, each card's chat count and
 // last reply; with writes on, a long-press or Move opens "Move to".
 // QUICK-CAPTURE: the floating + drops a thought as a card or a task chat in the topic the local ranker suggests.
+// FOCUS: one task in focus: the other rooms dim, other tasks grey, alerts for them wait; Leave focus lets them in.
 // Every text goes in with textContent.
 "use strict";
 
@@ -199,6 +200,7 @@ function frame(now) {
     drawFlare(now);
     drawGlow(now);
     drawAvatars(now);
+    drawFocus(now);
     ctx.restore();
     drawLabels();
     drawNames();
@@ -438,7 +440,7 @@ function renderTasks() {
   const rooms = new Map((state.scene ? state.scene.rooms : []).map((r) => [r.name, r.title]));
   for (const c of state.cards) {
     const li = el("li");
-    const b = el("button", "task" + (c.id === state.sel ? " sel" : "") + (c.id === state.fresh ? " fresh" : ""));
+    const b = el("button", "task" + (c.id === state.sel ? " sel" : "") + (c.id === state.fresh ? " fresh" : "") + focusClass(c));
     b.type = "button";
     b.append(el("span", "badge " + c.column, LABELS[c.column] || c.column), el("span", "title", c.title));
     if (c.summary) b.append(whereSlip(c));
@@ -459,7 +461,7 @@ function renderTasks() {
     if (note) b.append(el("span", "note", note));
     b.addEventListener("click", () => pickTask(c.id));
     li.append(b);
-    if (c.id === state.sel) li.append(taskChats(c));
+    if (c.id === state.sel) li.append(taskChats(c), focusButton(c));
     list.append(li);
   }
   renderBoard();
@@ -519,7 +521,7 @@ function renderBoard() {
 }
 
 function boardCard(c) {
-  const li = el("li", "bcard" + (c.id === state.sel ? " sel" : "") + (c.id === state.fresh ? " fresh" : ""));
+  const li = el("li", "bcard" + (c.id === state.sel ? " sel" : "") + (c.id === state.fresh ? " fresh" : "") + focusClass(c));
   li.dataset.id = c.id;
   const top = el("div", "bc-top");
   top.append(el("span", "title", c.title));
@@ -547,7 +549,7 @@ function boardCard(c) {
   const mv = el("button", "bc-move", "\u21c4 Move");
   mv.type = "button";
   mv.addEventListener("click", (e) => { e.stopPropagation(); openMove(c); });
-  li.append(mv);
+  li.append(mv, focusButton(c));
   let timer = null, from = null, long = false;
   li.addEventListener("pointerdown", (e) => {
     long = false;
@@ -1031,11 +1033,12 @@ async function endSession(sid) {
 }
 
 async function load() {
-  const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites(), loadDecisions(), loadNeeds()]);
+  const [scene, board] = await Promise.all([getJSON("/api/scene"), getJSON("/api/board"), loadWrites(), loadDecisions(), loadNeeds(), loadFocus()]);
   const oldOrigin = state.scene && state.scene.map ? state.scene.map.origin : null;
   state.scene = scene;
   state.cards = board.cards;
   paintTotals();
+  paintFocus();
   if (scene.map) {
     const key = JSON.stringify([scene.map, scene.rooms.map((r) => [r.name, r.build])]);
     if (key !== state.mapKey) {
@@ -1481,7 +1484,7 @@ async function loadDecisions() {
   let data;
   try { data = await getJSON("/api/decisions"); } catch (_e) { return; }
   const rows = data.decisions || [];
-  const fresh = state.decSeen ? rows.filter((d) => !state.decSeen.has(d.id)) : [];
+  const fresh = state.decSeen && !quiet() ? rows.filter((d) => !state.decSeen.has(d.id)) : [];
   state.decSeen = new Set(rows.map((d) => d.id));
   state.decisions = rows;
   if (state.ask && !rows.some((d) => d.id === state.ask.id)) state.ask = null;
@@ -1623,7 +1626,7 @@ async function loadNeeds() {
   let data;
   try { data = await getJSON("/api/needs-you"); } catch (_e) { return; }
   const rows = data.items || [];
-  const fresh = state.needsSeen ? rows.filter((n) => !state.needsSeen.has(n.key) && n.kind !== "decision") : [];
+  const fresh = state.needsSeen && !quiet() ? rows.filter((n) => !state.needsSeen.has(n.key) && n.kind !== "decision") : [];
   state.needsSeen = new Set(rows.map((n) => n.key));
   state.needs = rows;
   paintNeeds(fresh.length > 0);
@@ -1872,6 +1875,108 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+// --- FOCUS: one task in focus; the map dims the rest, alerts for other tasks wait until Leave focus -------
+state.focus = { task: null, title: "", room: "", waiting: 0, writes: false };
+state.focusAt = 0;
+state.quietUntil = 0;
+
+function quiet() { return performance.now() < state.quietUntil; }
+
+async function loadFocus() {
+  let data;
+  try { data = await getJSON("/api/focus"); } catch (_e) { return; }
+  setFocus(data);
+}
+
+// enter and leave play a soft cue; leaving with alerts held plays one cue for the batch and lets the lists
+// that reload next take the released items in without a bell each
+function setFocus(data) {
+  const was = state.focus, seen = state.focusSeen;
+  state.focus = Object.assign({ writes: was.writes }, data);
+  state.focusSeen = true;
+  if (!seen || was.task === state.focus.task) { paintFocus(); return; }
+  state.focusAt = performance.now();
+  if (state.focus.task) tone("focus");
+  else if (was.waiting) { state.quietUntil = performance.now() + 3000; tone("release"); }
+  else tone("unfocus");
+  paintFocus();
+  renderTasks();
+  loadNeeds();
+  loadDecisions();
+}
+
+function paintFocus() {
+  const f = state.focus, on = Boolean(f.task);
+  $("focusBar").hidden = !on;
+  if (!on) return;
+  $("focusTitle").textContent = f.title || "a task";
+  $("focusWaiting").textContent = f.waiting ? f.waiting + " waiting" : "0 waiting";
+  $("focusWaiting").classList.toggle("none", !f.waiting);
+  const leave = $("focusLeave");
+  leave.disabled = !state.writes.writes;
+  leave.title = state.writes.writes ? "Leave focus: what waited comes in" : "Turn on phone writes in the Dungeon to leave focus here";
+}
+
+function focusClass(c) {
+  if (!state.focus.task) return "";
+  return c.id === state.focus.task ? " focused" : " dimmed";
+}
+
+function focusButton(c) {
+  const mine = state.focus.task === c.id;
+  const b = el("button", "focus-btn" + (mine ? " on" : ""), mine ? "\u25c9 Leave focus" : "\u25c9 Focus");
+  b.type = "button";
+  b.disabled = !state.writes.writes;
+  b.title = state.writes.writes ? (mine ? "Leave focus" : "Focus on this task: the rest dims, its alerts wait")
+    : "Turn on phone writes in the Dungeon to focus from here";
+  b.addEventListener("click", (e) => { e.stopPropagation(); mine ? leaveFocus() : startFocus(c); });
+  return b;
+}
+
+async function startFocus(c) {
+  const res = await postJSON("/api/focus", { task: c.id }).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) { tone("failed"); return; }
+  setFocus(res.data);
+  if (c.room) zoomToRoom(c.room, true);
+}
+
+async function leaveFocus() {
+  const res = await postJSON("/api/focus/leave", {}).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) { tone("failed"); return; }
+  loadFocus();
+}
+
+$("focusLeave").addEventListener("click", leaveFocus);
+
+// every room but the focused one under a cool dark veil, its outline cut out with the walls above it, and a
+// warm flicker of torchlight in the lit room; fades in over half a second
+function drawFocus(now) {
+  const f = state.focus, room = f.task && state.scene.rooms.find((r) => r.name === f.room);
+  if (!room) return;
+  const k = Math.min(1, (now - state.focusAt) / 500), m = state.scene.map, p = room.poly;
+  const wall = Math.max(0, Math.min(...p.map((q) => q[1])) - room.box[1]);
+  const hole = [p[3], [p[3][0], p[3][1] - wall], [p[0][0], p[0][1] - wall], [p[1][0], p[1][1] - wall], p[1], p[2]];
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(-8, -8, m.w + 16, m.h + 16);
+  hole.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath();
+  ctx.fillStyle = `rgba(6,6,20,${0.7 * k})`;
+  ctx.fill("evenodd");
+  const cx = (p[0][0] + p[2][0]) / 2, cy = (p[0][1] + p[2][1]) / 2 - wall / 3;
+  const r = Math.max(p[1][0] - p[3][0], 40) * 0.6, flick = 0.85 + 0.15 * Math.sin(now / 90) * Math.sin(now / 37);
+  const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, r);
+  g.addColorStop(0, `rgba(255,176,64,${0.16 * flick * k})`);
+  g.addColorStop(1, "rgba(255,140,40,0)");
+  ctx.globalCompositeOperation = "lighter";
+  ctx.beginPath();
+  hole.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath();
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
+}
+
 // --- live updates --------------------------------------------------------------------------------
 let pending = null;
 function live() {
@@ -1898,6 +2003,9 @@ function live() {
     state.scene.counts = { total: data.total, projects: data.projects };
     paintTotals();
     if (!$("rooms").hidden && !$("roomList").hidden && state.rooms.rooms) paintRoomList();
+  });
+  src.addEventListener("focus", (e) => {
+    try { setFocus(JSON.parse(e.data)); } catch (_e) { /* bad frame */ }
   });
   src.addEventListener("avatars", (e) => {
     if (!state.scene) return;
@@ -1945,13 +2053,16 @@ function tone(kind) {
     const t = audio.currentTime, out = audio.createGain();
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
-    out.gain.exponentialRampToValueAtTime(0.0001, t + (kind === "build" || kind === "decide" ? 1.1 : 0.45));
+    const long = kind === "build" || kind === "decide" || kind === "release";
+    out.gain.exponentialRampToValueAtTime(0.0001, t + (long ? 1.1 : 0.45));
     out.connect(audio.destination);
     const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : kind === "done" ? [[523.25, 0], [659.25, 0.09], [783.99, 0.18]]
       : kind === "build" ? [[130.81, 0], [196.0, 0.16], [261.63, 0.34], [392.0, 0.52]]
       : kind === "failed" ? [[329.63, 0], [261.63, 0.12]] : kind === "move" ? [[293.66, 0], [440.0, 0.07]]
       : kind === "capture" ? [[987.77, 0], [783.99, 0.05], [1174.66, 0.12]]
       : kind === "scroll" ? [[220.0, 0], [329.63, 0.07], [293.66, 0.16]]
+      : kind === "focus" ? [[220.0, 0], [164.81, 0.14]] : kind === "unfocus" ? [[164.81, 0], [246.94, 0.14]]
+      : kind === "release" ? [[164.81, 0], [246.94, 0.14], [987.77, 0.4]]
       : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {
       const o = audio.createOscillator();
@@ -1961,7 +2072,7 @@ function tone(kind) {
       g.gain.value = kind === "send" ? 0.35 : 1;
       o.connect(g).connect(out);
       o.start(t + d);
-      o.stop(t + (kind === "build" || kind === "decide" ? 1.1 : 0.46));
+      o.stop(t + (long ? 1.1 : 0.46));
     }
   } catch (_e) { soundOn = false; paintSound(); }
 }

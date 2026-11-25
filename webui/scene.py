@@ -340,6 +340,17 @@ def decisions(directory: Path | str) -> list[dict]:
     return [public(row) for row in pending(directory)]
 
 
+def focus_now(directory: Path | str) -> dict:
+    """FOCUS: the task in focus, its title and room (the one the map keeps lit), and how many alerts wait."""
+    import focus
+
+    state = focus.public(directory)
+    room = ""
+    if state["task"]:
+        room = focus.room_of((layout(directory) or {}).get("rooms") or [], state["topic"], APOTHECARY)
+    return {"task": state["task"], "title": state["title"], "room": room, "waiting": state["waiting"]}
+
+
 def chat(directory: Path | str, topic: str, tail: int) -> list[dict] | None:
     if not valid_topic_id(topic):
         return None
@@ -387,7 +398,7 @@ def _full_notes(directory: Path | str, topic: str) -> dict:
 def stamp(directory: Path | str) -> tuple:
     """Sizes and mtimes of what the page shows: session rooms, boards, chat, topics."""
     root = Path(directory)
-    paths = [root / "ui" / "session_rooms.json", root / "needs_you.json"]
+    paths = [root / "ui" / "session_rooms.json", root / "needs_you.json", root / "focus.json"]
     for pattern in ("board/*/events.jsonl", "board/*/cards", "channel/*.jsonl", "topics", "web/media.json",
                     "decisions.jsonl"):
         try:

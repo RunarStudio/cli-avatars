@@ -7,6 +7,8 @@ WEB.4 writes (``web.allow_writes``, off by default) also need the CSRF header, a
 ``MAX_BODY`` and the rate limit; ``/api/cards/<id>/move`` is the board's move (TASKBACK.5).
 QUICK-CAPTURE: ``/api/capture/suggest`` ranks topics locally (read-only); ``POST /api/capture`` is a write.
 WEB-PUSH: ``/sw.js`` and the push routes; the manifest and its icon load unpaired (they hold no data).
+FOCUS: ``/api/focus`` (read), ``POST /api/focus`` and ``/api/focus/leave`` (writes); while a task is in focus the
+needs-you list and the decisions show only its items, and the SSE ``focus`` event carries the state.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+import focus
 import needs_you
 import recap
 from board.model import BODY_LIMIT, COLUMNS, clean_board_project, valid_uuid
@@ -185,6 +188,16 @@ class Handler(BaseHTTPRequestHandler):
             if set(body) != {"endpoint"} or not push.unsubscribe(self.server.directory, body["endpoint"]):
                 return self._error(400)
             return self._json({"ok": True})
+        if path == "/api/focus":
+            if set(body) != {"task"} or not isinstance(body["task"], str) or not valid_uuid(body["task"]):
+                return self._error(400)
+            if not focus.start(self.server.directory, body["task"]):
+                return self._error(404)
+            return self._json(scene.focus_now(self.server.directory))
+        if path == "/api/focus/leave":
+            if body:
+                return self._error(400)
+            return self._json({"ok": True, "released": len(focus.leave(self.server.directory))})
         if path == "/api/needs-you/clear":
             if set(body) != {"key"} or not needs_you.valid_key(body["key"]):
                 return self._error(400)
@@ -321,11 +334,15 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/scene":
             return self._json(scene.build_scene(directory))
         if path == "/api/decisions":
-            pending = scene.decisions(directory)
+            task = focus.current(directory)
+            pending = [d for d in scene.decisions(directory) if task is None or focus.belongs(d, task)]
             return self._json({"decisions": pending, "count": len(pending)})
         if path == "/api/needs-you":
-            items = [{k: row[k] for k in NEEDS_KEYS} for row in needs_you.pending(directory)]
-            return self._json({"items": items, "count": len(items)})
+            shown, waiting = focus.gate(directory, needs_you.pending(directory))
+            items = [{k: row[k] for k in NEEDS_KEYS} for row in shown]
+            return self._json({"items": items, "count": len(items), "waiting": waiting})
+        if path == "/api/focus":
+            return self._json({**scene.focus_now(directory), "writes": self.server.writes()})
         if path == "/api/recap":
             return self._recap(query)
         if path == "/api/capture/suggest":
@@ -442,7 +459,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _events(self) -> None:
         """Server-sent events: ``change`` when the boards, rooms or chat change; ``avatars`` as they move;
-        ``update`` with the Update status on every progress line."""
+        ``update`` with the Update status on every progress line; ``focus`` when focus starts, ends or holds more."""
         if not self.server.streams.acquire(blocking=False):
             return self._error(503)
         self.close_connection = True
@@ -457,6 +474,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
             last, quiet = scene.stamp(self.server.directory), time.monotonic()
             checked, sent, counted = quiet, None, scene.counts_now(self.server.directory)
+            focused = scene.focus_now(self.server.directory)
             updater, update_seq = self.server.updater, self.server.updater.seq()
             while not self.server.stopping.wait(min(self.server.poll, AVATAR_TICK)):
                 if updater.seq() != update_seq:
@@ -478,6 +496,12 @@ class Handler(BaseHTTPRequestHandler):
                     counted, quiet = counts, time.monotonic()
                     data = json.dumps(counts, separators=(",", ":"))
                     self.wfile.write(f"event: counts\ndata: {data}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                state = scene.focus_now(self.server.directory)
+                if state != focused:
+                    focused, quiet = state, time.monotonic()
+                    data = json.dumps(state, separators=(",", ":"))
+                    self.wfile.write(f"event: focus\ndata: {data}\n\n".encode("utf-8"))
                     self.wfile.flush()
                 now = scene.stamp(self.server.directory)
                 if now != last:
