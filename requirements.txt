@@ -7,3 +7,4 @@ psutil>=5.9          # Process info helper (optional)
 numpy>=1.24          # Required by sprite_loader._is_blank() alpha detection
 pystray>=0.19        # System tray icon (show/hide HUD, quit)
 mcp>=1.9,<2          # FastMCP stdio server. mcp 2 renamed FastMCP; stay on 1.x.
+cryptography>=42     # Web Push (RFC 8291/8292): already pulled in by mcp via pyjwt[crypto]
