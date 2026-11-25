@@ -114,7 +114,7 @@ Door closed: a needing avatar stays in, hops at the door and the arch flashes. S
 | Root | The Dungeon becomes the `tk.Tk()` root. Overlays become `Toplevel`s. | The root owns the app icon, taskbar button and Alt-Tab entry. Today the root is the invisible overlay, which is why nothing "owns" the app. |
 | Frame | Native framed window. Dark title bar via `DwmSetWindowAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE)` when available. | Windows gives drag, resize, Aero snap, taskbar, Alt-Tab and DPI-correct borders for free. Borderless is what makes the HUD and Topics panel get lost today. |
 | Size | Resizable, `minsize` 720×480 client. First run: 70 % of the primary work area, centred. | One 2× room is about 576×390; docks need the rest. |
-| Scene zoom | Integer only (BLDG-SCHEMA). `auto` = largest integer 1–3 at which the building fits the scene area; otherwise the scene pans (drag on empty floor, mouse wheel). | Pixel art, nearest neighbour, no fractional scale. |
+| Scene zoom | Integer only (BLDG-SCHEMA). `auto` = largest integer 1–3 at which the building fits the scene area. Wheel, +/- and the map control zoom 1–3; drag on empty floor and WASD/arrows pan (NAV.1, "Moving around the floor"). | Pixel art, nearest neighbour, no fractional scale. |
 | Always on top | Off by default. Pin button in the toolbar and `dungeon.topmost`. | Optional, as asked. |
 | Close (`WM_DELETE_WINDOW`) | Asks in a parchment panel inside the Dungeon: **Minimize** (Enter, default) or **Close** (quit); Esc cancels. "Remember my choice" stores `desktop.on_close` (`ask`, `minimize`, `quit`), changeable in Settings, Display, "When I close". Close takes the tray Quit path. Minimize hides the window to the tray: avatars, events and the phone view keep running, a one-time tray notice says so. Without a tray icon, Minimize iconifies to the taskbar (decision A, BG.1). | The app keeps working in the background; the window can always come back. |
 | Minimise | Normal minimise to the taskbar. Inside avatars are not drawn; scene state still updates at 2 Hz. Desktop avatars keep walking. Tray click or taskbar restores. | No surprise escapes on minimise. |
@@ -146,6 +146,32 @@ Door closed: a needing avatar stays in, hops at the door and the arch flashes. S
 | Skins picker (5) | Central tab "Skins" beside "Dungeon" | `_build_picker_ui(win)` already takes a container. The picker's own frame timer stops when the tab is hidden. |
 | Tray (7) | Kept: Show Dungeon (default item: tray click opens the Dungeon at its last rect), Door open/closed, Call home, Quit | Callbacks still go through `root.after(0, …)`. "Let them roam" waits for WIN-DUNGEON.8. |
 | Building window (8) | The central "Dungeon" tab | BLDG.2 becomes a widget (`app/building_view.py`), not a `Toplevel`. |
+
+**Moving around the floor (NAV.1).** The Dungeon floor has a camera: integer zoom 1–3 (nearest
+neighbour, no blur) and a pan. It opens on the whole map (`auto`: the largest zoom at which the map fits,
+centred) and follows every window or column resize at once. The pan is clamped so the middle of the floor
+always lies over the map: it never leaves the view.
+
+| Control | Does |
+|---------|------|
+| Mouse wheel (touchpad: deltas add up to a notch) | Zoom one level in or out, keeping the spot under the cursor still |
+| `+` / `-` (also `=`, keypad) | Zoom one level in or out around the middle |
+| Drag on empty floor | Pan: the map follows the hand (dragging an avatar still moves the avatar) |
+| `W` `A` `S` `D` / arrow keys | Pan 48 px a press the way the key points (click the floor first so it has the keys) |
+| Topics row click | Select the topic, glide to its room (zooming one level in from the whole map), light it |
+| Double-click a room on empty floor | Glide to that room and light it |
+| Map control (bottom right) | Mini-map with the view box: click or drag on it to move there; `-`, `+`, and the corners button for the whole map |
+| `Home` (also `0`) | The whole map again |
+
+Moves that jump (Topics row, double-click, Home, a mini-map click) ease over 220 ms; drags and keys move
+at once. A room jump plays a soft `whoosh` (air and one muffled footstep; Windows, with **Sound cues**),
+held while a task is in focus; panning and zooming are silent. Zoom and pan are stored per monitor layout
+in `ui/dungeon_window.json` (`zoom`, `pan`) and come back after a restart. Every floor layer (actors,
+glow and rising drops, door signs and plaques, the focus veil, couriers, the boss pit) and hit-testing read
+the camera through the rooms painter's centre and scale, so clicks, drags in and out, the drop hint and the
+room under an avatar stay right at every zoom and pan. The phone keeps its own pinch and zoom. Code:
+`app/dungeon_camera.py` (no Tk), `app/dungeon_nav.py`, `app/nav_widget.py`; evidence with made-up data:
+`tools/shot_nav.py`.
 
 **Resizable columns (LAYOUT.1).** A splitter (a thin stone edge with an ember grip, lit on hover) sits
 between the map and each side column. Drag it to make the column wider or narrower: Topics 160–640 px,
@@ -491,7 +517,7 @@ This is better than today, where Linux and macOS get an opaque or broken full-sc
 |-------|------|-------------------------|
 | Tile `(x, y, floor)` | tiles | BLDG-SCHEMA, room `origin` + local |
 | Scene `S` | 1× px | `px = X0 + (x - y) * 16`, `py = Y0 + (x + y) * 8 - floor * FLOOR_Z * 16` |
-| Dungeon canvas `D` | widget px | `D = S * z + pan` (`z` integer zoom, `pan` from scrolling) |
+| Dungeon canvas `D` | widget px | `D = S * z + pan` (`z` integer zoom, `pan` from the camera, NAV.1) |
 | Virtual `V` | physical px | `V = D + (canvas.winfo_rootx(), canvas.winfo_rooty())` |
 | Overlay `O_m` | monitor-local px | `O_m = V - (mon.left, mon.top)` |
 

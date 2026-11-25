@@ -81,10 +81,12 @@ def render_row(self, parent, row) -> None:
 
 
 def pick(self, topic: str) -> None:
-    """A Topics row click: the topic is selected everywhere and the Dungeon frames its room."""
+    """A Topics row click: the topic is selected everywhere; the Dungeon glides to its room and frames it."""
+    from cli_avatars.app import dungeon_nav
     from cli_avatars.app.room_glow import glow_for
 
     book = getattr(self, "places", None)
     if book is not None:
         glow_for(book).frame(topic, time.time())
+    dungeon_nav.jump(self, topic)
     self._select_topic(topic)

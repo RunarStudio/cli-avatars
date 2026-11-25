@@ -11,6 +11,7 @@ import time
 import tkinter as tk
 from dataclasses import replace
 
+from cli_avatars.app import dungeon_nav
 from cli_avatars.app.dungeon_geom import (
     areas_from_monitors,
     config_with_topmost,
@@ -50,7 +51,6 @@ class DungeonWindow:
         self._pop = None
         prefs = dungeon_prefs(getattr(app, "config", {}))
         self._zoom = prefs.zoom
-        self._pan = (0, 0)
         self._center = "dungeon"
         self._right_tab = "chat"
         self._right_open = True
@@ -291,10 +291,11 @@ class DungeonWindow:
         rect = self._read_rect()
         if rect is None or rect[2] < 200 or rect[3] < 120:
             return
+        zoom, pan = dungeon_nav.saved(self)
         layout = replace(
-            default_layout(rect, self._zoom),
+            default_layout(rect, zoom),
             state=self._window_state(),
-            pan=self._pan,
+            pan=pan,
             left_open=bool(getattr(self.app, "_rooms_shown", True)),
             left_width=prefs(self)["left"],
             right_open=bool(self._right_open),
@@ -376,8 +377,7 @@ class DungeonWindow:
             self.app._rooms_shown = saved.left_open
             self._right_open = saved.right_open
             self._right_tab = saved.right_tab
-            self._zoom = saved.zoom
-            self._pan = saved.pan
+            dungeon_nav.restore(self, saved.zoom, saved.pan)
             left_w, right_w = saved.left_width, saved.right_width
         prefs(self).update(left=left_w, right=right_w)
         repack(self)

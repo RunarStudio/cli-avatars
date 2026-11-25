@@ -100,11 +100,38 @@ check("double-click resets the default width",
 
 view._offscreen, view._placed, view._signature = False, True, "abcdef012345"
 view.drag_dock(view._left, SimpleNamespace(x_root=view._mid.master.winfo_rootx() + 330, y_root=0, x=0, y=0), 160, 640)
+camera = view.scene._camera
+camera.zoom_by(1)
+camera.move(24, -16)
+saved_camera = camera.saved()
 size(1400, 800)
 view.save_now()
 stored = load_store(view._path()).layouts["abcdef012345"]
 view._left.configure(width=200)
+view.scene._camera.home()
 view._apply_saved_docks(stored, 1400)
 size(1400, 800)
 check("widths survive a restart", (view._left.winfo_width(), view._right.winfo_width()) == (330, 360), widths())
+check("zoom and pan survive a restart", view.scene._camera.saved() == saved_camera,
+      (view.scene._camera.saved(), saved_camera))
+from cli_avatars.app import orch_dock  # noqa: E402
+
+picked = []
+host._select_topic = picked.append
+host.dungeon.scene._camera.home()
+for _ in range(30):
+    root.after(20)
+    root.update()
+painter = view.scene._rooms_painter
+orch_dock.pick(host, "harbor-map")
+for _ in range(40):
+    root.after(15)
+    root.update()
+from cli_avatars.app.room_floor import Plan  # noqa: E402
+
+floor = Plan.from_layout(painter.layout).floor("harbor-map")
+cx, cy = painter.to_canvas(*floor.centre())
+box = (view.scene.winfo_width(), view.scene.winfo_height())
+check("topics row click glides to its room", picked == ["harbor-map"] and abs(cx - box[0] // 2) <= 1
+      and abs(cy - box[1] // 2) <= 1 and not view.scene._camera.moving(), (picked, cx, cy, box))
 root.destroy()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 
 from cli_avatars.app.close_choice import request_close
+from cli_avatars.app.dungeon_nav import attach as attach_nav
 from cli_avatars.app.dungeon_sash import make as sash
 from cli_avatars.app.dungeon_sash import reflow
 from cli_avatars.app.toolbar_kit import DESKTOP, PANEL, WINDOW
@@ -263,6 +264,7 @@ def _body(view, root) -> None:
     view._mail = tk.Frame(view._mid, bg=_BG)
     view._repos = tk.Frame(view._mid, bg=_BG)
     view.scene.bind("<Configure>", lambda _e: paint_floor(view.scene))
+    attach_nav(view)
     rstrip = tk.Frame(view._right, bg=_TABS)
     rstrip.pack(fill="x")
     view._rtab_chat = Tab(rstrip, "dock_chat", text="Chat", command=lambda: view.set_right(True, "chat"))

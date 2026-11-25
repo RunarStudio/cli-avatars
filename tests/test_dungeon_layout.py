@@ -99,7 +99,8 @@ class WindowResize(unittest.TestCase):
         for name in ("wide window keeps the chosen widths", "narrow window shrinks the docks, map keeps room",
                      "map refits to the narrow pane", "wide again restores the chosen widths",
                      "right splitter drag widens the chat", "collapsed column keeps a thin edge",
-                     "double-click resets the default width", "widths survive a restart"):
+                     "double-click resets the default width", "widths survive a restart",
+                     "zoom and pan survive a restart", "topics row click glides to its room"):
             self.assertIn(f"ok {name}", proc.stdout)
 
 

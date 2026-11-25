@@ -7,6 +7,7 @@ not from the tick. Pose changes stay on ``world/avatar.py``.
 
 import time
 
+from cli_avatars.app import dungeon_nav
 from cli_avatars.effects.glitch import GlitchFlash
 from cli_avatars.tuning import THROW_SCALE, TUNING
 from cli_avatars.world.monitors import clamp_sprite
@@ -152,6 +153,7 @@ class InputController:
         app._press_av = None
         app._gesture.press(event.x, event.y)
         app._drag_av = None
+        dungeon_nav.press(app, event)
 
     def on_scene_drag(self, event: object) -> None:
         app = self.app
@@ -172,7 +174,8 @@ class InputController:
         av = getattr(app, "_press_inside", None)
         inside = getattr(app, "_inside", {})
         if av is None or av not in inside.values():
-            app._gesture.move(event.x, event.y)
+            if app._gesture.move(event.x, event.y):
+                dungeon_nav.drag(app, event)
             return
         if not app._gesture.move(event.x, event.y):
             return
@@ -188,6 +191,7 @@ class InputController:
     def on_scene_release(self, event: object) -> None:
         app = self.app
         kind = app._gesture.release()
+        dungeon_nav.release(app, kind)
         inside = getattr(app, "_press_inside", None)
         app._press_inside = None
         dragged = app._drag_av
@@ -218,6 +222,8 @@ class InputController:
         av = book.hit(event.x, event.y) if book is not None else None
         if av is not None:
             app._focus_linked_console(av.agent.pid)
+        else:
+            dungeon_nav.double(app, event)
 
     def on_scene_right(self, event: object) -> None:
         app = self.app

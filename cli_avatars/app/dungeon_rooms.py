@@ -239,8 +239,7 @@ class RoomsPainter:
             width, height = int(canvas.winfo_width()), int(canvas.winfo_height())
         except tk.TclError:
             return False
-        scale = fit_scale(base.size, (width, height))
-        self._center = (width // 2, height // 2)
+        scale = self.view((width, height), getattr(canvas, "_camera", None))
         if scale != self._scale or self._photo is None:
             from PIL import Image, ImageTk
 
@@ -250,12 +249,22 @@ class RoomsPainter:
             if self._item is not None:
                 canvas.itemconfigure(self._item, image=self._photo)
         if self._item is None or not canvas.find_withtag(self._item):
-            self._item = canvas.create_image(width // 2, height // 2, image=self._photo, anchor="center",
+            self._item = canvas.create_image(*self._center, image=self._photo, anchor="center",
                                              tags=("floor", "rooms"))
         else:
-            canvas.coords(self._item, width // 2, height // 2)
+            canvas.coords(self._item, *self._center)
         canvas.tag_lower("rooms")
         return True
+
+    def view(self, box: tuple[int, int], camera=None) -> int:
+        """Scale for a ``box`` canvas; sets the image centre. NAV.1's camera when given, else fit and centred."""
+        base = self.base()
+        size = base.size if base is not None else (0, 0)
+        if camera is None:
+            self._center = (box[0] // 2, box[1] // 2)
+            return fit_scale(size, box)
+        scale, self._center = camera.view(size, box)
+        return scale
 
     def _corner(self):
         if self._base is None or not self._scale or self._center is None:
