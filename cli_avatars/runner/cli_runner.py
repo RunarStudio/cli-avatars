@@ -953,15 +953,15 @@ def running(room_id: str, cli: str) -> bool:
         return current is not None and current.is_running()
 
 
-def stop_all() -> None:
-    """Kill every room CLI. Closing the app calls this."""
+def stop_all(timeout: float = 5.0) -> None:
+    """Kill every room CLI and wait up to ``timeout`` s for each. Closing the app calls this."""
     with _RUNS_LOCK:
         runs = list(_RUNS.values())
     for run in runs:
         run.stop()
     for run in runs:
         try:
-            run.wait(timeout=5)
+            run.wait(timeout=timeout)
         except (TimeoutError, CliRejected):
             pass
 

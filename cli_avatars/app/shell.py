@@ -220,27 +220,9 @@ class OverlayApp:
         self.tick_loop.step()
 
     def _quit(self):
-        places = getattr(self, "places", None)
-        if places is not None:
-            try:
-                places.save_now()
-            except Exception:
-                pass
-        dungeon = getattr(self, "dungeon", None)
-        if dungeon is not None:
-            try:
-                dungeon.save_now()
-            except Exception:
-                pass
-        events = getattr(getattr(self, "scanner", None), "_events", None)
-        if events is not None:
-            events.close()
-        if getattr(self, "_tray", None):
-            try:
-                self._tray.stop()
-            except Exception:
-                pass
-        self.root.quit()
+        from cli_avatars.app.close_choice import quit_app
+
+        quit_app(self)
 
     def run(self) -> None:
         print(f"[Dungeon v{VERSION}] overlay {self.sw}x{self.sh} @ {TUNING.overlay_fps}fps")

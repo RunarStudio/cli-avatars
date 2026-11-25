@@ -127,6 +127,15 @@ def launch_cli(request, prompt: str, event=None):
     return process
 
 
+def stop_runs_on_quit() -> None:
+    """Quit: kill every room CLI, wait 0.2 s each. Else atexit waits 5 s on each run whose child holds its pipe."""
+    if _STOP_ON_EXIT:
+        runner = _runner()
+        runner.stop_all(timeout=0.2)
+        atexit.unregister(runner.stop_all)
+        _STOP_ON_EXIT.clear()
+
+
 def sandbox_git(cwd, *args: str) -> tuple[int, str]:
     """SANDBOX: the runner's allow-listed git call (worktree, branch -D sandbox/…, rev-parse, status)."""
     return _runner().run_git(cwd, *args)

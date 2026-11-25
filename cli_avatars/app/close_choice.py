@@ -6,6 +6,8 @@ Minimize iconifies to the taskbar so the window can always come back.
 
 from __future__ import annotations
 
+import logging
+import sys
 import tkinter as tk
 from dataclasses import replace
 
@@ -28,6 +30,39 @@ def request_close(app) -> None:
         app._close_picker = Picker(app)
     else:
         app._close_picker.focus_set()
+
+
+def quit_app(app) -> None:
+    """Hide every window first, then stop each part. A failing part never blocks the rest or the exit."""
+    if getattr(app, "_quitting", False):
+        return
+    app._quitting = True
+    _hide_all(app.root)
+    chat = sys.modules.get("chat_window")
+    steps = (
+        getattr(getattr(app, "places", None), "save_now", None),
+        getattr(getattr(app, "dungeon", None), "save_now", None),
+        getattr(getattr(getattr(app, "scanner", None), "_events", None), "close", None),
+        getattr(getattr(app, "_tray", None), "stop", None),
+        getattr(chat, "stop_runs_on_quit", None),
+    )
+    for step in steps:
+        try:
+            if step:
+                step()
+        except Exception:
+            logging.getLogger("cli_avatars.quit").exception("quit step failed")
+    app.root.quit()
+
+
+def _hide_all(widget) -> None:
+    for child in widget.winfo_children():
+        _hide_all(child)
+    if isinstance(widget, (tk.Tk, tk.Toplevel)):
+        try:
+            widget.withdraw()
+        except tk.TclError:
+            pass
 
 
 def picker(app):

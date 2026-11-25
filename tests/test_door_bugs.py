@@ -184,5 +184,31 @@ class Places(unittest.TestCase):
         self.assertEqual(book.desktop_ids(), {"hero"})
 
 
+class Quit(unittest.TestCase):
+    """Real ``main()`` with a stuck room run: each way to quit exits within 3 s, nothing left running."""
+
+    def test_quit_exits_within_three_seconds(self):
+        import tempfile
+        import time
+
+        for how in ("picker", "setting", "tray"):
+            with self.subTest(how=how), tempfile.TemporaryDirectory() as tmp:
+                proc = subprocess.run(
+                    [sys.executable, str(ROOT / "tests" / "_quit_probe.py"), str(ROOT), tmp, how],
+                    cwd=ROOT, capture_output=True, text=True, timeout=120, shell=False,
+                    env=dict(__import__("os").environ, HOME=tmp),
+                )
+                ended = time.time()
+                if proc.returncode == 77:
+                    self.skipTest("tkinter has no display")
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertNotIn("Traceback", proc.stderr)
+                started = float(proc.stdout.split("trigger ", 1)[1].split()[0])
+                self.assertLess(ended - started, 3.0, proc.stdout)
+                for name in ("window gone at once", "tray stopped", "run stopped", "phone server closed",
+                             "no thread holds the exit"):
+                    self.assertIn(f"ok {name}", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
