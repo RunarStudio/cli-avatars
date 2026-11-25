@@ -266,6 +266,7 @@ Read-only by default. The phone view itself is off by default.
 | `POST /api/decisions/<id>` | Only with `web.allow_writes`: answer `{"choice"}`, `{"text"}` or both. |
 | `POST /api/cards/<id>/move` | Only with `web.allow_writes`: `{"column"}` moves the card as Daniel through the registry (one `moved` event; TASKBACK.5). |
 | `POST /api/cards` | Not built yet (WEB.4): 405. |
+| `POST /api/capture` | Only with `web.allow_writes`: `{"text", "topic", "chat"}` makes one `todo` card in the topic's board as Daniel, and with `chat` a task chat on it (QUICK-CAPTURE, [phone-view.md](phone-view.md#quick-capture)). |
 
 Server, pairing and Tailscale: [phone-view.md](phone-view.md).
 

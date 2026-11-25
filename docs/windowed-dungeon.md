@@ -165,6 +165,21 @@ drag between columns (`app/tasks_edit.py`, `app/tasks_card.py`; see [board.md](b
 
 `app/tasks_view.py` (`ALL`, `board_choices`, `chat_digest`, `last_reply`; channel files are parsed again only when they change) and `app/tasks_panel.py`. Tests: `tests/test_board_tab.py`.
 
+**Quick capture (QUICK-CAPTURE).** **Ctrl+Space** anywhere in the Dungeon window (not a system-wide
+hotkey) drops a capture strip over the top of the centre pane; no new window opens.
+
+| Part | What |
+|------|------|
+| Text | One line. The first line becomes the card title (cut at 120 with `…`); a longer thought also goes into the notes. Empty is refused under the line. |
+| Topic chips | The suggested topic and two alternates; Tab picks the next, a click picks one. The suggestion is local (`registry/capture.py`): the words of the thought are matched against each open topic's name and title (weight 3), its open task titles (2) and its last 20 chat lines (1); best total first, ties and no match go to the Board filter's topic (else the chat's). No network, no AI CLI. Task-chat rooms are not topics to capture into. |
+| Card / Chat | Card: one `todo` card in the topic's board, `created` by `daniel` through the registry. Chat: the same card plus one Claude task chat on it, opened in the chat dock; no CLI starts until Enter there ([task-chats.md](task-chats.md)). |
+| Keys | Enter saves, Esc closes (the strip only; the Tasks tab stays). |
+| Landing | The Board refreshes in place (only the new card is built, the others keep their widgets) and the new card gets a gold edge for a moment; a wine toast says where it went. The `capture` cue plays (a quill scratch and a soft two-note pluck, drawn in code; Windows, off in Settings). |
+
+No "Ask Claude" chip: the local ranker answers at once, and a Claude turn needs a room with a folder
+and a confirmed binary. `app/capture_strip.py` (Tk) and `registry/capture.py` (no Tk). Phone:
+[phone-view.md](phone-view.md#quick-capture). Tests: `tests/test_quick_capture.py`.
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 
