@@ -28,8 +28,14 @@
     <div class="stage"><canvas id="map"></canvas></div>
   </section>
   <section class="pane tasks-pane" aria-label="Tasks">
-    <header class="bar"><h2>Tasks</h2><span id="count" class="count"></span></header>
+    <header class="bar"><h2>Tasks</h2><span id="count" class="count"></span>
+      <div id="taskView" class="vtoggle" role="radiogroup" aria-label="Tasks view"><button type="button" data-view="list" class="on">List</button><button type="button" data-view="board">Board</button></div></header>
     <ul id="tasks" class="tasks"></ul>
+    <div id="board" class="board" hidden>
+      <div class="board-filters"><select id="bProject" aria-label="Project"></select><select id="bTopic" aria-label="Topic"></select></div>
+      <div id="lanes" class="lanes" aria-label="Board columns"></div>
+      <div id="laneDots" class="lane-dots" aria-hidden="true"></div>
+    </div>
   </section>
   <section class="pane chat-pane" aria-label="Room chat">
     <header class="bar"><h2>Room chat</h2><span id="chatRoom" class="chat-room"></span>
@@ -149,6 +155,16 @@
     <div class="sheet-body">
       <ul id="decideRows" class="decide-rows"></ul>
       <p id="decideNote" class="hint"></p>
+    </div>
+  </div>
+</div>
+<div id="moveSheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="moveTitle">
+  <div class="sheet-card">
+    <header class="bar"><h2 id="moveTitle">Move to</h2><button id="moveClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <p id="moveCard" class="move-card"></p>
+      <div id="moveCols" class="move-cols"></div>
+      <p id="moveNote" class="hint" aria-live="polite"></p>
     </div>
   </div>
 </div>

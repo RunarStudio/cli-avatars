@@ -2,6 +2,8 @@
 // build and customize rooms, and Update. DECIDE.1: decisions waiting on Daniel, answered in their chat.
 // NEEDS-YOU.1: one list of what waits on Daniel, cleared by tap.
 // WEB-PUSH: alerts with the page closed (App sheet toggle, service worker); a tap opens the item.
+// TASKBACK.5: the Board view: columns as swipeable lanes, project and topic filters, each card's chat count and
+// last reply; with writes on, a long-press or Move opens "Move to".
 // Every text goes in with textContent.
 "use strict";
 
@@ -365,7 +367,147 @@ function renderTasks() {
     if (c.id === state.sel) li.append(taskChats(c));
     list.append(li);
   }
+  renderBoard();
 }
+
+// --- TASKBACK.5: the Board view -------------------------------------------------------------------
+const COLS = ["todo", "doing", "review", "done", "blocked"];
+const viewKey = "cli-avatars-tasks-view";
+state.view = localStorage.getItem(viewKey) === "board" ? "board" : "list";
+state.filter = { project: "", topic: "" };
+
+function setView(view) {
+  state.view = view;
+  localStorage.setItem(viewKey, view);
+  for (const b of $("taskView").children) b.classList.toggle("on", b.dataset.view === view);
+  $("tasks").hidden = view === "board";
+  $("board").hidden = view !== "board";
+  document.body.classList.toggle("boarding", view === "board");
+  renderBoard();
+}
+
+function fillSelect(sel, all, values, current) {
+  const want = [["", all], ...values.map((v) => [v, v])];
+  const have = [...sel.options].map((o) => o.value + "\u0000" + o.textContent).join("|");
+  if (have !== want.map((w) => w[0] + "\u0000" + w[1]).join("|")) {
+    sel.replaceChildren(...want.map(([v, t]) => { const o = el("option", "", t); o.value = v; return o; }));
+  }
+  sel.value = values.includes(current) ? current : "";
+  return sel.value;
+}
+
+function renderBoard() {
+  if (state.view !== "board") return;
+  const f = state.filter;
+  f.project = fillSelect($("bProject"), "All projects", [...new Set(state.cards.map((c) => c.project))].sort(), f.project);
+  const inProject = state.cards.filter((c) => !f.project || c.project === f.project);
+  f.topic = fillSelect($("bTopic"), "All topics", [...new Set(inProject.map((c) => c.topic).filter(Boolean))].sort(), f.topic);
+  const shown = inProject.filter((c) => !f.topic || c.topic === f.topic);
+  const lanes = $("lanes"), left = lanes.scrollLeft;
+  lanes.replaceChildren();
+  $("laneDots").replaceChildren();
+  for (const col of COLS) {
+    const cards = shown.filter((c) => c.column === col);
+    const lane = el("section", "lane " + col);
+    lane.dataset.col = col;
+    const head = el("header", "lane-head");
+    head.append(el("span", "badge " + col, LABELS[col]), el("span", "lane-count", String(cards.length)));
+    const list = el("ol", "lane-cards");
+    for (const c of cards) list.append(boardCard(c));
+    if (!cards.length) list.append(el("li", "lane-empty", "Nothing here."));
+    lane.append(head, list);
+    lanes.append(lane);
+    $("laneDots").append(el("i", col));
+  }
+  lanes.scrollLeft = left;
+  paintDots();
+}
+
+function boardCard(c) {
+  const li = el("li", "bcard" + (c.id === state.sel ? " sel" : ""));
+  li.dataset.id = c.id;
+  const top = el("div", "bc-top");
+  top.append(el("span", "title", c.title));
+  if (c.decisions) top.append(el("span", "badge decide", "DECIDE"));
+  li.append(top);
+  const meta = el("div", "meta");
+  meta.append(el("span", "who-chip", c.assignee || "unassigned"));
+  if (c.progress !== null && c.progress !== undefined) {
+    const wrap = el("span", "bar-wrap"), fill = el("span", "bar-fill");
+    fill.style.display = "block";
+    fill.style.width = Math.max(0, Math.min(100, c.progress)) + "%";
+    wrap.append(fill);
+    meta.append(wrap, el("span", "", c.progress + "%"));
+  }
+  if (c.topic) meta.append(el("span", "topic-chip", c.topic));
+  li.append(meta);
+  if (c.chat_count) {
+    const chat = el("button", "bc-chat");
+    chat.type = "button";
+    chat.append(el("span", "bubble"), el("b", "", c.chat_count + (c.chat_count === 1 ? " chat" : " chats")),
+      el("span", "reply", c.last_reply || "no reply yet"));
+    chat.addEventListener("click", (e) => { e.stopPropagation(); showChat(c.chat_room, c.title + " \u00b7 chat"); });
+    li.append(chat);
+  }
+  const mv = el("button", "bc-move", "\u21c4 Move");
+  mv.type = "button";
+  mv.addEventListener("click", (e) => { e.stopPropagation(); openMove(c); });
+  li.append(mv);
+  let timer = null, from = null, long = false;
+  li.addEventListener("pointerdown", (e) => {
+    long = false;
+    from = [e.clientX, e.clientY];
+    timer = setTimeout(() => { long = true; if (navigator.vibrate) navigator.vibrate(12); openMove(c); }, 480);
+  });
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  li.addEventListener("pointermove", (e) => { if (from && Math.hypot(e.clientX - from[0], e.clientY - from[1]) > 8) cancel(); });
+  li.addEventListener("pointerup", cancel);
+  li.addEventListener("pointercancel", cancel);
+  li.addEventListener("contextmenu", (e) => e.preventDefault());
+  li.addEventListener("click", () => { if (!long) pickTask(c.id); });
+  return li;
+}
+
+function paintDots() {
+  const lanes = $("lanes"), w = lanes.firstElementChild ? lanes.firstElementChild.getBoundingClientRect().width : 1;
+  const at = Math.round(lanes.scrollLeft / Math.max(1, w));
+  [...$("laneDots").children].forEach((d, i) => d.classList.toggle("on", i === at));
+}
+
+function openMove(c) {
+  state.moving = c.id;
+  $("moveCard").textContent = c.title;
+  const box = $("moveCols");
+  box.replaceChildren();
+  for (const col of COLS) {
+    const b = el("button", "move-col " + col + (c.column === col ? " here" : ""), LABELS[col]);
+    b.type = "button";
+    b.disabled = c.column === col || !state.writes.writes;
+    b.addEventListener("click", () => moveCard(c, col));
+    box.append(b);
+  }
+  $("moveNote").textContent = state.writes.writes ? "" : "Moves are off: turn on phone writes in the Dungeon's Settings.";
+  $("moveSheet").hidden = false;
+}
+
+async function moveCard(c, col) {
+  const res = await postJSON("/api/cards/" + c.id + "/move", { column: col }).catch(() => ({ ok: false, data: {} }));
+  if (!res.ok) { $("moveNote").textContent = "Not moved (" + (res.status || "offline") + ")."; tone("failed"); return; }
+  $("moveSheet").hidden = true;
+  tone("move");
+  const card = state.cards.find((x) => x.id === c.id);
+  if (card) card.column = res.data.column;
+  renderTasks();
+  const lane = [...$("lanes").children].find((l) => l.dataset.col === res.data.column);
+  if (lane) lane.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+}
+
+for (const b of $("taskView").children) b.addEventListener("click", () => setView(b.dataset.view));
+$("bProject").addEventListener("change", (e) => { state.filter.project = e.target.value; renderBoard(); });
+$("bTopic").addEventListener("change", (e) => { state.filter.topic = e.target.value; renderBoard(); });
+$("lanes").addEventListener("scroll", paintDots, { passive: true });
+$("moveClose").addEventListener("click", () => { $("moveSheet").hidden = true; });
+$("moveSheet").addEventListener("click", (e) => { if (e.target === $("moveSheet")) $("moveSheet").hidden = true; });
 
 // TASK-SUMMARY: the AI's three lines on where the task is, with their age; read-only
 function whereSlip(c) {
@@ -1489,7 +1631,7 @@ function tone(kind) {
     out.connect(audio.destination);
     const notes = kind === "send" ? [[659.25, 0], [987.77, 0.06]] : kind === "done" ? [[523.25, 0], [659.25, 0.09], [783.99, 0.18]]
       : kind === "build" ? [[130.81, 0], [196.0, 0.16], [261.63, 0.34], [392.0, 0.52]]
-      : kind === "failed" ? [[329.63, 0], [261.63, 0.12]]
+      : kind === "failed" ? [[329.63, 0], [261.63, 0.12]] : kind === "move" ? [[293.66, 0], [440.0, 0.07]]
       : kind === "decide" ? [[659.25, 0], [830.61, 0.11], [987.77, 0.22], [1318.5, 0.22]] : [[392.0, 0], [523.25, 0.09]];
     for (const [f, d] of notes) {
       const o = audio.createOscillator();
@@ -1516,5 +1658,6 @@ if (window.visualViewport) {
 
 $("fit").addEventListener("click", leaveRoom);
 paintSound();
+setView(state.view);
 load().then(openFromHash).then(loadUpdate).then(live).catch(() => {});
 requestAnimationFrame(frame);
