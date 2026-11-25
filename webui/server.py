@@ -53,6 +53,7 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/sandbox.css": ("sandbox.css", "text/css; charset=utf-8"),
          "/static/timelapse.js": ("timelapse.js", "text/javascript; charset=utf-8"),
          "/static/timelapse.css": ("timelapse.css", "text/css; charset=utf-8"),
+         "/static/body.js": ("body.js", "text/javascript; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048

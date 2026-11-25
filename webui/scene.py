@@ -36,6 +36,8 @@ ORDER = {name: i for i, name in enumerate(("doing", "blocked", "review", "todo",
 MAX_CARDS = 300
 FULL_BYTES = 512 * 1024
 WALL_PX = 48
+POSES = ("stride", "slump", "tap", "idle")
+SMOKE_LIFT, BRAZIER_LIFT = 48, 14
 _LOCK = threading.Lock()
 _MAPS: dict[str, tuple[bytes, tuple[int, int], tuple[int, int]]] = {}
 _SPRITES: dict[str, tuple[bytes, int, int, int]] = {}
@@ -195,11 +197,25 @@ def public_avatars(lay: dict, origin: tuple[int, int], now: float) -> list[dict]
         if row.get("kind") not in live.KINDS:
             continue
         u, v = row["feet"]
+        smoke = row.get("smoke")
         out.append({"id": hashlib.blake2s(str(row["id"]).encode("utf-8"), digest_size=5).hexdigest(),
                     "kind": row["kind"], "name": str(row.get("name") or "")[:40], "room": row.get("room"),
                     "sprite": sprite_key(row), "at": _px(u, v, left, top), "face": -1 if row.get("face") == -1 else 1,
-                    "walk": bool(row.get("walk"))})
+                    "walk": bool(row.get("walk")), "pose": row["pose"] if row.get("pose") in POSES else "idle",
+                    "smoke": round(min(1.0, max(0.0, float(smoke))), 3) if type(smoke) in (int, float) else 0.0})
     return out
+
+
+def _smoke_at(room: dict, left: int, top: int) -> dict | None:
+    """BODY: map pixels the room's smoke rises from (its brazier's flame, else its chimney top)."""
+    from cli_avatars.app.body_spots import smoke
+
+    found = smoke(room)
+    if found is None:
+        return None
+    x, y = _px(*found[1], left, top)
+    chimney = found[0] == "chimney"
+    return {"at": [x, y - (SMOKE_LIFT if chimney else BRAZIER_LIFT)], "chimney": chimney}
 
 
 def avatars_now(directory: Path | str) -> list[dict] | None:
@@ -240,7 +256,7 @@ def build_scene(directory: Path | str) -> dict:
         kind = "custom" if room.get("custom") else room.get("kind", "apothecary")
         rooms.append({"name": name, "title": title, "kind": kind, "cli": room.get("cli"), "poly": poly, "box": box,
                       "id": room.get("custom") or room.get("session") or name, "topic": room.get("topic") or "",
-                      "build": room.get("build") or ""})
+                      "build": room.get("build") or "", "smoke": _smoke_at(room, left, top)})
         if room.get("session"):
             from cli_avatars.app.orch_rooms import board_cards, door_sign
 

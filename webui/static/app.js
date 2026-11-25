@@ -206,7 +206,9 @@ function frame(now) {
     drawFlare(now);
     drawGlow(now);
     const lapsing = typeof drawLapse === "function" && drawLapse(now);
+    if (!lapsing && typeof drawBodyUnder === "function") drawBodyUnder(now);
     if (!lapsing) drawAvatars(now);
+    if (!lapsing && typeof drawBodyOver === "function") drawBodyOver(now);
     drawFocus(now);
     ctx.restore();
     drawLabels();
@@ -266,7 +268,9 @@ function drawAvatars(now) {
     ctx.save();
     ctx.translate(Math.round(x), 0);
     if (a.face < 0) ctx.scale(-1, 1);
-    ctx.drawImage(sheet, f * meta.w, walking ? meta.h : 0, meta.w, meta.h, -Math.round(meta.w / 2), top, meta.w, meta.h);
+    if (!(typeof drawPosed === "function" && drawPosed(a, sheet, meta, f, walking, top, now))) {
+      ctx.drawImage(sheet, f * meta.w, walking ? meta.h : 0, meta.w, meta.h, -Math.round(meta.w / 2), top, meta.w, meta.h);
+    }
     ctx.restore();
     if (a.kind === "user") {
       ctx.strokeStyle = "rgba(255,210,122,.75)";
