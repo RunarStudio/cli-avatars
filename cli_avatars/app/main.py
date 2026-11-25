@@ -98,6 +98,7 @@ def run_selftest() -> int:
         from events import close_logging
 
         problems += _selftest_memmap(host)
+        problems += _selftest_tasks(root)
 
         data = tempfile.TemporaryDirectory()
         try:
@@ -137,6 +138,38 @@ def run_selftest() -> int:
         return 1
     print("selftest: ok")
     return 0
+
+
+def _selftest_tasks(root) -> list[str]:
+    """TASKBACK.5: the Tasks board built off-screen from made-up cards in a temp data dir."""
+    import tempfile
+
+    from cli_avatars.app.tasks_panel import TasksPanel
+    from cli_avatars.app.tasks_view import ALL
+    from registry.facade import Registry
+    from topics import set_topic
+
+    problems: list[str] = []
+    data = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+    host = tk.Frame(root)
+    try:
+        set_topic(data.name, "west-wing", title="West wing", project="keep", status="open")
+        reg = Registry(data.name)
+        for title, column in (("Light the west torches", "todo"), ("Oil the gate", "doing")):
+            card = reg.task_create("keep", title, topic="west-wing")
+            if column != "todo":
+                reg.task_move(card["id"], column)
+        panel = TasksPanel(host, lambda: data.name, lambda: "west-wing")
+        panel.set_filter(project="keep", topic=ALL)
+        root.update_idletasks()
+        if len(panel.headers) != 5 or len(panel.cards) != 2 or panel.card_count("doing") != 1:
+            problems.append("tasks board did not build")
+    except Exception as exc:
+        problems.append("tasks: " + type(exc).__name__ + ": " + str(exc))
+    finally:
+        host.destroy()
+        data.cleanup()
+    return problems
 
 
 def _selftest_memmap(host) -> list[str]:

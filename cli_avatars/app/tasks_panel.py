@@ -4,6 +4,9 @@ Redrawn only when the board changes; refreshed from the rooms tick at most once 
 "+ New task", a card click (card panel beside the board) and dragging a card to another column
 write through ``TaskEditor`` as ``daniel``. Card text is shown, never run. DECIDE.1: a gold tag on a card
 and its column marks open decisions; "Decisions (N)" shows every card that waits on Daniel.
+TASKBACK.5: project and topic filters; each card shows its chat count and last reply (click: the chat);
+a card moves by drag, its right-click menu or Ctrl+Left/Right, with the ``move`` cue. A redraw rebuilds
+only the cards that changed, so live agent updates do not blink.
 """
 
 from __future__ import annotations
@@ -11,9 +14,18 @@ from __future__ import annotations
 import time
 import tkinter as tk
 
-from cli_avatars.app.tasks_card import GOLD, PARCH, WINE, CardPanel, badge, button
+from cli_avatars.app.tasks_card import GOLD, PARCH, WINE, CardPanel, button
 from cli_avatars.app.tasks_edit import TaskEditor, assignee_choices, chat_rows
-from cli_avatars.app.tasks_view import COLUMNS, STATUS_BADGES, Board, TaskCard, card_meta, load_board
+from cli_avatars.app.tasks_tiles import card_tile, refit, set_text, shape
+from cli_avatars.app.tasks_view import (
+    ALL,
+    COLUMNS,
+    STATUS_BADGES,
+    Board,
+    TaskCard,
+    board_choices,
+    load_board,
+)
 from registry.task_decisions import for_card
 from topics import valid_topic_id
 
@@ -33,9 +45,15 @@ PANEL_W = 340
 class TasksPanel:
     """``directory``, ``topic`` and ``agents`` (id -> name) are callables; ``shown`` says whether the tab is visible."""
 
-    def __init__(self, parent, directory, topic, shown=lambda: True, agents=dict, open_chat=lambda room, new: None):
+    def __init__(self, parent, directory, topic, shown=lambda: True, agents=dict, open_chat=lambda room, new: None,
+                 cue=lambda name: None):
         self._directory = directory
-        self._topic = topic
+        self._chat_topic = topic
+        self._open_chat = open_chat
+        self._cue = cue
+        self._project: str | None = None
+        self._topic_pick: str | None = None  # None follows the chat's topic; ALL is every topic
+        self.draw_ms = 0.0
         self._shown = shown
         self._agents = agents
         self._done_open = False
@@ -49,6 +67,10 @@ class TasksPanel:
         bar.pack(fill="x", padx=9, pady=(6, 0))
         self.title = tk.Label(bar, text="", bg=_BG, fg="#d8b890", font="DungeonTitle", anchor="w")
         self.title.pack(side="left")
+        self.project_button = _filter(bar, self._fill_projects)
+        self.project_button.pack(side="left", padx=(10, 0))
+        self.topic_button = _filter(bar, self._fill_topics)
+        self.topic_button.pack(side="left", padx=(6, 0))
         self.new_button = button(bar, "+ New task", self.new_task)
         self.new_button.pack(side="right")
         self.decisions_button = button(bar, "Decisions (0)", self.toggle_decisions, _COL, _HEAD)
@@ -64,6 +86,41 @@ class TasksPanel:
         self._bodies: dict[str, tk.Frame] = {}
         self._columns: dict[tk.Widget, str] = {}
         self.cards: dict[str, tk.Frame] = {}
+        self.chat_lines: dict[str, tk.Widget] = {}
+        self._tiles: dict[str, tuple[TaskCard, tk.Frame]] = {}
+
+    def _topic(self) -> str:
+        """The board's topic: the picked one, else the chat's (``ALL`` when every topic is picked)."""
+        return self._topic_pick if self._topic_pick is not None else self._chat_topic()
+
+    def _edit_topic(self) -> str:
+        """The topic new cards and the card panel use: the picked one, else the chat's."""
+        topic = self._topic()
+        return topic if topic != ALL else self._chat_topic()
+
+    def set_filter(self, project=False, topic=False) -> None:
+        """``project``: a board name or None (every board); ``topic``: a slug, ``ALL`` or None (follow the chat)."""
+        if project is not False:
+            self._project = project
+        if topic is not False:
+            self._topic_pick = topic
+        self.refresh(force=True)
+
+    def _fill_projects(self) -> None:
+        menu = self.project_button.menu
+        menu.delete(0, "end")
+        menu.add_command(label="All projects", command=lambda: self.set_filter(project=None))
+        for name in board_choices(self._directory())[0]:
+            menu.add_command(label=name, command=lambda n=name: self.set_filter(project=n))
+
+    def _fill_topics(self) -> None:
+        menu = self.topic_button.menu
+        menu.delete(0, "end")
+        chat = self._chat_topic() or "none"
+        menu.add_command(label=f"Chat topic ({chat})", command=lambda: self.set_filter(topic=None))
+        menu.add_command(label="All topics", command=lambda: self.set_filter(topic=ALL))
+        for name in board_choices(self._directory(), self._project)[1]:
+            menu.add_command(label=name, command=lambda n=name: self.set_filter(topic=n))
 
     def refresh(self, force: bool = False) -> None:
         now = time.monotonic()
@@ -72,7 +129,8 @@ class TasksPanel:
         self._last = now
         self.card_panel.tick()
         try:
-            board = load_board(self._directory(), self._topic(), self._done_open, self._decisions_only)
+            board = load_board(self._directory(), self._topic(), self._done_open, self._decisions_only,
+                               self._project)
         except OSError:
             return
         if board != self.board:
@@ -85,7 +143,7 @@ class TasksPanel:
         panel = self.card_panel
         if not panel.open or panel.card is None:
             return
-        card = TaskEditor(self._directory(), self._topic()).registry.task_get(panel.card["id"])
+        card = TaskEditor(self._directory(), self._edit_topic()).registry.task_get(panel.card["id"])
         if card is not None and card != panel.card:
             panel.update(card)
 
@@ -103,12 +161,12 @@ class TasksPanel:
         return 0 if body is None else len(body.winfo_children())
 
     def new_task(self) -> None:
-        if valid_topic_id(self._topic()):
+        if valid_topic_id(self._edit_topic()):
             self.card_panel.show_new()
             self._show_panel()
 
     def open_card(self, card_id: str) -> None:
-        card = TaskEditor(self._directory(), self._topic()).registry.task_get(card_id)
+        card = TaskEditor(self._directory(), self._edit_topic()).registry.task_get(card_id)
         if card is not None:
             self.card_panel.show_card(card)
             self._show_panel()
@@ -118,7 +176,7 @@ class TasksPanel:
 
     def act(self, name: str, *args, **kw):
         """One ``TaskEditor`` call; errors go to the card panel, a write redraws the board."""
-        out = getattr(TaskEditor(self._directory(), self._topic()), name)(*args, **kw)
+        out = getattr(TaskEditor(self._directory(), self._edit_topic()), name)(*args, **kw)
         panel = self.card_panel
         if panel.open:
             panel.show_errors(out.errors)
@@ -145,27 +203,80 @@ class TasksPanel:
             live = self._agents() or {}
         except Exception:
             live = {}
-        return assignee_choices(self._directory(), self._topic(), live)
+        return assignee_choices(self._directory(), self._edit_topic(), live)
+
+    def move(self, card_id: str, column: str):
+        """Daniel moves a card (drop, menu, keys): one ``moved`` event and the ``move`` cue."""
+        out = self.act("move", card_id, column)
+        if not out.errors:
+            self._cue("move")
+        return out
+
+    def column_of(self, card_id: str) -> str | None:
+        tile = self._tiles.get(card_id)
+        return tile[0].column if tile else None
+
+    def move_menu(self, card_id: str) -> tk.Menu:
+        """"Move to" with every other column; the right-click and Shift+F10 fallback for a drag."""
+        menu = tk.Menu(self.frame, tearoff=0, bg=_CARD, fg=_INK, activebackground=WINE, activeforeground=_CARD,
+                       font="DungeonText")
+        menu.add_command(label="Move to", state="disabled")
+        here = self.column_of(card_id)
+        for name in COLUMNS:
+            if name != here:
+                menu.add_command(label=f"  {STATUS_BADGES[name][0]}", command=lambda n=name: self.move(card_id, n))
+        menu.add_separator()
+        menu.add_command(label="Open card", command=lambda: self.open_card(card_id))
+        return menu
+
+    def _post_menu(self, card_id: str, event) -> str:
+        menu = self.move_menu(card_id)
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    def _step(self, card_id: str, delta: int) -> str:
+        """Ctrl+Left/Right: the card one column over."""
+        here = self.column_of(card_id)
+        if here is not None and 0 <= COLUMNS.index(here) + delta < len(COLUMNS):
+            self.move(card_id, COLUMNS[COLUMNS.index(here) + delta])
+            box = self.cards.get(card_id)
+            if box is not None:
+                box.focusset_text()
+        return "break"
 
     def _draw(self, board: Board) -> None:
-        self.title.config(text="Decisions · every topic" if board.decisions_only
-                          else f"Board · {board.topic}" if board.topic else "Board")
+        start = time.perf_counter()
+        self._paint(board)
+        self.draw_ms = (time.perf_counter() - start) * 1000
+
+    def _paint(self, board: Board) -> None:
+        topic = "every topic" if board.topic == ALL else board.topic
+        where = " · ".join(part for part in (board.project, topic) if part)
+        title = f"Board · {where}" if where else "Board"
+        set_text(self.title, "Decisions · every topic" if board.decisions_only else title)
+        set_text(self.project_button, f"{board.project or 'All projects'} ▾")
+        set_text(self.topic_button, f"{'Chat topic' if self._topic_pick is None else topic or 'no topic'} ▾")
         lit = board.decisions_only
         self.decisions_button.config(text=f"Decisions ({board.pending})",
                                      bg=GOLD if lit else WINE if board.pending else _COL,
                                      fg=_INK if lit else _CARD if board.pending else _HEAD)
-        if board.empty and (board.decisions_only or not valid_topic_id(board.topic)):
+        if board.empty and (board.decisions_only or not (valid_topic_id(board.topic) or board.topic == ALL)):
             self._main.pack_forget()
             self.close_card()
             topic = board.topic or "no topic selected"
             self.empty.config(text="No decisions wait on you." if board.decisions_only else f"No cards for {topic}.")
             self.empty.pack(fill="both", expand=True)
             return
-        self.empty.pack_forget()
-        self._main.pack(fill="both", expand=True)
+        if self.empty.winfo_manager():
+            self.empty.pack_forget()
+        if not self._main.winfo_manager():
+            self._main.pack(fill="both", expand=True)
         if not self.headers:
             self._build_columns()
-        self.cards = {}
+        old, self._tiles, self.cards = self._tiles, {}, {}
         for column in board.columns:
             head = f"{column.name} ({column.count})"
             asks = sum(card.decisions for card in column.cards)
@@ -173,13 +284,35 @@ class TasksPanel:
                 head += f" ◆{asks}"
             if column.name == "done":
                 head += " [+]" if column.collapsed else " [-]"
-            self.headers[column.name].config(text=head)
+            set_text(self.headers[column.name], head)
             body = self._bodies[column.name]
-            for child in body.winfo_children():
-                child.destroy()
+            boxes = []
             for card in column.cards:
-                self.cards[card.id] = box = _card(body, card)
-                self._bind_drag(box, card.id)
+                kept = old.pop(card.id, None)
+                if kept is not None and kept[1].master is body and kept[1].shape == shape(card):
+                    box = kept[1]
+                    if kept[0] != card:
+                        refit(box, card)
+                else:
+                    if kept is not None:
+                        kept[1].destroy()
+                    box = card_tile(body, card, self._open_chat)
+                    self._bind_drag(box, card.id)
+                self._tiles[card.id] = (card, box)
+                self.cards[card.id] = box
+                boxes.append(box)
+            for child in body.winfo_children():
+                if child not in boxes:
+                    child.destroy()
+            if body.pack_slaves() != boxes:
+                for box in boxes:
+                    box.pack_forget()
+                for box in boxes:
+                    box.pack(fill="x", pady=2)
+        for _card_seen, box in old.values():
+            if box.winfo_exists():
+                box.destroy()
+        self.chat_lines = {cid: box.chat_line for cid, box in self.cards.items() if box.chat_line is not None}
 
     def _build_columns(self) -> None:
         for index, name in enumerate(COLUMNS):
@@ -203,12 +336,22 @@ class TasksPanel:
 
     def _bind_drag(self, box: tk.Widget, card_id: str) -> None:
         for widget in (box, *box.winfo_children()):
+            widget.bind("<Button-3>", lambda e, c=card_id: self._post_menu(c, e))
+            if widget is box.chat_line:
+                continue
             widget.bind("<ButtonPress-1>", lambda e, c=card_id: self._press(c, e))
             widget.bind("<B1-Motion>", self._motion)
             widget.bind("<ButtonRelease-1>", self._release)
+        box.bind("<Control-Left>", lambda e, c=card_id: self._step(c, -1))
+        box.bind("<Control-Right>", lambda e, c=card_id: self._step(c, 1))
+        box.bind("<Shift-F10>", lambda e, c=card_id: self._post_menu(c, e))
+        box.bind("<Return>", lambda e, c=card_id: self.open_card(c))
 
     def _press(self, card_id: str, event) -> None:
         self._drag = {"card": card_id, "x": event.x_root, "y": event.y_root, "moved": False}
+        box = self.cards.get(card_id)
+        if box is not None:
+            box.focusset_text()
 
     def _motion(self, event) -> None:
         drag = self._drag
@@ -217,12 +360,27 @@ class TasksPanel:
         if abs(event.x_root - drag["x"]) + abs(event.y_root - drag["y"]) >= DRAG_PX:
             drag["moved"] = True
             self.frame.config(cursor="fleur")
+        if drag["moved"]:
+            self._ghost(drag, event)
         target = self.column_at(event.x_root, event.y_root) if drag["moved"] else None
         for col, name in self._columns.items():
             col.config(bg=_LIT if name == target else _COL)
 
+    def _ghost(self, drag: dict, event) -> None:
+        """A small parchment card that follows the pointer, offset so it never sits under it."""
+        ghost = drag.get("ghost")
+        if ghost is None:
+            tile = self._tiles.get(drag["card"])
+            title = tile[0].title if tile else ""
+            ghost = drag["ghost"] = tk.Label(self.frame, text=title[:40], bg=_CARD, fg=_INK, font="DungeonText",
+                                             padx=8, pady=5, highlightthickness=2, highlightbackground=GOLD)
+        ghost.place(x=event.x_root - self.frame.winfo_rootx() + 14, y=event.y_root - self.frame.winfo_rooty() + 12)
+        ghost.lift()
+
     def _release(self, event) -> None:
         drag, self._drag = self._drag, None
+        if drag is not None and drag.get("ghost") is not None:
+            drag["ghost"].destroy()
         self.frame.config(cursor="")
         for col in self._columns:
             col.config(bg=_COL)
@@ -234,7 +392,7 @@ class TasksPanel:
         target = self.column_at(event.x_root, event.y_root)
         column = next((c.name for c in self.board.columns if any(k.id == drag["card"] for k in c.cards)), None)
         if target and target != column:
-            self.act("move", drag["card"], target)
+            self.move(drag["card"], target)
 
     def column_at(self, x_root: int, y_root: int) -> str | None:
         widget = self.frame.winfo_containing(x_root, y_root)
@@ -258,45 +416,15 @@ def _glow(col: tk.Frame) -> None:
     glow.create_rectangle(9, 2, 11, 5, fill="#fff2c0", width=0)
 
 
-def _card(parent, card: TaskCard) -> tk.Frame:
-    box = tk.Frame(parent, bg=_CARD, highlightthickness=1, highlightbackground="#8a6a3a", cursor="hand2")
-    box.pack(fill="x", pady=2)
-    tags = tk.Frame(box, bg=_CARD)
-    tags.pack(fill="x", padx=6, pady=(4, 0))
-    badge(tags, card.column).pack(side="left")
-    if card.decisions:
-        decide_tag(tags, card.decisions).pack(side="left", padx=(4, 0))
-    title = tk.Label(box, text=card.title, bg=_CARD, fg=_INK, font="DungeonText", anchor="w", justify="left",
-                     wraplength=180)
-    title.pack(fill="x", padx=6, pady=(4, 0))
-    title.bind("<Configure>", lambda e: title.config(wraplength=max(60, e.width - 4)))
-    for text, colour in ((card.status_note, _DIM), (card.learnt and f"learnt: {card.learnt}", "#2f5a2e")):
-        if text:
-            line = tk.Label(box, text=text, bg=_CARD, fg=colour, font="DungeonBubble", anchor="w", justify="left",
-                            wraplength=180)
-            line.pack(fill="x", padx=6)
-            line.bind("<Configure>", lambda e, w=line: w.config(wraplength=max(60, e.width - 4)))
-    tk.Label(box, text=card_meta(card), bg=_CARD, fg=_DIM, font="DungeonBubble", anchor="w").pack(
-        fill="x", padx=6, pady=(0, 2 if card.progress is not None else 4))
-    if card.progress is not None:
-        bar = tk.Canvas(box, height=4, bg="#b8a47c", highlightthickness=0, bd=0)
-        bar.pack(fill="x", padx=6, pady=(0, 5))
-        bar.bind("<Configure>", lambda e, p=card.progress: (
-            bar.delete("all"), bar.create_rectangle(0, 0, e.width * p // 100, 4, fill=WINE, width=0)))
-    return box
-
-
-def decide_tag(parent, count: int) -> tk.Frame:
-    """A gold tag with a wine gem: this card waits on Daniel's decision."""
-    box = tk.Frame(parent, bg="#1a1012")
-    inner = tk.Frame(box, bg=GOLD)
-    inner.pack(padx=(0, 1), pady=(0, 1))
-    gem = tk.Canvas(inner, width=6, height=6, bg=GOLD, highlightthickness=0, bd=0)
-    gem.create_polygon(3, 0, 6, 3, 3, 6, 0, 3, fill=WINE, width=0)
-    gem.pack(side="left", padx=(3, 2))
-    text = "DECIDE" if count == 1 else f"DECIDE ×{count}"
-    tk.Label(inner, text=text, bg=GOLD, fg=_INK, font="DungeonBubble", padx=0, pady=0).pack(side="left", padx=(0, 4))
-    return box
+def _filter(parent, fill) -> tk.Menubutton:
+    """A dark filter pill with a menu filled when it opens."""
+    pill = tk.Menubutton(parent, text="", bg=_COL, fg=_HEAD, activebackground=_LIT, activeforeground="white",
+                         relief="flat", font="DungeonText", padx=8, pady=1, cursor="hand2", highlightthickness=1,
+                         highlightbackground="#4e2e1a")
+    pill.menu = tk.Menu(pill, tearoff=0, bg=_CARD, fg=_INK, activebackground=WINE, activeforeground=_CARD,
+                        font="DungeonText", postcommand=fill)
+    pill.config(menu=pill.menu)
+    return pill
 
 
 def open_task_chat(app, room: str, new: bool) -> None:

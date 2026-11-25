@@ -4,8 +4,8 @@ Routes are exact names; nothing in a URL becomes a path. Card ids are UUIDs, top
 a fixed list. ``/pair?t=<token>`` turns the web token into an HttpOnly cookie; everything else
 needs that cookie. Binds 127.0.0.1 unless one local interface IP is passed; never every interface.
 WEB.4 writes (``web.allow_writes``, off by default) also need the CSRF header, a JSON body under
-``MAX_BODY`` and the rate limit. WEB-PUSH: ``/sw.js`` and the push routes; the manifest and its icon
-load unpaired (they hold no data).
+``MAX_BODY`` and the rate limit; ``/api/cards/<id>/move`` is the board's move (TASKBACK.5).
+WEB-PUSH: ``/sw.js`` and the push routes; the manifest and its icon load unpaired (they hold no data).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import needs_you
-from board.model import clean_board_project, valid_uuid
+from board.model import COLUMNS, clean_board_project, valid_uuid
 from bundle_paths import asset_path
 from events import RateLimiter
 from topics import valid_topic_id
@@ -45,6 +45,7 @@ _RANGE = re.compile(r"^bytes=(\d{0,15})-(\d{0,15})$")
 CHUNK = 64 * 1024
 _END = re.compile(r"^/api/sessions/([^/]{1,40})/end$")
 _CHATS = re.compile(r"^/api/cards/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/chats$")
+_MOVE = re.compile(r"^/api/cards/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/move$")
 _SPRITE = re.compile(r"^/api/sprite/([a-z_]{1,24}(?:-[0-9]{1,3})?)\.png$")
 _ROOM = re.compile(r"^/api/rooms/([A-Za-z0-9][A-Za-z0-9-]{0,39})(/delete)?$")
 _SKIN = re.compile(r"^/api/skins/([a-z-]{1,32})/([SMLT])\.png$")
@@ -191,6 +192,14 @@ class Handler(BaseHTTPRequestHandler):
             if why == "missing":
                 return self._error(404)
             return self._json({"why": why}, 409) if why else self._json({"room": room})
+        move = _MOVE.match(path)
+        if move:
+            if set(body) != {"column"} or body["column"] not in COLUMNS:
+                return self._error(400)
+            card, why = actions.move(move.group(1), body["column"])
+            if why:
+                return self._error(404 if why == "missing" else 409)
+            return self._json({"id": card["id"], "column": card["column"]})
         if path.startswith("/api/chat/"):
             topic, text = path[len("/api/chat/"):], body.get("text")
             if not valid_topic_id(topic) or not isinstance(text, str) or not text.strip():

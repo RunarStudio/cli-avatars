@@ -2,8 +2,8 @@
 
 ``config.json`` key ``sound.cues`` (true unless set false). ``arrive``: two soft footsteps and a low door
 knock when a guest orchestrator reaches the host's room. ``decide``: a rising three-note bell when an agent
-asks Daniel a decision (DECIDE.1). Windows plays it
-through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
+asks Daniel a decision (DECIDE.1). ``move``: a card slid across the board and set down (TASKBACK.5).
+Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
 """
 
 from __future__ import annotations
@@ -36,6 +36,8 @@ def wav(name: str) -> bytes:
     """16-bit mono WAV of the cue: thuds of filtered noise under a short decay. Same bytes every run."""
     if name == "decide":
         return _pcm(_bell())
+    if name == "move":
+        return _pcm(_slide())
     rng = np.random.default_rng(7)
     out = np.zeros(int(RATE * 0.62), np.float32)
     for at, pitch, gain in ((0.0, 95.0, 0.7), (0.2, 85.0, 0.6), (0.42, 62.0, 1.0)):
@@ -57,6 +59,22 @@ def _bell() -> np.ndarray:
         tone = (np.sin(2 * np.pi * pitch * t) + 0.3 * np.sin(2 * np.pi * pitch * 2.01 * t)) * np.exp(-t * 7)
         start = int(RATE * at)
         out[start:start + n] += (tone * np.minimum(1.0, t * 400)).astype(np.float32)
+    return out
+
+
+def _slide() -> np.ndarray:
+    """A card slid on wood (a short rising hiss of filtered noise) and set down with a soft tap."""
+    rng = np.random.default_rng(11)
+    out = np.zeros(int(RATE * 0.3), np.float32)
+    n = int(RATE * 0.16)
+    t = np.arange(n) / RATE
+    hiss = np.convolve(rng.standard_normal(n), np.ones(6) / 6, "same")
+    out[:n] += (hiss * np.sin(np.pi * t / t[-1]) ** 2 * 0.35).astype(np.float32)
+    n = int(RATE * 0.12)
+    t = np.arange(n) / RATE
+    tap = np.sin(2 * np.pi * 180.0 * t) * np.exp(-t * 45) + np.sin(2 * np.pi * 410.0 * t) * np.exp(-t * 80) * 0.4
+    start = int(RATE * 0.15)
+    out[start:start + n] += tap.astype(np.float32)
     return out
 
 

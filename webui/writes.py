@@ -1,7 +1,7 @@
 """PHONE.2 / WEB.4: what the phone may change, behind ``web.allow_writes``. No Tk.
 
-Open or end a session (START.1), start a task chat (TASK-CHAT.1), send a prompt to a room's chat, and
-answer a decision (DECIDE.1).
+Open or end a session (START.1), start a task chat (TASK-CHAT.1), send a prompt to a room's chat,
+answer a decision (DECIDE.1), and move a card (TASKBACK.5: Daniel's move through the registry, one ``moved`` event).
 The phone's Send tap is the user's Enter: the run goes through the Dungeon chat's own launch
 (``chat_window.launch_cli``), with the room's folder and the binary the user confirmed there. The
 phone never names a folder, a binary, a mode or a CLI flag; a room without a folder picked in the
@@ -142,6 +142,17 @@ class Actions:
             return "", f"Not started: up to {task_chats.MAX_CHATS} chats per task."
         self._after_change()
         return chat["room"], ""
+
+    def move(self, card_id: str, column: str) -> tuple[dict | None, str]:
+        """``(card, "")`` after Daniel's move from the phone; ``(None, why)``, ``why`` is ``missing`` for no card."""
+        try:
+            card = Registry(self.directory).task_move(card_id, column)
+        except EventRejected as exc:
+            return None, "missing" if exc.reason == "missing" else exc.reason
+        except OSError:
+            return None, "io"
+        self._after_change()
+        return card, ""
 
     def decide(self, decision_id: str, choice: str | None, text: str | None) -> tuple[str, str, bool]:
         """``(room, why, sent)``: Daniel's answer from the phone. ``why`` is ``missing``, ``schema`` or a sentence.

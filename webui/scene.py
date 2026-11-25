@@ -261,15 +261,19 @@ def room_for_topic(scene: dict, topic: str | None) -> str:
     return topic if topic and topic in names else APOTHECARY
 
 
-def _public(card: dict, decisions: dict | None = None) -> dict:
+def _public(card: dict, decisions: dict | None = None, digest: dict | None = None) -> dict:
+    from cli_avatars.app.tasks_view import card_chats
+
     items = card.get("checklist") or []
+    count, room, reply = card_chats(card, digest or {})
     return {"id": card["id"], "title": card["title"], "column": card["column"], "topic": card.get("topic"),
             "project": card["project"], "assignee": card.get("assignee"), "progress": effective_progress(card),
             "status_note": card.get("status_note") or "", "learnt": card.get("learnt") or "",
             "summary": card.get("summary") or "", "summary_at": card.get("summary_at"),
             "checks": [sum(1 for i in items if i["done"]), len(items)], "updated": card["updated"],
             "chats": [{"room": c["room"], "cli": c["cli"], "started": c["created"]} for c in card.get("chats") or []],
-            "decisions": (decisions or {}).get(card["id"], 0)}
+            "decisions": (decisions or {}).get(card["id"], 0), "chat_count": count, "chat_room": room,
+            "last_reply": reply}
 
 
 def cards(directory: Path | str, project: str | None = None) -> list[dict]:
@@ -289,8 +293,12 @@ def cards(directory: Path | str, project: str | None = None) -> list[dict]:
             continue
     found.sort(key=lambda c: c["updated"], reverse=True)
     found.sort(key=lambda c: ORDER.get(c["column"], len(COLUMNS)))
+    from cli_avatars.app.tasks_view import chat_digest
+
+    found = found[:MAX_CARDS]
     waiting = open_by_card(directory)
-    return [_public(c, waiting) for c in found[:MAX_CARDS]]
+    digest = chat_digest(directory, [chat["room"] for card in found for chat in card.get("chats") or []])
+    return [_public(c, waiting, digest) for c in found]
 
 
 def decisions(directory: Path | str) -> list[dict]:

@@ -2,19 +2,25 @@
 
 Cards are read through the registry on every project board; nothing here writes (edits: ``tasks_edit``).
 DECIDE.1: each card counts its open decisions; ``decisions_only`` shows every card that waits on Daniel.
+TASKBACK.5: filter by project and topic (``ALL`` = every topic); each card carries its chat count and last reply.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
 from board.model import COLUMNS, effective_progress
 from events import EventRejected
+from redaction import redact
 from registry.facade import Registry
 from topics import valid_topic_id
 
+ALL = "*"
+REPLY_LIMIT = 80
+_TASK_LINES = re.compile(r"\bTASK (?:check|uncheck|note|comment|summary|ask)\b.*", re.S)
 COLLAPSED = frozenset({"done"})
 STATUS_BADGES = {
     "todo": ("TODO", "#4a5a7a"),
@@ -37,6 +43,9 @@ class TaskCard:
     learnt: str
     decisions: int = 0
     summary: str = ""  # not drawn on the tile; a rewrite still changes the board, so the open card follows
+    chats: int = 0
+    chat_room: str = ""
+    last_reply: str = ""
 
 
 @dataclass(frozen=True)
@@ -54,6 +63,7 @@ class Board:
     empty: bool
     pending: int = 0
     decisions_only: bool = False
+    project: str | None = None
 
 
 def selected_topic(app) -> str:
@@ -98,45 +108,125 @@ def live_agents(app) -> dict[str, str]:
             if not getattr(info, "is_demo", False)}
 
 
-def topic_cards(directory: Path | str, topic: str) -> list[dict]:
-    """Cards linked to ``topic`` on every project board, archived left out, newest first."""
-    if not valid_topic_id(topic):
-        return []
+def board_cards(directory: Path | str, project: str | None = None) -> list[dict]:
+    """Live cards of one board, or of every board without ``project``; a bad project is empty."""
     registry = Registry(directory)
     root = registry.store.root
-    projects = sorted(p.name for p in root.iterdir() if p.is_dir()) if root.is_dir() else []
+    if project is not None:
+        projects = [project]
+    else:
+        projects = sorted(p.name for p in root.iterdir() if p.is_dir()) if root.is_dir() else []
     found = []
-    for project in projects:
+    for name in projects:
         try:
-            found.extend(card for card in registry.task_list(project) if card["topic"] == topic)
+            found.extend(registry.task_list(name))
         except EventRejected:
             continue
+    return found
+
+
+def topic_cards(directory: Path | str, topic: str, project: str | None = None) -> list[dict]:
+    """Cards linked to ``topic`` (``ALL``: every card) on every board or one, archived left out, newest first."""
+    if topic != ALL and not valid_topic_id(topic):
+        return []
+    found = [card for card in board_cards(directory, project) if topic == ALL or card["topic"] == topic]
     return sorted(found, key=lambda c: c["updated"], reverse=True)
 
 
-def task_card(card: Mapping, decisions: int = 0) -> TaskCard:
+def board_choices(directory: Path | str, project: str | None = None) -> tuple[list[str], list[str]]:
+    """The filter menus: every project with a board, and the topics of ``project``'s cards (every board's)."""
+    root = Registry(directory).store.root
+    projects = sorted(p.name for p in root.iterdir() if p.is_dir()) if root.is_dir() else []
+    topics = sorted({card["topic"] for card in board_cards(directory, project) if card["topic"]})
+    return projects, topics
+
+
+def last_reply(text: str) -> str:
+    """One line of a chat reply: ``TASK`` lines cut, redacted, whitespace folded, at most ``REPLY_LIMIT``."""
+    line = " ".join(redact(_TASK_LINES.sub("", text or "")).split())
+    return line if len(line) <= REPLY_LIMIT else line[:REPLY_LIMIT - 1].rstrip() + "…"
+
+
+def chat_digest(directory: Path | str, rooms) -> dict[str, tuple[float, str]]:
+    """Room -> (ts, last reply) for the ``rooms`` with an AI reply; a channel file is parsed again only on a change."""
+    from chatlog import parse_record
+    from events import CHANNEL_DIR_NAME
+    from topics import _iter_json_objects
+
+    wanted = set(rooms)
+    if not wanted:
+        return {}
+    root = Path(directory) / CHANNEL_DIR_NAME
+    if root.is_symlink() or not root.is_dir():
+        return {}
+    found: dict[str, tuple[float, str]] = {}
+    try:
+        paths = sorted(root.glob("*.jsonl"))
+    except OSError:
+        return {}
+    for path in paths:
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        sign = (stat.st_mtime_ns, stat.st_size)
+        seen = _DIGESTS.get(str(path))
+        if seen is None or seen[0] != sign:
+            replies: dict[str, tuple[float, str]] = {}
+            for obj in _iter_json_objects(path):
+                line = parse_record(obj)
+                if line is None or line.icon not in ("speech", "ok") or line.sender == "user" \
+                        or line.sender.startswith("emit:"):
+                    continue
+                if line.room not in replies or float(line.ts) >= replies[line.room][0]:
+                    replies[line.room] = (float(line.ts), line.note)
+            seen = _DIGESTS[str(path)] = (sign, replies)
+        for room, (ts, note) in seen[1].items():
+            if room in wanted and (room not in found or ts >= found[room][0]):
+                found[room] = (ts, last_reply(note))
+    return found
+
+
+_DIGESTS: dict[str, tuple[tuple[int, int], dict[str, tuple[float, str]]]] = {}
+
+
+def card_chats(card: Mapping, digest: Mapping) -> tuple[int, str, str]:
+    """``(count, room, last reply)``: the room is the one replied in last, else the newest chat."""
+    rooms = [chat["room"] for chat in card.get("chats") or []]
+    replied = [(digest[room][0], room) for room in rooms if room in digest]
+    if replied:
+        room = max(replied)[1]
+        return len(rooms), room, digest[room][1]
+    return len(rooms), rooms[-1] if rooms else "", ""
+
+
+def task_card(card: Mapping, decisions: int = 0, chats: tuple[int, str, str] = (0, "", "")) -> TaskCard:
     items = card.get("checklist") or []
     return TaskCard(
         id=card["id"], title=card["title"], assignee=card.get("assignee"),
         progress=effective_progress(card), checks=(sum(1 for i in items if i["done"]), len(items)),
         column=card["column"], status_note=card.get("status_note") or "", learnt=card.get("learnt") or "",
         decisions=decisions, summary=card.get("summary") or "",
+        chats=chats[0], chat_room=chats[1], last_reply=chats[2],
     )
 
 
 def build_board(cards: list[Mapping], topic: str, done_open: bool = False, decisions: Mapping | None = None,
-                decisions_only: bool = False) -> Board:
-    """``decisions`` is card id -> open decisions; ``pending`` counts them on every board."""
+                decisions_only: bool = False, digest: Mapping | None = None, project: str | None = None) -> Board:
+    """``decisions``: card id -> open decisions (``pending`` sums them); ``digest``: ``chat_digest``."""
     decisions = decisions or {}
+    digest = digest or {}
     columns = []
     for name in COLUMNS:
-        shown = tuple(task_card(c, decisions.get(c["id"], 0)) for c in cards if c["column"] == name)
+        shown = tuple(task_card(c, decisions.get(c["id"], 0), card_chats(c, digest)) for c in cards
+                      if c["column"] == name)
         collapsed = name in COLLAPSED and not done_open
         columns.append(Column(name, () if collapsed else shown, len(shown), collapsed))
-    return Board(topic, tuple(columns), not cards, sum(decisions.values()), decisions_only)
+    return Board(topic, tuple(columns), not cards, sum(decisions.values()), decisions_only, project)
 
 
-def load_board(directory: Path | str, topic: str, done_open: bool = False, decisions_only: bool = False) -> Board:
+def load_board(directory: Path | str, topic: str, done_open: bool = False, decisions_only: bool = False,
+               project: str | None = None) -> Board:
     from registry.task_decisions import open_by_card
 
     try:
@@ -148,8 +238,9 @@ def load_board(directory: Path | str, topic: str, done_open: bool = False, decis
         cards = [card for card in (registry.task_get(cid) for cid in decisions) if card is not None]
         cards.sort(key=lambda c: c["updated"], reverse=True)
     else:
-        cards = topic_cards(directory, topic)
-    return build_board(cards, topic, done_open, decisions, decisions_only)
+        cards = topic_cards(directory, topic, project)
+    digest = chat_digest(directory, [chat["room"] for card in cards for chat in card.get("chats") or []])
+    return build_board(cards, topic, done_open, decisions, decisions_only, digest, project)
 
 
 def ts_epoch(ts: str) -> float:

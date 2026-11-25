@@ -342,7 +342,8 @@ class DungeonWindow:
 
             panel = TasksPanel(self._tasks, self.app._chat_directory, lambda: selected_topic(self.app),
                                shown=lambda: self._center == "tasks", agents=lambda: live_agents(self.app),
-                               open_chat=lambda room, new: open_task_chat(self.app, room, new))
+                               open_chat=lambda room, new: open_task_chat(self.app, room, new),
+                               cue=lambda name: _cue(self.app, name))
             self.app._tasks_panel = panel
         panel.refresh(force=True)
 
@@ -492,3 +493,8 @@ def _inside(widget, ancestor) -> bool:
         widget = getattr(widget, "master", None)
     return False
 
+
+def _cue(app, name: str) -> None:
+    from cli_avatars.app import cues
+
+    cues.play(app, name)
