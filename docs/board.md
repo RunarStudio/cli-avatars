@@ -23,6 +23,7 @@ One JSON object per card.
 | `progress` | Optional int 0–100 (`true` / `50.0` / `"50"` are rejected). `null` means "use the checklist ratio" (`board.model.effective_progress`). |
 | `status_note` | Sanitised, at most 240. The agent's one-line "where I am". Empty by default. |
 | `learnt` | Sanitised, redacted, at most 240. What we learnt doing the card, written when it is done. Empty by default; a card file without it loads as empty. |
+| `chats` | At most 12 `{id, cli, created, room}`: the chats started from the card ([task-chats.md](task-chats.md)). Empty by default. |
 | `created`, `updated` | ISO 8601 UTC with `Z`. |
 | `history` | Newest 200 events (below). The full list is in `events.jsonl`. |
 
@@ -56,15 +57,17 @@ Unknown fields are dropped. `token` is never stored.
 | `ts` | ISO 8601 UTC. |
 | `card` | Card UUID, or `null` for a board-level event (a room prompt, see [room-chat.md](room-chat.md)). |
 | `actor` | `daniel`, an agent id, `agent@machine`, or `emit:mcp`. |
-| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`, `learnt`. |
+| `kind` | `created`, `edited`, `moved`, `assigned`, `commented`, `checklist`, `linked_pr`, `prompt`, `progress`, `status`, `learnt`, `chat`. |
 | `from`, `to` | Optional. Old and new column or assignee; for `progress`, old and new ints 0–100. |
-| `via` | Optional. `mcp`, `hook` or `emit`: the path an agent write came through. Anything else is rejected. |
+| `via` | Optional. `mcp`, `hook`, `emit` or `chat` (a task chat's reply): the path an agent write came through. Anything else is rejected. |
 | `text` | Optional. Sanitised, at most 2,000. A comment's text lives here. |
 | `notify` | Optional. Up to 8 assignee ids that should get an inbox line for this event. |
 
 A `checklist` event may add `index` (0–19) and `done` (bool). A `status` event carries only `text` (the new status note). A `learnt` event carries `text`, the new learnt text.
 
 A `prompt` event adds `room`, `target` (`claude`, `grok`, `both`), and `outcome` (`ok`, `error`, `stopped`, `timeout`). It does not copy the prompt text; that is already on the topic channel.
+
+A `chat` event adds `room` (`task-<8 hex>-<n>`) and `target` (`claude`, `grok`): a chat started from the card.
 
 ## Stores
 
@@ -178,6 +181,7 @@ shows an error under it and nothing is written. Everything happens inside the Du
 | Progress, status note | Progress 0–100 (empty: use the checklist) and the note, "Set". | `progress` or `status` |
 | What we learnt | A card dropped in Done (or the "done" button) opens the card panel at "What did we learn?". Type one line, "Save" (or Enter); "Skip" closes it. The text stays on the card and can be changed later. Empty or over 240 characters is a field error. | `learnt` |
 | Comment | "Comment": the text goes into the card's history. | `commented` |
+| Chats | "New chat · Claude" opens a chat with the card's context; the list reopens one. See [task-chats.md](task-chats.md). | `chat` |
 | Archive | "Archive" adds the `archived` label; the card leaves the board, the file and `events.jsonl` keep it. There is no hard delete, so the event log never points at a missing card. | `edited` |
 
 The app has no sound path; a card event (Done included) shows as the redrawn board and the history line.
@@ -251,6 +255,7 @@ Read-only by default. The phone view itself is off by default.
 | `GET /api/map.png`, `GET /api/sprite/<skin>.png` | The composed map; a known skin's idle frames. |
 | `GET /api/events` | Server-sent events: `change` when a board, the rooms or a chat changed; `avatars` as they move. |
 | `POST /api/chat/<topic>`, `POST /api/sessions`, `POST /api/sessions/<topic>/end` | Only when `web.allow_writes` is true (PHONE.2): send a prompt, open or end a session. Otherwise 405. |
+| `POST /api/cards/<id>/chats` | Only with `web.allow_writes`: start a task chat (TASK-CHAT.1). |
 | `POST /api/cards`, `POST /api/cards/<id>/move` | Not built yet (WEB.4): 405. |
 
 Server, pairing and Tailscale: [phone-view.md](phone-view.md).

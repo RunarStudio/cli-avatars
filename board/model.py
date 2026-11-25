@@ -21,10 +21,11 @@ from topics import clean_project, valid_topic_id
 
 COLUMNS = ("todo", "doing", "review", "done", "blocked")
 KINDS = ("created", "edited", "moved", "assigned", "commented", "checklist", "linked_pr", "prompt", "progress",
-         "status", "learnt")
-VIA = ("mcp", "hook", "emit")
+         "status", "learnt", "chat")
+VIA = ("mcp", "hook", "emit", "chat")
 PROMPT_TARGETS = ("claude", "grok", "both")
 PROMPT_OUTCOMES = ("ok", "error", "stopped", "timeout")
+CHAT_CLIS = ("claude", "grok")
 PERSON = "daniel"
 
 TITLE_LIMIT = 120
@@ -37,10 +38,12 @@ MAX_NOTIFY = 8
 MAX_HISTORY = 200
 STATUS_NOTE_LIMIT = 240
 LEARNT_LIMIT = 240
+MAX_CHATS = 12
 
 _LABEL = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 _MACHINE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,62}$")
 _PR = re.compile(r"^https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[1-9][0-9]{0,9}$")
+_CHAT_ROOM = re.compile(r"^task-[0-9a-f]{8}-[1-9][0-9]{0,2}$")
 _TS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$")
 _DEVICE = frozenset({"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
                      *(f"LPT{i}" for i in range(1, 10))})
@@ -152,7 +155,26 @@ def validate_event(obj: object) -> dict[str, object]:
         if not valid_topic_id(room) or target not in PROMPT_TARGETS or outcome not in PROMPT_OUTCOMES:
             raise _reject()
         out.update(room=room, target=target, outcome=outcome)
+    if kind == "chat":
+        room, target = obj.get("room"), obj.get("target")
+        if not valid_chat_room(room) or target not in CHAT_CLIS:
+            raise _reject()
+        out.update(room=room, target=target)
     return out
+
+
+def valid_chat_room(value: object) -> bool:
+    """A task chat's room: ``task-<first 8 hex of the card id>-<n>``."""
+    return isinstance(value, str) and _CHAT_ROOM.fullmatch(value) is not None
+
+
+def validate_chat(obj: object) -> dict[str, object]:
+    """One chat started from the card (TASK-CHAT.1): id, CLI, when, and its room."""
+    if not isinstance(obj, Mapping) or not valid_uuid(obj.get("id")) or obj.get("cli") not in CHAT_CLIS:
+        raise _reject()
+    if not valid_ts(obj.get("created")) or not valid_chat_room(obj.get("room")):
+        raise _reject()
+    return {"id": obj["id"], "cli": obj["cli"], "created": obj["created"], "room": obj["room"]}
 
 
 def validate_card(obj: object) -> dict[str, object]:
@@ -179,6 +201,7 @@ def validate_card(obj: object) -> dict[str, object]:
         "status_note": sanitize_text(_redacted(obj.get("status_note") or ""), STATUS_NOTE_LIMIT),
         "learnt": sanitize_text(_redacted(obj.get("learnt") or ""), LEARNT_LIMIT),
         "checklist": [],
+        "chats": [],
         "created": obj["created"],
         "updated": obj["updated"],
         "history": [],
@@ -209,6 +232,10 @@ def validate_card(obj: object) -> dict[str, object]:
         if not text:
             raise _reject()
         card["checklist"].append({"text": text, "done": item["done"]})
+    chats = obj.get("chats", [])
+    if not isinstance(chats, list) or len(chats) > MAX_CHATS:
+        raise _reject()
+    card["chats"] = [validate_chat(chat) for chat in chats]
     history = obj.get("history", [])
     if not isinstance(history, list):
         raise _reject()

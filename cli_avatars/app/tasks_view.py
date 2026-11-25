@@ -52,8 +52,33 @@ class Board:
 
 
 def selected_topic(app) -> str:
-    """The topic the chat window shows, the Dungeon's current topic."""
-    return str(getattr(getattr(app, "_chat_window", None), "_topic_id", "") or "")
+    """The topic the chat window shows, the Dungeon's current topic; a task chat shows its card's topic."""
+    topic = str(getattr(getattr(app, "_chat_window", None), "_topic_id", "") or "")
+    if topic.startswith("task-") and callable(getattr(app, "_chat_directory", None)):
+        return _card_topic(app._chat_directory(), topic) or topic
+    return topic
+
+
+def _card_topic(directory, room: str) -> str:
+    """The topic of a task chat's card, read at most once a second per room (the throne asks every frame)."""
+    import time
+
+    from registry.task_chats import task_for
+
+    now = time.monotonic()
+    seen = _CARD_TOPICS.get((str(directory), room))
+    if seen is not None and now - seen[0] < 1.0:
+        return seen[1]
+    try:
+        card = task_for(directory, room)
+    except (EventRejected, OSError):
+        card = None
+    topic = str((card or {}).get("topic") or "")
+    _CARD_TOPICS[(str(directory), room)] = (now, topic)
+    return topic
+
+
+_CARD_TOPICS: dict[tuple[str, str], tuple[float, str]] = {}
 
 
 def live_agents(app) -> dict[str, str]:

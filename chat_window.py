@@ -99,7 +99,8 @@ def _runner():
 def launch_cli(request, prompt: str, event=None):
     """Start one CLI run for a prompt the user sent: Enter or Send here, or Send on the phone page (PHONE.2).
 
-    Argv is fixed by the runner; the prompt and the room context go on stdin. Raises ``CliRejected``.
+    Argv is fixed by the runner; the prompt and the room context go on stdin, a task chat's
+    context (``request.preamble``, TASK-CHAT.1) before the prompt. Raises ``CliRejected``.
     """
     runner = _runner()
     process = runner.start(
@@ -108,7 +109,7 @@ def launch_cli(request, prompt: str, event=None):
         cli=request.cli,
         binary=runner.ConfirmedBinary(cli=request.cli, **request.pin),
         working_dir=request.working_dir,
-        prompt=prompt,
+        prompt=getattr(request, "preamble", "") + prompt,
         topic_title=request.topic_title,
         open_cards=request.open_cards,
         permission_mode=request.mode,
@@ -129,6 +130,7 @@ def room_tools() -> SimpleNamespace:
         resolve=runner.resolve_binary,
         confirm=runner.confirm_binary,
         rejected=runner.CliRejected,
+        enabled=lambda cli: bool(runner.CLI_ALLOWLIST.get(cli)),
     )
 
 

@@ -52,6 +52,10 @@ def card_events(old: Mapping, new: Mapping, actor: str, via: str | None = None) 
         if was["text"] == now["text"] and was["done"] != now["done"]:
             events.append(new_event("checklist", actor, card, index=index, done=now["done"], text=now["text"],
                                     **extra))
+    known = {chat["id"] for chat in old.get("chats") or []}
+    for chat in new.get("chats") or []:
+        if chat["id"] not in known:
+            events.append(new_event("chat", actor, card, room=chat["room"], target=chat["cli"], **extra))
     texts = [item["text"] for item in old["checklist"]], [item["text"] for item in new["checklist"]]
     if any(old[k] != new[k] for k in ("title", "body", "labels", "topic", "pr")) or texts[0] != texts[1]:
         events.append(new_event("edited", actor, card, **extra))

@@ -99,6 +99,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Throne room | `docs/throne-room.md` |
 | Task board | `docs/board.md` |
 | Room chat | `docs/room-chat.md` |
+| Task chats | `docs/task-chats.md` |
 | Phone view | `docs/phone-view.md` |
 | Bot roster and status | `docs/bot-status.md` |
 
