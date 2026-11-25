@@ -267,6 +267,15 @@ arrival. The card then glows under a `NEW FROM <ROOM>` ribbon, on the floor and 
 click opens a parchment note with the decision and the reason. Needs-you lists it only while that card waits on you.
 `rustle` and `stamp` cues, held in focus with the courier. No new window. Details: [messenger.md](messenger.md).
 
+#### Backlog boss (BACKLOG-BOSS)
+
+Blocked cards and cards with no update for 7 days feed an oni in a pit drawn in the Apothecary's right corner. It
+grows through four stages with HP (0-5, 6-15, 16-30, 31+) and roars when it grows. Closing a card that fed it hits it:
+a white flash, a shake, a `-1` and the HP bar dropping (`thud`); the last hit knocks it out (`fanfare`). Hover shows HP
+and the tasks that feed it; a click keeps the list open and a task opens its card. On Fridays the HP bar and the
+week's burn-down parchment show; the scroll button or `b` toggles them any day. Cues wait in focus. No new window.
+Details: [backlog-boss.md](backlog-boss.md).
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 

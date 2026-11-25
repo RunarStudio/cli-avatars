@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS, TIMELAPSE, MESSENGER)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS, TIMELAPSE, MESSENGER, BACKLOG-BOSS)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -163,6 +163,13 @@ When a decision on one task affects another, the map shows the courier walking f
 reached shows a glowing scroll. In the task list and on the board that card glows under a `✉ NEW FROM <ROOM>`
 ribbon. Tap the ribbon to read the decision, the answer and why it is news there. Read-only: the walk rides the SSE
 `avatars` event, and the lit cards ride the cards. No sound on the phone. Details: [messenger.md](messenger.md).
+
+## Backlog boss
+
+The map shows the backlog boss, an oni in a pit in the Apothecary, with its HP bar. It grows with the blocked and
+overdue tasks; when HP drops, each lost point plays a hit. Tap it for its sheet: HP, the week's burn-down and the tasks
+that feed it (tap one to pick it). Read-only over SSE; the phone never writes `boss.json`. No sound on the phone.
+Details: [backlog-boss.md](backlog-boss.md).
 
 ## Web Push: alerts with the page closed
 
