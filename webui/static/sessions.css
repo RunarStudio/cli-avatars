@@ -1,0 +1,12 @@
+/* CHAT-CTX.1: the task's CLI sessions under its chats: kit chips with each source's gem, read-only. */
+.task-sessions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -2px 0 8px 14px; font-size: 12px; }
+.ts-label { color: var(--torch-2); letter-spacing: .06em; }
+.ts-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; color: #e8dcc0; background: #0e1420;
+  border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px var(--src, #4a3a5e), 0 0 6px #0008; }
+.ts-chip b { font: 700 10px var(--mono); letter-spacing: .08em; color: var(--src, #e8dcc0); }
+.ts-meta { color: #a8a6c8; font-size: 10px; }
+.ts-gem { width: 8px; height: 8px; flex: none; background: var(--src, #a8a6c8); box-shadow: inset 2px 2px 0 #fff8; }
+.ts-chip.claude { --src: #e07a4a; } .ts-chip.claude .ts-gem { border-radius: 2px; }
+.ts-chip.grok { --src: #7aa7e0; } .ts-chip.grok .ts-gem { transform: rotate(45deg) scale(.85); }
+.ts-chip.cursor { --src: #c8d0e8; } .ts-chip.cursor .ts-gem { clip-path: polygon(0 0, 100% 60%, 45% 60%, 25% 100%); }
+.ts-none { color: var(--dim); }

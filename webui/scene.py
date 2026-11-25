@@ -397,7 +397,11 @@ def cards(directory: Path | str, project: str | None = None) -> list[dict]:
     waiting = open_by_card(directory)
     digest = chat_digest(directory, [chat["room"] for card in found for chat in card.get("chats") or []])
     news = {row["to"]: row for row in lit(directory)}
-    return [_courier(_public(c, waiting, digest), news.get(c["id"])) for c in found]
+    from cli_avatars.app import task_sessions
+
+    stored = task_sessions.load(directory)
+    return [_courier({**_public(c, waiting, digest), "sessions": task_sessions.for_card(directory, c["id"], stored)},
+                     news.get(c["id"])) for c in found]
 
 
 def _courier(card: dict, row: dict | None) -> dict:

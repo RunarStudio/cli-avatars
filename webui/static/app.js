@@ -479,6 +479,7 @@ function renderTasks() {
     li.append(b);
     if (typeof courierMark === "function") courierMark(li, c);
     if (c.id === state.sel) li.append(taskChats(c), focusButton(c));
+    if (c.id === state.sel && typeof sessionsRow === "function") li.append(sessionsRow(c));
     if (c.id === state.sel && typeof packBox === "function") li.append(packBox(c));
     if (c.id === state.sel && typeof sandboxBox === "function") li.append(sandboxBox(c));
     if (c.id === state.sel && typeof voiceRow === "function") li.append(voiceRow(c));
