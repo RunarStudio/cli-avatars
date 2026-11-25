@@ -20,9 +20,12 @@ try:
 except Exception:
     raise SystemExit(77)
 
+import recap  # noqa: E402
 from board.store import LocalStore  # noqa: E402
 from cli_avatars.app import cues, recap_panel  # noqa: E402
+from cli_avatars.app.bubbles_view import BubblesView  # noqa: E402
 from cli_avatars.app.dungeon_window import DungeonWindow  # noqa: E402
+from events import EventBus, StateEvent  # noqa: E402
 from registry.facade import Registry  # noqa: E402
 from topics import set_topic  # noqa: E402
 
@@ -119,4 +122,8 @@ view.show_center("recap")
 root.update()
 check("cue on open", played == ["scroll", "scroll"], str(played))
 check("no new toplevel", not [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)])
+bus = EventBus()
+BubblesView(SimpleNamespace(scanner=SimpleNamespace(bus=bus)))
+bus.publish(StateEvent("claude", "5e5e5e5e-feed", "busy", 0.0, "udp", tool="Edit", file="anvil.py"))
+check("tally fed", "anvil.py" in recap.TALLY.rows(TODAY).get(("claude:5e5e5e5e", ""), []))
 root.destroy()

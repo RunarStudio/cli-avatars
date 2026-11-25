@@ -1635,7 +1635,7 @@ function paintRecap() {
   $("recapDay").textContent = d.label === "Today" || d.label === "Yesterday" ? d.label + " \u00b7 " + date : date;
   $("recapPrev").disabled = d.day <= d.first;
   $("recapNext").disabled = d.day >= d.today;
-  const tasks = d.agents.reduce((n, a) => n + a.tasks.length, 0), total = recapCounts(d.totals);
+  const tasks = d.tasks, total = recapCounts(d.totals);
   $("recapTotals").textContent = d.agents.length ? d.agents.length + (d.agents.length === 1 ? " agent" : " agents") + " \u00b7 "
     + tasks + (tasks === 1 ? " task" : " tasks") + (total ? " \u00b7 " + total : "") : "";
   const list = $("recapRows");

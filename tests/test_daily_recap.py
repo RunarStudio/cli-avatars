@@ -88,6 +88,7 @@ class Recap(unittest.TestCase):
         for needle in ("card created", "answered: Oak", "blocked", "unblocked", "moved todo → doing"):
             self.assertIn(needle, you_lines)
         self.assertEqual(built["totals"]["turns"], 2)
+        self.assertEqual(built["tasks"], 1)
 
     def test_the_day_ends_at_local_midnight(self):
         self.add("summary", self.chat, at(YESTERDAY, 23, 59), text="done: late", via="chat")

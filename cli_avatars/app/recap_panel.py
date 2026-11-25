@@ -241,7 +241,7 @@ class RecapPanel:
         text = label if label not in ("Today", "Yesterday") else f"{label} · {when:%a} {when.day} {when:%b}"
         self.canvas.itemconfigure(self._day, text=text)
         agents = len(built["agents"])
-        tasks = sum(len(a["tasks"]) for a in built["agents"])
+        tasks = built["tasks"]
         total = counts_text(built["totals"])
         summary = f"{agents} agent{'s' * (agents != 1)} · {tasks} task{'s' * (tasks != 1)}"
         self.canvas.itemconfigure(self._totals, text=summary + (f" · {total}" if total else ""))

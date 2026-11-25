@@ -132,7 +132,7 @@ def build(directory: Path | str, day: date | None = None, files: FileTally | Non
     """The recap of ``day`` (default today): agents, each with its tasks, counts and lines; JSON-ready."""
     today = today or date.today()
     day = day or today
-    out = {"day": day.isoformat(), "label": day_label(day, today), "agents": [], "totals": _zero()}
+    out = {"day": day.isoformat(), "label": day_label(day, today), "agents": [], "tasks": 0, "totals": _zero()}
     if day not in days(today):
         return out
     store = LocalStore(Path(directory))
@@ -163,6 +163,7 @@ def build(directory: Path | str, day: date | None = None, files: FileTally | Non
                 out["totals"][key] += value
         out["agents"].append({"agent": clean(actor, 64), "name": clean(agent_name(actor), 64),
                               "counts": counts, "tasks": tasks})
+    out["tasks"] = len({t["card"] or t["title"] for a in out["agents"] for t in a["tasks"]})
     return out
 
 

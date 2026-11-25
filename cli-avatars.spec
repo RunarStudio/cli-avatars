@@ -42,6 +42,7 @@ hiddenimports = [
     "overlay",
     "perchas",
     "portal",
+    "recap",
     "redaction",
     "rooms",
     "routing",
