@@ -1,0 +1,33 @@
+/* GROK-CHAT: the ◆ Grok button, the Grok topics sheet (diamond rows lit by state), the Grok bar over the composer
+   and Grok's lines in the chat in its ice-blue colour. */
+.grok-open { flex: none; min-height: 32px; margin-left: 6px; padding: 0 10px; font: 700 12px var(--mono); letter-spacing: .06em;
+  color: #dff0ff; background: linear-gradient(180deg, #24385a, #162238); border: 2px solid var(--deep); cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--grok), 0 0 10px #7aa7e033; }
+.grok-open:hover { box-shadow: inset 0 0 0 1px #cfe2ff, 0 0 14px #7aa7e066; }
+
+.grok .sheet-card { box-shadow: 0 0 0 2px #2a3f66, 0 0 36px #7aa7e033, 0 -10px 30px #000a; }
+.grok .bar h2 { color: var(--grok); }
+.grok-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; max-height: 52vh; overflow: auto; }
+.grok-list .empty { color: var(--dim); padding: 8px 2px; }
+.grok-row { padding: 7px 9px 8px; cursor: pointer; background: linear-gradient(90deg, #141c2c, #10141f);
+  border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px #2a3a5a; }
+.grok-row.lit { background: linear-gradient(90deg, #1f3354, #142036); box-shadow: inset 0 0 0 1px var(--grok), 0 0 12px #7aa7e044; }
+.grok-row.live .grok-gem { filter: drop-shadow(0 0 4px #7aa7e0); }
+.grok-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.grok-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e8f2ff; }
+.grok-gem { flex: none; image-rendering: pixelated; width: 15px; height: 15px; }
+.grok-gem.answering, .grok-gem.busy { animation: grok-pulse 0.9s ease-in-out infinite; }
+.grok-meta { flex: none; color: #8a96b0; font-size: 11px; }
+.grok-last { margin: 4px 0 0 23px; color: var(--grok); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes grok-pulse { 50% { filter: drop-shadow(0 0 6px #cfe2ff) brightness(1.3); } }
+
+.grok-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 8px;
+  background: linear-gradient(90deg, #142036, #10141f 70%); border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px #2a3f66; }
+.grok-bar[hidden] { display: none; }
+.grok-tag { flex: 1; min-width: 0; color: var(--grok); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grok-bar .rune-mic { width: 40px; height: 40px; }
+.grok-auto { min-height: 36px; padding: 0 10px; font: 700 11px var(--mono); letter-spacing: .06em; color: #9db4d8;
+  background: #161c2a; border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px #2a3a5a; cursor: pointer; }
+.grok-auto.on { color: #e8f2ff; box-shadow: inset 0 0 0 1px var(--grok), 0 0 10px #7aa7e055; }
+.chat .msg.grok .text { color: #d6e6ff; }
+.chat .msg.grok .who { color: var(--grok); }

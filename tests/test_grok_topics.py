@@ -152,6 +152,23 @@ class PhoneGrokTest(_Writes):
         self.assertNotIn(task_sessions.session(self.dir, "grok-1", "grok"), json.dumps(body))
         self.assertNotIn(str(self.work), json.dumps(body))
 
+    def test_the_page_has_the_grok_list_bar_and_spoken_replies(self):
+        static = ROOT / "webui" / "static"
+        html = (static / "index.html").read_text(encoding="utf-8")
+        for path in ("/static/grok.js", "/static/grok.css"):
+            self.assertIn(path, html)
+            self.assertEqual(self.request(path)[0], 200)
+        for needle in ('id="grokOpen"', 'id="grokSheet"', 'id="grokNew"', 'id="grokBar"', 'id="grokRead"',
+                       'id="grokAuto"', 'id="grokMic"'):
+            self.assertIn(needle, html)
+        js = (static / "grok.js").read_text(encoding="utf-8")
+        for needle in ('"/api/grok"', '"/api/grok/topics"', 'cli: "grok"', "voiceCaption(", "function grokConfirm("):
+            self.assertIn(needle, js)
+        self.assertNotIn("innerHTML", js)
+        voice = (static / "voice.js").read_text(encoding="utf-8")
+        self.assertIn("grokConfirm(", voice)
+        self.assertNotIn("/api/chat/", voice)
+
     def test_bad_grok_writes(self):
         self.assertEqual(self.request("/api/grok/topics", "POST", {"bound": "../x"})[0], 400)
         self.assertEqual(self.request("/api/grok/topics", "POST", {"bound": "lantern", "folder": "/tmp"})[0], 400)

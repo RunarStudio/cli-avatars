@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/static/boss.css">
 <link rel="stylesheet" href="/static/voice.css">
 <link rel="stylesheet" href="/static/repos.css">
+<link rel="stylesheet" href="/static/grok.css">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -65,6 +66,7 @@
   </section>
   <section class="pane chat-pane" aria-label="Room chat">
     <header class="bar"><h2>Room chat</h2><span id="chatRoom" class="chat-room"></span>
+      <button id="grokOpen" class="grok-open" type="button" title="Grok topics" aria-haspopup="dialog">&#9670; Grok</button>
       <button id="sessions" class="icon add" type="button" title="Sessions" aria-haspopup="dialog">+</button></header>
     <div id="ask" class="ask-slip" hidden role="region" aria-label="Decision">
       <p class="ask-head"><span class="seal" aria-hidden="true"></span><span id="askWho"></span><button id="askClose" class="icon" type="button" title="Hide">&#10005;</button></p>
@@ -75,6 +77,8 @@
     </div>
     <ol id="chat" class="chat" aria-live="polite"></ol>
     <div id="typing" class="typing" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="typingText"></span></div>
+    <div id="grokBar" class="grok-bar" hidden><span id="grokMic"></span><span class="grok-tag">&#9670; <span id="grokRoom"></span></span>
+      <button id="grokRead" class="voice-speak" type="button">Read aloud</button><button id="grokAuto" class="grok-auto" type="button">Auto-read: off</button></div>
     <form id="composer" class="composer" autocomplete="off">
       <textarea id="prompt" rows="1" maxlength="8000" enterkeyhint="send" aria-label="Prompt"></textarea>
       <button id="send" class="send" type="submit" aria-label="Send">Send</button>
@@ -82,6 +86,16 @@
     <p id="composeHint" class="hint"></p>
   </section>
 </main>
+<div id="grokSheet" class="sheet grok" hidden role="dialog" aria-modal="true" aria-labelledby="grokTitle">
+  <div class="sheet-card">
+    <header class="bar"><h2 id="grokTitle">&#9670; Grok topics</h2><button id="grokClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <ul id="grokList" class="grok-list"></ul>
+      <button id="grokNew" class="send wide" type="button">+ New Grok topic</button>
+      <p id="grokWhy" class="hint"></p>
+    </div>
+  </div>
+</div>
 <div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="sheet-card">
     <header class="bar"><h2 id="sheetTitle">Sessions</h2><button id="sheetClose" class="icon" type="button" title="Close">&#10005;</button></header>
@@ -310,5 +324,6 @@
 <script src="/static/rise.js"></script>
 <script src="/static/repos.js"></script>
 <script src="/static/tiers.js"></script>
+<script src="/static/grok.js"></script>
 </body>
 </html>

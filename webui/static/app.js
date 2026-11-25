@@ -980,7 +980,8 @@ async function sendPrompt() {
   state.sending = true;
   paintComposer(true);
   tone("send");
-  const res = await postJSON("/api/chat/" + encodeURIComponent(topic), { text }).catch(() => ({ ok: false, data: {} }));
+  const body = state.chatCli ? { text, cli: state.chatCli } : { text };
+  const res = await postJSON("/api/chat/" + encodeURIComponent(topic), body).catch(() => ({ ok: false, data: {} }));
   state.sending = false;
   if (res.ok) {
     $("prompt").value = "";

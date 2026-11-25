@@ -9,7 +9,7 @@
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 state.voice = { where: "", card: null, decision: "", rec: null, on: false, heard: "", plan: null, topic: "",
   busy: false, level: 0, raf: 0, downAt: 0 };
-const VOICE_WHERE = { ask: "on the decision", task: "on the task", needs: "on what needs you" };
+const VOICE_WHERE = { ask: "on the decision", task: "on the task", needs: "on what needs you", grok: "to Grok" };
 
 function voiceMic(where, card) {
   const b = el("button", "rune-mic");
@@ -122,6 +122,7 @@ async function voicePlan(text) {
   const v = state.voice;
   v.heard = text;
   $("voiceHeard").textContent = text;
+  if (v.where === "grok") { v.plan = { action: { kind: "grok", text }, writes: state.writes.writes, topics: [] }; voicePaint(); return; }
   const q = new URLSearchParams({ q: text });
   if (v.decision) q.set("decision", v.decision);
   const current = v.card ? v.card.topic : (state.room || "");
@@ -158,6 +159,12 @@ function voicePaint() {
     pick.hidden = !p.topics.length;
     yes.textContent = "Create";
     yes.disabled = !p.writes || !v.topic;
+  } else if (a.kind === "grok") {
+    kind.textContent = "TO GROK";
+    what.textContent = a.text;
+    detail.textContent = "Goes to Grok in " + (state.grok.title || state.grok.room) + " on your tap; its reply is read aloud.";
+    yes.textContent = "Send";
+    yes.disabled = !p.writes;
   } else {
     kind.textContent = "DRAFT REPLY";
     what.textContent = a.text;
@@ -189,6 +196,8 @@ async function voiceConfirm() {
     if (a.choice) body.choice = a.choice;
     if (a.text) body.text = a.text;
     res = await postJSON("/api/decisions/" + p.decision, body).catch(() => ({ ok: false, data: {} }));
+  } else if (a.kind === "grok") {
+    res = await grokConfirm(a.text);
   } else {
     res = await postJSON("/api/capture", { text: a.title, topic: v.topic, chat: true }).catch(() => ({ ok: false, data: {} }));
   }
@@ -200,6 +209,11 @@ async function voiceConfirm() {
     return;
   }
   $("voicePlan").hidden = true;
+  if (a.kind === "grok") {
+    voiceSay("✓ Sent to Grok. Its reply will be read aloud.");
+    setTimeout(voiceClose, 1400);
+    return;
+  }
   if (a.kind === "answer") {
     tone("done");
     state.ask = null;

@@ -79,6 +79,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/repos.js": ("repos.js", "text/javascript; charset=utf-8"),
          "/static/repos.css": ("repos.css", "text/css; charset=utf-8"),
          "/static/tiers.js": ("tiers.js", "text/javascript; charset=utf-8"),
+         "/static/grok.js": ("grok.js", "text/javascript; charset=utf-8"),
+         "/static/grok.css": ("grok.css", "text/css; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
 MAX_URL = 2048
