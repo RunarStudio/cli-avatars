@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import tempfile
@@ -24,8 +25,10 @@ from cli_avatars.app.places import PlaceBook  # noqa: E402
 from cli_avatars.model.agent import AgentInfo  # noqa: E402
 from cli_avatars.model.place import INSIDE, Place  # noqa: E402
 from cli_avatars.world.avatar import Avatar  # noqa: E402
+from events import EventRejected  # noqa: E402
+from registry.agent_api import AgentApi  # noqa: E402
 from registry.facade import Registry  # noqa: E402
-from topics import ensure_topic  # noqa: E402
+from topics import ensure_topic, join_topic  # noqa: E402
 
 TICK = 0.05
 ROOMS = {"orrin": "release-train", "vessa": "harbor-map", "quill": "lantern-docs"}
@@ -260,6 +263,40 @@ class Cues(unittest.TestCase):
         blob = cues.wav("arrive")
         self.assertEqual(blob[:4], b"RIFF")
         self.assertLess(len(blob), 64 * 1024)
+
+
+ME = "claude:a1b2c3d4"
+
+
+class Propose(unittest.TestCase):
+    def setUp(self):
+        self.data = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.data, True)
+        self.reg = Registry(self.data)
+        self.api = AgentApi(self.reg, via="mcp", clock=lambda: 1_795_000_000.0)
+        model = sr.SessionRooms(self.data / "ui" / "session_rooms.json")
+        model.open(sr.SIMPLE, "claude", "release-train")
+        model.open(sr.SIMPLE, "claude", "harbor-map")
+        join_topic(self.data, "release-train", ME)
+        join_topic(self.data, "loose-ends", ME)
+
+    def reject(self, reason, *args):
+        with self.assertRaises(EventRejected) as ctx:
+            self.api.task_propose(*args)
+        self.assertEqual(ctx.exception.reason, reason)
+
+    def test_an_orchestrator_proposes_on_its_own_topic_only_five_an_hour(self):
+        card = self.api.task_propose(ME, "release-train", "Cut the branch", "release-train")
+        self.assertEqual((card["column"], card["labels"], card["topic"]), ("todo", ["proposed"], "release-train"))
+        self.reject("not_owner", ME, "harbor-map", "Not mine", "harbor-map")
+        self.reject("switched_off", ME, "loose-ends", "No room", "loose-ends")
+        for _ in range(3):
+            self.api.task_propose(ME, "release-train", "Another", "release-train")
+        self.reject("rate_limited", ME, "release-train", "Sixth", "release-train")
+
+    def test_a_bad_session_rooms_file_opens_nothing(self):
+        (self.data / "ui" / "session_rooms.json").write_text(json.dumps({"schema_version": 9}))
+        self.reject("switched_off", ME, "release-train", "Idea", "release-train")
 
 
 class PhoneSigns(unittest.TestCase):

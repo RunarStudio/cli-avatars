@@ -1,6 +1,33 @@
-# Orchestrator rooms (ORCH.ROOM, proposal)
+# Orchestrator rooms (ORCH.ROOM)
 
-> Preview only: three images and this plan. Made-up names, topics and cards. START.1 built the first part: see "Session rooms (START.1, built)" below.
+> START.1 built asks 1 and 2 (see "Session rooms (START.1, built)"). ORCH.ROOM built asks 3, 4 and 5 (see "Meetings, tracker and board (ORCH.ROOM, built)"). The rest of this page is the plan they came from. Made-up names, topics and cards.
+
+## Meetings, tracker and board (ORCH.ROOM, built)
+
+**Two defaults taken.** You did not answer the two open questions, so the plan's proposals are built. Either one can be flipped; say which.
+
+1. Orchestrators meet in **the asker's room**. Three or more meet in the **Apothecary**, the hub (the Hall is no longer on the Dungeon floor).
+2. An orchestrator may add `proposed` cards to **its own topic** without asking, 5 an hour.
+
+**Meetings (ask 3).** An orchestrator is a live top-level session bound to a session room.
+
+- Trigger: orchestrator A sends B a `say --to` or `reply`, and B answers within 5 minutes. A and B live in different rooms. A one-way note makes nobody walk.
+- B walks to A's room through the doors and corridors (MOVE.1 paths, never through walls). A stays home as host. Three or more orchestrators in one thread (answered pairs that share someone) all walk to the Apothecary. Subagents stay home.
+- Home: after 3 minutes with no message between them. A guest that goes `blocked` or `error` goes home at once (the needs-me walk wins). Moving the guest by hand (drag or Move to room) after the meeting began wins and ends its meeting.
+- Nothing is stored. The meeting is worked out again from the chat rows (`from`, `to`, `ts`) about once a second.
+- Sound, on by default: two soft footsteps and a low knock when a guest reaches the host's room. **Settings → Sound cues** turns it off (`config.json` `sound.cues`). Windows plays it with `winsound`. Linux and macOS have no player in the standard library, so the cue is silent there.
+
+**Tracker (ask 4).**
+
+- **Topics dock:** an **Orchestrator rooms** section at the top, one row per open session room: orchestrator, topic, CLI; the `doing` card; its status note (amber, the blocked card's note, while a card is blocked); counts of todo, doing, review and blocked; the last board line and how long ago. A click selects the topic everywhere (chat, Tasks, Throne) and frames its room on the Dungeon floor. The floor always shows the whole map, so "frames" means the room lights up for about two seconds, the same light as a drag; the camera does not move.
+- **Door signs:** a wooden sign hangs over each session room's door, in the throne room's pixel font at the floor's own scale: topic, doing card, status note. The rim and the note turn amber while a card is blocked.
+- **Throne tab:** shows the selected topic's room and its lord (the newest top-level session there). With no orchestrator room selected, it shows every agent as before.
+- **Phone:** each session room's label on the map has its door sign under it (doing card and note, amber when blocked). The phone has no Topics rows yet.
+- **Data:** cards by topic from every board and the newest event in the cards' own history (the same events as `events.jsonl`, without reading the whole log). Reads go through `StoreThrottle`: every 2 seconds for the dock and the signs.
+
+**Board (ask 5).** With the agents switch off, `task_propose` is allowed only on the topic of an open session room, by an agent that the topic lists, 5 an hour. Another room's topic is refused (`not_owner`); a topic with no open room is refused (`switched_off`). With the switch on, nothing changed.
+
+**Code:** `cli_avatars/app/orch_rooms.py` (no Tk: binding, meeting and home rules, row and sign text), `cues.py` (the sound), `door_signs.py`, `orch_dock.py` (Topics rows), `inside_roster.py` (the walks), `room_glow.py` (the frame), `throne_model.py` and `throne_panel.py` (the lord), `registry/policy.py` and `registry/agent_api.py` (propose), `webui/scene.py` and `static/app.js` (phone signs). `tools/shot_orch_rooms.py` draws the evidence with made-up data. No change to `overlay.py` or the core packages.
 
 ## Session rooms (START.1, built)
 
@@ -11,7 +38,7 @@
 - **Binding.** A live top-level session whose CLI and project folder match lives in that room, its subagents with it. Other avatars stay in the Apothecary. A room you picked with Move to room still wins.
 - **Lifetime.** A room lasts as long as its session. End walks everyone in it back to the Apothecary through the corridor; then the room goes. Open sessions are kept in `ui/session_rooms.json` (topic, kind, CLI, spot; no paths).
 - Opening starts no CLI. The chat opens on the topic; the CLI starts only on Send or Enter there, and the chat's own folder dialog sets the working folder on the first Enter (`room-chat.md`).
-- Code: `cli_avatars/app/session_rooms.py` (model, layout, binding; no Tk), `session_walks.py`, `session_panel.py`, `room_build.py`, `throne_stamp.py`. There is no event-sound path in the app, so a new room makes no sound yet.
+- Code: `cli_avatars/app/session_rooms.py` (model, layout, binding; no Tk), `session_walks.py`, `session_panel.py`, `room_build.py`, `throne_stamp.py`. ORCH.ROOM added an event-sound path (`cues.py`); a new room makes no sound yet.
 
 ## The asks
 
@@ -103,8 +130,8 @@ Same paths as today. No new process, and nothing executes chat text.
 
 ## Open questions
 
-1. Meeting room: the asker's room (proposed), or always the Hall?
-2. May an orchestrator add `proposed` cards to its own topic without asking (proposed), or only suggest them in chat so you click Add?
+1. Meeting room: the asker's room (proposed), or always the Hall? **Default taken (ORCH.ROOM):** the asker's room; three or more in the Apothecary.
+2. May an orchestrator add `proposed` cards to its own topic without asking (proposed), or only suggest them in chat so you click Add? **Default taken (ORCH.ROOM):** it may, on its own topic only, 5 an hour.
 3. A running session with no room: one click to give it a room (proposed), or create the room automatically? **Answered (START.1):** the room appears when you open the session from the Sessions panel, and goes when you end it.
 
 The images are drawn in code from `Sprites/dungeon_kit` and `throne_pieces.py`. Each has an `@4x` copy.

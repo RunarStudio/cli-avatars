@@ -30,6 +30,7 @@ from registry.policy import (
     check_move,
     check_owner,
     check_progress,
+    check_propose,
     check_topic_status,
     clean_note,
     scrub_paths,
@@ -44,6 +45,26 @@ def _members(directory, topic: object, timeout: float) -> frozenset[str]:
     entry = get_topic(directory, topic, timeout=timeout)
     members = entry.get("members") if entry else None
     return frozenset(m for m in members if isinstance(m, str)) if isinstance(members, list) else frozenset()
+
+
+def _room_topics(directory) -> frozenset[str]:
+    """Topics of the open orchestrator rooms in ``ui/session_rooms.json`` (START.1); empty when unreadable."""
+    import json
+    from pathlib import Path
+
+    from topics import valid_topic_id
+
+    path = Path(directory) / "ui" / "session_rooms.json"
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 64 * 1024:
+            return frozenset()
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return frozenset()
+    if not isinstance(data, dict) or data.get("schema_version") != 1 or not isinstance(data.get("sessions"), list):
+        return frozenset()
+    return frozenset(row["sid"] for row in data["sessions"]
+                     if isinstance(row, dict) and isinstance(row.get("sid"), str) and valid_topic_id(row["sid"]))
 
 
 class AgentApi:
@@ -114,9 +135,11 @@ class AgentApi:
             return entry
 
     def task_propose(self, agent: str, project: str, title: str, topic: str) -> dict:
-        """A new ``todo`` card labelled ``proposed`` in a topic the agent is in (Decision C)."""
-        if not self._registry.agents_may_create:
-            raise EventRejected("switched_off")
+        """A new ``todo`` card labelled ``proposed`` in a topic the agent is in (Decision C).
+
+        With the switch off, only in the topic of an open orchestrator room (ORCH.ROOM).
+        """
+        check_propose(self._registry.agents_may_create, topic, _room_topics(self._registry.directory))
         agent = self._take(agent)
         self._limits.take("propose:" + agent, PROPOSE_LIMITS, self._clock(), timeout=self._registry.timeout)
         card = new_card(project, clean_note(title), topic=topic, labels=[PROPOSED_LABEL])

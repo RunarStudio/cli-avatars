@@ -25,7 +25,8 @@ _INSTRUCTIONS = (
     "memories_add stores a note on a project; memories_search is a local substring match. "
     "task_list and task_get read board cards. task_status, task_progress, task_check, and "
     "topic_state change only cards and topics you own; no agent call reaches done. "
-    "task_propose is off unless the user turns agent proposals on."
+    "task_propose is off unless the user turns agent proposals on, or you are the orchestrator of an open room "
+    "proposing on that room's topic."
 )
 
 _READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)

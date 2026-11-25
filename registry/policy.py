@@ -5,7 +5,8 @@ Every refusal is ``EventRejected`` with a short reason:
 - ``not_agent``: the caller id is not an agent (``daniel``, ``user`` or malformed).
 - ``not_owner``: the card is assigned to someone else, or unassigned in a topic the agent is not in.
 - ``not_allowed``: the move, topic status or field is not open to agents.
-- ``switched_off``: ``task_propose`` while ``registry.agents_may_create`` is false.
+- ``switched_off``: ``task_propose`` while ``registry.agents_may_create`` is false, outside an
+  orchestrator room's own topic (ORCH.ROOM).
 - ``rate_limited``: over 30 writes a minute, 300 an hour, or 5 proposals an hour.
 """
 
@@ -51,6 +52,12 @@ def may_touch(card: Mapping, agent: str, members: Collection[str]) -> bool:
     if assignee is not None:
         return assignee == agent
     return card.get("topic") is not None and agent in members
+
+
+def check_propose(may_create: bool, topic: object, room_topics: Collection[str]) -> None:
+    """Decision C with ORCH.ROOM: off unless switched on, but an open orchestrator room opens its own topic."""
+    if not may_create and topic not in room_topics:
+        raise EventRejected("switched_off")
 
 
 def check_owner(card: Mapping, agent: str, members: Collection[str]) -> None:
