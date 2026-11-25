@@ -123,12 +123,15 @@ def _save(directory: Path, data: dict) -> None:
 
 
 def sync(directory: Path | str, cards: Iterable, now: float | None = None) -> dict:
-    """Store today's HP and the feeding ids; the new hits since the last call, deduped."""
+    """Store today's HP and the feeding ids; the new hits since the last call, deduped. A missing data dir is never
+    made: nothing is stored and there are no hits."""
     now = time.time() if now is None else now
     cards = list(cards)
     today = datetime.fromtimestamp(now).date()
     rows = feeding(cards, now)
     root = Path(directory)
+    if not root.is_dir():
+        return {"hp": len(rows), "stage": stage(len(rows)), "feeding": rows, "hits": []}
     with directory_lock(root):
         data = load(root)
         found = hits(data["feeding"], cards, data["hit"], now)

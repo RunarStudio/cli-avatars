@@ -121,6 +121,12 @@ class Store(unittest.TestCase):
         self.assertNotIn(old, data["days"])
         self.assertEqual(list(data["hit"]), [])
 
+    def test_sync_never_creates_a_missing_data_dir(self):
+        missing = self.dir / "not-made"
+        state = boss.sync(missing, [_card(1, "blocked")], NOW)
+        self.assertEqual(state["hp"], 1)
+        self.assertFalse(missing.exists())
+
     def test_public_state_for_the_phone(self):
         boss.sync(self.dir, [_card(1, "blocked", title="Moon lantern wick"), _card(2, idle=8)], NOW)
         state = boss.public(self.dir, [_card(1, "blocked", title="Moon lantern wick"), _card(2, idle=8)], NOW)
