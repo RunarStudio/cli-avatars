@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -100,6 +100,16 @@ leave; then they come in together with one tone, and Web Push sends them with on
 **Allow the phone to open sessions and send prompts**; with it off the bar is read-only. The SSE event `focus` keeps
 it live. Details: [focus-mode.md](focus-mode.md).
 
+## Mailroom
+
+The envelope in the map bar (beside the bell) shows how many letters wait and opens the **Mailroom**: new thoughts,
+messages to you and hook questions, each on a parchment slip with the topic the PC's sorter proposed (no AI), a
+`+ task chat` flag and a `Decide:` line when it asks something. **✓ Approve** files it as a card as you; **↩ Bounce**
+sends it to Unsorted, where **✕ Drop** removes it; the topic list changes the topic first. Quick capture has a third
+mode, **Mailroom**, that drops a thought there unfiled. Writes need **Allow the phone to open sessions and send
+prompts**; with it off the sheet only reads. The SSE event `mailroom` keeps it live; a soft two-note plays when letters
+arrive (not during focus). Details: [mailroom.md](mailroom.md).
+
 ## Daily recap
 
 The scroll button in the map bar (beside the bell) opens **Daily recap**: what each agent did today, per task, on a
@@ -155,7 +165,7 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `/api/chat/<topic>?tail=N` | The room's last messages (default 30, at most 200). |
 | `/api/map.png` | The Dungeon map, composed from the kit exactly as the Dungeon window draws it. |
 | `/api/sprite/<look>.png` | Idle and walk rows of a roster look (`user`, `orchestrator`, `grok`, `grok-<hue>`, `subagent`), cut as the Dungeon cuts them. |
-| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change; `focus` with the focus state when it starts, ends or holds one more alert. |
+| `/api/events` | Server-sent events: `change` whenever a board, the rooms or a chat changes; `avatars` with every avatar's position about four times a second while they move; `update` with the Update status on every progress line; `counts` with the door counts of every room, project and the total when they change; `focus` with the focus state when it starts, ends or holds one more alert.; `mailroom` when the Mailroom's count changes. |
 | `/api/sessions` | Open sessions, the rooms the phone may open (title and folder name, never a path), whether writes are on, and then the CSRF value. |
 | `POST /api/sessions` | Writes on: open a session `{"kind", "cli", "topic"}` on a room whose folder was picked in the Dungeon. |
 | `POST /api/sessions/<topic>/end` | Writes on: end it; its avatars walk back to the Apothecary. |
@@ -174,6 +184,9 @@ Seeds a temporary folder with three rooms, six tasks and some chat, prints a QR 
 | `POST /api/capture` | Writes on: `{"text", "topic", "chat"}` (text at most 4,000, `chat` true or false); 200 with `id`, `topic` and `room` (the task chat, or null); 400 empty or malformed, 404 no such topic. |
 | `/api/focus` | FOCUS: the task in focus (or null), its title and room, how many alerts wait, whether writes are on. |
 | `POST /api/focus`, `POST /api/focus/leave` | Writes on: `{"task"}` starts focus on that card (404 unknown); `{}` leaves it, 200 with `released`. |
+| `/api/mailroom` | MAILROOM: letters waiting (oldest first) and Unsorted, each with source, room, sender, text, proposed topic, chat and draft; topics to file in; how many are held by focus; whether writes are on. |
+| `POST /api/mailroom` | Writes on: `{"text"}` (at most 2,000 characters) drops a thought in the Mailroom; 400 empty. |
+| `POST /api/mailroom/<id>/approve`, `/bounce`, `/topic` | Writes on: approve `{}` files it (200 with `id`, `topic`, `room`, `decision`); bounce `{}` (200 with `now`: `unsorted` or `dropped`); topic `{"topic"}`; 404 unknown. |
 | `/api/media/<id>` | A picture or video a phone-sent turn wrote in the room's folder, by its id; byte ranges for video. |
 
 The page keeps the Send box above the phone's keyboard: while you type, the task list folds away and the map shrinks.
@@ -203,4 +216,4 @@ The avatars are the Dungeon's own: while the Dungeon window runs, the page shows
 
 ## Sound
 
-A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1). A card moved on the Board plays a short rising two-note; a captured thought a quick three-note flourish; the Daily recap a low three-note as it opens.
+A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1). A card moved on the Board plays a short rising two-note; a captured thought a quick three-note flourish; the Daily recap a low three-note as it opens. New letters in the Mailroom play a soft falling two-note (not during focus); filing one a low-then-high note.

@@ -215,12 +215,22 @@ brighter. A banner at the top of the floor names the task, shows a red wax seal 
 other tasks (needs-you rows, the decision bell and toast, Web Push) wait silently and come back once, oldest first, with
 one `release` cue when focus ends. Canvas items changed in place; no window opens. Details: [focus-mode.md](focus-mode.md).
 
+#### Mailroom (MAILROOM)
+
+New thoughts (Ctrl+Space, then **Mail**), messages to you and hook questions land as letters in the **Mailroom** tab
+(beside Recap): a pigeonhole shelf and mail sack that fill as letters wait, and a plank board with one parchment slip
+per letter. A local sorter (the quick-capture ranker, no AI) proposes the topic, a task chat and a draft decision.
+**✓ Approve** (Enter or A) files a card as you, with the chat and decision; **↩ Bounce** (B) sends it to Unsorted, a
+second drops it; **T** or the topic chip changes the topic first. Needs you shows one `MAILROOM` row; letters wait
+silently during focus; a `letter` cue once per batch and a `filed` cue on approve. Canvas items change in place; no
+window opens. Details: [mailroom.md](mailroom.md).
+
 **Toolbar kinds (TOOLBAR.1).** Three kinds of control, each with its own look and a tooltip
 inside the window (no `Toplevel`) that says what it does:
 
 | Kind | Controls | Look |
 |------|----------|------|
-| Tab | Dungeon, Skins, Tasks, Throne, Recap (centre); Chat, Needs you, Settings (right dock) | Tab strip; the selected tab is joined to its panel with a lit top accent |
+| Tab | Dungeon, Skins, Tasks, Throne, Recap, Mailroom (centre); Chat, Needs you, Settings (right dock) | Tab strip; the selected tab is joined to its panel with a lit top accent |
 | Panel toggle | Topics, Chat (toolbar, PANELS) | Lamp lit and sunken while open; the arrow points to the side the panel opens on |
 | Desktop / window action | Door, Call home (DESKTOP); Pin, Menu (WINDOW); Pop out (right dock) | Raised buttons on their own plate; Pop out is the only control that opens a separate window |
 
