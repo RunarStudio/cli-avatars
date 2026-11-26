@@ -1,11 +1,13 @@
-"""STANDUP pixel art, drawn in code at 1x in the throne room's palette and 3x5 font: the speech bubble (parchment,
-a wax-red rim and seal for a stuck line), the horn banner, the key plate and the call button.
+"""STANDUP pixel art, drawn in code at 1x in the throne room's palette, words in the chosen face (FONT.1): the
+speech bubble (parchment, a wax-red rim and seal for a stuck line), the horn banner, the key plate and the call button.
 """
 
 from __future__ import annotations
 
 import textwrap
 
+import text_fonts as fonts
+from cli_avatars.app import art_words as words
 from cli_avatars.app.throne_px import F35, Buf, to_image
 
 MAX_W = 184
@@ -62,8 +64,13 @@ def _parts(line: str) -> list[tuple[str, str]]:
     return out
 
 
-def bubble(name: str, line: str, tone: str = "ok", title: str = "") -> object:
-    """The speech bubble as a PIL RGBA image; its tail's tip is the bottom-centre pixel."""
+def bubble(name: str, line: str, tone: str = "ok", title: str = "", scale: int = 1) -> object:
+    """The speech bubble as a PIL RGBA image at ``scale``; its tail's tip is the bottom-centre pixel.
+
+    FONT.1: the words use the chosen face at full resolution; the 3x5 font only under Pixel.
+    """
+    if fonts.readable():
+        return _bubble_words(name, line, tone, title, scale)
     rows: list[tuple[str, str, str]] = []
     for key, value in _parts(line):
         indent = len(key) + 2 if key else 0
@@ -77,6 +84,28 @@ def bubble(name: str, line: str, tone: str = "ok", title: str = "") -> object:
     width = max(64, min(MAX_W, width))
     height = 14 + len(rows) * 7 + 4
     stuck = tone == "stuck"
+    b = _bubble_frame(width, height, stuck)
+    x = 6
+    x += text(b, x, 4, head, WINE) + 4
+    if sub:
+        text(b, x, 4, "- " + sub, SOFT)
+    b.rect(5, 11, width - 10, 1, PAPER_LO)
+    y = 15
+    for label, piece, key in rows:
+        lx = 6
+        if key:
+            if label:
+                text(b, lx, y, label, LABELS[key])
+            lx += (len(key) + 2) * 4
+        text(b, lx, y, piece, WAX if key == "stuck" else TEXT)
+        y += 7
+    if stuck:
+        _seal(b, width - 8, 6)
+    return words.up(to_image(b), scale)
+
+
+def _bubble_frame(width: int, height: int, stuck: bool) -> Buf:
+    """Parchment bubble at 1x, ``height`` above a six-row tail; wax-red rim when ``stuck``."""
     b = Buf(width, height + 6)
     rim = WAX if stuck else INK
     b.rect(2, 0, width - 4, height, rim)
@@ -95,23 +124,47 @@ def bubble(name: str, line: str, tone: str = "ok", title: str = "") -> object:
         b.rect(mid - 4 + i, height - 1 + i, 9 - 2 * i, 1, rim)
         if 9 - 2 * i - 2 > 0:
             b.rect(mid - 3 + i, height - 2 + i, 7 - 2 * i, 1, PAPER_LO if i else PAPER)
-    x = 6
-    x += text(b, x, 4, head, WINE) + 4
-    if sub:
-        text(b, x, 4, "- " + sub, SOFT)
-    b.rect(5, 11, width - 10, 1, PAPER_LO)
-    y = 15
-    for label, piece, key in rows:
-        lx = 6
-        if key:
-            if label:
-                text(b, lx, y, label, LABELS[key])
-            lx += (len(key) + 2) * 4
-        text(b, lx, y, piece, WAX if key == "stuck" else TEXT)
-        y += 7
+    return b
+
+
+def _bubble_words(name: str, line: str, tone: str, title: str, scale: int) -> object:
+    body, head = words.face(8), words.face(8, bold=True)
+    step, pad = words.line(body), 6 * scale
+    room = (MAX_W - 12) * scale
+    rows: list[tuple[str, str, str]] = []
+    for key, value in _parts(line):
+        tag = f"{key.capitalize()}: " if key else ""
+        indent = words.width(tag, head) if key else 0
+        for n, piece in enumerate(words.wrap(value, body, room - indent, MAX_LINES)):
+            rows.append((tag if n == 0 else "", piece, key))
+    rows = rows[:MAX_LINES]
+    who = " ".join(str(name).split())[:24]
+    sub = " ".join(str(title).split())
+    top = words.width(who, head) + (words.width(" – " + sub, body) if sub else 0)
+    wide = max([top] + [words.width(p, body) + (words.width(f"{k.capitalize()}: ", head) if k else 0)
+                        for _t, p, k in rows])
+    width = min(MAX_W, max(64, words.cells(wide + 2 * pad, scale)))
+    rule = words.cells(4 * scale + step, scale) + 1
+    height = rule + 3 + words.cells(len(rows) * step + 4 * scale, scale)
+    stuck = tone == "stuck"
+    b = _bubble_frame(width, height, stuck)
+    b.rect(5, rule, width - 10, 1, PAPER_LO)
     if stuck:
         _seal(b, width - 8, 6)
-    return to_image(b)
+    image = words.up(to_image(b), scale)
+    x = pad + words.write(image, pad, 3 * scale, who, WINE, head, box=step)
+    if sub:
+        words.write(image, x, 3 * scale, " – " + sub, SOFT, body, box=step)
+    y = (rule + 3) * scale
+    for tag, piece, key in rows:
+        lx = pad
+        if key:
+            if tag:
+                words.write(image, lx, y, tag, LABELS[key], head, box=step)
+            lx += words.width(f"{key.capitalize()}: ", head)
+        words.write(image, lx, y, piece, WAX if key == "stuck" else TEXT, body, box=step)
+        y += step
+    return image
 
 
 def _seal(b: Buf, cx: int, cy: int) -> None:
@@ -125,24 +178,41 @@ def _seal(b: Buf, cx: int, cy: int) -> None:
     b.px(cx, cy, WAX_HI)
 
 
-def banner(title: str, sub: str) -> object:
+def banner(title: str, sub: str, scale: int = 1) -> object:
     """The horn banner: wine cloth, gold trim, a brass horn, ``title`` large and ``sub`` under it."""
+    if fonts.readable():
+        big, small = words.face(14, bold=True), words.face(8)
+        title, sub = fonts.caps(title), " ".join(str(sub).split())[:60]
+        tall = words.line(big) + words.line(small)
+        width = max(150, words.cells(max(words.width(title, big), words.width(sub, small)), scale) + 52)
+        cloth = max(32, words.cells(tall + 6 * scale, scale) + 4)
+        image = words.up(to_image(_cloth(width, cloth)), scale)
+        y = (cloth * scale - tall) // 2
+        words.write(image, 40 * scale, y, title, "#ffd27a", big, "#3a0a1c", box=words.line(big))
+        words.write(image, 40 * scale, y + words.line(big), sub, "#e8dcb8", small, box=words.line(small))
+        return image
     sub = plain(sub).upper()[:40]
     width = max(150, len(sub) * 4 + 52, len(title) * 12 + 52)
-    b = Buf(width, 40)
-    b.rect(0, 0, width, 32, GOLD_LO)
-    b.rect(1, 1, width - 2, 30, GOLD)
-    b.rect(2, 2, width - 4, 28, WINE)
-    b.rect(2, 2, width - 4, 1, "#9a3a58")
-    for x in range(4, width - 4, 6):
-        b.rect(x, 29, 3, 1, "#5a1028")
-    for i in range(8):
-        b.rect(2 + i, 32 + i // 2, width // 2 - 2 - 2 * i, 1, WINE if i < 6 else GOLD_LO)
-        b.rect(width // 2 + 2 * i, 32 + i // 2, width // 2 - 2 - 2 * i, 1, WINE if i < 6 else GOLD_LO)
-    _horn(b, 8, 8)
+    b = _cloth(width, 32)
     text(b, 40, 6, title, "#ffd27a", k=2)
     text(b, 40, 20, sub, "#e8dcb8")
-    return to_image(b)
+    return words.up(to_image(b), scale)
+
+
+def _cloth(width: int, cloth: int) -> Buf:
+    """Wine cloth ``cloth`` px tall with gold trim, its swallow-tail and the horn, at 1x."""
+    b = Buf(width, cloth + 8)
+    b.rect(0, 0, width, cloth, GOLD_LO)
+    b.rect(1, 1, width - 2, cloth - 2, GOLD)
+    b.rect(2, 2, width - 4, cloth - 4, WINE)
+    b.rect(2, 2, width - 4, 1, "#9a3a58")
+    for x in range(4, width - 4, 6):
+        b.rect(x, cloth - 3, 3, 1, "#5a1028")
+    for i in range(8):
+        b.rect(2 + i, cloth + i // 2, width // 2 - 2 - 2 * i, 1, WINE if i < 6 else GOLD_LO)
+        b.rect(width // 2 + 2 * i, cloth + i // 2, width // 2 - 2 - 2 * i, 1, WINE if i < 6 else GOLD_LO)
+    _horn(b, 8, (cloth - 16) // 2)
+    return b
 
 
 def _horn(b: Buf, x: int, y: int) -> None:
@@ -160,14 +230,27 @@ def _horn(b: Buf, x: int, y: int) -> None:
     b.rect(x + 9, y + 11, 2, 3, "#7a1f3d")
 
 
-def plate(label: str, rim: str = GOLD) -> object:
+def plate(label: str, rim: str = GOLD, scale: int = 1) -> object:
     """A dark key plate or button with a ``rim`` edge."""
+    if fonts.readable():
+        font = words.face(8, bold=True)
+        label = " ".join(str(label).split())
+        width = words.cells(words.width(label, font), scale) + 11
+        height = max(13, words.cells(words.line(font), scale) + 2)
+        image = words.up(to_image(_plate(width, height, rim)), scale)
+        words.write(image, 6 * scale, scale, label, "#e8dcb8", font, box=(height - 2) * scale)
+        return image
     s = plain(label).upper()
     width = len(s) * 4 + 11
-    b = Buf(width, 13)
-    b.rect(1, 0, width - 2, 13, rim)
-    b.rect(0, 1, width, 11, rim)
-    b.rect(1, 1, width - 2, 11, "#120d1f")
-    b.rect(2, 1, width - 4, 1, "#33274f")
+    b = _plate(width, 13, rim)
     text(b, 6, 4, s, "#e8dcb8")
-    return to_image(b)
+    return words.up(to_image(b), scale)
+
+
+def _plate(width: int, height: int, rim: str) -> Buf:
+    b = Buf(width, height)
+    b.rect(1, 0, width - 2, height, rim)
+    b.rect(0, 1, width, height - 2, rim)
+    b.rect(1, 1, width - 2, height - 2, "#120d1f")
+    b.rect(2, 1, width - 4, 1, "#33274f")
+    return b

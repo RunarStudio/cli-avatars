@@ -18,6 +18,7 @@ from datetime import datetime
 
 import focus
 import standup
+import text_fonts as fonts
 from cli_avatars.app import cues
 from cli_avatars.app import standup_art as art
 from cli_avatars.app import standup_show as ss
@@ -216,7 +217,7 @@ class Stage:
         bs = max(2, k)
         items = []
         if frame is None:
-            items.append(("call", "CALL STANDUP  U", ox + (tm.WIDTH - 8) * k, oy + (tm.HEIGHT - 8) * k, "se"))
+            items.append(("call", _key("Call standup", "U"), ox + (tm.WIDTH - 8) * k, oy + (tm.HEIGHT - 8) * k, "se"))
         else:
             if frame.phase in ("horn", "gather"):
                 lord = (self.record or {}).get("lord_name") or "The orchestrator"
@@ -226,11 +227,12 @@ class Stage:
             if frame.speaker is not None:
                 items.append(("bubble", frame.speaker) + self._anchor(frame.speaker, ox, oy, k) + ("s",))
             n = len(self.show.entries)
-            at = f"{frame.speaker + 1}/{n}" if frame.speaker is not None else f"{n} AGENTS"
+            at = f"{frame.speaker + 1}/{n}" if frame.speaker is not None else fonts.caps(f"{n} AGENTS")
             x = ox + (tm.WIDTH - 8) * k
-            for verb, label in (("replay", "REPLAY  R"), ("skip", "SKIP  S"), ("next", f"NEXT  SPACE  {at}")):
+            for verb, label in (("replay", _key("Replay", "R")), ("skip", _key("Skip", "S")),
+                                ("next", _key("Next", "Space") + f"  {at}")):
                 items.append((verb, label, x, oy + (tm.HEIGHT - 8) * k, "se"))
-                x -= (len(label) * 4 + 15) * bs
+                x -= self._photo(verb, label, bs).width() + 4 * bs
         sig = (tuple(items), width, height, bs)
         if sig == self._shown and c.find_withtag(TAG):
             return
@@ -261,22 +263,26 @@ class Stage:
         return ox + x * k, oy + (y - 44) * k
 
     def _photo(self, kind: str, what, bs: int):
-        from PIL import Image, ImageTk
+        from PIL import ImageTk
 
-        key = (kind, what, bs, self.record.get("at") if self.record else None)
+        key = (kind, what, bs, self.record.get("at") if self.record else None, fonts.current())
         photo = self._photos.get(key)
         if photo is not None:
             return photo
         if kind == "bubble":
             entry = self.show.entries[what]
             image = art.bubble(entry.get("name") or "", entry.get("line") or "", entry.get("tone", "ok"),
-                               entry.get("title") or "")
+                               entry.get("title") or "", bs)
         elif kind == "banner":
-            image = art.banner("STANDUP", what)
+            image = art.banner("STANDUP", what, bs)
         else:
-            image = art.plate(what, art.WAX if kind == "call" else art.GOLD)
-        image = image.resize((image.width * bs, image.height * bs), Image.NEAREST)
+            image = art.plate(what, art.WAX if kind == "call" else art.GOLD, bs)
         if len(self._photos) > 64:
             self._photos.clear()
         photo = self._photos[key] = ImageTk.PhotoImage(image, master=self.panel.canvas)
         return photo
+
+
+def _key(word: str, key: str) -> str:
+    """A button caption with its key: ``REPLAY  R`` under Pixel, ``Replay (R)`` in a readable face."""
+    return f"{word}  {key}".upper() if not fonts.readable() else f"{word} ({key})"

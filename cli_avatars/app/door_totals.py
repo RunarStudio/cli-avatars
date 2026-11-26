@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 import tkinter as tk
 
+import text_fonts as fonts
 from cli_avatars.app import door_counts
 from cli_avatars.app.door_plaque import plaque_image
 from cli_avatars.app.throttle import StoreThrottle
@@ -24,12 +25,12 @@ ALL = "All projects"
 class Totals:
     def __init__(self, parent) -> None:
         self.frame = tk.Frame(parent, bg=BG)
-        tk.Label(self.frame, text="Behind the doors", bg=BG, fg=HEAD, font=("Courier", 10, "bold"),
+        tk.Label(self.frame, text="Behind the doors", bg=BG, fg=HEAD, font=fonts.face(10, "bold"),
                  anchor="w").pack(fill="x", padx=12, pady=(6, 0))
         self.rows: dict[str, tuple[tk.Frame, tk.Label]] = {}
         self.keys: dict[str, tuple] = {}
         self.photos: dict[str, object] = {}
-        self.caption = tk.Label(self.frame, text="", bg=BG, fg=NAME, font=("Courier", 8), anchor="w",
+        self.caption = tk.Label(self.frame, text="", bg=BG, fg=NAME, font=fonts.face(8), anchor="w",
                                 justify="left")
         self.caption.pack(side="bottom", fill="x", padx=12, pady=(0, 4))
         self._read = StoreThrottle(READ_S)
@@ -48,7 +49,7 @@ class Totals:
             if name not in self.rows:
                 row = tk.Frame(self.frame, bg=BG)
                 row.pack(fill="x", padx=12, pady=1, before=self.caption)
-                tk.Label(row, text=name, bg=BG, fg=HEAD if name == ALL else NAME, font=("Courier", 9),
+                tk.Label(row, text=name, bg=BG, fg=HEAD if name == ALL else NAME, font=fonts.face(9),
                          anchor="w", width=14).pack(side="left")
                 image = tk.Label(row, bg=BG, bd=0)
                 image.pack(side="left")
@@ -56,10 +57,10 @@ class Totals:
                     widget.bind("<Enter>", lambda _e, n=name: self.hover(n))
                     widget.bind("<Leave>", lambda _e: self.caption.configure(text=""))
                 self.rows[name] = (row, image)
-            if self.keys.get(name) != key:
+            if self.keys.get(name) != (key, fonts.current()):
                 self.photos[name] = _photo(dict(zip(door_counts.KEYS, key, strict=True)), self.frame)
                 self.rows[name][1].configure(image=self.photos[name])
-                self.keys[name] = key
+                self.keys[name] = (key, fonts.current())
 
     def hover(self, name: str) -> None:
         values = self.counts.total if name == ALL else self.counts.projects.get(name, door_counts.zeros())
@@ -81,11 +82,9 @@ class Totals:
 
 
 def _photo(counts: dict, master):
-    from PIL import Image, ImageTk
+    from PIL import ImageTk
 
-    image = plaque_image(counts, chains=False)
-    return ImageTk.PhotoImage(image.resize((image.width * SCALE, image.height * SCALE), Image.NEAREST),
-                              master=master)
+    return ImageTk.PhotoImage(plaque_image(counts, chains=False, scale=SCALE), master=master)
 
 
 def attach(app, parent, before) -> Totals | None:

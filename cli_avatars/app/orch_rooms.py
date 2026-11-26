@@ -204,13 +204,19 @@ def row_lines(row: Row) -> list[str]:
     return lines
 
 
-def door_sign(topic: str, cards) -> tuple[tuple[str, str, str], bool]:
-    """Three sign lines (topic, doing card, status note) in the 3x5 font; amber when a card is blocked."""
+def door_sign(topic: str, cards, raw: bool = False) -> tuple[tuple[str, str, str], bool]:
+    """Three sign lines (topic, doing card, status note) in the 3x5 font; amber when a card is blocked.
+
+    ``raw`` keeps the words' own case and marks for the readable text face (FONT.1).
+    """
     from cli_avatars.app.throne_model import label
+
+    def cut(text: object) -> str:
+        return " ".join(str(text or "").split())[:SIGN_CHARS].rstrip() if raw else label(text, SIGN_CHARS)
 
     row = topic_row(topic, "", "", cards, 0.0, 0.0)
     doing = row.doing or "no card in doing"
-    return (label(topic, SIGN_CHARS), label(doing, SIGN_CHARS), label(row.note, SIGN_CHARS)), row.amber
+    return (cut(topic), cut(doing), cut(row.note)), row.amber
 
 
 def board_cards(directory: Path | str) -> list[dict]:

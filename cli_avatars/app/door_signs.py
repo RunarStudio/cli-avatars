@@ -1,15 +1,17 @@
 """ORCH.ROOM door signs: over each session room's door, its topic, the doing card and the status note.
 
-A small wooden board hung on two chains, the 3x5 pixel font of the throne room, drawn at the rooms'
-own scale so it stays crisp. The note line and the rim turn amber while a card of the topic is
-blocked. HIERARCHY.1: the room's tier chip (crown or banner, model and effort) hangs under the board.
-Cards are read at most every ``READ_S`` through ``StoreThrottle``.
+A small wooden board hung on two chains, its words in the chosen text face (the 3x5 pixel font of the
+throne room under Pixel), drawn at the rooms' own scale so it stays crisp. The note line and the rim turn
+amber while a card of the topic is blocked. HIERARCHY.1: the room's tier chip (crown or banner, model and
+effort) hangs under the board. Cards are read at most every ``READ_S`` through ``StoreThrottle``.
 """
 
 from __future__ import annotations
 
 import sys
 
+import text_fonts as fonts
+from cli_avatars.app import art_words as words
 from cli_avatars.app.orch_rooms import board_cards, door_sign
 from cli_avatars.app.throne_model import GOLD
 from cli_avatars.app.throne_px import Buf, t35, to_image, tone
@@ -23,41 +25,69 @@ INK = "#f0e6c8"
 WOOD, WOOD_HI, WOOD_LO, FACE = "#8a5a34", "#b07a48", "#4e3018", "#171022"
 
 
-def sign_image(lines: tuple[str, str, str], amber: bool, chip: dict | None = None):
-    """The sign at 1x as a PIL image: chains on top, then the board; a tier ``chip`` hangs under it (HIERARCHY.1)."""
+def sign_image(lines: tuple[str, str, str], amber: bool, chip: dict | None = None, scale: int = 1):
+    """The sign as a PIL image at ``scale``: chains on top, then the board; a tier ``chip`` hangs under it.
+
+    FONT.1: the words use the chosen face at full resolution; the 3x5 pixel font only under Pixel.
+    """
+    if fonts.readable():
+        return _sign_words(lines, amber, chip, scale)
     width = max(28, max(len(t) for t in lines) * 4 - 1) + 8
-    b = Buf(width, 6 + 25)
+    b = _board(width, 25, amber)
+    t35(b, width // 2, 10, lines[0], GOLD, align="c", sh="#3e2614")
+    t35(b, width // 2, 16, lines[1], INK, align="c", sh="#08060c")
+    t35(b, width // 2, 22, lines[2], AMBER if amber else "#9a98b8", align="c", sh="#08060c")
+    image = words.up(to_image(b), scale)
+    return image if chip is None else hang(image, chip, scale)
+
+
+def _board(width: int, height: int, amber: bool) -> Buf:
+    """Chains and the wooden board at 1x; ``height`` is the board under the chains (25 for the pixel sign)."""
+    b = Buf(width, 6 + height)
     for x in (4, width - 5):
         for y in range(0, 6, 2):
             b.px(x, y, "#6a6a80")
             b.px(x, y + 1, "#3a3a48")
     rim = AMBER if amber else WOOD
-    b.rect(0, 6, width, 25, WOOD_LO)
-    b.rect(0, 6, width, 24, rim)
+    b.rect(0, 6, width, height, WOOD_LO)
+    b.rect(0, 6, width, height - 1, rim)
     b.rect(1, 7, width - 2, 1, AMBER if amber else WOOD_HI)
-    b.rect(2, 8, width - 4, 20, FACE)
+    b.rect(2, 8, width - 4, height - 5, FACE)
     b.rect(2, 8, width - 4, 1, tone(GOLD, 0.45))
-    for x, y in ((0, 6), (width - 1, 6), (0, 29), (width - 1, 29)):
+    for x, y in ((0, 6), (width - 1, 6), (0, 4 + height), (width - 1, 4 + height)):
         b.px(x, y, GOLD)
-    t35(b, width // 2, 10, lines[0], GOLD, align="c", sh="#3e2614")
-    t35(b, width // 2, 16, lines[1], INK, align="c", sh="#08060c")
-    t35(b, width // 2, 22, lines[2], AMBER if amber else "#9a98b8", align="c", sh="#08060c")
-    return to_image(b) if chip is None else hang(to_image(b), chip)
+    return b
 
 
-def hang(board, chip: dict):
+def _sign_words(lines: tuple[str, str, str], amber: bool, chip: dict | None, scale: int):
+    head, body = words.face(8, bold=True), words.face(8)
+    step = words.line(body)
+    room = max(words.width(lines[0], head), words.width(lines[1], body), words.width(lines[2], body))
+    width = max(28, words.cells(room, scale) + 12)
+    inner = words.cells(3 * step + 4 * scale, scale)
+    image = words.up(to_image(_board(width, inner + 5, amber)), scale)
+    top = 8 * scale + (inner * scale - 3 * step) // 2
+    mid = width * scale // 2
+    inks = ((head, GOLD, "#3e2614"), (body, INK, "#08060c"), (body, AMBER if amber else "#b4b2cc", "#08060c"))
+    for n, (text, (font, ink, shade)) in enumerate(zip(lines, inks, strict=True)):
+        words.write(image, mid, top + n * step, text, ink, font, shade, align="c", box=step)
+    return image if chip is None else hang(image, chip, scale)
+
+
+def hang(board, chip: dict, scale: int = 1):
     """The tier chip on two short links under the board, centred."""
     from PIL import Image
 
     from cli_avatars.app.tier_art import chip_image
 
-    tag = chip_image(chip)
-    out = Image.new("RGBA", (max(board.width, tag.width), board.height + 3 + tag.height))
+    tag = words.up(chip_image(chip), scale)
+    link = 3 * scale
+    out = Image.new("RGBA", (max(board.width, tag.width), board.height + link + tag.height))
     out.paste(board, ((out.width - board.width) // 2, 0))
     x = (out.width - tag.width) // 2
-    for lx in (x + 3, x + tag.width - 4):
-        out.paste((106, 106, 128, 255), (lx, board.height, lx + 1, board.height + 3))
-    out.paste(tag, (x, board.height + 3))
+    for lx in (x + 3 * scale, x + tag.width - 4 * scale):
+        out.paste((106, 106, 128, 255), (lx, board.height, lx + scale, board.height + link))
+    out.paste(tag, (x, board.height + link))
     return out
 
 
@@ -141,8 +171,8 @@ class Signs:
             at = painter.to_canvas(u, v)
             if at is None:
                 continue
-            lines, amber = door_sign(topic, cards)
-            key = (lines, amber, scale, chips.get(topic))
+            lines, amber = door_sign(topic, cards, raw=fonts.readable())
+            key = (lines, amber, scale, chips.get(topic), fonts.current())
             photo = self._photo(scene, key)
             x, y = round(at[0]), round(at[1] - LIFT * scale)
             item = self._items.get(topic)
@@ -157,12 +187,10 @@ class Signs:
     def _photo(self, scene, key: tuple):
         found = self._photos.get(key)
         if found is None:
-            from PIL import Image, ImageTk
+            from PIL import ImageTk
 
-            lines, amber, scale, chip = key
-            image = sign_image(lines, amber, dict(chip) if chip else None)
-            if scale > 1:
-                image = image.resize((image.width * scale, image.height * scale), Image.NEAREST)
+            lines, amber, scale, chip, _text = key
+            image = sign_image(lines, amber, dict(chip) if chip else None, scale)
             found = self._photos[key] = ImageTk.PhotoImage(image, master=scene)
             used = set(self._keys.values()) | {key}
             for old in [k for k in self._photos if k not in used][:-16]:

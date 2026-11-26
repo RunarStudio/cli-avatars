@@ -1,7 +1,8 @@
 """DOOR-COUNTS on the Dungeon floor: a small iron-hung plaque on each room's door with its counts.
 
-Tiny code-drawn icons and 3x5 digits: crown (orchestrators), figure (agents), spark (subagents), bubble
-(conversations), pennant (open topics); a zero dims. Pending decisions add a red wax seal with its count.
+Tiny code-drawn icons and digits in the chosen text face (3x5 under Pixel, FONT.1): crown (orchestrators),
+figure (agents), spark (subagents), bubble (conversations), pennant (open topics); a zero dims. Pending
+decisions add a red wax seal with its count.
 Hover the plaque for a parchment with the full breakdown; a click pins or unpins it. Both are canvas items
 in the Dungeon scene: no new window. The image changes only when the room's counts change, so the
 plaque never blinks; inputs are read at most every ``READ_S`` through ``StoreThrottle``.
@@ -11,6 +12,8 @@ from __future__ import annotations
 
 import sys
 
+import text_fonts as fonts
+from cli_avatars.app import art_words as words
 from cli_avatars.app import door_counts
 from cli_avatars.app.session_rooms import APOTHECARY
 from cli_avatars.app.throne_model import GOLD
@@ -49,39 +52,54 @@ def _number(n: int) -> str:
     return str(n) if n < 100 else "99+"
 
 
-def plaque_image(counts: dict, chains: bool = True):
-    """The plaque at 1x as a PIL image: two chains, the board, the icons and, when any wait, the seal."""
+def plaque_image(counts: dict, chains: bool = True, scale: int = 1):
+    """The plaque at ``scale``: two chains, the board, the icons and, when any wait, the seal.
+
+    FONT.1: the numbers use the chosen face at full resolution; the 3x5 pixel digits only under Pixel.
+    """
     cells = [(key, _number(int(counts.get(key, 0)))) for key in SHOWN]
-    width = 4 + sum(6 + len(text) * 4 - 1 + 3 for _key, text in cells) - 3 + 4
+    font = words.face(8, bold=True) if fonts.readable() else None
+    spans = [words.cells(words.width(text, font) + scale, scale) if font else len(text) * 4 - 1 for _k, text in cells]
+    width = 4 + sum(6 + span + 3 for span in spans) - 3 + 4
+    inner = max(8, words.cells(font.getbbox("0")[3] - font.getbbox("0")[1] + 4 * scale, scale)) if font else 8
     pending = int(counts.get("decisions", 0))
     seal = 11 if pending else 0
-    b = Buf(width + seal, 4 + 13)
+    b = Buf(width + seal, 4 + inner + 5)
     for x in (3, width - 4):
         for y in range(0, 4, 2):
             b.px(x, y, IRON)
             b.px(x, y + 1, "#3a3a48")
     rim = SEAL if pending else WOOD
-    b.rect(0, 4, width, 13, WOOD_LO)
-    b.rect(0, 4, width, 12, rim)
+    b.rect(0, 4, width, inner + 5, WOOD_LO)
+    b.rect(0, 4, width, inner + 4, rim)
     b.rect(1, 5, width - 2, 1, SEAL_HI if pending else WOOD_HI)
-    b.rect(2, 6, width - 4, 8, FACE)
+    b.rect(2, 6, width - 4, inner, FACE)
     b.rect(2, 6, width - 4, 1, tone(GOLD, 0.35))
-    for x, y in ((0, 4), (width - 1, 4), (0, 15), (width - 1, 15)):
+    for x, y in ((0, 4), (width - 1, 4), (0, inner + 7), (width - 1, inner + 7)):
         b.px(x, y, GOLD)
-    x = 4
-    for key, text in cells:
+    x, icon_y, marks = 4, 6 + (inner - 5) // 2, []
+    for (key, text), span in zip(cells, spans, strict=True):
         lit = text != "0"
-        _icon(b, x, 8, key, lit)
-        t35(b, x + 6, 8, text, "#f0e6c8" if lit else "#5a5670", sh="#08060c")
-        x += 6 + len(text) * 4 - 1 + 3
+        _icon(b, x, icon_y, key, lit)
+        if font is None:
+            t35(b, x + 6, 8, text, "#f0e6c8" if lit else "#5a5670", sh="#08060c")
+        marks.append((x + 6, text, "#f0e6c8" if lit else "#8a86a0"))
+        x += 6 + span + 3
     if pending:
-        _seal(b, width - 2, 3, _number(pending) if pending < 10 else "9+")
-    image = to_image(b)
-    return image if chains else image.crop((0, 3, image.width, image.height))
+        _seal(b, width - 2, 3, _number(pending) if pending < 10 else "9+", font is None)
+    image = words.up(to_image(b), scale)
+    if font is not None:
+        for mx, text, ink in marks:
+            words.write(image, mx * scale, 6 * scale, text, ink, font, "#08060c", box=inner * scale)
+        if pending:
+            small = fonts.pil_font(min(fonts.px(8), 9 * scale), True)
+            words.write(image, (width + 5) * scale, 3 * scale, _number(pending) if pending < 10 else "9+", SEAL_INK,
+                        small, SEAL_LO, align="c", box=13 * scale)
+    return image if chains else image.crop((0, 3 * scale, image.width, image.height))
 
 
-def _seal(b: Buf, x: int, y: int, text: str) -> None:
-    """A red wax seal, 13 px round, its count pressed in."""
+def _seal(b: Buf, x: int, y: int, text: str, pixel: bool = True) -> None:
+    """A red wax seal, 13 px round, its count pressed in (in the 3x5 font when ``pixel``)."""
     for dy in range(13):
         for dx in range(13):
             d = ((dx - 6) ** 2 + (dy - 6) ** 2) ** 0.5
@@ -90,24 +108,39 @@ def _seal(b: Buf, x: int, y: int, text: str) -> None:
                 b.px(x + dx, y + dy, shade)
     for dx, dy in ((0, 5), (12, 7), (6, 0), (5, 12)):
         b.px(x + dx, y + dy, SEAL_LO)
-    t35(b, x + 6 + 1, y + 4, text, SEAL_INK, align="c", sh=SEAL_LO)
+    if pixel:
+        t35(b, x + 6 + 1, y + 4, text, SEAL_INK, align="c", sh=SEAL_LO)
 
 
-def tip_image(title: str, counts: dict):
+def tip_image(title: str, counts: dict, scale: int = 1):
     """The parchment with the breakdown: the room, who is in it, what is talked about, what waits."""
     from cli_avatars.app.throne_model import label
 
-    lines = [label(title, 40)] + door_counts.breakdown(counts)
-    width = max(len(text) for text in lines) * 4 - 1 + 12
-    b = Buf(width, 8 + len(lines) * 8)
+    lines = [label(title, 40) if not fonts.readable() else " ".join(str(title).split())[:40]]
+    lines += door_counts.breakdown(counts)
+    inks = ["#7a4a20"] + [PARCH_INK] * (len(lines) - 2) + [SEAL if counts.get("decisions") else PARCH_INK]
+    if fonts.readable():
+        body, head = words.face(8), words.face(8, bold=True)
+        step = words.line(body)
+        room = max(words.width(text, head if n == 0 else body) for n, text in enumerate(lines))
+        b = _parchment(words.cells(room, scale) + 12, words.cells(len(lines) * step, scale) + 8)
+        image = words.up(to_image(b), scale)
+        for n, text in enumerate(lines):
+            words.write(image, 6 * scale, 4 * scale + n * step, text, inks[n], head if n == 0 else body, box=step)
+        return image
+    b = _parchment(max(len(text) for text in lines) * 4 - 1 + 12, 8 + len(lines) * 8)
+    for n, text in enumerate(lines):
+        t35(b, 6, 5 + n * 8, text, inks[n])
+    return words.up(to_image(b), scale)
+
+
+def _parchment(width: int, height: int) -> Buf:
+    b = Buf(width, height)
     b.rect(1, 0, width - 2, b.h, PARCH_LO)
     b.rect(0, 1, width, b.h - 2, PARCH_LO)
     b.rect(1, 1, width - 2, b.h - 2, PARCHMENT)
     b.rect(2, b.h - 3, width - 4, 1, tone(PARCHMENT, 0.88))
-    for n, text in enumerate(lines):
-        ink = SEAL if n == len(lines) - 1 and counts.get("decisions") else "#7a4a20" if n == 0 else PARCH_INK
-        t35(b, 6, 5 + n * 8, text, ink)
-    return to_image(b)
+    return b
 
 
 def anchors(layout: dict | None, plan) -> dict[str, tuple[float, float, int]]:
@@ -191,7 +224,7 @@ class Plaques:
             if at is None:
                 continue
             counts = self.counts.rooms.get(name) or door_counts.zeros()
-            key = ("plaque", tuple(counts[k] for k in door_counts.KEYS), scale)
+            key = ("plaque", tuple(counts[k] for k in door_counts.KEYS), scale, fonts.current())
             x, y = round(at[0]), round(at[1] - lift * scale)
             item = self._items.get(name)
             if item is None or not scene.find_withtag(item):
@@ -230,7 +263,7 @@ class Plaques:
             self._hide(scene)
             return
         counts = self.counts.rooms.get(name) or door_counts.zeros()
-        key = ("tip", name, tuple(counts[k] for k in door_counts.KEYS), max(2, scale))
+        key = ("tip", name, tuple(counts[k] for k in door_counts.KEYS), max(2, scale), fonts.current())
         x, y = (box[0] + box[2]) // 2, box[3] + 2 * scale
         if self._tip is not None and scene.find_withtag(self._tip[1]):
             tip = self._tip[1]
@@ -251,16 +284,14 @@ class Plaques:
     def _photo(self, scene, key: tuple):
         found = self._photos.get(key)
         if found is None:
-            from PIL import Image, ImageTk
+            from PIL import ImageTk
 
             if key[0] == "tip":
-                _kind, name, values, scale = key
-                image = tip_image(name, dict(zip(door_counts.KEYS, values, strict=True)))
+                _kind, name, values, scale, _text = key
+                image = tip_image(name, dict(zip(door_counts.KEYS, values, strict=True)), scale)
             else:
-                _kind, values, scale = key
-                image = plaque_image(dict(zip(door_counts.KEYS, values, strict=True)))
-            if scale > 1:
-                image = image.resize((image.width * scale, image.height * scale), Image.NEAREST)
+                _kind, values, scale, _text = key
+                image = plaque_image(dict(zip(door_counts.KEYS, values, strict=True)), scale=scale)
             found = self._photos[key] = ImageTk.PhotoImage(image, master=scene)
             used = set(self._keys.values()) | {key}
             for old in [k for k in self._photos if k not in used][:-24]:
