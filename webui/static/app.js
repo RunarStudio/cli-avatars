@@ -244,6 +244,7 @@ function frame(now) {
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
+  state.marks = [];
   if (state.map) {
     const v = state.view;
     ctx.save();
@@ -282,6 +283,9 @@ function frame(now) {
 }
 
 const IDLE_MS = 83;
+// PHONECLEAN: a phone below the wide layout shows room plaques, the tier legend and the mini-map only on zoom or tap
+const phoneView = () => window.matchMedia("(max-width: 1023px)").matches;
+const signAt = () => (phoneView() ? 1 : SIGN_S);  // PHONECLEAN: door signs and tier chips one zoom step later on a phone
 const SIGN_S = 0.6; // PHONEMAP: door signs and tier chips once the rooms are big enough to hold them
 const VIEW_KEY = "cli-avatars-map-view";
 
@@ -413,8 +417,10 @@ function drawLabels() {
     ctx.strokeRect(Math.round(x - tw / 2) + 1, Math.round(y - th / 2) + 1, Math.round(tw) - 2, Math.round(th) - 2);
     ctx.fillStyle = on ? "#ffd27a" : "#e9dcbc";
     ctx.fillText(text, Math.round(x), Math.round(y) + 1);
-    if (r.sign && v.s >= SIGN_S) drawSign(r.sign, x, y + th, px);
-    if (r.counts) drawCounts(r.counts, x, y - th * 1.05, px);
+    state.marks.push({ kind: "label", left: Math.round(x - tw / 2), top: Math.round(y - th / 2), right: Math.round(x + tw / 2), bottom: Math.round(y + th / 2) });
+    if (r.sign && v.s >= signAt()) drawSign(r.sign, x, y + th, px);
+    const counts = r.counts && v.s < SIGN_S && phoneView() ? { decisions: r.counts.decisions } : r.counts;
+    if (counts) drawCounts(counts, x, y - th * 1.05, px);
   }
   ctx.globalAlpha = 1;
 }
@@ -456,6 +462,7 @@ function drawCounts(c, x, y, px) {
   const h = Math.round(px * 1.55), seal = pending ? h + 2 : 0;
   const w = Math.round(widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, cells.length - 1) + pad * 2);
   const left = Math.round(x - (w + seal) / 2), top = Math.round(y - h / 2);
+  state.marks.push({ kind: cells.length ? "counts" : "seal", left: cells.length ? left : left + w, top, right: left + w + seal, bottom: top + h });
   if (cells.length) {
     ctx.fillStyle = "rgba(23,16,34,.94)";
     ctx.fillRect(left, top, w, h);
@@ -511,7 +518,7 @@ function paintTotals() {
   const counts = state.scene && state.scene.counts;
   const line = $("totals"), list = $("totalsProjects");
   if (!counts) { line.replaceChildren(); list.hidden = true; return; }
-  line.replaceChildren(el("span", "lead", "All"), ...countParts(counts.total, true));
+  line.replaceChildren(el("span", "lead", "All"), ...countParts(counts.total, !phoneView()));
   list.replaceChildren();
   for (const [name, c] of Object.entries(counts.projects)) {
     const li = el("li");

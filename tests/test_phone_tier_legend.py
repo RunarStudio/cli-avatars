@@ -54,11 +54,11 @@ class TierLegend(unittest.TestCase):
             self.assertLessEqual(row["bottom"], canvas["bottom"], row)
             self.assertEqual(row["over"], [], row)
 
-    def test_legend_whole_at_360(self):
-        self.check(360)
+    def test_no_legend_on_the_phone_map_at_360(self):
+        self.assertEqual(self.widths[360]["rows"], [])  # PHONECLEAN: it lives in the map hint
 
-    def test_legend_whole_at_400(self):
-        self.check(400)
+    def test_no_legend_on_the_phone_map_at_400(self):
+        self.assertEqual(self.widths[400]["rows"], [])
 
     def test_wide_legend_sits_at_the_bottom(self):
         self.check(1366)

@@ -37,19 +37,20 @@ function drawTiers() {
   ctx.textAlign = "center";
   for (const r of s.rooms) {
     const t = r.kind === "main" ? by.main : r.kind === "simple" ? by.topic : null;
-    if (!t || v.s < SIGN_S) continue;
+    if (!t || v.s < signAt()) continue;
     const cx = r.poly.reduce((a, p) => a + p[0], 0) / 4, cy = r.poly.reduce((a, p) => a + p[1], 0) / 4;
     const y = v.y + (cy + (r.poly[2][1] - cy) * 0.5) * v.s;
     tierChip(t, v.x + cx * v.s, y + px * (r.sign ? 3.75 : 1.9), px);
   }
   const { w, h: ch } = size();
+  state.tierLegend = [];
+  if (phoneView()) { drawSummon(h, by, w, px); return; }  // PHONECLEAN: on a phone the legend lives in the map hint
   const widest = 6 + Math.max(...h.tiers.map((t) => ctx.measureText(t.name + "  " + t.label).width + px * 2.6));
   const tools = document.querySelector("#mapTools:not([hidden]) .mt-row"), c = canvas.getBoundingClientRect();
   const r = tools && tools.getBoundingClientRect();
   const lift = r && r.width && widest > r.left - c.left;  // a phone: the legend sits just over the Rooms row
   let y = (lift ? r.top - c.top - 6 + px * 0.6 : ch - px) - px * 1.2 * h.tiers.length;
   ctx.textAlign = "left";
-  state.tierLegend = [];
   for (const t of h.tiers) {
     const lw = Math.round(ctx.measureText(t.name + "  " + t.label).width + px * 2.6);
     state.tierLegend.push({ left: 6, top: Math.round(y - px * 0.6), right: 6 + lw, bottom: Math.round(y - px * 0.6) + Math.round(px * 1.2) });
@@ -63,6 +64,10 @@ function drawTiers() {
     y += px * 1.2;
   }
   ctx.textAlign = "center";
+  drawSummon(h, by, w, px);
+}
+
+function drawSummon(h, by, w, px) {
   if (!h.main) {
     const text = "No orchestrator: summon it on the PC", tw = ctx.measureText(text).width + px * 3.2, bh = px * 2;
     const left = Math.round(w / 2 - tw / 2), top = Math.round(px * 3.2);

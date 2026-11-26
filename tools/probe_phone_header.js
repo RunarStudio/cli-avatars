@@ -6,6 +6,7 @@ const { chromium } = require("playwright");
 
 async function probe(browser, url, width) {
   const ctx = await browser.newContext({ viewport: { width, height: 860 }, deviceScaleFactor: 1, hasTouch: true, isMobile: width < 1024 });
+  await ctx.addInitScript(() => localStorage.setItem("cli-avatars-map-hint", "1"));  // PHONECLEAN: the hint seen
   const page = await ctx.newPage();
   await page.goto(url);
   await page.waitForFunction(() => state.scene && state.map && !document.getElementById("mapTools").hidden);

@@ -99,9 +99,11 @@ function miniBox() {
 function drawMini() {
   if (!state.map || !state.scene || !state.scene.map) return;
   const b = miniBox(), dpr = window.devicePixelRatio || 1, v = state.view, { w, h } = size();
-  const key = [b.w, b.h, dpr, Math.round(v.x), Math.round(v.y), v.s.toFixed(3), state.mapKey.length, state.room].join(",");
+  const key = [b.w, b.h, dpr, Math.round(v.x), Math.round(v.y), v.s.toFixed(3), state.mapKey.length, state.room, phoneView()].join(",");
   if (key === miniKey) return;
   miniKey = key;
+  // PHONECLEAN: on a phone the mini-map waits until the view is zoomed in past the whole map
+  mini.style.display = phoneView() && v.s <= wholeMap().s * 1.01 ? "none" : "";
   if (mini.width !== b.w * dpr) { mini.width = b.w * dpr; mini.height = b.h * dpr; mini.style.width = b.w + "px"; mini.style.height = b.h + "px"; }
   miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   miniCtx.clearRect(0, 0, b.w, b.h);
@@ -120,6 +122,7 @@ function drawMini() {
   miniCtx.lineWidth = 1;
   miniCtx.strokeRect(Math.round(x0) + 0.5, Math.round(y0) + 0.5, Math.max(3, Math.round(vw) - 1), Math.max(3, Math.round(vh) - 1));
   $("mapTools").hidden = false;
+  firstHint();
 }
 
 function miniMove(e, glide) {
@@ -142,6 +145,7 @@ function setFull(on) {
   document.body.classList.toggle("mapfull", on);
   $("mapFull").setAttribute("aria-pressed", on ? "true" : "false");
   $("mapFull").title = on ? "Show tasks and chat" : "Map full screen";
+  $("mapFull").textContent = on ? "\u26f6 Exit map" : "\u26f6 Full map";
   try { localStorage.setItem(FULL_KEY, on ? "1" : "0"); } catch (_e) { /* storage full */ }
 }
 
@@ -336,6 +340,71 @@ function paintBotsChip() {
   $("botsCount").textContent = live ? live + " active" : bots.length + (bots.length === 1 ? " bot" : " bots");
   chip.classList.toggle("on", live > 0);
 }
+
+// --- PHONECLEAN: zoom buttons and the how-to hint, shown once on a phone and again from ? ----------------------
+function zoomBy(k) {
+  const { w, h } = size(), whole = wholeMap();
+  const s = Math.min(8, MapNav.snap(state.view.s * k, window.devicePixelRatio || 1));
+  mapCue("tap");
+  if (s <= whole.s * 1.01) { state.home = true; animateTo(whole, 260); return; }
+  state.home = false;
+  animateTo(clampView(MapNav.zoomAt(state.view, s, { x: w / 2, y: h / 2 })), 260);
+}
+
+const HINT_KEY = "cli-avatars-map-hint";
+const HINT_ICONS = {
+  drag: ["....1....", "...111...", "....1....", ".1..1..1.", "111111111", ".1..1..1.", "....1....", "...111...", "....1...."],
+  pinch: ["11.....11", "1.......1", "..1...1..", "...1.1...", ".........", "...1.1...", "..1...1..", "1.......1", "11.....11"],
+  tap: ["..11111..", ".1.....1.", "1.......1", "1...1...1", "1..111..1", "1...1...1", "1.......1", ".1.....1.", "..11111.."],
+  rooms: ["111111111", "1...1...1", "1...1...1", "1...1...1", "111111111", "1...1...1", "1...1...1", "1...1...1", "111111111"],
+};
+
+function pixelIcon(c, rows, color) {
+  c.width = rows[0].length;
+  c.height = rows.length;
+  const g = c.getContext("2d");
+  g.fillStyle = color;
+  rows.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === "1") g.fillRect(x, y, 1, 1); });
+  return c;
+}
+
+function showHint() {
+  const h = state.scene && state.scene.hierarchy, list = $("mapHintTiers");
+  list.replaceChildren();
+  for (const t of (h && h.tiers) || []) {
+    const ico = pixelIcon(el("canvas", "mh-tier"), t.rows, t.color), label = el("span", "", t.label);
+    label.style.color = t.color;
+    const li = el("li");
+    li.append(ico, el("b", "", t.name), label);
+    list.append(li);
+  }
+  list.hidden = !list.children.length;
+  list.previousElementSibling.hidden = list.hidden;
+  $("mapHint").hidden = false;
+  $("mapHintOk").focus();
+}
+
+function hideHint() {
+  $("mapHint").hidden = true;
+  try { localStorage.setItem(HINT_KEY, "1"); } catch (_e) { /* storage full */ }
+}
+
+let hintChecked = false;
+function firstHint() {
+  if (hintChecked || !state.scene) return;
+  hintChecked = true;
+  let seen = false;
+  try { seen = localStorage.getItem(HINT_KEY) === "1"; } catch (_e) { /* no storage */ }
+  if (!seen && phoneView()) showHint();
+}
+
+for (const c of document.querySelectorAll(".mh-ico")) pixelIcon(c, HINT_ICONS[c.dataset.ico], "#ffd27a");
+$("mapIn").addEventListener("click", () => zoomBy(2));
+$("mapOut").addEventListener("click", () => zoomBy(0.5));
+$("mapHelp").addEventListener("click", () => { mapCue("tap"); showHint(); });
+$("mapHintOk").addEventListener("click", hideHint);
+$("mapHint").addEventListener("click", (e) => { if (e.target === $("mapHint")) hideHint(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("mapHint").hidden) hideHint(); });
 
 $("mapRooms").addEventListener("click", openPlaces);
 $("mapHome").addEventListener("click", () => { leaveRoom(); mapCue("whoosh"); });

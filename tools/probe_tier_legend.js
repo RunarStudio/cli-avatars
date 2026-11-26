@@ -13,7 +13,7 @@ async function probe(browser, url, width, shot) {
   await page.waitForFunction(() => state.scene && state.map && !document.getElementById("mapTools").hidden);
   await page.evaluate(() => document.fonts.ready);
   const drawn = await page.evaluate(() => state.drawn || 0);
-  await page.waitForFunction((t) => state.drawn > t && (state.tierLegend || []).length === 4, drawn);
+  await page.waitForFunction((t) => state.drawn > t && (innerWidth < 1024 || (state.tierLegend || []).length === 4), drawn);
   const found = await page.evaluate(() => {
     const c = document.getElementById("map").getBoundingClientRect();
     const rows = state.tierLegend.map((r) => {

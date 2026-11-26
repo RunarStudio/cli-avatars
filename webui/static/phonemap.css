@@ -81,3 +81,28 @@
   .bar-tools > .icon { flex: 1 1 0; min-width: 28px; max-width: 44px; height: 32px; }
   .bar-tools > #fit { display: none; }
 }
+/* PHONECLEAN: zoom buttons over the Rooms row, the how-to hint, no idle flicker on a phone; wide unchanged */
+.mt-top { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+.mt-top > * { pointer-events: auto; }
+.mt-zoom { display: flex; gap: 4px; }
+.mt-zoom .mt-btn { font-size: 18px; line-height: 1; }
+.map-hint { position: fixed; inset: 0; z-index: 12; display: grid; place-items: center; padding: 16px; background: #05030acc; }
+.map-hint[hidden] { display: none; }
+.mh-card { width: min(340px, 100%); padding: 14px 14px 12px; background: var(--stone-2); border: 2px solid var(--deep);
+  box-shadow: 0 0 0 2px var(--edge), 0 10px 30px #000c; }
+.mh-card h3, .mh-card h4 { margin: 0 0 10px; color: var(--torch-2); letter-spacing: .1em; text-transform: uppercase; font-size: 12px; }
+.mh-card h4 { margin: 12px 0 6px; color: var(--dim); font-size: 11px; }
+.mh-rows, .mh-tiers { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mh-rows li { display: grid; grid-template-columns: 27px 1fr; gap: 10px; align-items: center; font-size: 13px; }
+.mh-rows b { color: var(--torch-2); }
+.mh-ico { width: 27px; height: 27px; image-rendering: pixelated; }
+.mh-tiers { gap: 4px; font-size: 12px; }
+.mh-tiers li { display: grid; grid-template-columns: 14px auto 1fr; gap: 8px; align-items: center; }
+.mh-tier { width: 10px; height: 10px; image-rendering: pixelated; }
+.mh-card .send { margin-top: 12px; }
+@media (max-width: 1023px) {
+  .torch, .candle, .bots-chip.on .bots-dot { animation: none; }
+}
+@media (min-width: 1024px) {
+  #mapIn, #mapOut, #mapHelp, .map-hint { display: none; }
+}

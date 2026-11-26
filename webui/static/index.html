@@ -56,10 +56,27 @@
     <div class="stage"><canvas id="map"></canvas>
       <button id="botsChip" class="bots-chip" type="button" hidden aria-haspopup="dialog" title="Active bots: tap one to glide to it"><span class="bots-dot" aria-hidden="true"></span><span id="botsCount"></span></button>
       <div id="mapTools" class="map-tools" hidden>
-        <canvas id="mini" class="mini" aria-label="Mini-map: tap or drag to move the view"></canvas>
-        <div class="mt-row"><button id="mapRooms" class="mt-btn" type="button" aria-haspopup="dialog" title="Jump to a room">&#9638; Rooms</button>
-          <button id="mapHome" class="mt-btn" type="button" title="Whole map">&#10530;</button>
+        <div class="mt-top"><canvas id="mini" class="mini" aria-label="Mini-map: tap or drag to move the view"></canvas>
+          <div class="mt-zoom"><button id="mapOut" class="mt-btn" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
+          <button id="mapIn" class="mt-btn" type="button" title="Zoom in" aria-label="Zoom in">+</button></div></div>
+        <div class="mt-row"><button id="mapHelp" class="mt-btn" type="button" title="How to move the map" aria-haspopup="dialog" aria-label="How to move the map">?</button>
+          <button id="mapRooms" class="mt-btn" type="button" aria-haspopup="dialog" title="Jump to a room">&#9638; Rooms</button>
+          <button id="mapHome" class="mt-btn" type="button" title="Whole map" aria-label="Whole map">&#10530;</button>
           <button id="mapFull" class="mt-btn" type="button" aria-pressed="false" title="Map full screen">&#9974;</button></div>
+      </div>
+      <div id="mapHint" class="map-hint" hidden role="dialog" aria-modal="true" aria-labelledby="mapHintTitle">
+        <div class="mh-card">
+          <h3 id="mapHintTitle">Moving around the map</h3>
+          <ul class="mh-rows">
+            <li><canvas class="mh-ico" data-ico="drag"></canvas><span><b>Drag</b> to move</span></li>
+            <li><canvas class="mh-ico" data-ico="pinch"></canvas><span><b>Pinch</b> or <b>double-tap</b> to zoom, or <b>+</b> <b>&minus;</b></span></li>
+            <li><canvas class="mh-ico" data-ico="tap"></canvas><span><b>Tap a room</b> for its tasks, a bot for its chat</span></li>
+            <li><canvas class="mh-ico" data-ico="rooms"></canvas><span><b>Rooms</b> jumps to one, <b>&#10530;</b> shows the whole map</span></li>
+          </ul>
+          <h4>Who is who</h4>
+          <ul id="mapHintTiers" class="mh-tiers"></ul>
+          <button id="mapHintOk" class="send wide" type="button">Got it</button>
+        </div>
       </div>
       <div id="lapse" class="lapse" hidden role="region" aria-label="Time-lapse">
         <div class="lapse-row"><button id="lapsePrev" type="button" aria-label="Previous day">&#9664;</button><span id="lapseDay" class="lapse-day"></span><button id="lapseNext" type="button" aria-label="Next day">&#9654;</button>
