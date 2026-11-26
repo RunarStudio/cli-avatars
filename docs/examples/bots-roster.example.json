@@ -8,7 +8,7 @@
       "bots": [
         {"name": "Release Oca", "emoji": "", "skin": "caine"},
         {"name": "Drift Oca", "emoji": "", "skin": "meowatar"},
-        {"name": "Revisor de PRs", "emoji": "", "skin": "amongo"},
+        {"name": "PR Reviewer", "emoji": "", "skin": "amongo"},
         {"name": "SGAG Helper", "emoji": "", "skin": "ponmi"}
       ]
     },
@@ -19,10 +19,10 @@
       "bots": [
         {"name": "Grok Bot", "emoji": "", "skin": "caine"},
         {"name": "Dwight", "emoji": "", "skin": "bubble"},
-        {"name": "Buzon", "emoji": "", "skin": "michimaru"},
+        {"name": "Mailbox", "emoji": "", "skin": "michimaru"},
         {"name": "Dungeon Keeper", "emoji": "", "skin": "ember_mage"},
-        {"name": "Melodia", "emoji": "", "skin": "forest_scout"},
-        {"name": "Palomita", "emoji": "", "skin": "frost_wanderer"},
+        {"name": "Melody", "emoji": "", "skin": "forest_scout"},
+        {"name": "Popcorn", "emoji": "", "skin": "frost_wanderer"},
         {"name": "Content Manager", "emoji": "", "skin": "meowatar"}
       ]
     },
@@ -68,8 +68,8 @@
       "collapsed": false,
       "order": 6,
       "bots": [
-        {"name": "Mosaico", "emoji": "", "skin": "michimaru"},
-        {"name": "Chispita", "emoji": "", "skin": "bubble"}
+        {"name": "Mosaic", "emoji": "", "skin": "michimaru"},
+        {"name": "Sparky", "emoji": "", "skin": "bubble"}
       ]
     }
   ]

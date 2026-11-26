@@ -93,16 +93,16 @@ class ExampleTests(unittest.TestCase):
             ],
         )
         by_group = {group.name: [bot.name for bot in bots] for group, bots in grouped(roster)}
-        self.assertEqual(by_group["OCA"], ["Release Oca", "Drift Oca", "Revisor de PRs", "SGAG Helper"])
+        self.assertEqual(by_group["OCA"], ["Release Oca", "Drift Oca", "PR Reviewer", "SGAG Helper"])
         self.assertEqual(
             by_group["Personal"],
-            ["Grok Bot", "Dwight", "Buzon", "Dungeon Keeper", "Melodia", "Palomita", "Content Manager"],
+            ["Grok Bot", "Dwight", "Mailbox", "Dungeon Keeper", "Melody", "Popcorn", "Content Manager"],
         )
         self.assertEqual(by_group["Project: PR Please"], ["Caine", "Ponmi", "Zoob"])
         self.assertEqual(by_group["Project: Spidey"], ["Miles", "Peter"])
         self.assertEqual(by_group["Project: Sinsmas"], ["Blitzy", "Letizia"])
         self.assertEqual(by_group["Project: CLI Avatars"], ["Pixel", "Grok Crow"])
-        self.assertEqual(by_group["Ungrouped"], ["Mosaico", "Chispita"])
+        self.assertEqual(by_group["Ungrouped"], ["Mosaic", "Sparky"])
         self.assertEqual(sum(len(bots) for _group, bots in grouped(roster)), 22)
         self.assertTrue(all(bot.id and " " not in bot.id for _group, bots in grouped(roster) for bot in bots))
 
@@ -214,7 +214,7 @@ class RosterTests(unittest.TestCase):
             agents = service.dungeon_agents()
             self.assertEqual(
                 sorted(agent.name for agent in agents.values()),
-                ["Drift Oca", "Release Oca", "Revisor de PRs", "SGAG Helper"],
+                ["Drift Oca", "PR Reviewer", "Release Oca", "SGAG Helper"],
             )
             sample = next(iter(agents.values()))
             self.assertEqual(sample.source, "bot")
