@@ -197,6 +197,7 @@ def public_avatars(lay: dict, origin: tuple[int, int], now: float) -> list[dict]
     """Every avatar of the roster in map pixels: feet, facing, walking; ids hashed, no agent ids."""
     left, top = origin
     out = []
+    held = _held_sessions()
     for row in live.rows(lay, now):
         if row.get("kind") not in (*live.KINDS, "courier"):
             continue
@@ -214,7 +215,22 @@ def public_avatars(lay: dict, origin: tuple[int, int], now: float) -> list[dict]
             out[-1]["need"] = row["need"]
         if row["kind"] == "user" and type(row.get("badge")) is int and row["badge"] > 0:
             out[-1]["badge"] = min(99, row["badge"])
+        if row["kind"] in ("orchestrator", "grok", "subagent"):
+            cli, state = held.get(str(row["id"]), ("", ""))
+            out[-1]["cli"] = cli or ("grok" if row["kind"] == "grok" else "")
+            out[-1]["state"] = state
     return out
+
+
+def _held_sessions() -> dict[str, tuple[str, str]]:
+    """PHONEMAP: agent id -> (CLI, state) of the live sessions for the bot sheet, cleaned by ``adapt_sessions``."""
+    from cli_avatars.model.tree import adapt_sessions
+
+    try:
+        rows = adapt_sessions(live.sessions())
+        return {str(r["agent_id"]): (str(r["cli"] or ""), str(r["status"] or "")) for r in rows}
+    except Exception:
+        return {}
 
 
 def _smoke_at(room: dict, left: int, top: int) -> dict | None:
