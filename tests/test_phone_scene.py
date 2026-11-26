@@ -44,7 +44,7 @@ class _Dir(unittest.TestCase):
 class ApothecaryTests(_Dir):
     def test_apothecary_alone_has_the_user_roaming_it(self):
         scene = build_scene(self.dir)
-        self.assertEqual([r["name"] for r in scene["rooms"]], ["Apothecary"])
+        self.assertEqual([r["name"] for r in scene["rooms"]], ["Apothecary", "Park"])
         apothecary = scene["rooms"][0]
         mine = [a for a in scene["avatars"] if a["room"] == "Apothecary"]
         self.assertEqual([a["kind"] for a in mine], ["user"])

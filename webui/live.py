@@ -62,7 +62,7 @@ def fallback(lay: dict | None, now: float, roamers: Iterable[dict] = ()) -> list
     out = [{"id": USER_ID, "kind": "user", "name": "You", "room": APOTHECARY, "feet": home.centre(),
             "face": 1, "walk": False}]
     for room in (lay or {}).get("rooms") or []:
-        floor = plan.floor(room.get("name", "")) if room.get("kind") else None
+        floor = plan.floor(room.get("name", "")) if room.get("kind") not in (None, "park") else None
         if floor is not None:
             cli = room.get("cli")
             out.append(_walking(floor, f"{cli}:{room['name']}", "grok" if cli == "grok" else "orchestrator",

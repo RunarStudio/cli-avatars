@@ -328,7 +328,7 @@ class DemoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             demo_seed(Path(tmp))
             scene = build_scene(Path(tmp))
-            self.assertEqual(len(scene["rooms"]), 4)
+            self.assertEqual(len(scene["rooms"]), 5)
             self.assertEqual(len(scene["avatars"]), 4)
             from webui.scene import cards
 

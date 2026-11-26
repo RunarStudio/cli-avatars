@@ -25,7 +25,7 @@ from events import EventRejected
 from registry.facade import Registry
 from registry.task_decisions import open_by_card, pending, public
 from topics import get_topic, valid_topic_id
-from webui import live
+from webui import live, park_scene
 from webui.skin_sprite import key_of, sheet_png
 
 # roster look -> the Dungeon's AV.1 look; a Grok bot's own hue is "grok-<0..359>"
@@ -37,6 +37,7 @@ MAX_CARDS = 300
 FULL_BYTES = 512 * 1024
 WALL_PX = 48
 POSES = ("stride", "slump", "tap", "idle")
+IDLE_ACTS = ("warm", "dice", "drink", "read", "polish", "feed", "sit", "hit", "lift", "spar", "stroll", "work")
 NEEDS = ("decision", "blocked", "reply", "run")
 SMOKE_LIFT, BRAZIER_LIFT = 48, 14
 _LOCK = threading.Lock()
@@ -49,11 +50,11 @@ def layout(directory: Path | str) -> dict | None:
     return SessionRooms(Path(directory) / "ui" / "session_rooms.json").layout(time.time())
 
 
-def _map(lay: dict | None) -> tuple[bytes, tuple[int, int], tuple[int, int]] | None:
-    """``(png, (w, h), (left, top))`` of the composed map, cached per layout."""
+def _map(lay: dict | None, props: bool = True) -> tuple[bytes, tuple[int, int], tuple[int, int]] | None:
+    """``(png, (w, h), (left, top))`` of the composed map with the park and the idle objects, cached per layout."""
     if lay is None:
         return None
-    key = json.dumps(lay, sort_keys=True)
+    key = json.dumps(lay, sort_keys=True) + str(props)
     with _LOCK:
         if key in _MAPS:
             return _MAPS[key]
@@ -64,6 +65,7 @@ def _map(lay: dict | None) -> tuple[bytes, tuple[int, int], tuple[int, int]] | N
     from cli_avatars.app.throne_stamp import stamp_thrones
 
     stamp_thrones(image, lay)
+    park_scene.stamp(image, lay, props)
     out = io.BytesIO()
     image.save(out, "PNG")
     found = (out.getvalue(), image.size, image.info.get("origin", (0, 0)))
@@ -100,7 +102,7 @@ def skin_png(skin: str, size: str) -> bytes | None:
 
 
 def map_png(directory: Path | str) -> bytes | None:
-    found = _map(layout(directory))
+    found = _map(layout(directory), park_scene.props_on(directory))
     return found[0] if found else None
 
 
@@ -205,6 +207,9 @@ def public_avatars(lay: dict, origin: tuple[int, int], now: float) -> list[dict]
                     "sprite": sprite_key(row), "at": _px(u, v, left, top), "face": -1 if row.get("face") == -1 else 1,
                     "walk": bool(row.get("walk")), "pose": row["pose"] if row.get("pose") in POSES else "idle",
                     "smoke": round(min(1.0, max(0.0, float(smoke))), 3) if type(smoke) in (int, float) else 0.0})
+        idle = row.get("idle") if isinstance(row.get("idle"), dict) else {}
+        if idle.get("act") in IDLE_ACTS:
+            out[-1]["idle"] = idle["act"]
         if row.get("need") in NEEDS:
             out[-1]["need"] = row["need"]
         if row["kind"] == "user" and type(row.get("badge")) is int and row["badge"] > 0:
@@ -227,14 +232,14 @@ def _smoke_at(room: dict, left: int, top: int) -> dict | None:
 def avatars_now(directory: Path | str) -> list[dict] | None:
     """The avatars for one SSE tick; None while there is no map."""
     lay = layout(directory)
-    found = _map(lay)
+    found = _map(lay, park_scene.props_on(directory))
     return public_avatars(lay, found[2], time.time()) if found else None
 
 
 def build_scene(directory: Path | str) -> dict:
     """Rooms with their floor outline and box, every avatar of the roster, and each task's room."""
     lay = layout(directory)
-    found = _map(lay)
+    found = _map(lay, park_scene.props_on(directory))
     if found is None:
         return {"map": None, "rooms": [], "avatars": [], "sprites": {}, "tasks": {}}
     _png, (w, h), (left, top) = found
@@ -251,7 +256,7 @@ def build_scene(directory: Path | str) -> dict:
         box += [min(w, max(xs)) - box[0], min(h, max(ys)) - box[1]]
         name = room["name"]
         title = APOTHECARY
-        if room.get("custom"):
+        if room.get("custom") or room.get("kind") == "park":
             title = name
         elif room.get("session"):
             try:
@@ -281,6 +286,9 @@ def build_scene(directory: Path | str) -> dict:
                             "feet": COURIER_FEET if key == "courier" else FEET_UP}
     scene = {"map": {"w": w, "h": h, "origin": [left, top]}, "rooms": rooms, "avatars": avatars, "sprites": sprites,
              "counts": {"total": counts.total, "projects": counts.projects}}
+    from cli_avatars.app.orch_rooms import board_cards
+
+    scene["park"] = park_scene.state(directory, lay, left, top, board_cards(directory) if board is None else board)
     scene["tasks"] = {c["id"]: room_for_topic(scene, c.get("topic")) for c in cards(directory)}
     scene["couriers"] = [{"room": room_for_topic(scene, row["to_topic"]), "card": row["to"], "key": row["key"],
                           "from": room_for_topic(scene, row["from_topic"])} for row in lit(directory)]

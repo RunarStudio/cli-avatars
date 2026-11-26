@@ -210,6 +210,7 @@ function frame(now) {
     drawGlow(now);
     if (typeof drawRise === "function") drawRise(now);
     const lapsing = typeof drawLapse === "function" && drawLapse(now);
+    if (!lapsing && typeof drawParkUnder === "function") drawParkUnder(now);
     if (!lapsing && typeof drawBodyUnder === "function") drawBodyUnder(now);
     if (!lapsing) drawAvatars(now);
     if (!lapsing && typeof drawBodyOver === "function") drawBodyOver(now);
@@ -220,6 +221,7 @@ function frame(now) {
     drawLabels();
     if (!lapsing && typeof drawTiers === "function") drawTiers();
     if (!lapsing) drawNames();
+    if (!lapsing && typeof drawParkLabels === "function") drawParkLabels();
     if (!lapsing && typeof drawYouOver === "function") drawYouOver(now);
   }
   requestAnimationFrame(frame);
