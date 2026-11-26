@@ -46,6 +46,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `repos.py` | REPOS.1: repos as project records with a folder (add, remove), which agents work in each by role (Caine, sub-orchestrators, subagents) and since when; `repos_live.py`, `repos_panel.py`, `repo_badge.py`, `repo_art.py` show it, `webui/repo_routes.py` on the phone (`docs/repos.md`) |
 | `cli_avatars/app/door_counts.py` | DOOR-COUNTS: counts per room, project and in total (no Tk); `door_plaque.py` and `door_totals.py` draw them (`docs/door-counts.md`) |
 | `routing.py` | Composer → orchestrator routing |
+| `text_fonts.py`, `cli_avatars/app/art_words.py`, `cli_avatars/app/text_settings.py` | FONT.1: the text face (Atkinson Hyperlegible, Lexend, OpenDyslexic, Pixel), sizes and spacing from `config.json` `text`; private font registration, named Tk fonts, words on pixel boards, the Settings rows, the phone's `text.css` (`docs/readable-text.md`) |
 | `cli_avatars_emit.py` | `python -m cli_avatars_emit` — state, say, inbox, hooks installer |
 | `emit_app.py` | `cli-avatars-emit app status\|restart\|update\|logs` — manage the running app (OPS.1, `docs/agent-ops.md`) |
 | `emit_phone.py` | `cli-avatars-emit app phone status\|refresh` — check and redo `tailscale serve` for the phone view (OPS.2, `docs/agent-ops.md`) |
@@ -140,6 +141,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Talk to it from the phone (voice) | `docs/phone-voice.md` |
 | Bot roster and status | `docs/bot-status.md` |
 | Check, restart, update the running app | `docs/agent-ops.md` |
+| Readable text face, size and spacing (desktop and phone) | `docs/readable-text.md` |
 | Repos and which agents use them (desktop and phone) | `docs/repos.md` |
 | Main orchestrator, Summon and the chat tiers (desktop and phone) | `docs/orchestrator-hierarchy.md` |
 
