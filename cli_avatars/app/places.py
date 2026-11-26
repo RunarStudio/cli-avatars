@@ -18,6 +18,7 @@ from cli_avatars.app.dungeon_map import (
     virtual_from_canvas,
 )
 from cli_avatars.app.overlays import bind_avatar
+from cli_avatars.app.place_markers import draw_inside_sub_marks
 from cli_avatars.app.place_store import (
     empty_file,
     forget,
@@ -26,12 +27,11 @@ from cli_avatars.app.place_store import (
     remember,
     save_file,
 )
-from cli_avatars.app.place_markers import draw_inside_sub_marks
 from cli_avatars.app.render import canvas_photos
-from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.desktop.chrome import frame_hwnd
 from cli_avatars.desktop.windows import occlusion_covers
 from cli_avatars.model.place import DESKTOP, INSIDE, RETURNING, Place, drag_out, new_actor, portal_done
+from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.world.avatar import Avatar
 from cli_avatars.world.monitors import monitor_at
 

@@ -24,8 +24,8 @@ from memmap.layout import layout
 from memmap.links import list_markdown, load_links, refresh_links, save_links
 from memmap.model import classify, find_project_root, project_name
 from memmap.store import READS_NAME, ROTATION_NAME, memmap_root
-from memmap.tasks import task_counts, task_rows
 from memmap.tail import ReadsTail
+from memmap.tasks import task_counts, task_rows
 
 MAX_DRAWN_EDGES = 120
 ROOT_EVERY_S = 30.0
