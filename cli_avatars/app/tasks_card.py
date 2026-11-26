@@ -262,21 +262,15 @@ class CardPanel:
         self._fill_where(card)
         self._fill_chats(card)
         self._fill_decisions(card)
-        if self.pack is not None:
-            self.pack.fill(card)
-        if self.sandbox is not None:
-            self.sandbox.fill(card)
-        if self.asks is not None:
-            self.asks.fill(card)
+        for slip in (self.pack, self.sandbox, self.asks):
+            if slip is not None:
+                slip.fill(card)
 
     def tick(self, now: float | None = None) -> None:
         """Keep "updated Nm ago" current, touching one label only when its text changes; the Pack checks its store."""
-        if self.pack is not None:
-            self.pack.tick()
-        if self.sandbox is not None:
-            self.sandbox.tick()
-        if self.asks is not None:
-            self.asks.tick()
+        for slip in (self.pack, self.sandbox, self.asks):
+            if slip is not None:
+                slip.tick()
         if self.card is None or self.where_ts is None:
             return
         age = summary_age(self.card.get("summary_at"), now)
@@ -470,9 +464,7 @@ class CardPanel:
         self.view.yview_moveto(0)
         self.errors = {}
         self.status_badge = None
-        self.pack = None
-        self.sandbox = None
-        self.asks = None
+        self.pack = self.sandbox = self.asks = None
 
     def _head(self, title: str, sub: str) -> None:
         self.head = head = tk.Frame(self.sheet, bg=WINE)

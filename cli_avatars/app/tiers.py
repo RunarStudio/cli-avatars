@@ -113,6 +113,12 @@ def tier_of(directory: Path | str, room: str) -> str:
     return "main" if room and room == main_sid(directory) else "topic"
 
 
+def opening_cli(directory: Path | str, config: object, topic: str, room) -> str:
+    """The CLI a chat opens on: in the throne room's topic the main orchestrator first, then Claude; ``""`` for none."""
+    first = (main_cli(config), "claude") if topic and topic == main_sid(directory) else ("claude",)
+    return next((c for c in first if room is not None and c in room.participants), "")
+
+
 def main_sid(directory: Path | str) -> str:
     """The open main session's topic, from ``ui/session_rooms.json``; ``""`` when there is none."""
     try:

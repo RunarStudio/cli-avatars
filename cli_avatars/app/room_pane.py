@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 import text_fonts as fonts
 from board.model import CHAT_CLIS
-from cli_avatars.app import cli_chips, cues, grok_topics, pack_pane, room_log, task_sessions, tiers
+from cli_avatars.app import bot_ask, cli_chips, cues, grok_topics, pack_pane, room_log, task_sessions, tiers
 from cli_avatars.app.chat_clis import COLORS, NAMES, launch, short_path, state, template
 from cli_avatars.app.grok_list import GrokList
 from cli_avatars.model.room import (
@@ -161,10 +161,7 @@ class RoomPane:
         self.room_id = topic_id
         room = self._room()
         if not (self.cli_target() and room is not None and room.participants):
-            first = ("claude",)
-            if topic_id == tiers.main_sid(self.window.directory()):
-                first = (tiers.main_cli(self.window._config()), "claude")
-            self.target = next((c for c in first if room is not None and c in room.participants), INBOX)
+            self.target = tiers.opening_cli(self.window.directory(), self.window._config(), topic_id, room) or INBOX
         self._show()
         self._reload()
         self._pin_refresh(force=True)
@@ -183,15 +180,7 @@ class RoomPane:
         self._reload()
 
     copy_context = cli_chips.copy_context
-
-    def ask_bot(self) -> None:
-        """GROK-ORCH.1: the bot picker for this chat; a task chat's ask names its card. Runs no bot."""
-        from cli_avatars.app.bot_ask import open_picker
-
-        directory = self.window.directory()
-        card = task_chats.task_for(directory, self.room_id) if self.room_id else None
-        open_picker(self._composer.winfo_toplevel(), directory, card=card["id"] if card else "", room=self.room_id,
-                    on_sent=lambda row: self._status(f"Asked {row['bot_name']}: the answer lands here."))
+    ask_bot = bot_ask.from_chat
 
     def prepare(self, prompt: str):
         """Room settings for one launch, or ``None`` with the reason in the status line.

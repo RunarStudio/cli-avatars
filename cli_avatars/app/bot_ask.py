@@ -207,3 +207,13 @@ def step(app, now: float | None = None) -> list[dict]:
 
         chime_cues.cue(app, "answer")
     return landed
+
+
+def from_chat(pane) -> None:
+    """The room pane's **Ask a bot…**: the picker for this chat; a task chat's ask names its card. Runs no bot."""
+    from registry import task_chats
+
+    directory = pane.window.directory()
+    card = task_chats.task_for(directory, pane.room_id) if pane.room_id else None
+    open_picker(pane._composer.winfo_toplevel(), directory, card=card["id"] if card else "", room=pane.room_id,
+                on_sent=lambda row: pane._status(f"Asked {row['bot_name']}: the answer lands here."))

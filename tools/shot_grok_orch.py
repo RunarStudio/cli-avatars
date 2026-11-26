@@ -90,12 +90,11 @@ def build(root):
     from cli_avatars.app import session_rooms as sr
     from cli_avatars.app.bootcheck import _ProbeHost
     from cli_avatars.app.dungeon_window import DungeonWindow
-    from cli_avatars.paths import config_path
 
     host = _ProbeHost(root)
     host.scanner = SimpleNamespace(bubbles=BubbleBoard(), get_agents=lambda: {})
     host.config = {}
-    host._config_path = config_path()
+    host._config_path = _DATA / "config.json"
     host._chat_directory = lambda: _DATA
     host._rooms_records = lambda: []
     host._session_rooms = sr.SessionRooms(_DATA / "ui" / "session_rooms.json")
