@@ -73,3 +73,11 @@
   #mapFull { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .drawer, .bots-chip.on .bots-dot { animation: none; } }
+/* PHONEFIX: on a phone the header icons take their own row, shared evenly; the map's Whole map stands in for the header's */
+.bar-tools { display: contents; }
+@media (max-width: 1023px) {
+  .map-pane > .bar { flex-wrap: wrap; row-gap: 6px; }
+  .map-pane > .bar > .bar-tools { display: flex; flex: 1 1 100%; min-width: 0; justify-content: space-between; gap: 3px; }
+  .bar-tools > .icon { flex: 1 1 0; min-width: 28px; max-width: 44px; height: 32px; }
+  .bar-tools > #fit { display: none; }
+}

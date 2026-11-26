@@ -27,7 +27,7 @@ Pick the address marked **Tailscale** in **Listen on**. The server then listens 
 The map is the Dungeon's own pixels (every room, custom ones too, the Apothecary, the Oni Pit, the Crypt and the park) with the live avatars, drawn at whole device pixels so the art stays crisp.
 
 - **Drag** with one finger to pan, **pinch** or **double-tap** to zoom (double-tap zooms in two times at that spot). The view stays over the map, as on the PC; a pinch settles on a crisp scale.
-- **Mini-map** (top right): the box shows what you see; tap or drag on it to move there. **⤢** shows the whole map, **⛶** gives the map the whole screen (tasks and chat come back when you open one).
+- **Mini-map** (top right): the box shows what you see; tap or drag on it to move there. **⤢** shows the whole map, **⛶** gives the map the whole screen (tasks and chat come back when you open one). On a phone the map bar's icons take their own row under the title, every one in reach at 360 px; the map's **⤢** stands in for the bar's.
 - **Rooms** lists every room, the Oni Pit and the Crypt with their task and bot counts; a tap glides there.
 - Zoom, pan and full screen are kept across reloads on this phone.
 - **Tap a room**: a drawer with its tasks (column and next action) and the bots in it; a task opens its card and chats in the Tasks list, **Room chat** opens the room's chat. Tap the room again to edit it (PHONE.3).

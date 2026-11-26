@@ -33,6 +33,7 @@
       <h1><span class="torch" aria-hidden="true"></span>Dungeon</h1>
       <span id="here" class="here"></span>
       <span id="live" class="live" title="Live updates"></span>
+      <div class="bar-tools">
       <button id="decideBtn" class="icon decide" type="button" title="Decisions waiting on you" aria-haspopup="dialog">&#9670;<span id="decideCount" class="decide-count" hidden></span></button>
       <button id="needsBtn" class="icon needs" type="button" title="Nothing waits on you" aria-haspopup="dialog"><span class="bell" aria-hidden="true"></span><span id="needsCount" class="needs-count" hidden></span></button>
       <button id="mailBtn" class="icon mail" type="button" title="Mailroom: nothing to sort" aria-haspopup="dialog"><span class="env" aria-hidden="true"></span><span id="mailCount" class="needs-count" hidden></span></button>
@@ -45,6 +46,7 @@
       <button id="appBtn" class="icon app" type="button" title="App: version, Update and repos" aria-haspopup="dialog">&#9881;</button>
       <button id="sound" class="icon" type="button" aria-pressed="false" title="Sound: zoom, send and reply">&#9835;</button>
       <button id="fit" class="icon" type="button" title="Whole map">&#10530;</button>
+      </div>
     </header>
     <div id="focusBar" class="focus-bar" hidden role="status" aria-live="polite"><span class="candle" aria-hidden="true"></span>
       <b>Focus</b><span id="focusTitle" class="focus-title"></span><span id="focusWaiting" class="tseal" title="Alerts waiting until you leave focus"></span>
