@@ -43,11 +43,18 @@ function drawTiers() {
     tierChip(t, v.x + cx * v.s, y + px * (r.sign ? 3.75 : 1.9), px);
   }
   const { w, h: ch } = size();
-  let y = ch - px * 1.2 * h.tiers.length - px;
+  const widest = 6 + Math.max(...h.tiers.map((t) => ctx.measureText(t.name + "  " + t.label).width + px * 2.6));
+  const tools = document.querySelector("#mapTools:not([hidden]) .mt-row"), c = canvas.getBoundingClientRect();
+  const r = tools && tools.getBoundingClientRect();
+  const lift = r && r.width && widest > r.left - c.left;  // a phone: the legend sits just over the Rooms row
+  let y = (lift ? r.top - c.top - 6 + px * 0.6 : ch - px) - px * 1.2 * h.tiers.length;
   ctx.textAlign = "left";
+  state.tierLegend = [];
   for (const t of h.tiers) {
+    const lw = Math.round(ctx.measureText(t.name + "  " + t.label).width + px * 2.6);
+    state.tierLegend.push({ left: 6, top: Math.round(y - px * 0.6), right: 6 + lw, bottom: Math.round(y - px * 0.6) + Math.round(px * 1.2) });
     ctx.fillStyle = "rgba(12,8,18,.72)";
-    ctx.fillRect(6, Math.round(y - px * 0.6), Math.round(ctx.measureText(t.name + "  " + t.label).width + px * 2.6), Math.round(px * 1.2));
+    ctx.fillRect(6, Math.round(y - px * 0.6), lw, Math.round(px * 1.2));
     tierGlyph(t.rows, t.color, 10, Math.round(y - px * 0.4), Math.max(1, Math.round(px / 9)));
     ctx.fillStyle = "#e9dcbc";
     ctx.fillText(t.name, 14 + px * 1.2, Math.round(y) + 1);
