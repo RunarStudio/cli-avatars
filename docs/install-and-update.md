@@ -78,6 +78,18 @@ A bar drawn in code fills as the update moves: on the status bar beside the prog
 
 Fetch and PyInstaller report no progress of their own, so only those two phases carry a moving glint; the other steps are short. A failure turns the bar red where it stopped, with the reason on the line. A finished update (up to date, or the new build staged) plays a soft `ready` cue on Windows: an anvil tap and a rising fifth. It waits while a task is in focus, and `sound.cues: false` turns it off with the other cues.
 
+### Check for updates (CHECK-UPD.1)
+
+**Check for updates** only looks; it never pulls, builds or restarts. It sits beside **Update** on the Dungeon toolbar (WINDOW group), beside **Update app** in Settings, in the tray menu, and on the phone's App sheet.
+
+1. It runs `git fetch origin dev` (the same step as Update) in the clone Update uses, or, running from source, in the source checkout itself.
+2. It counts the commits on `origin/dev` that the running build's commit (`version.json`, else the bundled stamp, else the checkout's `HEAD`) does not have.
+3. It says "Up to date" or "N new on dev" with the newest five commit subjects and the time checked, on the status bar and in Settings. It stamps the "Last checked" line. If the fetch fails it gives the reason.
+
+When updates exist, **Update** on the toolbar and **Update app** in Settings carry a small ember badge with the count, and a soft `found` cue plays on Windows (two rising pings; it waits while a task is in focus, and `sound.cues: false` turns it off). Press **Update** to install them. The update bar shows only the fetch phase, with its glint. Check and Update never run at once: each is refused while the other runs. Only a missing `git` disables Check; a missing PyInstaller or a source checkout does not.
+
+The phone's **Check for updates** works with phone writes off, since it changes nothing; it needs the pairing cookie and the CSRF header like every phone call (`POST /api/update/check`).
+
 ## Build the installer
 
 From the repository root, with PyInstaller and Inno Setup 6.6 or newer installed:
