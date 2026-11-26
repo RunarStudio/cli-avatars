@@ -5,7 +5,7 @@ Config Apply writes fields on ``TUNING``. Movers read ``TUNING.gravity``
 would be a copy of the default and would ignore Apply.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from bundle_paths import asset_path
 
@@ -65,6 +65,15 @@ class Tuning:
     overlay_alpha: float = 1.0       # window alpha: 0.1–1.0
     test_subagents: int = 0          # set > 0 to spawn fake subagents on the demo avatar
     avatar_scale: float = 2.5        # global sprite scale multiplier
+    # SMOOTHANIM: "smooth" plays Sprites/smooth/ on these ms per frame; "classic" is the old sheets and ticks.
+    anim_mode: str = "smooth"
+    anim_ms: dict = field(default_factory=lambda: {
+        "idle": 170.0, "busy": 70.0, "thinking": 150.0, "done": 160.0,
+        "error": 160.0, "blocked": 160.0, "subagent": 110.0, "dying": 120.0,
+    })
+    anim_ease: float = 0.3           # keys hold this much longer, in-betweens this much shorter
+    walk_stride: float = 8.0         # sprite px walked per walk cycle, so the feet do not slide
+    walk_ease: float = 0.15          # share of a Dungeon walk spent easing in, and again easing out
 
 
 TUNING = Tuning()

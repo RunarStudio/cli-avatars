@@ -21,6 +21,27 @@ except Exception as _sprite_err:
 
 REGISTRY = SpriteRegistry() if HAS_SPRITES else None
 
+SHEETS = (
+    ("bubble",   "bubble.png",       48, 48),
+    ("caine",    "caine.png",        48, 48),
+    ("meowatar", "meowatar.png",     60, 50),
+    ("amongo",   "amongo.png",       40, 40),
+    ("bunnylot", "BunnyLot.png",     40, 56),
+    ("michimaru","Michimaru.png",    40, 51),
+    ("ember_mage",     "ember_mage.png",     50, 50),
+    ("forest_scout",   "forest_scout.png",   50, 50),
+    ("frost_wanderer", "frost_wanderer.png", 50, 50),
+)
+SMOOTH_DIR = SPRITES_DIR / "smooth"
+
+
+def sheet_path(fname: str):
+    """SMOOTHANIM: the smoothed sheet when Smooth is on and it was generated, else the original."""
+    smooth = SMOOTH_DIR / fname
+    if TUNING.anim_mode == "smooth" and smooth.exists():
+        return smooth
+    return SPRITES_DIR / fname
+
 
 def load_sprites(registry: object) -> None:
     """Extract sprite sheets from source art if missing, then load all sheets."""
@@ -36,20 +57,9 @@ def load_sprites(registry: object) -> None:
     if not amongo_path.exists():
         _extract_amongo_sheet(amongo_path)
 
-    sheets = [
-        ("bubble",   "bubble.png",       48, 48),
-        ("caine",    "caine.png",        48, 48),
-        ("meowatar", "meowatar.png",     60, 50),
-        ("amongo",   "amongo.png",       40, 40),
-        ("bunnylot", "BunnyLot.png",     40, 56),
-        ("michimaru","Michimaru.png",    40, 51),
-        ("ember_mage",     "ember_mage.png",     50, 50),
-        ("forest_scout",   "forest_scout.png",   50, 50),
-        ("frost_wanderer", "frost_wanderer.png", 50, 50),
-    ]
     scale = TUNING.avatar_scale
-    for name, fname, fw, fh in sheets:
-        path = SPRITES_DIR / fname
+    for name, fname, fw, fh in SHEETS:
+        path = sheet_path(fname)
         if path.exists():
             try:
                 registry.load(name, str(path), frame_w=fw, frame_h=fh, scale=scale)
