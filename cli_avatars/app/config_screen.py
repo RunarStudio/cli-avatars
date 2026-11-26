@@ -160,6 +160,12 @@ def _build_config_ui(self, win):
             bg=BG, fg=FG, selectcolor=SEL, activebackground=BG, activeforeground="white",
             font=FONT, highlightthickness=0,
         ).pack(side="left")
+        from cli_avatars.app import start_card, tour
+
+        for text, command in (("Start check", lambda: start_card.reopen(self)), ("Tour", lambda: tour.start(self))):
+            tk.Button(parent, text=text, command=command, bg=SEL, fg=FG, activebackground="#334477",
+                      activeforeground="white", font=FONT, relief="flat", padx=6, cursor="hand2").pack(
+                side="left", padx=(6, 0))
 
     row(td, "Boot check", boot_widget)
     mount_close_setting(self, td)

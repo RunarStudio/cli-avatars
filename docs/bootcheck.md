@@ -33,6 +33,28 @@ Compared with the previous run, the line adds more passes (`+1 pass`), `faster` 
 
 Each run is appended to `bootcheck_history.jsonl` in the per-user data directory (`events.app_data_dir()`). On Windows that directory is `%LOCALAPPDATA%\cli-avatars\`. A line holds the UTC timestamp, app version, the short commit (from git, or from the bundled `version.json` when the app is frozen), per-check status and milliseconds, and the total. The file keeps the newest 200 runs. Lines do not store paths.
 
+## Start screen and setup card (START-SETUP.1)
+
+On launch a parchment card sits over the Dungeon while the checks run. It is part of the Dungeon window, not a new window, and it does not hold startup: the window is usable behind it and results come back through a queue the Tk loop drains.
+
+- **The app**: one row per boot check above, in plain words (`Pictures and icons`, `Hook port`, `Data folder`, …). Each row spins until its check ends, then shows ✓, ⚠ (took too long) or ✗ with the reason.
+- **Setup**: what the app needs before chats work, checked after the boot check:
+
+| Row | ✓ when | Fix in the row |
+|-----|--------|----------------|
+| Claude CLI | A confirmed binary that still exists | **Browse…** the folder that holds it (or leave it on PATH), **Save** confirms and pins it, like Use this binary in the chat. Missing: ✗ |
+| Grok CLI, Cursor CLI | The same | The same. Missing is ⚠ optional and never keeps the card open |
+| Main orchestrator folder | `ui/summon.json` names a topic whose room has a folder on disk | **Browse…**, **Save**: the folder goes into that room's file and the topic into `ui/summon.json`, as Summon does. Not set yet is ⚠ optional; a folder that moved is ✗ |
+| Repo `<name>` | Each repo's folder exists | **Browse…**, **Save**: the repo's project record gets the new folder, as the Repos tab does |
+
+Save writes that file, checks the row again, and the row turns ✓. Rows show folder names, never full paths.
+
+The card closes by itself about a second after every row is ✓ (or an optional ⚠). It stays while a boot check failed or a setup row needs you; **Close** dismisses it. **Details** opens the per-check list in the Settings dock. A click on the status-bar boot-check line opens the card again with the last results and checks the setup rows again; so do Menu → Start check and Settings → Display → Start check.
+
+Sounds (Windows plays them; held while a task is in focus; off with `sound.cues: false`): `ready` when everything is ready, `filed` when a setup fix was saved.
+
+`desktop.bootcheck: false` turns the card off with the checks. The phone shows the same summary read-only (`GET /api/start`): the last boot check as passed/total, the failing checks by name, and the setup rows that need you. Fixes stay on the Dungeon.
+
 ## Windows check
 
 From the clone, with the overlay dependencies installed:

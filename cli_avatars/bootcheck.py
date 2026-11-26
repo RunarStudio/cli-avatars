@@ -200,7 +200,9 @@ class BootRunner:
         preset: dict[str, tuple[str, str, float]] | None = None,
         version: str = "",
         commit: str = "",
+        on_result: Callable[[CheckResult], None] | None = None,
     ) -> BootReport:
+        """``on_result`` gets each check's result as it ends (START-SETUP.1 live rows), on this thread."""
         ready = dict(preset or {})
         started = self.clock()
         deadline = started + self.budget_s
@@ -211,12 +213,12 @@ class BootRunner:
                 status, detail, ms = ready[check.name]
                 preset_ms += max(0.0, float(ms))
                 results.append(_result(check.name, status, detail, ms))
-                continue
-            if self.clock() >= deadline:
+            elif self.clock() >= deadline:
                 results.append(CheckResult(check.name, "timeout", 0.0, "budget"))
-                continue
-            remaining = max(0.0, deadline - self.clock())
-            results.append(self._one(check, remaining))
+            else:
+                results.append(self._one(check, max(0.0, deadline - self.clock())))
+            if on_result is not None:
+                on_result(results[-1])
         elapsed = max(0.0, (self.clock() - started) * 1000.0) + preset_ms
         return BootReport(
             timestamp=stamp_now(),

@@ -72,6 +72,7 @@ def start_bootcheck(app) -> None:
     _mount_label(app)
     status, detail = inspect_dungeon(app)
     preset = {"dungeon_window": (status, detail, 0.0)}
+    sink = _start_card(app)
 
     def work() -> None:
         # The live Dungeon is on the Tk thread. This worker must not be the
@@ -79,7 +80,7 @@ def start_bootcheck(app) -> None:
         enabled = gc.isenabled()
         gc.disable()
         try:
-            report, trend = execute(preset=preset)
+            report, trend = execute(preset=preset, on_result=sink)
         except Exception:
             report, trend = _empty_failure()
         try:
@@ -102,6 +103,7 @@ def execute(
     config_path=None,
     port: int | None = None,
     write_history: bool = True,
+    on_result=None,
 ) -> tuple[BootReport, Trend]:
     """Run one boot check. History is appended in the data directory."""
     directory = app_data_dir() if data_dir is None else data_dir
@@ -127,6 +129,7 @@ def execute(
             preset=ready,
             version=VERSION,
             commit=boot_commit(),
+            on_result=on_result,
         )
         history = directory / HISTORY_NAME
         previous = None
@@ -261,6 +264,17 @@ def open_bootcheck_details(app) -> None:
     _fill_panel(panel, getattr(app, "_bootcheck_report", None), getattr(app, "_bootcheck_trend", None))
 
 
+def _start_card(app):
+    """START-SETUP.1: the start card shows each check as it ends; ``None`` when it cannot be shown."""
+    from cli_avatars.app import start_card
+
+    names = [check.name for check in build_checks(SPRITES_DIR, CONFIG_PATH, app_data_dir(), 0)]
+    try:
+        return start_card.open_card(app, names, launch=True).sink
+    except Exception:
+        return None
+
+
 def _dungeon_unset() -> tuple[str, str]:
     return "fail", "not run"
 
@@ -290,15 +304,28 @@ def _mount_label(app) -> None:
         cursor="hand2",
     )
     label.pack(side="right", padx=(4, 10))
-    label.bind("<Button-1>", lambda _event: open_bootcheck_details(app))
+    label.bind("<Button-1>", lambda _event: _reopen(app))
     app._bootcheck_label = label
 
 
+def _reopen(app) -> None:
+    from cli_avatars.app import start_card
+
+    start_card.reopen(app)
+
+
 def _finish_on_main(app, report: BootReport, trend: Trend, enabled: bool) -> None:
+    from cli_avatars.app import start_card
+
     gc.collect()
     if enabled:
         gc.enable()
     _apply(app, report, trend)
+    found = start_card.card(app)
+    if found is not None:
+        for check in report.checks:
+            found.boot(check)
+        found.finished()
 
 
 def _apply(app, report: BootReport, trend: Trend) -> None:

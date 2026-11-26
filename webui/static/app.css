@@ -84,7 +84,9 @@ h1, h2 { margin: 0; font-size: 13px; letter-spacing: .14em; text-transform: uppe
 .text { overflow-wrap: anywhere; white-space: pre-wrap; }
 .msg.fresh { animation: rise .4s ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
-.chat-pane .bar .add { margin-left: 4px; color: var(--torch-2); font-size: 20px; line-height: 1; }
+.chat-pane .bar .add { margin-left: 4px; color: var(--torch-2); font-size: 14px; line-height: 1; white-space: nowrap; padding: 0 8px; width: auto; flex: none; }
+.start-check { margin: 0; padding: 4px 12px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--edge); }
+.start-check.needs { color: var(--torch-2); }
 .chat .msg.user { background: linear-gradient(90deg, transparent, #2c2140); }
 .chat .msg.error .text { color: #ff9a7a; }
 .typing { display: flex; align-items: center; gap: 8px; padding: 4px 12px; color: var(--dim); font-size: 12px; }

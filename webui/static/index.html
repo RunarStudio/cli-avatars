@@ -67,7 +67,8 @@
   <section class="pane chat-pane" aria-label="Room chat">
     <header class="bar"><h2>Room chat</h2><span id="chatRoom" class="chat-room"></span>
       <button id="grokOpen" class="grok-open" type="button" title="Grok topics" aria-haspopup="dialog">&#9670; Grok</button>
-      <button id="sessions" class="icon add" type="button" title="Sessions" aria-haspopup="dialog">+</button></header>
+      <button id="sessions" class="icon add" type="button" title="New chat: open a session" aria-haspopup="dialog">+ New chat</button></header>
+    <p id="startCheck" class="start-check" hidden></p>
     <div id="ask" class="ask-slip" hidden role="region" aria-label="Decision">
       <p class="ask-head"><span class="seal" aria-hidden="true"></span><span id="askWho"></span><button id="askClose" class="icon" type="button" title="Hide">&#10005;</button></p>
       <p id="askQ" class="ask-q"></p>
@@ -326,5 +327,6 @@
 <script src="/static/repos.js"></script>
 <script src="/static/tiers.js"></script>
 <script src="/static/grok.js"></script>
+<script src="/static/start.js"></script>
 </body>
 </html>
