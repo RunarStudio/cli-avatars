@@ -125,16 +125,10 @@ def run_update(
         return _done(PHASE_FAILED, "source clone is not ready", installed_commit, "")
 
     git = toolchain.git
-    fetch = run((git, "-C", str(src), "fetch", "origin", CHANNEL), src, FETCH_TIMEOUT_S, git=True)
-    if fetch.code != 0:
-        _record(data_dir, PHASE_FAILED, "git fetch failed", installed_commit, "")
-        return _done(PHASE_FAILED, "git fetch failed", installed_commit, "")
-
-    rev = run((git, "-C", str(src), "rev-parse", f"origin/{CHANNEL}"), src, PROBE_TIMEOUT_S, git=True)
-    upstream = _hash_line(rev.output) if rev.code == 0 else ""
-    if not upstream:
-        _record(data_dir, PHASE_FAILED, "could not read origin/dev", installed_commit, "")
-        return _done(PHASE_FAILED, "could not read origin/dev", installed_commit, "")
+    upstream, why = fetch_dev(git, src, run)
+    if why:
+        _record(data_dir, PHASE_FAILED, why, installed_commit, "")
+        return _done(PHASE_FAILED, why, installed_commit, "")
 
     relation, ancestor_ran = _relation(git, src, installed_commit, upstream, run)
     if relation == SAME:
@@ -206,6 +200,16 @@ def run_update(
         helper,
         src,
     )
+
+
+def fetch_dev(git: str, src: Path, run: Callable) -> tuple[str, str]:
+    """``git fetch origin dev``, then ``origin/dev``'s hash: ``(hash, "")``, or ``("", why)``."""
+    fetch = run((git, "-C", str(src), "fetch", "origin", CHANNEL), src, FETCH_TIMEOUT_S, git=True)
+    if fetch.code != 0:
+        return "", "git fetch failed"
+    rev = run((git, "-C", str(src), "rev-parse", f"origin/{CHANNEL}"), src, PROBE_TIMEOUT_S, git=True)
+    upstream = _hash_line(rev.output) if rev.code == 0 else ""
+    return (upstream, "") if upstream else ("", "could not read origin/dev")
 
 
 def read_state(data_dir: Path) -> dict:
