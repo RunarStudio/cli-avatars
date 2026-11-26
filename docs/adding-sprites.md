@@ -161,3 +161,17 @@ Dying plays once, about 4 frames at 120 ms. The spring line shrinks toward the c
 `fly` hovers above the orchestrator's head. `ground` hangs below it on the same spring. Dropping a finished sheet in place of a placeholder means setting `placeholder` to false and keeping the id, so existing `config.json` assignments still resolve. Keep the idle, working, and dying rows.
 
 Regenerate the stand-ins with `python tools/gen_subskin_placeholders.py`. Those files are code, not the final art.
+
+## Smooth animation
+
+Settings, Display: **Animation** is Smooth (the default) or Classic, saved as `animation` in `config.json`. Smooth loads `Sprites/smooth/<sheet>.png`; Classic loads the original sheet with the old frame ticks. The phone view draws the same frames.
+
+The smooth sheets are generated in code from the originals, which are only read:
+
+```bash
+python tools/gen_smooth_sprites.py
+```
+
+Run it again after any change to a sheet in `Sprites/`, then `python -m unittest tests.test_smooth_anim`. Each row keeps its keys on the even frames and gets an in-between on each odd one: every changed part moves half its way on whole pixels, the part above the waist leads and the part below follows (1 px of squash or stretch), and a part that changes shape holds its key. A row with fewer than 4 keys also breathes (1 px stretch and squash above the waist, feet fixed), so every row has at least 8 frames. No blur and no alpha crossfade: every pixel is a colour of that sheet. Per-character tuning (waist line, reach, rigid share) is `TUNES` in `cli_avatars/sprites/smooth.py`.
+
+Timing is in `cli_avatars/tuning.py`: `anim_ms` per state (idle breathes slow), `anim_ease` (keys hold longer, in-betweens pass quicker), `walk_stride` (sprite px per walk cycle; the desktop walk advances by the distance walked so the feet do not slide) and `walk_ease` (a Dungeon walk eases in and out). Rows with fewer than 8 frames, such as the subagent sheets, keep the Classic ticks.
