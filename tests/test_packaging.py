@@ -80,6 +80,20 @@ class PackagingTests(unittest.TestCase):
         self.assertNotIn("C:\\Users", iss)
         self.assertNotIn("PrivilegesRequired=admin", iss)
 
+    def test_installer_spec_bundles_webui_and_root_spec_data(self):
+        import re
+
+        spec = (ROOT / "packaging" / "cli_avatars.spec").read_text(encoding="utf-8")
+        root = (ROOT / "cli-avatars.spec").read_text(encoding="utf-8")
+        self.assertIn('(str(ROOT / "webui" / "static"), "webui/static")', spec)
+        self.assertIn('collect_submodules("webui")', spec)
+        for dest in re.findall(r'\), "([^"]+)"\),', root):
+            self.assertIn(f', "{dest}"),', spec, dest)
+        for name in re.findall(r'collect_submodules\("([^"]+)"\)', root):
+            self.assertIn(f'collect_submodules("{name}")', spec, name)
+        for path in sorted(ROOT.glob("*.py")):
+            self.assertIn(f'"{path.stem}"', spec, path.name)
+
 
 if __name__ == "__main__":
     unittest.main()
