@@ -3,11 +3,15 @@
 The install directory, the staging directory, and the ``.old`` directory
 are siblings. App data is not inside that parent and is never deleted.
 Renames are retried so a Windows exe that has just exited can release
-its directory.
+its directory. An installed build keeps ``config.json`` in its own folder
+(``cli_avatars.paths``), so the swap carries it into the new build: the
+user's values win, a key only the new build has is added.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import shutil
 import time
 from collections.abc import Callable
@@ -15,6 +19,7 @@ from pathlib import Path
 
 Bootcheck = Callable[[Path], int]
 Relaunch = Callable[[Path], None]
+CONFIG_FILES = ("_internal/config.json", "config.json")
 
 
 class SwapError(Exception):
@@ -74,6 +79,8 @@ def apply_swap(
         if had_previous and old.exists() and not install.exists():
             _rename(old, install, attempts, pause_s)
         raise
+    if had_previous:
+        _keep_config(old, install, log)
 
     exe = install / exe_name
     _note(log, "bootcheck new build")
@@ -113,6 +120,39 @@ def _rollback(
         if restored.is_file():
             _note(log, "relaunch previous build")
             relaunch(restored)
+
+
+def _keep_config(old: Path, install: Path, log: Callable[[str], None] | None) -> None:
+    for name in CONFIG_FILES:
+        mine, target = old / name, install / name
+        if mine.is_symlink() or target.is_symlink() or not mine.is_file():
+            continue
+        try:
+            _carry(mine, target)
+            _note(log, f"kept {name}")
+        except OSError:
+            _note(log, f"could not keep {name}")
+
+
+def _carry(mine: Path, target: Path) -> None:
+    try:
+        kept = json.loads(mine.read_text(encoding="utf-8"))
+    except (UnicodeError, ValueError):
+        shutil.copy2(mine, target)
+        return
+    try:
+        shipped = json.loads(target.read_text(encoding="utf-8")) if target.is_file() else {}
+    except (OSError, UnicodeError, ValueError):
+        shipped = {}
+    temporary = target.with_name(target.name + ".tmp")
+    temporary.write_text(json.dumps(_merged(shipped, kept), indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, target)
+
+
+def _merged(shipped: object, mine: object) -> object:
+    if not isinstance(shipped, dict) or not isinstance(mine, dict):
+        return mine
+    return {**shipped, **{k: _merged(shipped.get(k), v) for k, v in mine.items()}}
 
 
 def _remove_sibling(path: Path, parent: Path, suffix: str) -> None:

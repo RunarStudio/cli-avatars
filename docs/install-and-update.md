@@ -59,7 +59,7 @@ Update runs only these commands, each as an argument list with `shell` false and
 6. `python overlay.py --selftest` and `python overlay.py --bootcheck-only` in the clone. A failure does not build.
 7. `python -m PyInstaller` using `packaging/cli_avatars.spec`, into a staging folder beside the install directory.
 
-The app then starts `python -m cli_avatars.update.helper` from the clone and exits. The helper renames the current folder to `CLI Avatars.old`, renames staging into place, and runs `cli-avatars.exe --bootcheck-only`. If that fails, it moves the new folder aside as `CLI Avatars.failed`, puts `.old` back, and relaunches the previous build. If it passes, it relaunches the new build.
+The app then starts `python -m cli_avatars.update.helper` from the clone and exits. The helper renames the current folder to `CLI Avatars.old`, renames staging into place, carries the installed `config.json` (Settings, chat tiers) into it with your values winning, and runs `cli-avatars.exe --bootcheck-only`. If that fails, it moves the new folder aside as `CLI Avatars.failed`, puts `.old` back, and relaunches the previous build. If it passes, it relaunches the new build.
 
 Git inherits the environment, including an existing credential helper, and `GIT_TERMINAL_PROMPT` is set to `0` so a missing login fails instead of waiting. Chat, inbox, hooks, and MCP arguments are not commands and are not passed to these processes.
 
