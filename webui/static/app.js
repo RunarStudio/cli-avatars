@@ -62,8 +62,19 @@ function size() {
 
 function fitView(box, fill) {
   const { w, h } = size();
-  const s = Math.min(w * fill / box[2], h * fill / box[3], 6);
-  return { s, x: w / 2 - (box[0] + box[2] / 2) * s, y: h / 2 - (box[1] + box[3] / 2) * s };
+  return MapNav.fit(box, w, h, fill, window.devicePixelRatio || 1, 6);
+}
+
+// PHONEMAP: the view's centre stays over the map, from the whole map in to 8x (NAV.1's clamp)
+function clampView(v) {
+  const m = state.scene && state.scene.map, { w, h } = size();
+  return m ? MapNav.clamp(v, m, w, h, wholeMap().s, 8) : v;
+}
+
+// after a pinch or the wheel, settle on whole device pixels around the point the fingers held
+function settleView(p) {
+  const dpr = window.devicePixelRatio || 1;
+  animateTo(clampView(MapNav.zoomAt(state.view, MapNav.snap(state.view.s, dpr), p)), 180);
 }
 
 function wholeMap() {
@@ -81,6 +92,7 @@ function zoomToRoom(name, quiet) {
   const room = state.scene && state.scene.rooms.find((r) => r.name === name);
   if (!room) return;
   state.room = name;
+  state.home = false;
   state.glow = performance.now();
   animateTo(fitView(room.box, 0.82));
   $("here").textContent = room.title;
@@ -90,6 +102,7 @@ function zoomToRoom(name, quiet) {
 
 function leaveRoom() {
   state.room = null;
+  state.home = true;
   $("here").textContent = "";
   $("editRoom").hidden = true;
   animateTo(wholeMap());
@@ -102,6 +115,7 @@ canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
   state.anim = null;
+  state.dirty = true;
   gesture = { view: { ...state.view }, start: [...pointers.values()].map((p) => ({ ...p })), moved: false, t: performance.now() };
 });
 canvas.addEventListener("pointermove", (e) => {
@@ -116,18 +130,38 @@ canvas.addEventListener("pointermove", (e) => {
     const m1 = { x: (now[0].x + now[1].x) / 2, y: (now[0].y + now[1].y) / 2 };
     zoomAround(gesture.view, d1 / d0, m0, m1);
     gesture.moved = true;
+    gesture.pinch = m1;
   } else if (now.length === 1 && a.length === 1) {
     const dx = now[0].x - a[0].x, dy = now[0].y - a[0].y;
     if (Math.abs(dx) + Math.abs(dy) > 6) gesture.moved = true;
-    if (gesture.moved) state.view = { s: gesture.view.s, x: gesture.view.x + dx, y: gesture.view.y + dy };
+    if (gesture.moved) state.view = clampView({ s: gesture.view.s, x: gesture.view.x + dx, y: gesture.view.y + dy });
   }
 });
 function endPointer(e) {
   if (!pointers.has(e.pointerId)) return;
   const wasTap = gesture && !gesture.moved && pointers.size === 1 && performance.now() - gesture.t < 400;
+  const pinch = gesture && gesture.pinch;
   pointers.delete(e.pointerId);
-  if (wasTap) tapMap(e.offsetX, e.offsetY);
-  gesture = pointers.size ? { view: { ...state.view }, start: [...pointers.values()].map((p) => ({ ...p })), moved: true, t: 0 } : null;
+  if (wasTap) tapOrDouble(e.offsetX, e.offsetY);
+  else if (gesture && gesture.moved) state.home = false;
+  gesture = pointers.size ? { view: { ...state.view }, start: [...pointers.values()].map((p) => ({ ...p })), moved: true, t: 0, pinch } : null;
+  if (!pointers.size && pinch) settleView(pinch);
+  if (!pointers.size) saveView();
+}
+
+// PHONEMAP: a single tap waits a moment for a second one; a double tap zooms in two times at that point
+let lastTap = null;
+function tapOrDouble(x, y) {
+  const now = performance.now();
+  if (lastTap && now - lastTap.t < 300 && Math.hypot(x - lastTap.x, y - lastTap.y) < 30) {
+    clearTimeout(lastTap.timer);
+    lastTap = null;
+    const dpr = window.devicePixelRatio || 1;
+    state.home = false;
+    animateTo(clampView(MapNav.zoomAt(state.view, Math.min(8, MapNav.snap(state.view.s * 2, dpr)), { x, y })), 220);
+    return;
+  }
+  lastTap = { t: now, x, y, timer: setTimeout(() => { lastTap = null; tapMap(x, y); }, 260) };
 }
 canvas.addEventListener("pointerup", endPointer);
 canvas.addEventListener("pointercancel", endPointer);
@@ -136,13 +170,16 @@ canvas.addEventListener("wheel", (e) => {
   state.anim = null;
   const p = { x: e.offsetX, y: e.offsetY };
   zoomAround({ ...state.view }, Math.exp(-e.deltaY * 0.0015), p, p);
+  state.home = false;
+  clearTimeout(state.wheelTimer);
+  state.wheelTimer = setTimeout(() => { settleView(p); saveView(); }, 160);
 }, { passive: false });
-canvas.addEventListener("dblclick", leaveRoom);
 
 function zoomAround(base, factor, from, to) {
   const s = Math.max(0.3, Math.min(8, base.s * factor));
   const wx = (from.x - base.x) / base.s, wy = (from.y - base.y) / base.s;
-  state.view = { s, x: to.x - wx * s, y: to.y - wy * s };
+  state.view = clampView({ s, x: to.x - wx * s, y: to.y - wy * s });
+  state.dirty = true;
 }
 
 function inside(poly, x, y) {
@@ -159,9 +196,13 @@ function tapMap(sx, sy) {
   const x = (sx - state.view.x) / state.view.s, y = (sy - state.view.y) / state.view.s;
   if (typeof lapseTap === "function" && lapseTap(x, y)) return;
   if (typeof bossTap === "function" && bossTap(x, y)) return;
-  const room = state.scene.rooms.find((r) => inside(r.poly, x, y));
+  const spots = [...state.walkers.values()].map((w) => ({ a: w.a, at: place(w, performance.now()) }));
+  const found = MapNav.hit(state.scene, spots, x, y);
+  if (found && found.kind === "avatar" && typeof openBot === "function") return openBot(found.a);
+  const room = found && found.room;
   if (!room) return;
   if (room.name === state.room && !state.anim) return openRooms(room.id);
+  if (typeof openRoomSheet === "function") openRoomSheet(room);
   const card = state.cards.find((c) => c.room === room.name);
   state.sel = card ? card.id : null;
   renderTasks();
@@ -174,11 +215,22 @@ function frame(now) {
   const dpr = window.devicePixelRatio || 1;
   const { w, h } = size();
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    const was = state.size;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
-    if (!state.room && state.scene) state.view = wholeMap();
-    else if (state.room) state.view = fitView(state.scene.rooms.find((r) => r.name === state.room).box, 0.82);
+    state.size = { w, h };
+    if (state.scene && state.scene.map && (state.home || !was || !was.w)) state.view = wholeMap();
+    else if (state.scene && state.scene.map) state.view = clampView(MapNav.load(MapNav.save(state.view, state.scene.map, was.w, was.h), state.scene.map, w, h));
+    state.dirty = true;
   }
+  // PHONEMAP: full rate while something moves; otherwise only the sprites' own frames, about 12 a second
+  const moving = state.anim || pointers.size || state.dirty || state.rise.size || now - state.glow < 700
+    || (state.lapse && state.lapse.playing) || (state.boss && state.boss.t0) || (typeof mapBusy === "function" && mapBusy(now))
+    || [...state.walkers.values()].some((wk) => wk.a.walk || (now - wk.t0 < TICK && (wk.from[0] !== wk.to[0] || wk.from[1] !== wk.to[1])));
+  if (!moving && now - (state.drawn || 0) < IDLE_MS) { requestAnimationFrame(frame); return; }
+  state.drawn = now;
+  state.dirty = false;
+  state.draws = (state.draws || 0) + 1;
   if (state.anim) {
     const t = Math.min(1, (now - state.anim.t0) / state.anim.ms), k = ease(t);
     const a = state.anim.from, b = state.anim.to;
@@ -188,7 +240,7 @@ function frame(now) {
     const ax = (cx - a.x) / a.s, ay = (cy - a.y) / a.s, bx = (cx - b.x) / b.s, by = (cy - b.y) / b.s;
     const wx = ax + (bx - ax) * k, wy = ay + (by - ay) * k;
     state.view = { s, x: cx - wx * s, y: cy - wy * s };
-    if (t >= 1) state.anim = null;
+    if (t >= 1) { state.anim = null; state.view = b; saveView(); }
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
@@ -216,6 +268,7 @@ function frame(now) {
     if (!lapsing && typeof drawBodyOver === "function") drawBodyOver(now);
     if (!lapsing && typeof drawCourierOver === "function") drawCourierOver(now);
     if (!lapsing && typeof drawBossOver === "function") drawBossOver(now);
+    if (!lapsing && typeof drawMapRing === "function") drawMapRing(now);
     drawFocus(now);
     ctx.restore();
     drawLabels();
@@ -223,8 +276,29 @@ function frame(now) {
     if (!lapsing) drawNames();
     if (!lapsing && typeof drawParkLabels === "function") drawParkLabels();
     if (!lapsing && typeof drawYouOver === "function") drawYouOver(now);
+    if (typeof drawMini === "function") drawMini();
   }
   requestAnimationFrame(frame);
+}
+
+const IDLE_MS = 83;
+const SIGN_S = 0.6; // PHONEMAP: door signs and tier chips once the rooms are big enough to hold them
+const VIEW_KEY = "cli-avatars-map-view";
+
+// PHONEMAP: zoom and pan (or the whole map) kept across reloads, for this map size
+function saveView() {
+  const m = state.scene && state.scene.map, { w, h } = size();
+  if (!m || !w) return;
+  try { localStorage.setItem(VIEW_KEY, JSON.stringify({ ...MapNav.save(state.view, m, w, h), home: !!state.home })); } catch (_e) { /* storage full */ }
+}
+
+function savedView() {
+  const m = state.scene && state.scene.map, { w, h } = size();
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(VIEW_KEY) || "null"); } catch (_e) { return null; }
+  if (!m || !saved || saved.home) return null;
+  const v = MapNav.load(saved, m, w, h);
+  return v && clampView(v);
 }
 
 function drawGlow(now) {
@@ -339,7 +413,7 @@ function drawLabels() {
     ctx.strokeRect(Math.round(x - tw / 2) + 1, Math.round(y - th / 2) + 1, Math.round(tw) - 2, Math.round(th) - 2);
     ctx.fillStyle = on ? "#ffd27a" : "#e9dcbc";
     ctx.fillText(text, Math.round(x), Math.round(y) + 1);
-    if (r.sign) drawSign(r.sign, x, y + th, px);
+    if (r.sign && v.s >= SIGN_S) drawSign(r.sign, x, y + th, px);
     if (r.counts) drawCounts(r.counts, x, y - th * 1.05, px);
   }
   ctx.globalAlpha = 1;
@@ -496,11 +570,11 @@ function renderTasks() {
 // --- TASKBACK.5: the Board view -------------------------------------------------------------------
 const COLS = ["todo", "doing", "review", "done", "blocked"];
 const viewKey = "cli-avatars-tasks-view";
-state.view = localStorage.getItem(viewKey) === "board" ? "board" : "list";
+state.tasksView = localStorage.getItem(viewKey) === "board" ? "board" : "list";
 state.filter = { project: "", topic: "" };
 
 function setView(view) {
-  state.view = view;
+  state.tasksView = view;
   localStorage.setItem(viewKey, view);
   for (const b of $("taskView").children) b.classList.toggle("on", b.dataset.view === view);
   $("tasks").hidden = view === "board";
@@ -520,7 +594,7 @@ function fillSelect(sel, all, values, current) {
 }
 
 function renderBoard() {
-  if (state.view !== "board") return;
+  if (state.tasksView !== "board") return;
   const f = state.filter;
   f.project = fillSelect($("bProject"), "All projects", [...new Set(state.cards.map((c) => c.project))].sort(), f.project);
   const inProject = state.cards.filter((c) => !f.project || c.project === f.project);
@@ -1121,7 +1195,13 @@ async function load() {
     }
     setAvatars(scene.avatars, performance.now());
   }
-  if (!state.fitted && scene.map) { state.view = wholeMap(); state.fitted = true; }
+  if (!state.fitted && scene.map) {
+    const kept = savedView();
+    state.view = kept || wholeMap();
+    state.home = !kept;
+    state.fitted = true;
+  }
+  state.dirty = true;
   if (state.room && !scene.rooms.some((r) => r.name === state.room)) { state.room = null; $("editRoom").hidden = true; }
   renderTasks();
   if (state.chatKey) showChat(state.chatKey, $("chatRoom").textContent);
@@ -2169,6 +2249,6 @@ if (window.visualViewport) {
 
 $("fit").addEventListener("click", leaveRoom);
 paintSound();
-setView(state.view);
+setView(state.tasksView);
 load().then(openFromHash).then(loadUpdate).then(live).catch(() => {});
 requestAnimationFrame(frame);

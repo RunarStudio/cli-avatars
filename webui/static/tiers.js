@@ -37,7 +37,7 @@ function drawTiers() {
   ctx.textAlign = "center";
   for (const r of s.rooms) {
     const t = r.kind === "main" ? by.main : r.kind === "simple" ? by.topic : null;
-    if (!t) continue;
+    if (!t || v.s < SIGN_S) continue;
     const cx = r.poly.reduce((a, p) => a + p[0], 0) / 4, cy = r.poly.reduce((a, p) => a + p[1], 0) / 4;
     const y = v.y + (cy + (r.poly[2][1] - cy) * 0.5) * v.s;
     tierChip(t, v.x + cx * v.s, y + px * (r.sign ? 3.75 : 1.9), px);

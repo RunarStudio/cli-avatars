@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="/static/projects.css">
 <link rel="stylesheet" href="/static/grok.css">
 <link rel="stylesheet" href="/static/check.css">
+<link rel="stylesheet" href="/static/phonemap.css">
 <link rel="stylesheet" href="/static/text.css">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon.png">
@@ -51,6 +52,13 @@
     <button id="totals" class="totals" type="button" aria-expanded="false" title="Behind the doors: tap for each project"></button>
     <ul id="totalsProjects" class="totals-projects" hidden></ul>
     <div class="stage"><canvas id="map"></canvas>
+      <button id="botsChip" class="bots-chip" type="button" hidden aria-haspopup="dialog" title="Active bots: tap one to glide to it"><span class="bots-dot" aria-hidden="true"></span><span id="botsCount"></span></button>
+      <div id="mapTools" class="map-tools" hidden>
+        <canvas id="mini" class="mini" aria-label="Mini-map: tap or drag to move the view"></canvas>
+        <div class="mt-row"><button id="mapRooms" class="mt-btn" type="button" aria-haspopup="dialog" title="Jump to a room">&#9638; Rooms</button>
+          <button id="mapHome" class="mt-btn" type="button" title="Whole map">&#10530;</button>
+          <button id="mapFull" class="mt-btn" type="button" aria-pressed="false" title="Map full screen">&#9974;</button></div>
+      </div>
       <div id="lapse" class="lapse" hidden role="region" aria-label="Time-lapse">
         <div class="lapse-row"><button id="lapsePrev" type="button" aria-label="Previous day">&#9664;</button><span id="lapseDay" class="lapse-day"></span><button id="lapseNext" type="button" aria-label="Next day">&#9654;</button>
           <b id="lapseClock" class="lapse-clock"></b>
@@ -58,6 +66,10 @@
         <canvas id="lapseTrack" class="lapse-track" aria-label="Scrub the day"></canvas>
         <p id="lapseNow" class="lapse-now" aria-live="polite"></p>
       </div></div>
+    <div id="drawer" class="drawer" hidden role="dialog" aria-labelledby="drawerTitle">
+      <header class="bar"><h2 id="drawerTitle"></h2><button id="drawerClose" class="icon" type="button" title="Close">&#10005;</button></header>
+      <div id="drawerBody" class="drawer-body"></div>
+    </div>
   </section>
   <section class="pane tasks-pane" aria-label="Tasks">
     <header class="bar"><h2>Tasks</h2><span id="count" class="count"></span>
@@ -333,6 +345,7 @@
   <div id="viewerStage" class="viewer-stage"></div>
   <p id="viewerName" class="viewer-name"></p>
 </div>
+<script src="/static/mapnav.js"></script>
 <script src="/static/app.js"></script>
 <script src="/static/mailroom.js"></script>
 <script src="/static/standup.js"></script>
@@ -354,5 +367,6 @@
 <script src="/static/grok.js"></script>
 <script src="/static/start.js"></script>
 <script src="/static/check.js"></script>
+<script src="/static/phonemap.js"></script>
 </body>
 </html>

@@ -1,0 +1,75 @@
+/* PHONEMAP: map tools over the stage, the Active bots chip, the drawer (room, bot, bots, rooms) and the full map */
+.map-tools { position: absolute; inset: 8px 8px 8px auto; z-index: 2; display: flex; flex-direction: column; align-items: flex-end;
+  justify-content: space-between; pointer-events: none; }
+.map-tools > * { pointer-events: auto; }
+.map-tools[hidden] { display: none; }
+.mini { display: block; background: #07050b; border: 2px solid var(--deep); box-shadow: 0 0 0 2px var(--edge), 0 4px 10px #000a;
+  cursor: crosshair; touch-action: none; }
+.mt-row { display: flex; gap: 4px; }
+.mt-btn { min-width: 40px; min-height: 40px; padding: 0 7px; font: 600 13px var(--mono); color: var(--ink); white-space: nowrap;
+  background: linear-gradient(180deg, #33264a, #241a34); border: 2px solid var(--deep);
+  box-shadow: inset 0 0 0 1px var(--edge), inset 0 2px 0 #4a3a62, 0 3px 8px #0009; cursor: pointer; }
+.mt-btn:active { transform: translateY(1px); }
+.mt-btn[aria-pressed="true"] { color: var(--torch-2); box-shadow: inset 0 0 0 1px var(--torch), 0 0 8px #f2a33a55; }
+.bots-chip { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; align-items: center; gap: 7px; min-height: 36px;
+  padding: 0 12px 0 10px; font: 600 13px var(--mono); color: var(--ink); background: rgba(18, 13, 28, .92);
+  border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px var(--edge), 0 3px 8px #0009; cursor: pointer; }
+.bots-chip[hidden] { display: none; }
+.bots-dot { width: 8px; height: 8px; background: #6a5a7e; box-shadow: 0 0 0 2px var(--deep); }
+.bots-chip.on .bots-dot { background: #5ad16a; box-shadow: 0 0 0 2px var(--deep), 0 0 8px #5ad16a; animation: flick 1.6s steps(3) infinite; }
+.drawer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; margin: 0 auto; width: min(560px, 100%); max-height: 54%;
+  display: flex; flex-direction: column; background: linear-gradient(180deg, var(--stone-2), var(--stone)); border: 2px solid var(--deep);
+  box-shadow: 0 0 0 2px var(--edge), 0 -10px 30px #000a; animation: rise-up .2s ease-out; padding-bottom: env(safe-area-inset-bottom); }
+.drawer[hidden] { display: none; }
+@media (max-width: 1023px) { body.drawer-open .fab { display: none; } }
+.drawer .bar h2 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer .bar .icon { margin-left: auto; flex: none; }
+.drawer-body { overflow-y: auto; padding: 4px 10px 12px; overscroll-behavior: contain; }
+.drawer h3 { margin: 10px 0 6px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--torch-2); }
+.pm-list { display: grid; gap: 6px; }
+.pm-empty { margin: 0; padding: 6px 2px; color: var(--dim); font-size: 12px; }
+.pm-task, .pm-bot, .pm-place { display: grid; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: 48px;
+  padding: 8px 10px; background: #211a2c; border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px #33284a; }
+.pm-task { grid-template-columns: auto 1fr; gap: 3px 10px; align-items: center; }
+.pm-task b { overflow-wrap: anywhere; }
+.pm-task small { grid-column: 2; color: #c9bba0; font-size: 12px; overflow-wrap: anywhere; }
+.pm-task.dimmed { opacity: .55; }
+.pm-bot { grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; }
+.pm-bot.on { box-shadow: inset 3px 0 0 #5ad16a, inset 0 0 0 1px #33284a; }
+.pm-words { display: grid; gap: 2px; min-width: 0; }
+.pm-words b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-words small { color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-face { image-rendering: pixelated; image-rendering: crisp-edges; display: block; background: radial-gradient(#2c2140, #140f1d 70%);
+  box-shadow: 0 0 0 2px var(--deep), inset 0 0 0 1px var(--edge); }
+.pm-cli, .pm-state, .pm-need { font-size: 11px; padding: 2px 6px; letter-spacing: .04em; white-space: nowrap; box-shadow: 0 0 0 2px var(--deep); }
+.pm-cli { color: #e8dcc0; background: #2a2038; }
+.pm-cli.claude { color: #1a0f05; background: var(--claude); } .pm-cli.grok { color: #08101c; background: var(--grok); }
+.pm-state { color: var(--dim); background: #1a1422; }
+.pm-state.busy, .pm-state.thinking { color: #08160a; background: #5ad16a; }
+.pm-state.blocked, .pm-state.error { color: #fff; background: var(--blocked); }
+.pm-need { color: #140a14; background: #ffcf4a; }
+.pm-need.reply { background: #7aa8ff; } .pm-need.blocked { background: #e0566a; } .pm-need.run { background: #6ad08a; }
+.pm-head { display: flex; gap: 14px; align-items: center; padding: 6px 2px 2px; }
+.pm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.pm-where { justify-self: start; font: inherit; font-size: 12px; color: var(--torch-2); background: none; border: 0; padding: 4px 0; cursor: pointer; }
+.pm-reply { margin: 0; padding: 8px 10px; font-size: 13px; background: #170f20; border-left: 3px solid var(--grok); overflow-wrap: anywhere;
+  white-space: pre-wrap; }
+.pm-reply time { display: block; color: var(--dim); font-size: 11px; margin-bottom: 2px; }
+.pm-acts { display: flex; gap: 8px; margin-top: 12px; } .pm-acts > * { flex: 1; }
+.pm-place { grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+.pm-place b::before { content: "\2302  "; color: var(--torch); }
+.pm-place.main b::before { content: "\265b  "; } .pm-place.oni-pit b::before { content: "\2620  "; color: #e0566a; }
+.pm-place.crypt b::before { content: "\271d  "; color: #9d8fae; } .pm-place.park b::before { content: "\2663  "; color: #8fe08a; }
+.pm-place small { color: var(--dim); font-size: 12px; }
+.pm-kind { color: var(--torch); }
+@media (max-width: 1023px) {
+  body.mapfull #app { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); }
+  body.mapfull .tasks-pane, body.mapfull .chat-pane { display: none; }
+  body.mapfull .map-pane { grid-column: 1; }
+  body.mapfull .drawer { position: static; width: 100%; max-height: 50%; flex: none; box-shadow: 0 -2px 0 var(--edge); animation: none; }
+}
+@media (min-width: 1024px) {
+  .drawer { position: absolute; left: 12px; right: auto; bottom: 12px; width: min(440px, 70%); max-height: 70%; margin: 0; }
+  #mapFull { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .drawer, .bots-chip.on .bots-dot { animation: none; } }
