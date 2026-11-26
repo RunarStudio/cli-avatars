@@ -119,6 +119,10 @@ def wav(name: str) -> bytes:
         from cli_avatars.app.boss_cues import sound as boss_sound
 
         return _pcm(boss_sound(name))
+    if name in ("night", "train"):
+        from cli_avatars.app.park_cues import sound as park_sound
+
+        return _pcm(park_sound(name))
     if name in ("grok-send", "grok-reply"):
         from cli_avatars.app.grok_cues import sound as grok_sound
 

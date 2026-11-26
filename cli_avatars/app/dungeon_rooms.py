@@ -203,11 +203,13 @@ class RoomsPainter:
             self.layout = layout
             self._base = compose(layout, manifest) if layout and manifest else None
             if self._base is not None and self._source is not None:
+                from cli_avatars.app.park_art import stamp as stamp_park
                 from cli_avatars.app.sandbox_art import stamp as stamp_sandboxes
                 from cli_avatars.app.throne_stamp import stamp_thrones
 
                 stamp_thrones(self._base, layout)
                 stamp_sandboxes(self._base, layout)
+                stamp_park(self._base, layout)
             self._failed = self._base is None
         return self._base
 

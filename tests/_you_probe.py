@@ -55,6 +55,7 @@ played: list[str] = []
 cues.play = lambda _app, name: played.append(name)
 opened: list = []
 needs_panel.open_item = lambda _app, item: opened.append(item["key"])
+(DATA / "config.json").write_text('{"park": {"enabled": false}, "idle_props": {"enabled": false}}', encoding="utf-8")
 model = sr.SessionRooms(DATA / "ui" / "session_rooms.json")
 model.open(sr.MAIN, "claude", "moon-forge")
 model.open(sr.SIMPLE, "claude", "glass-orchard")

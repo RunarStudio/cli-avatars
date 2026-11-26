@@ -42,6 +42,17 @@
 - Opening starts no CLI. The chat opens on the topic; the CLI starts only on Send or Enter there, and the chat's own folder dialog sets the working folder on the first Enter (`room-chat.md`).
 - Code: `cli_avatars/app/session_rooms.py` (model, layout, binding; no Tk), `session_walks.py`, `session_panel.py`, `room_build.py`, `throne_stamp.py`. ORCH.ROOM added an event-sound path (`cues.py`); a new room makes no sound yet.
 
+## Rooms are projects, tasks are cards (PARK.1, built)
+
+- A room is a permanent project; a task is a card in it, never a room of its own. A card lives in the room of its
+  topic: that topic's session room, else a room you built with that topic.
+- Two things walk an avatar to the card's room through the doors: its **task chat** (the CLI session kept for the
+  card, `task_sessions.json`) and an **assignment** (the card's assignee, doing first, then review, blocked, todo).
+  The task chat wins. Done or archived cards route nobody; the avatar walks home, unless you moved it since.
+- Each project room has a **task table** showing its doing and todo cards (the door sign's data; a red flag while
+  one is blocked). A routed avatar that is working stands at it.
+- Code: `cli_avatars/app/task_route.py` (no Tk), `life_view.py`. Idle time: `docs/park.md`.
+
 ## The asks
 
 1. A way to create an orchestrator.
