@@ -25,6 +25,7 @@ hiddenimports = [
     "activity",
     "bundle_paths",
     "bubbles",
+    "chat_address",
     "chat_window",
     "chatlog",
     "claude_chat_hooks",

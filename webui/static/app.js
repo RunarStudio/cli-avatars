@@ -945,7 +945,7 @@ function paintComposer(busy) {
   $("prompt").disabled = !topic;
   $("send").disabled = asking ? busy || state.sending : !can;
   $("send").textContent = asking ? "Answer" : "Send";
-  $("prompt").placeholder = asking ? "Your answer\u2026" : topic ? "Ask in " + ($("chatRoom").textContent || topic) + "\u2026" : "Tap a room or open a session (+)";
+  $("prompt").placeholder = asking ? "Your answer\u2026" : topic ? "Ask in " + ($("chatRoom").textContent || topic) + "\u2026" : "Tap a room, or + New chat";
   hint.textContent = topic ? "" : "";
 }
 

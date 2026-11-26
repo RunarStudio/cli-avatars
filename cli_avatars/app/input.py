@@ -240,7 +240,10 @@ class InputController:
             return
         if av is not None:
             app._focus_linked_console(av.agent.pid)
-        # Empty space does not quit.
+            return
+        from cli_avatars.app.new_chat import room_menu
+
+        room_menu(app, event)  # START-SETUP.1: a room offers New chat; empty space does not quit.
 
     def _throw(self, dragged, x: float, y: float) -> None:
         app = self.app

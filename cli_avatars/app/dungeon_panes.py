@@ -214,17 +214,29 @@ def _toolbar(view, root) -> None:
     app._chat_btn = control(panels, "chat", text="Chat", command=app._toggle_chat)
     mark(app._rooms_btn, getattr(app, "_rooms_shown", True))
     mark(app._chat_btn, getattr(app, "_chat_shown", False))
+    app._new_chat_btn = control(panels, "new_chat", text="New chat", command=lambda: _help(app, "new_chat"))
     window = group(bar, WINDOW, side="right")
     app._update_tool = control(window, "update", text="Update", command=lambda: _update(app))
     _sync_update(app)
     view._pin = control(window, "pin", text="Pin", command=view.toggle_pin)
     menu = tk.Menu(bar, tearoff=0, bg=_BAR, fg=_INK)
+    menu.add_command(label="New chat", command=lambda: _help(app, "new_chat"))
+    menu.add_command(label="Take the tour", command=lambda: _help(app, "tour"))
+    menu.add_command(label="Start check", command=lambda: _help(app, "start_card"))
+    menu.add_separator()
     menu.add_command(label="Quit", command=app._quit)
     control(window, "menu", text="Menu", menu=menu)
     if getattr(app, "desktop_escape", True):
         desk = group(bar, DESKTOP)
         view._door_btn = control(desk, "door", text="Door: open", command=lambda: _toggle_door(app))
         view._home_btn = control(desk, "home", text="Call home", command=lambda: _call_home(app))
+
+
+def _help(app, name: str) -> None:
+    """START-SETUP.1: New chat, the tour and the start check, from the toolbar and the Menu."""
+    from cli_avatars.app import new_chat, start_card, tour
+
+    {"new_chat": new_chat.open_card, "tour": tour.start, "start_card": start_card.reopen}[name](app)
 
 
 def _body(view, root) -> None:

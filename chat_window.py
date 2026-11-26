@@ -28,6 +28,7 @@ def _load_tk():
     return tk
 
 
+import chat_address
 from chatlog import (
     ChannelTail,
     ScrollFollow,
@@ -240,8 +241,12 @@ class ChatWindow:
         container=None,
         on_show=None,
         room_pane=None,
+        on_new_chat=None,
+        tip=None,
     ) -> None:
         self.master = master
+        self._on_new_chat = on_new_chat
+        self._tip = tip
         self._directory = directory
         self._agents = agents
         self._config_source = config if config is not None else {}
@@ -563,9 +568,11 @@ class ChatWindow:
         self._to_btn = tk.Button(
             row, text="To:", command=self._post_to_menu,
             bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
-            font=FONT, relief="flat", padx=8, pady=2, cursor="hand2",
+            font=FONT, relief="flat", padx=8, pady=2, cursor="hand2", anchor="w", width=1,
         )
-        self._to_btn.pack(side="left")
+        self._to_btn.pack(side="top", fill="x")  # the whole row; buttons packed beside it go under
+        if self._tip is not None:
+            self._tip(self._to_btn, "chat")
         text_row = tk.Frame(composer, bg=BG)
         text_row.pack(fill="x")
         entry = tk.Entry(
@@ -580,11 +587,20 @@ class ChatWindow:
             bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
             font=FONT, relief="flat", padx=12, pady=3, cursor="hand2",
         ).pack(side="right")
+        foot = tk.Frame(composer, bg=BG)
+        foot.pack(fill="x", pady=(4, 0))
+        if self._on_new_chat is not None:
+            self._new_chat_btn = tk.Button(
+                foot, text="New chat", command=self._on_new_chat,
+                bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+                font=FONT_SMALL, relief="flat", padx=8, pady=1, cursor="hand2",
+            )
+            self._new_chat_btn.pack(side="right")
         self._status = tk.Label(
-            composer, text="Stored locally. Nothing here runs.",
+            foot, text="Stored locally. Nothing here runs.",
             bg=BG, fg="#55556a", font=FONT_SMALL, anchor="w",
         )
-        self._status.pack(fill="x", pady=(4, 0))
+        self._status.pack(side="left", fill="x", expand=True)
         if self._room_pane_factory is not None:
             if self._room is None:
                 self._room = self._room_pane_factory(self, room_tools())
@@ -1019,6 +1035,7 @@ class ChatWindow:
         return photo
 
     def _paint_to(self, parties, topic) -> None:
+        """START-SETUP.1: ``To: avatar · room · CLI``; the tooltip says what each part means, ids only there."""
         if self._to_btn is None:
             return
         try:
@@ -1026,12 +1043,19 @@ class ChatWindow:
                 return
         except Exception:
             return
-        label = self._to_label(parties, topic)
-        self._to_btn.configure(text="To: " + label)
+        name, agent_id = self._to_label(parties, topic)
+        cli = self._room.target if self._room is not None else "inbox"
+        if cli != "inbox":
+            name, agent_id = chat_address.SESSION, ""
+        room = str((topic or {}).get("title") or self._topic_id or "")
+        text, tip = chat_address.describe(name, room, cli, agent_id)
+        self._to_btn.configure(text=text)
+        self._to_btn._kit_reason = tip
 
-    def _to_label(self, parties, topic) -> str:
+    def _to_label(self, parties, topic) -> tuple[str, str]:
+        """The addressed avatar's shown name and its agent id (``""`` for all orchestrators or nobody)."""
         if self._manual_target == ALL_ORCHESTRATORS:
-            return "All orchestrators"
+            return "All orchestrators", ""
         target = self._manual_target
         if not target:
             members = topic.get("members") if isinstance(topic, dict) else []
@@ -1041,15 +1065,12 @@ class ChatWindow:
                 self._topic_id, parties, members, self._router.routes, self._router.grok_id,
             )
         if not target:
-            return "nobody"
+            return "", ""
         found = recipients_for(target, parties, self._router.routes, self._router.grok_id)
         agent_id = found[0] if found else target
-        for party in parties:
-            if party.agent_id == agent_id:
-                return party.name
         if agent_id == GROK_FALLBACK_ID:
-            return "Grok"
-        return agent_id
+            return "Grok", agent_id
+        return chat_address.avatar_name(agent_id, parties), agent_id
 
     def _post_to_menu(self) -> None:
         if tk is None or self.win is None or self._to_btn is None:

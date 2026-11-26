@@ -14,7 +14,7 @@ from pathlib import Path
 
 from chat_window import ChatWindow
 from cli_avatars.app.room_pane import RoomPane
-from cli_avatars.app.toolbar_widgets import paint
+from cli_avatars.app.toolbar_widgets import hint, paint
 from events import app_data_dir
 from routing import config_with_window_box, focus_for, save_window_box
 
@@ -58,9 +58,18 @@ def _ensure_chat_window(self) -> ChatWindow:
         container=getattr(self, "_chat_host", None),
         on_show=lambda: _chat_dock_show(self),
         room_pane=RoomPane,
+        on_new_chat=lambda: _new_chat(self),
+        tip=hint,
     )
     self._chat_window = window
     return window
+
+
+def _new_chat(self) -> None:
+    """START-SETUP.1: the composer's New chat opens the card over the Dungeon."""
+    from cli_avatars.app import new_chat
+
+    new_chat.open_card(self)
 
 
 def _chat_dock_show(self) -> None:

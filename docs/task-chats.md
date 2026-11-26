@@ -2,6 +2,17 @@
 
 Start a Claude chat from a task card. The chat carries the task's context, so the AI knows what the task is, and it may update that task (and no other).
 
+## New chat and the tour (START-SETUP.1)
+
+**New chat** is one card for both jobs: going back to a chat and starting one. It sits over the Dungeon (not a new window) and opens from the toolbar's **New chat**, the composer's **New chat** beside To:, Menu → New chat, and a right-click on a room of the map (that room's topic is picked).
+
+- **Go back to a chat**: the six chats touched last; one click opens it in the chat dock.
+- **Start a new one**: Topic (an existing one, or `+ New topic` with a name and an optional project), CLI (Claude, Grok or Cursor; one that is not set up is greyed with a **set up** link to the start card), an optional Task (then it is that card's task chat, with its context and pack), **Start**. Start writes the topic and room files, opens the chat with that CLI picked and plays the `pack` cue. No CLI starts until you type and press Enter.
+
+The composer's To: line says who gets what you send: `To: <avatar> · <room> · <CLI>`, for example `To: Mira · West keep · Inbox`. Inbox is a letter to the avatar's inbox and nothing runs; with Claude, Grok or Cursor picked it reads `To: session · West keep · Claude` (this room's Claude session). A name or room over 20 letters is cut with … in the line, never in the tooltip. Hover it for what each part means; a raw agent id appears only there, under Details.
+
+The first time the app starts, after the start card closes, a short tour points at the real controls: Chat (reach a chat), New chat, the rooms on the left, the To: line, Summon and the start-check line. Back, Next and Skip tour; a control that is not on screen is passed over. It shows once (`ui/tour.json`); Menu → Take the tour or Settings → Display → Tour replays it.
+
 ## How it works
 
 1. Tasks tab: open a card. The card panel has a **Chats** section: **New chat · Claude**, **Grok** and the card's chats (CLI, start time, the chat's last line).
