@@ -1,13 +1,14 @@
 """BACKLOG-BOSS on the Dungeon floor (docs/backlog-boss.md): the oni in its pit, hits, the HP bar and the burn-down.
 
 ``Hall.place`` calls ``update`` and ``paint`` each frame. At most every ``READ_S`` the view reads every board and
-syncs ``boss.json`` (``backlog_boss.sync``). The pit sits in the right corner of the Apothecary (the main room), else
-of the first room. The oni breathes in it at the size of its stage; a stage up roars. Each new hit plays in turn: a
-white flash, a shake, a ``-1`` rising, the HP bar dropping and a thud; the last hit to zero plays a fanfare and the
-oni falls (the defeated pose). Hover shows HP and the tasks that feed it, a click lists them on a parchment and a row
-opens its card. On Fridays the HP bar and the week's burn-down parchment show; any day the scroll button or ``b``
-toggles them. While a task is in focus the cues wait and the last one plays when focus ends. Canvas items are made
-once and changed in place.
+syncs ``boss.json`` (``backlog_boss.sync``). The pit sits in the middle of the Oni Pit, its own room (BOSS-ROOM.1,
+``boss_rooms``), and widens with it. The oni breathes in it at the size of its stage; a stage up roars. Each new hit
+plays in turn: a white flash, a shake, a ``-1`` rising, the HP bar dropping and a thud; the last hit to zero plays a
+fanfare and the oni falls (the defeated pose) for ``DOWN_S``; at HP 0 the room is bare. ``crypt_view`` draws the
+Crypt's skulls and ``boss_dust`` the dust of a sliding wall. Hover shows HP and the tasks that feed it, a click
+lists them on a parchment and a row opens its card. On Fridays the HP bar and the week's burn-down parchment show;
+any day the scroll button or ``b`` toggles them. While a task is in focus the cues wait and the last one plays when
+focus ends. Canvas items are made once and changed in place.
 """
 
 from __future__ import annotations
@@ -20,15 +21,16 @@ import time
 import backlog_boss
 import focus
 from cli_avatars.app import boss_art as art
+from cli_avatars.app import boss_dust, boss_rooms, crypt_view, cues
 from cli_avatars.app import boss_oni as oni
-from cli_avatars.app import cues
-from cli_avatars.app.session_rooms import APOTHECARY
+from cli_avatars.app import boss_room_art as room_art
 from cli_avatars.app.throttle import StoreThrottle
 
 TAG = "boss"
 READ_S = 2.0
 HIT_S = 0.9
 BAR_AFTER_S = 2.5
+DOWN_S = 3.0
 LIST_W = 300
 LIST_ROWS = 8
 _log = logging.getLogger("cli_avatars.boss")
@@ -44,33 +46,38 @@ def view_for(book) -> "BossView":
 def update(book, hall, plan, now: float) -> None:
     try:
         view_for(book).update(plan, now)
+        crypt_view.view_for(book).update(now)
+        boss_dust.dust_for(book).update(plan, now)
     except Exception:
         _log.debug("boss update failed", exc_info=True)
 
 
 def paint(book, scene, hall, now: float | None = None) -> None:
     try:
-        view_for(book).paint(scene, hall, time.time() if now is None else now)
+        now = time.time() if now is None else now
+        boss_dust.dust_for(book).paint(scene, now)
+        crypt_view.view_for(book).paint(scene, now)
+        view_for(book).paint(scene, hall, now)
     except Exception:
         _log.debug("boss paint failed", exc_info=True)
 
 
 def pit_room(plan) -> str | None:
-    """The Apothecary when it is on the floor, else the first room."""
-    floor = plan.floor(APOTHECARY)
-    if floor is not None and not floor.corridor:
-        return APOTHECARY
-    rooms = [f.name for f in plan.floors if not f.corridor]
-    return rooms[0] if rooms else None
+    """The Oni Pit when it is on the floor."""
+    floor = plan.floor(boss_rooms.PIT)
+    return boss_rooms.PIT if floor is not None and not floor.corridor else None
 
 
 def pit_spot(plan) -> tuple[float, float] | None:
-    """The pit: one tile in from the room's right corner."""
+    """The pit: the middle of the Oni Pit's floor."""
     room = pit_room(plan)
-    if room is None:
-        return None
-    a, b, c, d = plan.floor(room).box()
-    return plan.floor(room).clamp(c - 1.0, b + 1.0)
+    return plan.floor(room).centre() if room is not None else None
+
+
+def pit_width(plan) -> int:
+    """The pit's width in 1x px: most of the room's floor, so it widens as the room grows."""
+    floor = plan.floor(boss_rooms.PIT)
+    return round(min(floor.w - 1, floor.h - 1) * 0.8 * 16 * math.sqrt(2)) if floor is not None else 0
 
 
 def _why(row: dict) -> str:
@@ -100,6 +107,8 @@ class BossView:
         self._list_key: tuple | None = None
         self._bound = None
         self._bar_until = 0.0
+        self._down_until = 0.0
+        self.cued = float("-inf")
 
     # --- state -------------------------------------------------------------------------------------
     def _directory(self):
@@ -116,6 +125,7 @@ class BossView:
 
         def load():
             cards = backlog_boss.cards_in(root)
+            boss_rooms.remember(root, cards, now)
             synced = backlog_boss.sync(root, cards, now)
             return backlog_boss.public(root, cards, now), synced["hits"]
 
@@ -142,6 +152,7 @@ class BossView:
             self.hit = (info, now, base)
             self._bar_until = now + BAR_AFTER_S
             self._cue("fanfare" if base - 1 <= 0 else "thud")
+            self._down_until = now + HIT_S + DOWN_S if base - 1 <= 0 else self._down_until
         if self.hit is not None and now - self.hit[1] >= HIT_S:
             self.hit = None
         pending = len(self.hits) + (1 if self.hit is not None else 0)
@@ -153,6 +164,7 @@ class BossView:
             self.played.append(name)
 
     def _cue(self, name: str) -> None:
+        self.cued = self._now
         root = self._directory()
         try:
             task = focus.current(root) if root is not None else None
@@ -200,21 +212,26 @@ class BossView:
         s = max(1, int(painter._scale))
         stage, hp = self.state["stage"], self.shown_hp if self.shown_hp is not None else self.state["hp"]
         glow = round((0.5 + 0.5 * math.sin(now * math.tau * 0.5)) * 7)
-        keep = {"pit", "oni"}
+        bare = hp <= 0 and self.hit is None and now >= self._down_until
+        keep = set() if bare else {"pit", "oni"}
         x, y = at
-        self._image(scene, "pit", ("pit", stage, glow, s), (x, y), "center", True)
+        width = pit_width(plan)
+        if not bare:
+            self._image(scene, "pit", ("pit", width, stage, glow, s), (x, y), "center", True)
         dx, level = 0, 0
         if self.hit is not None:
             t = (now - self.hit[1]) / HIT_S
             level = max(0, 4 - int(t * 10))
             dx = round(math.sin(t * math.tau * 4) * 3 * (1 - t)) * s
             keep.add("dmg")
-        foot = y + art.pit(stage).height * s // 4
+        foot = y + (width // 2) * s // 4
         if self.hit is not None:
             rise = round(t * 18 * s)
             at = (x + (oni.size(stage) / 2 + 6) * s, foot - oni.size(stage) * s * 0.6 - rise)
             self._image(scene, "dmg", ("dmg", "-1", s), at, "s", False)
-        if hp <= 0 and self.hit is None:
+        if bare:
+            pass
+        elif hp <= 0 and self.hit is None:
             self._image(scene, "oni", ("down", stage, s), (x, foot), "s", True)
         else:
             f = int(now * 2.5) % 4
@@ -226,7 +243,7 @@ class BossView:
             self._image(scene, "bar", ("bar", max(0, hp), self.state["max"], self.state["name"], self.hot, s),
                         (x, top), "s", True)
             self._image(scene, "btn", ("btn", self.chart_shown(), s), (x + 46 * s, top - 4 * s), "s", "chart")
-        else:
+        elif not bare:
             keep.add("btn")
             self._image(scene, "btn", ("btn", False, s), (x + 14 * s, top), "s", "chart")
         if self.chart_shown() and self.state["week"]:
@@ -286,7 +303,7 @@ class BossView:
             from PIL import Image, ImageTk
 
             kind, s = key[0], key[-1]
-            image = {"pit": lambda: art.pit(key[1], key[2]), "oni": lambda: oni.frame(key[1], key[2]),
+            image = {"pit": lambda: room_art.pit(key[1], key[2], key[3]), "oni": lambda: oni.frame(key[1], key[2]),
                      "flash": lambda: art.flash(key[1], key[2], key[3]), "down": lambda: oni.defeated(key[1]),
                      "dmg": lambda: art.damage(key[1]), "bar": lambda: art.bar(key[1], key[2], key[3], key[4]),
                      "btn": lambda: art.button(key[1]), "chart": lambda: art.chart(key[1], key[2], key[3])}[kind]()

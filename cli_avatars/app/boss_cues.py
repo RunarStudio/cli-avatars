@@ -1,4 +1,5 @@
-"""BACKLOG-BOSS cues drawn in code like those in ``cues``: roar (a stage up), thud (a hit), fanfare (defeated)."""
+"""BACKLOG-BOSS cues drawn in code like those in ``cues``: roar (a stage up), thud (a hit), fanfare (defeated);
+BOSS-ROOM.1: grind (a room's walls slide), rattle (a skull drops into the Crypt)."""
 
 from __future__ import annotations
 
@@ -8,7 +9,7 @@ RATE = 22050
 
 
 def sound(name: str) -> np.ndarray:
-    return {"roar": _roar, "thud": _thud, "fanfare": _fanfare}[name]()
+    return {"roar": _roar, "thud": _thud, "fanfare": _fanfare, "grind": _grind, "rattle": _rattle}[name]()
 
 
 def _roar() -> np.ndarray:
@@ -48,4 +49,31 @@ def _fanfare() -> np.ndarray:
                    for f in notes) / len(notes)
         start = int(RATE * at)
         out[start:start + m] += (tone * env * 0.45).astype(np.float32)
+    return out
+
+
+def _grind() -> np.ndarray:
+    """Stone dragged on stone: low gritty noise that judders, under a deep scraping hum."""
+    n = int(RATE * 0.9)
+    t = np.arange(n) / RATE
+    rng = np.random.default_rng(113)
+    grit = np.convolve(rng.standard_normal(n), np.ones(18) / 18, "same") * 2.4
+    judder = 0.55 + 0.45 * np.sign(np.sin(2 * np.pi * 11 * t + 2.0 * np.sin(2 * np.pi * 1.3 * t)))
+    hum = np.sin(2 * np.pi * (52.0 + 8.0 * t) * t) * 0.35
+    env = np.minimum(1.0, t / 0.08) * np.minimum(1.0, (t[-1] - t) / 0.25)
+    return ((grit * judder + hum) * env * 0.8).astype(np.float32)
+
+
+def _rattle() -> np.ndarray:
+    """A skull set down in a niche: a hollow knock, then a few small bony clicks settling."""
+    n = int(RATE * 0.55)
+    t = np.arange(n) / RATE
+    out = (np.sin(2 * np.pi * 310.0 * t) * np.exp(-t * 40) * 0.6).astype(np.float32)
+    rng = np.random.default_rng(127)
+    for at, gain in ((0.07, 0.5), (0.13, 0.4), (0.2, 0.28), (0.26, 0.2), (0.33, 0.12)):
+        m = int(RATE * 0.03)
+        k = np.arange(m) / RATE
+        click = (np.sin(2 * np.pi * (1500 + 900 * rng.random()) * k) + rng.standard_normal(m) * 0.4) * np.exp(-k * 180)
+        start = int(RATE * at)
+        out[start:start + m] += (click * gain).astype(np.float32)
     return out

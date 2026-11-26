@@ -94,9 +94,8 @@ def reread() -> None:
 
 tick(0.3)
 plan = hall.plan()
-check("pit in the apothecary", boss_view.pit_room(plan) == sr.APOTHECARY, str([f.name for f in plan.floors]))
-check("pit and oni drawn", all(n in view._items and canvas.find_withtag(view._items[n]) for n in ("pit", "oni")))
-check("defeated pose at HP 0", view._keys["oni"][0] == "down", str(view._keys.get("oni")))
+check("pit in the oni pit", boss_view.pit_room(plan) == "Oni Pit", str([f.name for f in plan.floors]))
+check("bare room at HP 0", "pit" not in view._items and "oni" not in view._items, str(view._keys))
 check("quiet midweek: no bar, no chart", "bar" not in view._items and "chart" not in view._items)
 
 reg = Registry(DATA)
@@ -107,6 +106,7 @@ for card in cards[:3]:
 reread()
 tick(0.2)
 check("blocked and stale cards feed it", view.state["hp"] == 7 and view.state["stage"] == 1, str(view.state["hp"]))
+check("pit and oni drawn", all(n in view._items and canvas.find_withtag(view._items[n]) for n in ("pit", "oni")))
 check("grows a stage and roars", view._keys["oni"][1] == 1 and "roar" in played, str(played))
 image = canvas.itemcget(view._items["oni"], "image")
 tick(0.5)

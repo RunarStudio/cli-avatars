@@ -18,8 +18,9 @@ class Desktop(unittest.TestCase):
         if proc.returncode == 77:
             self.skipTest("tkinter has no display")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        for name in ("pit in the apothecary", "pit and oni drawn", "defeated pose at HP 0",
-                     "quiet midweek: no bar, no chart", "blocked and stale cards feed it", "grows a stage and roars",
+        for name in ("pit in the oni pit", "bare room at HP 0",
+                     "quiet midweek: no bar, no chart", "blocked and stale cards feed it", "pit and oni drawn",
+                     "grows a stage and roars",
                      "idle breathing frames change in place", "hover shows HP and the feeding tasks",
                      "hover shows the bar", "click lists them, rows open", "a row opens its card", "list closes",
                      "a close plays a hit", "thud cue on the hit", "hit flash", "damage number rises",

@@ -25,6 +25,8 @@ MESSENGER (``courier_cues``): ``rustle``: two soft footsteps and a papery rustle
 ``stamp``: a wax seal pressed (a thud, a squish) and a small warm chime, when it arrives and the card lights up.
 BACKLOG-BOSS (``boss_cues``): ``roar``: a low growl, when the oni grows a stage; ``thud``: a club on hide, when a
 closed task hits it; ``fanfare``: three rising brass notes and a chord, when the last hit defeats it.
+BOSS-ROOM.1 (``boss_cues``): ``grind``: stone dragged on stone, when the Oni Pit or the Crypt grows or shrinks;
+``rattle``: a hollow knock and small bony clicks, when a skull drops into the Crypt.
 SELECT-LIGHT (``room_rise``): ``shimmer``: glassy pings rising over a faint airy swell, when a selected room's light
 rises from its floor.
 NAV (``dungeon_nav``): ``whoosh``: a soft rush of air and one muffled footstep, when the camera jumps to a room.
@@ -115,7 +117,7 @@ def wav(name: str) -> bytes:
         from cli_avatars.app.dungeon_nav import whoosh
 
         return _pcm(whoosh())
-    if name in ("roar", "thud", "fanfare"):
+    if name in ("roar", "thud", "fanfare", "grind", "rattle"):
         from cli_avatars.app.boss_cues import sound as boss_sound
 
         return _pcm(boss_sound(name))
