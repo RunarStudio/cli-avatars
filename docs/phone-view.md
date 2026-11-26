@@ -1,4 +1,4 @@
-# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS, TIMELAPSE, MESSENGER, BACKLOG-BOSS, PHONE-VOICE)
+# Phone view (PHONE.1, PHONE.2, PHONE.3, PHONE.4, DECIDE.1, WEB-PUSH, TASKBACK.5, QUICK-CAPTURE, DAILY-RECAP, FOCUS, MAILROOM, STANDUP, CONTEXT-PACKS, TIMELAPSE, MESSENGER, BACKLOG-BOSS, PHONE-VOICE, PHONEMAP)
 
 The app can serve a web page of the Dungeon to your phone: the map on top, the task list under it, and the room chat at the bottom. Tap a task and the map zooms to that task's room and the chat shows the room's latest messages. On a wide screen (1024 px and up) the map sits on the left and tasks and chat on the right. The page is off by default, and read-only until you allow the phone to send (below).
 
@@ -21,6 +21,20 @@ Page stopped answering: `python -m cli_avatars_emit app phone refresh` redoes st
 ### Without `tailscale serve`
 
 Pick the address marked **Tailscale** in **Listen on**. The server then listens on that one address only (plain HTTP inside Tailscale's encrypted tunnel), and the pairing link uses it. Windows Firewall may ask about the app the first time; allow it on private networks only. Every other address of the PC stays closed.
+
+## Move around the map (PHONEMAP)
+
+The map is the Dungeon's own pixels (every room, custom ones too, the Apothecary, the Oni Pit, the Crypt and the park) with the live avatars, drawn at whole device pixels so the art stays crisp.
+
+- **Drag** with one finger to pan, **pinch** or **double-tap** to zoom (double-tap zooms in two times at that spot). The view stays over the map, as on the PC; a pinch settles on a crisp scale.
+- **Mini-map** (top right): the box shows what you see; tap or drag on it to move there. **⤢** shows the whole map, **⛶** gives the map the whole screen (tasks and chat come back when you open one).
+- **Rooms** lists every room, the Oni Pit and the Crypt with their task and bot counts; a tap glides there.
+- Zoom, pan and full screen are kept across reloads on this phone.
+- **Tap a room**: a drawer with its tasks (column and next action) and the bots in it; a task opens its card and chats in the Tasks list, **Room chat** opens the room's chat. Tap the room again to edit it (PHONE.3).
+- **Tap a bot** (or a bot in a drawer): its name, CLI, state, room, current task, last reply in its room, **Show on map** and **Open chat**.
+- **Active bots** (top left: how many are working or thinking): every bot on the map, working ones first; a tap glides to it and rings it.
+
+Reading only: the drawers open what the phone already shows; sending stays behind phone writes. Door signs and tier chips show once the rooms are big enough to read them. The map redraws at full rate only while something moves, otherwise at the sprites' own pace.
 
 ## Ask from the phone (PHONE.2)
 
@@ -286,4 +300,4 @@ The avatars are the Dungeon's own: while the Dungeon window runs, the page shows
 
 ## Sound
 
-A soft chime plays when the map zooms to a room, a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1). A card moved on the Board plays a short rising two-note; a captured thought a quick three-note flourish; the Daily recap a low three-note as it opens. New letters in the Mailroom play a soft falling two-note (not during focus); filing one a low-then-high note. A new standup plays a low rising three-note (not during focus).
+A soft chime plays when the map zooms to a room, a whoosh when the Rooms list, Whole map or Active bots glides the view and a tick when a room or bot drawer opens (none while a task is in focus), a short blip when you send and a low two-note when a reply lands; Update ends with a rising three-note when done and a falling two-note when it failed. Sound is on by default with a mouse and off by default on phones; the note button in the map bar toggles it and the choice is remembered. A new decision plays a rising bell even on a phone unless you turned the note button off (DECIDE.1). A card moved on the Board plays a short rising two-note; a captured thought a quick three-note flourish; the Daily recap a low three-note as it opens. New letters in the Mailroom play a soft falling two-note (not during focus); filing one a low-then-high note. A new standup plays a low rising three-note (not during focus).
