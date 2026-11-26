@@ -4,6 +4,8 @@ stdin closes; ``tools/shot_phone_map.js`` drives headless Chrome with touch agai
 
     NODE_PATH=<global node_modules> node tools/shot_phone_map.js <out dir>
 
+With ``--writes`` the phone may write (PHONESKIN: the skin picker saves).
+
 The data dir is a fresh temp dir, removed after.
 """
 
@@ -54,7 +56,7 @@ def main() -> None:
         seed(_DATA)
         live.set_roster(roster)
         live.set_sessions(sessions)
-        httpd = server.make_server(_DATA, host="127.0.0.1", port=0, poll=0.5, writes=lambda: False)
+        httpd = server.make_server(_DATA, host="127.0.0.1", port=0, poll=0.5, writes=lambda: "--writes" in sys.argv)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         print(f"http://127.0.0.1:{httpd.server_address[1]}/pair?t={auth.load_token(_DATA)}", flush=True)
         sys.stdin.read()
