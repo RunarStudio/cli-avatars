@@ -116,6 +116,9 @@ def _build_config_ui(self, win):
     from cli_avatars.app.text_settings import mount as mount_text_settings
 
     mount_text_settings(self, td)
+    from cli_avatars.app.anim_settings import mount as mount_anim_setting
+
+    mount_anim_setting(self, td)
     row(td, "Avatar scale",  scale_widget)
     row(td, "Overlay FPS",   fps_widget)
 

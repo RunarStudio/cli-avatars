@@ -12,6 +12,7 @@ from typing import Optional
 from cli_avatars.model.agent import AGENT_STATUS_COLOR as STATUS_COLOR
 from cli_avatars.model.agent import AgentInfo, S
 from cli_avatars.physics.geometry import child_flight_mode
+from cli_avatars.sprites import anim_clock
 from cli_avatars.sprites.procedural import make_photo
 from cli_avatars.tuning import (
     AVATAR_H,
@@ -176,11 +177,7 @@ class Avatar:
                 self.vx  = 0.0
                 self.x   = float(wx - self.aw // 2)   # stay glued to wall x
                 self.y  += self.vy
-                self.ftick += 1
-                thresh = max(1, int((TUNING.overlay_fps // 6) / self.anim_speed_mult))
-                if self.ftick >= thresh:
-                    self.ftick = 0
-                    self.frame += 1
+                anim_clock.tick(self, climb=True)
                 curr = self.agent.status
                 if self._prev_status in (S.BUSY, S.THINKING) and curr in (S.IDLE, S.DONE):
                     self._burst_requested = True
@@ -273,11 +270,7 @@ class Avatar:
 
         self.x, self.y = nx, ny
 
-        self.ftick += 1
-        thresh = max(1, int((TUNING.overlay_fps // (8 if self._anim_status == S.BUSY else 4)) / self.anim_speed_mult))
-        if self.ftick >= thresh:
-            self.ftick = 0
-            self.frame += 1
+        anim_clock.tick(self)
 
         curr = self.agent.status
         if self._prev_status in (S.BUSY,S.THINKING) and curr in (S.IDLE,S.DONE):
@@ -402,7 +395,7 @@ class Avatar:
         if registry is not None and hasattr(registry, "ensure_hue_variant"):
             # TODO(Caine art): load the configured Grok hue the first time it draws.
             registry.ensure_hue_variant(self.agent.skin)
-        px, py = int(self.x - ox), int(self.y - oy)
+        px, py = anim_clock.snap(self.x - ox), int(self.y - oy)
         if getattr(self, "_dying", False):
             pose = getattr(self, "_dying_pose", None) or {}
             frame = pose.get("frame", 0)

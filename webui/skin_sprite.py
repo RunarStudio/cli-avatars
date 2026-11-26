@@ -19,22 +19,23 @@ def key_of(skin: str) -> str:
 
 def sheet_png(key: str) -> tuple[bytes, int, int, int] | None:
     """``(png strip, frame w, frame h, frames)``: idle on row 0, walk on row 1, hue turned as the desktop does."""
+    from cli_avatars.tuning import TUNING
     from rooms import _SHEETS
 
     found = _KEY.match(key)
     if found is None or found.group(1) not in _SHEETS or (found.group(2) and int(found.group(2)) > 359):
         return None
+    cache_key = f"{key}/{TUNING.anim_mode}"
     with _LOCK:
-        if key in _CACHE:
-            return _CACHE[key]
+        if cache_key in _CACHE:
+            return _CACHE[cache_key]
     from PIL import Image
 
-    from bundle_paths import asset_path
     from sprite_loader import hue_rotate_image
 
     filename, fw, fh = _SHEETS[found.group(1)]
     try:
-        with Image.open(asset_path("Sprites", filename)) as img:
+        with Image.open(_sheet_file(filename)) as img:
             sheet = img.convert("RGBA")
     except (OSError, ValueError):
         return None
@@ -60,5 +61,30 @@ def sheet_png(key: str) -> tuple[bytes, int, int, int] | None:
     strip.save(out, "PNG")
     result = (out.getvalue(), fw, fh, frames)
     with _LOCK:
-        _CACHE[key] = result
+        _CACHE[cache_key] = result
     return result
+
+
+def clear() -> None:
+    with _LOCK:
+        _CACHE.clear()
+
+
+def _sheet_file(filename: str):
+    """SMOOTHANIM: the smoothed sheet when Smooth is on, as the desktop loads it."""
+    from bundle_paths import asset_path
+    from cli_avatars.tuning import TUNING
+
+    smooth = asset_path("Sprites", "smooth", filename)
+    return smooth if TUNING.anim_mode == "smooth" and smooth.is_file() else asset_path("Sprites", filename)
+
+
+def timing(key: str) -> dict:
+    """``{"ms": [idle, walk]}`` per frame for a picked sheet under Smooth; the page keeps its own pace otherwise."""
+    from cli_avatars.tuning import TUNING
+    from rooms import _SHEETS
+
+    found = _KEY.match(key)
+    if TUNING.anim_mode != "smooth" or found is None or found.group(1) not in _SHEETS:
+        return {}
+    return {"ms": [round(TUNING.anim_ms["idle"]), round(TUNING.anim_ms["busy"])]}

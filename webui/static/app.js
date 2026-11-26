@@ -273,7 +273,7 @@ function drawAvatars(now) {
     ctx.fill();
     if (!sheet || !meta) continue;
     const walking = a.walk || Math.hypot(w.to[0] - at[0], w.to[1] - at[1]) > 0.3;
-    const f = Math.floor((now + hashNum(a.id) * 37) / (walking ? 110 : 190)) % meta.frames;
+    const f = Math.floor((now + hashNum(a.id) * 37) / (meta.ms ? meta.ms[walking ? 1 : 0] : walking ? 110 : 190)) % meta.frames;
     const top = Math.round(y - meta.h * (1 - meta.feet));
     ctx.save();
     ctx.translate(Math.round(x), 0);

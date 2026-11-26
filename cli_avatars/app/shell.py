@@ -207,6 +207,9 @@ class OverlayApp:
         self._tick()
 
     def _deferred_init(self):
+        from cli_avatars.app.anim_settings import apply as apply_anim_mode
+
+        apply_anim_mode(self.config)
         if REGISTRY:
             load_sprites(REGISTRY)
         self.root.after(0, self._load_bubble_icon)

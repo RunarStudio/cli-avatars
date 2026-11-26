@@ -221,7 +221,7 @@ function lapseGhost(g, now) {
   ctx.fill();
   const sheet = state.sprites[a.sprite], meta = state.lapse.data.sprites[a.sprite];
   if (sheet && meta) {
-    const f = Math.floor((now + hashNum(a.id) * 37) / (g.walk ? 110 : 190)) % meta.frames;
+    const f = Math.floor((now + hashNum(a.id) * 37) / (meta.ms ? meta.ms[g.walk ? 1 : 0] : g.walk ? 110 : 190)) % meta.frames;
     const top = Math.round(y - meta.h * (1 - meta.feet));
     ctx.save();
     ctx.globalAlpha = 0.92;

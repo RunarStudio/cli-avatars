@@ -59,7 +59,8 @@ def build(directory: Path | str, day: date, today: date) -> dict:
     for key in sorted({a["sprite"] for a in out["avatars"]}):
         strip = scene.sprite_png(key)
         if strip:
-            out["sprites"][key] = {"w": strip[1], "h": strip[2], "frames": strip[3], "feet": scene.FEET_UP}
+            out["sprites"][key] = {"w": strip[1], "h": strip[2], "frames": strip[3], "feet": scene.FEET_UP,
+                                   **scene.timing(key)}
     out["moments"] = [{"ts": m["ts"], "minute": m["minute"], "chat": m["chat"], "card": m["card"], "who": m["who"],
                        "aid": _hid(m["aid"]), "room": m["room"]} for m in built["moments"]]
     out["busy"] = [f["minute"] for f in built["frames"]]

@@ -484,6 +484,12 @@ class SpriteRegistry:
         except Exception:
             return
 
+    def drop_hue_variants(self) -> None:
+        """Forget in-memory hue copies so they are made again from reloaded bases."""
+        with self._lock:
+            for name in [n for n, s in self._sheets.items() if str(s.path) == "<memory>"]:
+                del self._sheets[name]
+
     def load_hue_variant(
         self, variant_name: str, base_name: str, hue_degrees: float
     ) -> Optional["SpriteSheet"]:

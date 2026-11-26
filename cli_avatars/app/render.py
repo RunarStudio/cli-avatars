@@ -64,6 +64,9 @@ class PhotoCache:
     def __len__(self) -> int:
         return len(self._photos)
 
+    def clear(self) -> None:
+        self._photos.clear()
+
     def get(self, key: tuple, factory: Callable[[], object | None]) -> object | None:
         cached = self._photos.get(key)
         if cached is not None:

@@ -22,6 +22,7 @@ from cli_avatars.app.skin_picks import mapping
 from cli_avatars.app.throttle import StoreThrottle
 from cli_avatars.model.agent import AgentInfo
 from cli_avatars.model.crossing import span
+from cli_avatars.sprites import anim_clock
 
 USER_SPOT = (0.0, 112.0)
 STEP = 44
@@ -250,13 +251,16 @@ class Hall:
         moved = {}
         for aid, (feet, face) in homes.items():
             t = self.walker.progress(aid)
+            walked = None
             if t is not None and aid in paths:
+                t = anim_clock.ease(t)
                 feet, face = along(paths[aid], t)
+                walked = t * length(paths[aid]) * scale
             self._feet[aid] = feet
             av = inside.get(aid)
             if av is None:
                 continue
-            av.frame, av.dir = int(now * 5), face
+            av.frame, av.dir = anim_clock.at(av, now, walked), face
             moved[aid] = self._spot(feet, av)
         self._publish(plan)
         from cli_avatars.app import door_plaque, door_signs, focus_veil, repo_badge, sandbox_view
@@ -399,7 +403,7 @@ class Hall:
             av = inside.get(aid)
             if av is None:
                 continue
-            av.frame = int(now * 5)
+            av.frame = anim_clock.at(av, now)
             if aid not in self.walker.walking():
                 moved[aid], av.dir = stroll(home, aid, now, reach)
         return moved
@@ -422,7 +426,7 @@ class Hall:
 
         if self.plan() is not None and you_paint(self.book, scene, self, now):
             return
-        av.frame = int(now * 5)
+        av.frame = anim_clock.at(av, now)
         shown, look = dress(av, photos, self._scale(), {})
         feet = self.user_feet(now) if self.plan() is not None else None
         x, y = self.user_spot() if feet is None else self._spot(feet, av)

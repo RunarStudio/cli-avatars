@@ -26,7 +26,7 @@ from registry.facade import Registry
 from registry.task_decisions import open_by_card, pending, public
 from topics import get_topic, valid_topic_id
 from webui import live, park_scene
-from webui.skin_sprite import key_of, sheet_png
+from webui.skin_sprite import key_of, sheet_png, timing
 
 # roster look -> the Dungeon's AV.1 look; a Grok bot's own hue is "grok-<0..359>"
 _LOOK = re.compile(r"^(user|orchestrator|grok|subagent)(?:-(\d{1,3}))?$")
@@ -283,7 +283,7 @@ def build_scene(directory: Path | str) -> dict:
         strip = sprite_png(key)
         if strip:
             sprites[key] = {"w": strip[1], "h": strip[2], "frames": strip[3],
-                            "feet": COURIER_FEET if key == "courier" else FEET_UP}
+                            "feet": COURIER_FEET if key == "courier" else FEET_UP, **timing(key)}
     scene = {"map": {"w": w, "h": h, "origin": [left, top]}, "rooms": rooms, "avatars": avatars, "sprites": sprites,
              "counts": {"total": counts.total, "projects": counts.projects}}
     from cli_avatars.app.orch_rooms import board_cards
