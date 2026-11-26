@@ -105,7 +105,7 @@ def wav(name: str) -> bytes:
         from cli_avatars.app.courier_cues import sound as courier_sound
 
         return _pcm(courier_sound(name))
-    if name in ("ready", "rune", "summon", "found"):
+    if name in ("ready", "rune", "summon", "found", "answer"):
         from cli_avatars.app.chime_cues import sound as chime_sound
 
         return _pcm(chime_sound(name))

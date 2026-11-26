@@ -111,6 +111,7 @@ class RoomPane:
         self._new_btn = self._small(controls, "New session", self.new_session)
         self._mode_btn = self._small(controls, "plan", self.toggle_mode)
         self._folder_btn = self._small(controls, "Folder…", self.pick_folder)
+        self._ask_btn = self._small(controls, "Ask a bot…", self.ask_bot)
         self._small(self.window._to_btn.master, "Copy context", self.copy_context)  # beside To:, the roomy row
         self._bin_row = tk.Frame(composer, bg=BG)
         self._bin_label = tk.Label(self._bin_row, text="", bg=BG, fg=META, font=FONT_SMALL, anchor="w")
@@ -160,7 +161,10 @@ class RoomPane:
         self.room_id = topic_id
         room = self._room()
         if not (self.cli_target() and room is not None and room.participants):
-            self.target = "claude" if room is not None and "claude" in room.participants else INBOX
+            first = ("claude",)
+            if topic_id == tiers.main_sid(self.window.directory()):
+                first = (tiers.main_cli(self.window._config()), "claude")
+            self.target = next((c for c in first if room is not None and c in room.participants), INBOX)
         self._show()
         self._reload()
         self._pin_refresh(force=True)
@@ -179,6 +183,15 @@ class RoomPane:
         self._reload()
 
     copy_context = cli_chips.copy_context
+
+    def ask_bot(self) -> None:
+        """GROK-ORCH.1: the bot picker for this chat; a task chat's ask names its card. Runs no bot."""
+        from cli_avatars.app.bot_ask import open_picker
+
+        directory = self.window.directory()
+        card = task_chats.task_for(directory, self.room_id) if self.room_id else None
+        open_picker(self._composer.winfo_toplevel(), directory, card=card["id"] if card else "", room=self.room_id,
+                    on_sent=lambda row: self._status(f"Asked {row['bot_name']}: the answer lands here."))
 
     def prepare(self, prompt: str):
         """Room settings for one launch, or ``None`` with the reason in the status line.

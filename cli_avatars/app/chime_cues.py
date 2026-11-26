@@ -3,8 +3,9 @@
 ``ready``: a soft anvil tap and a warm rising fifth, when an update finishes (up to date, or the new build staged).
 ``rune``: a low hum and a glassy ping, when one of Daniel's repos goes in use. ``summon`` (SUMMON.1): a herald's
 horn rising a fourth over a low drum, then a hall bell, when the main orchestrator is summoned. ``found``
-(CHECK-UPD.1): two soft pings rising a third over a faint hum, when Check for updates finds new commits on dev. All
-wait while a task is in focus.
+(CHECK-UPD.1): two soft pings rising a third over a faint hum, when Check for updates finds new commits on dev.
+``answer`` (GROK-ORCH.1): a paper flick and one soft low bell, when a bot's answer lands on a card. All wait while a
+task is in focus.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ def cue(app, name: str) -> None:
 
 
 def sound(name: str) -> np.ndarray:
-    return {"ready": _ready, "rune": _rune, "summon": _summon, "found": _found}[name]()
+    return {"ready": _ready, "rune": _rune, "summon": _summon, "found": _found, "answer": _answer}[name]()
 
 
 def _env(n: int, attack: float, decay: float) -> np.ndarray:
@@ -103,4 +104,17 @@ def _found() -> np.ndarray:
         t = np.arange(m) / RATE
         ping = np.sin(2 * np.pi * pitch * t) + 0.3 * np.sin(2 * np.pi * pitch * 3.0 * t)
         _add(out, at, ping * _env(m, 0.004, 7.5) * 0.3)
+    return out
+
+
+def _answer() -> np.ndarray:
+    """A short paper flick of soft noise, then one low warm bell, A4 with a quiet fifth: a reply, not an alarm."""
+    out = np.zeros(int(RATE * 1.0), np.float32)
+    n = int(RATE * 0.09)
+    flick = np.convolve(np.random.default_rng(11).standard_normal(n), np.ones(12) / 12, "same")
+    _add(out, 0.0, flick * _env(n, 0.003, 30) * 0.35)
+    n = int(RATE * 0.85)
+    t = np.arange(n) / RATE
+    bell = np.sin(2 * np.pi * 440.0 * t) + 0.35 * np.sin(2 * np.pi * 659.25 * t) + 0.12 * np.sin(2 * np.pi * 880 * t)
+    _add(out, 0.1, bell * _env(n, 0.006, 5.5) * 0.3)
     return out

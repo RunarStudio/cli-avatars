@@ -2,8 +2,8 @@
 
 A parchment sheet: new-card form, or one card's "where we are" slip (TASK-SUMMARY), its context pack
 (CONTEXT-PACKS), fields, column, assignee, checklist, progress, status note, comments, the card's chats (TASK-CHAT.1),
-its open decisions (DECIDE.1) and history. Every change calls ``act(name, *args)`` on the board panel, which
-writes through ``TaskEditor``.
+its bot asks (GROK-ORCH.1), its open decisions (DECIDE.1) and history. Every change calls ``act(name, *args)`` on
+the board panel, which writes through ``TaskEditor``.
 Card text is shown as text only.
 """
 
@@ -80,6 +80,7 @@ class CardPanel:
         self._cue = cue
         self.pack = None
         self.sandbox = None
+        self.asks = None
         self._decide_sig: tuple | None = None
         self.decide_rows: dict[str, dict] = {}
         self.decide_entries: dict[str, tk.Entry] = {}
@@ -217,6 +218,9 @@ class CardPanel:
 
             self.sandbox = SandboxSection(self.sheet, self._pack_dir, self.chat_list,
                                           lambda room, new: self._open_chat(room, new), lambda name: self._cue(name))
+            from cli_avatars.app.bot_ask import AskSection
+
+            self.asks = AskSection(self.sheet, self._pack_dir, self.sandbox.frame, self.sheet.winfo_toplevel())
         self.history = tk.Label(self.sheet, bg=PARCH, fg=SOFT, font="DungeonBubble", anchor="nw", justify="left",
                                 wraplength=300)
         self.history.pack(fill="both", expand=True, padx=8, pady=(4, 0))
@@ -262,6 +266,8 @@ class CardPanel:
             self.pack.fill(card)
         if self.sandbox is not None:
             self.sandbox.fill(card)
+        if self.asks is not None:
+            self.asks.fill(card)
 
     def tick(self, now: float | None = None) -> None:
         """Keep "updated Nm ago" current, touching one label only when its text changes; the Pack checks its store."""
@@ -269,6 +275,8 @@ class CardPanel:
             self.pack.tick()
         if self.sandbox is not None:
             self.sandbox.tick()
+        if self.asks is not None:
+            self.asks.tick()
         if self.card is None or self.where_ts is None:
             return
         age = summary_age(self.card.get("summary_at"), now)
@@ -464,6 +472,7 @@ class CardPanel:
         self.status_badge = None
         self.pack = None
         self.sandbox = None
+        self.asks = None
 
     def _head(self, title: str, sub: str) -> None:
         self.head = head = tk.Frame(self.sheet, bg=WINE)

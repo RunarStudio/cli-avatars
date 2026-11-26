@@ -7,7 +7,7 @@ from typing import Any
 import context_packs
 import recap
 from bubbles import blocked_indicator, integer_scale, place_blocked_mark, render_bubble
-from cli_avatars.app import decide_watch, focus_mode, mail_panel, needs_panel, recap_panel, standup_panel
+from cli_avatars.app import bot_ask, decide_watch, focus_mode, mail_panel, needs_panel, recap_panel, standup_panel
 from cli_avatars.app.activity_view import ActivityDraw
 from cli_avatars.app.render import photos_for, sync_images
 from cli_avatars.app.throttle import StoreThrottle
@@ -226,6 +226,7 @@ class BubblesView:
         _draw_talk_bubbles(self.app, now)
         focus_mode.step(self.app)
         decide_watch.step(self.app)
+        bot_ask.step(self.app)
         needs_panel.step(self.app)
         recap_panel.step(self.app)
         mail_panel.step(self.app)
