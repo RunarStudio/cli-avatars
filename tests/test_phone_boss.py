@@ -30,7 +30,7 @@ class PhoneBoss(_Writes):
         status, body = self.request("/api/scene")
         self.assertEqual(status, 200)
         boss = body["boss"]
-        self.assertEqual((boss["hp"], boss["stage"], boss["name"], boss["room"]), (2, 0, "KO-ONI", "Apothecary"))
+        self.assertEqual((boss["hp"], boss["stage"], boss["name"], boss["room"]), (2, 0, "KO-ONI", "Oni Pit"))
         self.assertEqual(sorted(r["title"] for r in boss["feeding"]), ["Lantern wick #0", "Lantern wick #1"])
         self.assertEqual([r["day"] for r in boss["week"]], ["Mon", "Tue", "Wed", "Thu", "Fri"])
         self.assertEqual(len(boss["at"]), 2)

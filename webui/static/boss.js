@@ -1,11 +1,12 @@
 // BACKLOG-BOSS: the oni in its pit on the map, read-only over SSE. Its sprite is "boss-<stage>" (four idle frames,
 // then the knocked-out pose). When HP drops between updates each lost point plays a hit: a white flash, a shake and
 // a "-1" rising. A tap on the oni opens its sheet: HP, the tasks that feed it (a tap picks one) and the week's
-// burn-down on a parchment.
+// burn-down on a parchment. BOSS-ROOM.1: the oni has its own room, the Oni Pit, sized by HP (the pit widens with it);
+// at HP 0 it is bare. The Crypt holds a skull per forgotten card; a tap on it opens the forgotten list (read-only).
 "use strict";
 
 const BOSS_HIT = 700;
-state.boss = { hp: null, hits: 0, t0: 0, sheet: null };
+state.boss = { hp: null, hits: 0, t0: 0, sheet: null, crypt: null };
 
 function bossTick(now, b) {
   const s = state.boss;
@@ -19,9 +20,11 @@ function drawBossOver(now) {
   const b = state.scene && state.scene.boss;
   if (!b) return;
   bossTick(now, b);
-  const img = state.sprites[b.sprite], meta = state.scene.sprites[b.sprite];
-  const [x, y] = b.at, rx = meta ? meta.w / 2 + 12 : 28;
   ctx.save();
+  if (b.crypt) drawCrypt(b.crypt);
+  if (b.hp <= 0 && !state.boss.hits) { bossRoomName(b.pit_poly, "Oni Pit"); ctx.restore(); return; }
+  const img = state.sprites[b.sprite], meta = state.scene.sprites[b.sprite];
+  const [x, y] = b.at, rx = b.pit_w ? b.pit_w / 2 : meta ? meta.w / 2 + 12 : 28;
   ctx.fillStyle = "#5c5080";
   ctx.beginPath(); ctx.ellipse(x, y, rx, rx / 2, 0, 0, Math.PI * 2); ctx.fill();
   const g = ctx.createRadialGradient(x, y, 2, x, y, rx * 0.8);
@@ -32,7 +35,7 @@ function drawBossOver(now) {
     const s = state.boss, hit = s.t0 ? (now - s.t0) / BOSS_HIT : -1;
     const f = b.defeated && hit < 0 ? 4 : Math.floor(now / 400) % 4;
     const dx = hit >= 0 ? Math.round(Math.sin(hit * Math.PI * 8) * 3 * (1 - hit)) : 0;
-    const foot = y + rx / 4;
+    const foot = y + rx / 4 - 2;
     if (hit >= 0 && hit < 0.4) ctx.filter = `brightness(${1 + 4 * (0.4 - hit)})`;
     ctx.drawImage(img, f * meta.w, 0, meta.w, meta.h, x - meta.w / 2 + dx, foot - meta.h, meta.w, meta.h);
     ctx.filter = "none";
@@ -44,6 +47,7 @@ function drawBossOver(now) {
       ctx.fillText("-1", x + meta.w / 2, foot - meta.h * 0.6 - hit * 18);
     }
   }
+  bossRoomName(b.pit_poly, "Oni Pit");
   ctx.restore();
 }
 
@@ -59,11 +63,80 @@ function bossBar(x, top, b) {
 
 function bossTap(x, y) {
   const b = state.scene && state.scene.boss, meta = b && state.scene.sprites[b.sprite];
-  if (!b || !meta) return false;
-  const foot = b.at[1] + (meta.w / 2 + 12) / 4;
+  if (!b) return false;
+  if (b.crypt && inside(b.crypt.poly, x, y)) { openCrypt(); return true; }
+  if (b.pit_poly && b.pit_poly.length && inside(b.pit_poly, x, y)) { openBoss(); return true; }
+  if (!meta) return false;
+  const foot = b.at[1] + (b.pit_w ? b.pit_w / 2 : meta.w / 2 + 12) / 4;
   if (Math.abs(x - b.at[0]) > meta.w / 2 + 6 || y < foot - meta.h - 20 || y > foot + 6) return false;
   openBoss();
   return true;
+}
+
+// a room's name near the front corner of its floor, in map pixels
+function bossRoomName(poly, text) {
+  if (!poly || !poly.length) return;
+  const cx = poly[2][0], y = poly[2][1] - 10;
+  ctx.font = `700 8px ${FACE()}`; ctx.textAlign = "center";
+  const w = ctx.measureText(text).width + 8;
+  ctx.fillStyle = "rgba(12,8,18,.8)"; ctx.fillRect(Math.round(cx - w / 2), Math.round(y - 7), Math.round(w), 11);
+  ctx.fillStyle = "#e9dcbc"; ctx.fillText(text, cx, y + 1);
+  ctx.textAlign = "start";
+}
+
+// the Crypt: a bone-white pixel skull per forgotten card and the carved count
+function drawCrypt(c) {
+  for (const k of c.skulls) {
+    const [x, y] = k.at;
+    ctx.fillStyle = "#08060e"; ctx.fillRect(x - 4, y - 8, 8, 9);
+    ctx.fillStyle = "#e8dfc8"; ctx.fillRect(x - 3, y - 7, 6, 4); ctx.fillRect(x - 2, y - 3, 4, 2);
+    ctx.fillStyle = "#1a1220"; ctx.fillRect(x - 2, y - 5, 1, 1); ctx.fillRect(x + 1, y - 5, 1, 1);
+  }
+  bossRoomName(c.poly, "Crypt");
+  if (!c.count) return;
+  const [x, y] = c.plaque, text = `${c.count} forgotten`;
+  ctx.font = `700 7px ${FACE()}`; ctx.textAlign = "center";
+  const w = ctx.measureText(text).width + 8;
+  ctx.fillStyle = "#4a4458"; ctx.fillRect(Math.round(x - w / 2), y - 6, Math.round(w), 11);
+  ctx.strokeStyle = "#2a2434"; ctx.lineWidth = 1; ctx.strokeRect(Math.round(x - w / 2) + 0.5, y - 5.5, Math.round(w) - 1, 10);
+  ctx.fillStyle = "#d8d0bc"; ctx.fillText(text, x, y + 2);
+  ctx.textAlign = "start";
+}
+
+function openCrypt() {
+  if (!state.boss.crypt) {
+    const sheet = el("div", "sheet boss-sheet crypt-sheet"), card = el("div", "sheet-card");
+    const bar = el("header", "bar"), close = el("button", "icon", "✕");
+    close.type = "button"; close.title = "Close";
+    bar.append(el("h2", "", "Crypt"), close);
+    card.append(bar, el("div", "sheet-body"));
+    sheet.append(card);
+    sheet.setAttribute("role", "dialog");
+    close.addEventListener("click", () => { sheet.hidden = true; });
+    sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
+    document.body.append(sheet);
+    state.boss.crypt = sheet;
+  }
+  state.boss.crypt.hidden = false;
+  renderCrypt();
+}
+
+function renderCrypt() {
+  const sheet = state.boss.crypt, b = state.scene && state.scene.boss, c = b && b.crypt;
+  if (!sheet || sheet.hidden || !c) return;
+  const body = sheet.querySelector(".sheet-body");
+  body.replaceChildren();
+  body.append(el("p", "boss-hp", `${c.count} forgotten`));
+  if (!c.rows.length) body.append(el("p", "hint", "No forgotten cards: the Crypt is empty."));
+  const list = el("ul", "boss-feed crypt-list");
+  for (const r of c.rows) {
+    const li = el("li", r.why);
+    li.append(el("span", "", r.title), el("small", "", (r.why === "archived" ? "archived · " : "") + `${r.days} d`));
+    li.addEventListener("click", () => { sheet.hidden = true; pickTask(r.id); });
+    list.append(li);
+  }
+  body.append(list);
+  if (c.more) body.append(el("p", "hint", `+${c.more} more`));
 }
 
 function openBoss() {
@@ -85,6 +158,7 @@ function openBoss() {
 }
 
 function renderBoss() {
+  renderCrypt();
   const sheet = state.boss.sheet, b = state.scene && state.scene.boss;
   if (!sheet || sheet.hidden || !b) return;
   const body = sheet.querySelector(".sheet-body");

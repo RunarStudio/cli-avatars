@@ -13,3 +13,7 @@
   background: #251d3a; border-left: 3px solid #d99b21; color: #faeece; }
 .boss-feed li.blocked { border-left-color: #c0303a; }
 .boss-feed small { color: #b8a8d0; white-space: nowrap; }
+/* BOSS-ROOM.1: the Crypt's forgotten cards */
+.crypt-sheet .sheet-body { background: radial-gradient(140% 70% at 50% 0%, #2a2834 0%, #1a1622 60%, #0e0c14 100%); }
+.crypt-list li { border-left-color: #8a8298; }
+.crypt-list li.archived { border-left-color: #5a5068; }
