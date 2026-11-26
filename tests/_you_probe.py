@@ -168,9 +168,11 @@ check("badge counts it", "badge" in view._items and view._keys["badge"][1] == 1)
 check("asker taps without hook status", body_view.view_for(book).found.poses.get("e5f6a7b8") == TAP,
       str(body_view.view_for(book).found.poses))
 check("no extra cue for a row", "arrive" not in played, str(played))
-y0 = canvas.coords(view._items["bubble:e5f6a7b8"])[1]
-tick(0.2)
-check("bubble bobs", canvas.coords(view._items["bubble:e5f6a7b8"])[1] != y0)
+heights = set()
+for _ in range(8):
+    heights.add(canvas.coords(view._items["bubble:e5f6a7b8"])[1])
+    tick(0.1)
+check("bubble bobs", len(heights) > 1, str(heights))
 for zoom in (1, 3):
     canvas._camera.zoom = zoom
     tick(0.1)

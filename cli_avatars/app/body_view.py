@@ -19,7 +19,7 @@ import needs_you
 from cli_avatars.app import body_art as art
 from cli_avatars.app import body_spots as spots
 from cli_avatars.app import cues
-from cli_avatars.app.body import IDLE, SLUMP, STRIDE, TAP, WORDS, Found, Runs, Shift, Thresholds, states
+from cli_avatars.app.body import IDLE, SLUMP, STRIDE, TAP, WORDS, Found, Runs, Shift, Thresholds, reasons, states
 from cli_avatars.app.room_floor import wander
 from cli_avatars.app.throttle import StoreThrottle
 
@@ -127,6 +127,7 @@ class BodyView:
         self.benches: dict[str, tuple[tuple[float, float], int]] = {}
         self.shown: dict[str, float] = {}
         self._read = StoreThrottle(READ_S)
+        self._quiet: set[str] = set()
         self._items: dict[str, int] = {}
         self._keys: dict[str, tuple] = {}
         self._photos: dict[tuple, object] = {}
@@ -158,7 +159,10 @@ class BodyView:
         homes = {aid: hall.room_of(aid) for aid in agents}
         from cli_avatars.app.you_view import needs as you_needs
 
-        self.found = states(agents, topics, cards, items, homes, self.runs, now, th, you_needs(self.book))
+        direct = you_needs(self.book)
+        self.found = states(agents, topics, cards, items, homes, self.runs, now, th, direct)
+        rows = {aid for aid, need in direct.items() if need.item is not None}
+        self._quiet = rows - set(reasons(topics, cards, items, agents)) if rows else set()
         self.blend = {aid: self.shift.see(aid, pose, now) for aid, pose in self.found.poses.items()}
         self.shift.keep(set(self.found.poses))
         targets = self._targets(plan, hall, homes)
@@ -203,7 +207,8 @@ class BodyView:
 
     def _cues(self, now: float) -> None:
         smoking = set(self.found.smoke)
-        names = [{SLUMP: "sigh", TAP: "knock"}.get(pose) for _aid, _was, pose in self.shift.changed()]
+        names = [{SLUMP: "sigh", TAP: "knock"}.get(pose) for aid, _was, pose in self.shift.changed()
+                 if aid not in self._quiet]
         if self._smoking is not None and smoking - self._smoking:
             names.append("crackle")
         self._smoking = smoking

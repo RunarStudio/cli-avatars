@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import zlib
 
 import focus
 import needs_you
@@ -41,7 +42,8 @@ def view_for(book) -> "YouView":
 
 
 def _book(app):
-    return getattr(app, "places", None)
+    book = getattr(app, "places", None)
+    return book if getattr(book, "app", None) is not None else None
 
 
 def update(book, hall, plan, agents: dict, topics, cards, now: float) -> None:
@@ -132,15 +134,17 @@ class YouView:
         dt = 0.0 if not self._now else min(0.25, max(0.0, now - self._now))
         self._now, self._hall = now, hall
         layout = getattr(getattr(self.book._scene(), "_rooms_painter", None), "layout", None)
+        sent = hall._sent.get(USER_ID)
+        trip = hall._trips.get(USER_ID)
         if self.feet is None or plan.floor(self.room or "") is None:
             root = self._directory()
             found = walk.spot(plan, layout, walk.load(root) if root is not None else None)
+            if plan.floor(sent or "") is not None:
+                found = (sent, trip[0][-1] if trip else plan.floor(sent).centre())
             if found is None:
                 return
             self.room, self.feet = found
             hall._sent[USER_ID] = self.room
-        sent = hall._sent.get(USER_ID)
-        trip = hall._trips.get(USER_ID)
         if sent and sent != self.room and plan.floor(sent) is not None:
             self.room = sent
             self.feet = trip[0][-1] if trip else plan.floor(sent).centre()
@@ -369,7 +373,7 @@ class YouView:
                 continue
             label = getattr(av, "_label_box", None)
             top = min(av.y, label[1]) if label else av.y
-            bob = round(math.sin(now * 4.0 + (hash(aid) % 7)) * 2 * size / 2)
+            bob = round(math.sin(now * 4.0 + zlib.crc32(aid.encode()) % 7) * 2 * size / 2)
             x, y = av.x + av.aw / 2.0, top - 2 + bob
             name = f"bubble:{aid}"
             keep.add(name)

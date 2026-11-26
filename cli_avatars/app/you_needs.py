@@ -67,6 +67,8 @@ def who(items: Iterable, topics: Iterable, cards: Iterable, agents: Mapping,
             sent = [found] if found in present else []
         elif kind == "blocked":
             card = by_card.get(item.get("card")) or {}
+            if card.get("column") != "blocked":
+                continue
             found = str(card.get("assignee") or "").partition("@")[0]
             sent = [found] if found in present else []
         for aid in sent or of_room(item.get("room")):

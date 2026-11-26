@@ -74,6 +74,14 @@ class Who(unittest.TestCase):
         self.assertIsNone(near(None, spots, needs, 1.4))
 
 
+class StaleRows(unittest.TestCase):
+    def test_a_blocked_row_whose_card_moved_on_needs_nobody(self):
+        agents = {"b2": agent("b2")}
+        cards = [{"id": "k1", "column": "doing", "assignee": "b2"}]
+        self.assertEqual(who([row("blocked", "lantern", key="card:k1", card="k1")], [], cards, agents), {})
+        self.assertEqual(who([row("blocked", "lantern", key="card:k1", card="k1")], [], [], agents), {})
+
+
 class BodyPoses(unittest.TestCase):
     def test_the_asker_taps_and_a_blocked_assignee_slumps_without_members(self):
         agents = {"a1": agent("a1"), "b2": agent("b2")}
