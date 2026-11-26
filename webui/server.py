@@ -597,6 +597,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.server.streams.acquire(blocking=False):
             return self._error(503)
         self.close_connection = True
+        updater, update_seq = self.server.updater, self.server.updater.seq()
         try:
             self.send_response(200)
             for key, value in HEADERS.items():
@@ -614,7 +615,6 @@ class Handler(BaseHTTPRequestHandler):
             packed = pack_routes.summary(self.server.directory)
             boxed = sandbox_routes.summary(self.server.directory)
             lapsed = timelapse.stamp(self.server.directory)
-            updater, update_seq = self.server.updater, self.server.updater.seq()
             while not self.server.stopping.wait(min(self.server.poll, AVATAR_TICK)):
                 if updater.seq() != update_seq:
                     update_seq, quiet = updater.seq(), time.monotonic()
