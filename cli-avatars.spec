@@ -24,6 +24,7 @@ datas = [
 
 hiddenimports = [
     "activity",
+    "bot_bridge",
     "bundle_paths",
     "bubbles",
     "chat_address",

@@ -5,7 +5,16 @@
 ## Talk to the main orchestrator
 
 The main orchestrator lives in the **throne room**. Open the Dungeon's **Throne** tab, or click its room on the
-floor: the chat opens on its topic with **Claude** lit and a gold crown chip on the Run row. Type and press Enter.
+floor: the chat opens on its topic with the main orchestrator's CLI lit and a gold crown chip on the Run row. Type and
+press Enter.
+
+## Pick it (GROK-ORCH.1)
+
+Grok is the main orchestrator by default. **Settings › Chat › Main orchestrator** switches it any time (Claude, Grok,
+Cursor; Summon starts Claude or Grok), saved as `config.json` `orchestrator.main` and live at once: the next Summon,
+the throne room's lane and New chat's first CLI follow it. A chat that is running keeps going. An older
+`chat.tiers.main.cli` still counts while `orchestrator.main` is unset. Off Claude, the main tier sends no model or
+effort flag unless `chat.tiers.main` sets one; its chip shows the CLI (`GROK`).
 
 ## Create one
 
@@ -22,7 +31,7 @@ floor: the chat opens on its topic with **Claude** lit and a gold crown chip on 
 
 | Tier | Where it starts | Chip | Default | What it does |
 |------|-----------------|------|---------|--------------|
-| main | throne room | crown | Claude `fable`, high | plans, splits into topics, delegates; never does the work |
+| main | throne room | crown | Grok, its own model (Claude: `fable`, high) | plans, splits into topics, delegates; never does the work |
 | topic | simple room | banner | Claude `fable`, high | turns its topic into tasks, one task chat each |
 | task | a card's task chat | scroll | Claude `opus`, medium | does one task; sends quick lookups to subagents |
 | subagent | inside a task chat | spark | Claude `haiku`, low | one narrow job, fast and cheap, then reports back |

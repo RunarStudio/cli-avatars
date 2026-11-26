@@ -6,8 +6,8 @@ Start a Claude chat from a task card. The chat carries the task's context, so th
 
 **New chat** is one card for both jobs: going back to a chat and starting one. It sits over the Dungeon (not a new window) and opens from the toolbar's **New chat**, the composer's **New chat** beside To:, Menu → New chat, and a right-click on a room of the map (that room's topic is picked).
 
-- **Go back to a chat**: the six chats touched last; one click opens it in the chat dock.
-- **Start a new one**: Topic (an existing one, or `+ New topic` with a name and an optional project), CLI (Claude, Grok or Cursor; one that is not set up is greyed with a **set up** link to the start card), an optional Task (then it is that card's task chat, with its context and pack), **Start**. Start writes the topic and room files, opens the chat with that CLI picked and plays the `pack` cue. No CLI starts until you type and press Enter.
+- **Go back to a chat**: every chat, grouped by project and newest first, in a short scrolling list (GROK-ORCH.1); one click opens it in the chat dock with its CLI picked, and the next send resumes its session.
+- **Start a new one**: Topic (an existing one, or `+ New topic` with a name and an optional project; no name and no task makes a quick `chat-<n>`), CLI (the main orchestrator's first; Claude, Grok or Cursor; one that is not set up is greyed with a **set up** link to the start card), an optional Task (then it is that card's task chat, with its context and pack), **Start**. Start writes the topic and room files, opens the chat with that CLI picked and plays the `pack` cue. No CLI starts until you type and press Enter.
 
 The composer's To: line says who gets what you send: `To: <avatar> · <room> · <CLI>`, for example `To: Mira · West keep · Inbox`. Inbox is a letter to the avatar's inbox and nothing runs; with Claude, Grok or Cursor picked it reads `To: session · West keep · Claude` (this room's Claude session). A name or room over 20 letters is cut with … in the line, never in the tooltip. Hover it for what each part means; a raw agent id appears only there, under Details.
 

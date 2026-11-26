@@ -40,6 +40,29 @@ risky words refused, a refused template reads as unset and greys Grok with "no c
 
 If your build needs the prompt as `-p`'s value, Grok cannot run from the app: the prompt never goes into argv.
 
+## Start and continue a chat (GROK-ORCH.1)
+
+- **Start:** **New chat** (toolbar, composer or Menu). Leave Topic on `+ New topic` with no name and no task, Grok
+  picked (it is picked first while Grok is the main orchestrator), **Start**: a fresh `chat-<n>` room, "Grok chat n",
+  opens with Grok on. Name it, pick a topic or a task for the other kinds of chat.
+- **Continue:** the same card lists every chat, grouped by project (the newest project first, chats with no project
+  last), each as `title · CLI · resumes · 3h ago`. One click opens it with its CLI picked; the next Enter resumes that
+  chat's session (`-r <id>` for Grok, from `task_sessions.json`). The list and the sessions are files in the data dir,
+  so they survive a restart.
+- **Phone:** **◆ Grok** lists the same Grok chats under project headings; tap to read, type and Send as below.
+
+## Main orchestrator (GROK-ORCH.1)
+
+Grok is the main orchestrator unless Daniel picks another. **Settings › Chat › Main orchestrator** (Claude, Grok,
+Cursor) saves `orchestrator.main` in `config.json` and applies at once: the next Summon starts it, the throne room's
+chat picks its lane, New chat picks it first. A chat already running keeps going; nothing is stopped. With Grok on the
+throne the app sends no `-m`/`--effort` unless `chat.tiers.main` names a model ([orchestrator-hierarchy.md](orchestrator-hierarchy.md)).
+
+## Ask a bot
+
+From a Grok chat (or any chat or task card), **Ask a bot…** hands a question to one of Daniel's roster bots in their
+own app, as a file: [bot-bridge.md](bot-bridge.md).
+
 ## Send
 
 - **Dungeon:** open any room or task chat, pick **Grok** on the Run row, type, press Enter. The reply streams in
@@ -77,4 +100,5 @@ focus mode like every cue.
 
 ## Tests
 
-`tests/test_grok_chat.py`, `tests/test_grok_topics.py` (stub `tests/grok_fake.py`: no real CLI, network or key).
+`tests/test_grok_chat.py`, `tests/test_grok_topics.py` (stub `tests/grok_fake.py`: no real CLI, network or key),
+`tests/test_grok_orch.py`, `tests/test_grok_orch_ui.py`.

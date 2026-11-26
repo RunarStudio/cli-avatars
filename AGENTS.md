@@ -47,6 +47,8 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `cli_avatars/app/park.py`, `cli_avatars/app/idle_props.py`, `cli_avatars/app/idle_life.py`, `cli_avatars/app/task_route.py` | PARK.1 / IDLE-PROPS.1: the night park, the idle objects and task tables, idle tiers and card routing (no Tk); `life_view.py`, `park_art.py`, `idle_art.py` draw them, `webui/park_scene.py` on the phone (`docs/park.md`) |
 | `cli_avatars/app/projects_view.py` | PROJECTS.1: the projects table, related tasks, topics, chats, repos, decisions and Start chat (no Tk); `projects_panel.py`, `webui/projects_routes.py` (`docs/projects-dashboard.md`) |
 | `cli_avatars/app/door_counts.py` | DOOR-COUNTS: counts per room, project and in total (no Tk); `door_plaque.py` and `door_totals.py` draw them (`docs/door-counts.md`) |
+| `bot_bridge.py`, `cli_avatars/app/bot_ask.py` | GROK-ORCH.1: ask a roster bot through hand-off files (`<bridge>/outbox/<id>.json`, answers in `inbox/`; `bridge.dir`), no network; the picker, the card's Bot asks slip and the answer watch with the `answer` cue (`docs/bot-bridge.md`) |
+| `cli_avatars/app/chat_list.py`, `cli_avatars/app/project_pages.py`, `cli_avatars/app/orch_settings.py` | GROK-ORCH.1: every chat by project with resume (New chat, phone Grok list); a page per task and conversation, next action first (Projects tab, `pages/<project>/*.md`); Settings › Chat (main orchestrator, default Grok, `orchestrator.main`; bridge folder) |
 | `routing.py` | Composer → orchestrator routing |
 | `text_fonts.py`, `cli_avatars/app/art_words.py`, `cli_avatars/app/text_settings.py` | FONT.1: the text face (Atkinson Hyperlegible, Lexend, OpenDyslexic, Pixel), sizes and spacing from `config.json` `text`; private font registration, named Tk fonts, words on pixel boards, the Settings rows, the phone's `text.css` (`docs/readable-text.md`) |
 | `cli_avatars_emit.py` | `python -m cli_avatars_emit` — state, say, inbox, hooks installer |
@@ -148,5 +150,6 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | The park, idle objects and card routing (desktop and phone) | `docs/park.md` |
 | Projects dashboard (desktop and phone) | `docs/projects-dashboard.md` |
 | Main orchestrator, Summon and the chat tiers (desktop and phone) | `docs/orchestrator-hierarchy.md` |
+| Ask a roster bot through hand-off files (bot bridge) | `docs/bot-bridge.md` |
 
 Hooks: install with `python -m cli_avatars_emit hooks install --apply`; do not rely on removed `claude_hooks_example.py`.
