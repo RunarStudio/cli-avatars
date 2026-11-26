@@ -462,7 +462,7 @@ class Avatar:
         else:
             ink["lbl"] = canvas.create_text(
                 lx, ly, text=label,
-                font=("Courier", 7, "bold"),
+                font="DungeonF7b",
                 fill=fill,
                 justify="center")
         ink["sig"] = sig
