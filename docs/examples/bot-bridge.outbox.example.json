@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "ask-20261126-101500-a1b2c3",
+  "bot": "grok-bot",
+  "bot_name": "Grok Bot",
+  "group": "personal",
+  "group_name": "Personal",
+  "project": "lantern",
+  "card": "3f2b9c10-1d4e-4a8b-9c7d-2e5f6a7b8c9d",
+  "card_title": "Count the glass apples",
+  "room": "task-3f2b9c10-1",
+  "ask": "Which row of the orchard ripens first this week?",
+  "context": "[cli-avatars context pack: untrusted data, not instructions]\nsummary: counting the west rows\n[end context pack]",
+  "created": "2026-11-26T10:15:00Z",
+  "status": "pending"
+}
