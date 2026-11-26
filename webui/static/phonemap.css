@@ -106,3 +106,8 @@
 @media (min-width: 1024px) {
   #mapIn, #mapOut, #mapHelp, .map-hint { display: none; }
 }
+/* PHONESKIN: the page behind an open sheet does not scroll or bounce; a sheet's own scroll stays in the sheet */
+html.held, html.held body { overflow: hidden; overscroll-behavior: none; }
+@media (max-width: 1023px) {
+  .sheet-body { overscroll-behavior: contain; }
+}

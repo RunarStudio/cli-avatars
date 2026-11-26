@@ -414,3 +414,26 @@ $("drawerClose").addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("drawer").hidden) closeDrawer(); });
 setInterval(paintBotsChip, 1000);
 setFull(localStorage.getItem(FULL_KEY) === "1");
+
+// --- PHONESKIN: on a phone an open sheet, the map hint or the viewer owns every touch ---------------------------
+// Everything around the top one goes inert, the page stops scrolling and a map drag in flight ends there.
+const OVERLAYS = [...document.querySelectorAll(".sheet, .map-hint, .viewer")];
+let heldBehind = [];
+function holdBehind() {
+  for (const n of heldBehind) n.inert = false;
+  heldBehind = [];
+  const open = OVERLAYS.filter((n) => !n.hidden);
+  const z = (n) => Number(getComputedStyle(n).zIndex) || 0;
+  const top = phoneView() && open.reduce((a, n) => (!a || z(n) >= z(a) ? n : a), null);
+  document.documentElement.classList.toggle("held", !!top);
+  if (!top) return;
+  for (let n = top; n !== document.body; n = n.parentElement) {
+    for (const s of n.parentElement.children) if (s !== n && !s.inert) { s.inert = true; heldBehind.push(s); }
+  }
+  pointers.clear();
+  gesture = null;
+  miniDrag = false;
+}
+const overlayWatch = new MutationObserver(holdBehind);
+for (const n of OVERLAYS) overlayWatch.observe(n, { attributes: true, attributeFilter: ["hidden"] });
+window.matchMedia("(max-width: 1023px)").addEventListener("change", holdBehind);
