@@ -1,13 +1,13 @@
 /* BACKLOG-BOSS: the oni's sheet, its burn-down parchment and the feeding tasks */
 .boss-sheet .sheet-body { background: radial-gradient(140% 70% at 50% 0%, #3a1a2a 0%, #1d1529 60%, #120d19 100%); }
-.boss-hp { margin: 4px 0 8px; color: #f0684a; font: 700 15px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .05em; }
+.boss-hp { margin: 4px 0 8px; color: #f0684a; font: 700 15px var(--mono); letter-spacing: .05em; }
 .boss-chart { display: block; width: 100%; height: auto; padding: 6px; border-radius: 3px; background: #ecdeb8;
   box-shadow: inset 0 0 0 2px #b8a074, 0 0 0 2px #3b2616; }
 .boss-chart .axis { stroke: #3a2414; stroke-width: 1.2; }
 .boss-chart .ideal { stroke: #7a5a3a; stroke-width: 1; stroke-dasharray: 2 3; }
 .boss-chart .line { fill: none; stroke: #8a1c2a; stroke-width: 2.4; }
 .boss-chart .dot { fill: #f0684a; stroke: #6a1a3a; }
-.boss-chart text { fill: #3a2414; font: 700 9px ui-monospace, Menlo, Consolas, monospace; text-anchor: middle; }
+.boss-chart text { fill: #3a2414; font: 700 9px var(--mono); text-anchor: middle; }
 .boss-feed { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 4px; }
 .boss-feed li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; cursor: pointer;
   background: #251d3a; border-left: 3px solid #d99b21; color: #faeece; }

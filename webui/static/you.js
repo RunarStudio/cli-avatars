@@ -55,7 +55,7 @@ function youBadge(n) {
   ctx.arc(0, 0, 5, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#fff";
-  ctx.font = "700 7px ui-monospace, Menlo, Consolas, monospace";
+  ctx.font = `700 7px ${FACE()}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(text, 0, 0.5);

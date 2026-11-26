@@ -8,12 +8,13 @@ from __future__ import annotations
 import tkinter as tk
 from dataclasses import replace
 
+import text_fonts as fonts
 from cli_avatars.app import door_counts
 from events import app_data_dir
 from webui import auth, config, live, qr, repo_routes, server, writes
 
 _BG, _FG, _SEL, _DIM, _BAD = "#0d0d1a", "#aaccff", "#223366", "#9a98b8", "#ff8866"
-_FONT = ("Courier", 9)
+_FONT = fonts.face(9)
 
 
 def _settings(app) -> config.WebSettings:

@@ -392,6 +392,11 @@ class Handler(BaseHTTPRequestHandler):
         if path in FILES:
             name, ctype = FILES[path]
             return self._send(200, (STATIC / name).read_bytes(), ctype)
+        if path.startswith("/static/"):
+            from webui import font_routes
+
+            if font_routes.read(self, path):
+                return None
         if path == "/api/board":
             project = (query.get("project") or [None])[0]
             if project is not None and clean_board_project(project) != project:

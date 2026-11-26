@@ -40,7 +40,7 @@ function drawBossOver(now) {
     bossBar(x, top, b);
     if (hit >= 0) {
       ctx.fillStyle = `rgba(240,104,74,${1 - hit})`;
-      ctx.font = "700 11px ui-monospace, Menlo, Consolas, monospace";
+      ctx.font = `700 11px ${FACE()}`;
       ctx.fillText("-1", x + meta.w / 2, foot - meta.h * 0.6 - hit * 18);
     }
   }
@@ -52,7 +52,7 @@ function bossBar(x, top, b) {
   ctx.fillStyle = "#251d3a"; ctx.fillRect(x - w / 2, top - 8, w, 8);
   ctx.fillStyle = "#c0303a"; ctx.fillRect(x - w / 2 + 2, top - 6, fill, 4);
   ctx.strokeStyle = "#d99b21"; ctx.lineWidth = 1; ctx.strokeRect(x - w / 2 + 0.5, top - 7.5, w - 1, 7);
-  ctx.fillStyle = "#faeece"; ctx.font = "700 7px ui-monospace, Menlo, Consolas, monospace"; ctx.textAlign = "center";
+  ctx.fillStyle = "#faeece"; ctx.font = `700 7px ${FACE()}`; ctx.textAlign = "center";
   ctx.fillText(`${b.name} HP ${shown}`, x, top - 11);
   ctx.textAlign = "start";
 }

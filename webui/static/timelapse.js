@@ -231,7 +231,7 @@ function lapseGhost(g, now) {
     ctx.restore();
   }
   const h = meta ? meta.h * (1 - meta.feet) : 30;
-  ctx.font = "600 8px ui-monospace, Menlo, Consolas, monospace";
+  ctx.font = `600 8px ${FACE()}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
   const tw = ctx.measureText(a.name).width + 6;
@@ -298,7 +298,7 @@ function paintLapse() {
   g.beginPath();
   g.arc(sx, 14, 4, 0, Math.PI * 2);
   g.fill();
-  g.font = "9px ui-monospace, Menlo, Consolas, monospace";
+  g.font = `9px ${FACE()}`;
   g.textAlign = "center";
   g.textBaseline = "top";
   for (let hr = 0; hr <= 24; hr++) {

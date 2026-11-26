@@ -32,7 +32,7 @@ function drawTiers() {
   const by = {};
   for (const t of h.tiers) by[t.tier] = t;
   const v = state.view, px = parseFloat(getComputedStyle(document.body).fontSize) * 0.7;
-  ctx.font = `600 ${px}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.font = `600 ${px}px ${FACE()}`;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
   for (const r of s.rooms) {

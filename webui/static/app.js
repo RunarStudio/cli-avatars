@@ -18,6 +18,7 @@
 const $ = (id) => document.getElementById(id);
 const canvas = $("map");
 const ctx = canvas.getContext("2d");
+const FACE = () => getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "monospace";
 const LABELS = { todo: "TODO", doing: "DOING", review: "REVIEW", done: "DONE", blocked: "BLOCKED" };
 const state = { scene: null, cards: [], sel: null, room: null, map: null, mapKey: "", sprites: {},
   view: { x: 0, y: 0, s: 1 }, anim: null, fitted: false, chatKey: "", glow: 0, walkers: new Map(),
@@ -292,7 +293,7 @@ function drawAvatars(now) {
 function drawNames() {
   const v = state.view;
   if (v.s < 1.7) return;
-  ctx.font = `600 11px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.font = `600 11px ${FACE()}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
   const now = performance.now();
@@ -318,7 +319,7 @@ function hashNum(text) {
 function drawLabels() {
   const v = state.view;
   const px = parseFloat(getComputedStyle(document.body).fontSize) * 0.8;
-  ctx.font = `600 ${px}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.font = `600 ${px}px ${FACE()}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   for (const r of state.scene.rooms) {
@@ -373,7 +374,7 @@ function drawCounts(c, x, y, px) {
   const pending = c.decisions || 0;
   if (!cells.length && !pending) return;
   const k = Math.max(1, Math.round(px / 6)), gap = Math.round(px * 0.55), pad = Math.round(px * 0.5);
-  ctx.font = `700 ${px}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.font = `700 ${px}px ${FACE()}`;
   ctx.textAlign = "left";
   const widths = cells.map(([key]) => 5 * k + 3 + ctx.measureText(String(c[key])).width);
   const h = Math.round(px * 1.55), seal = pending ? h + 2 : 0;
