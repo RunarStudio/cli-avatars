@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 class Desktop(unittest.TestCase):
-    def test_start_resume_switch_and_ask_a_bot(self):
+    def test_start_resume_switch_ask_a_bot_and_pages(self):
         root = Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory() as tmp:
             data, work = Path(tmp) / "data", Path(tmp) / "work"
@@ -21,7 +21,8 @@ class Desktop(unittest.TestCase):
         for name in ("quick grok chat starts with nothing picked", "chat list shows it with resume", "reopen picks its cli",
                      "switch saves config.json", "switch is live", "send writes the hand-off file", "two asks open at once",
                      "answer lands", "answer cue plays", "slip shows answered and the answer", "answer in the task's chat",
-                     "nothing ran", "no new toplevel"):
+                     "pages show the next action first", "the rest is folded", "more opens the rest",
+                     "page kept as markdown", "nothing ran", "no new toplevel"):
             self.assertIn(f"ok {name}", proc.stdout)
 
 

@@ -148,6 +148,30 @@ panel.asks.tick()
 words = " ".join(texts(panel.asks.rows))
 check("slip shows answered and the answer", "answered" in words and "The west row" in words, words)
 check("answer in the task's chat", "The west row" in channel_path(DATA, room).read_text(encoding="utf-8"))
+# Ask 4: the project's pages in the Projects tab, next action first, the rest folded; markdown kept in the data dir.
+from cli_avatars.app import project_pages  # noqa: E402
+from cli_avatars.app.projects_panel import ProjectsPanel  # noqa: E402
+from cli_avatars_mcp.projects import save_project  # noqa: E402
+
+save_project(DATA, {"slug": "lantern", "name": "Lantern", "status": "active"})
+reg.task_edit(card["id"], checklist=[{"text": "weigh the basket", "done": False}])
+host = tk.Frame(root, bg="#141018")
+host.place(x=0, y=0, width=900, height=700)
+app.dungeon = SimpleNamespace(_center="projects")
+projects = ProjectsPanel(app, host)
+projects.toggle("lantern")
+root.update()
+shown_text = texts(projects.list)
+head = "Pages: next action first"
+first = shown_text[shown_text.index(head) + 1] if head in shown_text else ""
+check("pages show the next action first", first == "Do: weigh the basket", shown_text[:12])
+check("the rest is folded", not any(t.strip().startswith("- [ ] weigh") for t in shown_text))
+projects.toggle_more(card["id"])
+check("more opens the rest", any("weigh the basket" in t and "[ ]" in t for t in texts(projects.list)))
+page_file = DATA / project_pages.FOLDER / "lantern" / f"task-{card['id'][:8]}.md"
+check("page kept as markdown", page_file.is_file() and "**Next action:** Do: weigh the basket"
+      in page_file.read_text(encoding="utf-8"))
+host.destroy()
 check("nothing ran", ran == [], ran)
 check("no new toplevel", not [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)])
 root.destroy()

@@ -4,6 +4,8 @@ One row per project record with its card counts, topics, chats and folder (never
 expands a row: its tasks by column, topics, chats, repos and newest decisions. The column chips filter. Start chat on
 a project, topic or task row writes that chat (``projects_view.start_chat``), opens it in the chat dock with the
 picked CLI and, for a project or topic, its context as a draft. No CLI starts: that is Daniel's Send or Enter.
+GROK-ORCH.1: an expanded project starts with its pages (``project_pages``): each task and conversation's next action
+first, the rest folded; the same pages are kept as markdown in the data dir.
 Reads go through a ``StoreThrottle``; the tab redraws only when it shows and something changed. No new window.
 """
 
@@ -12,11 +14,13 @@ from __future__ import annotations
 import tkinter as tk
 
 from board.model import CHAT_CLIS
+from cli_avatars.app import project_pages
 from cli_avatars.app import projects_view as pv
 from cli_avatars.app.chat_clis import NAMES
 from cli_avatars.app.throttle import StoreThrottle
 
 BG, ROW, ROW_OPEN, EDGE, EDGE_OPEN = "#141018", "#1b1524", "#221a30", "#33284a", "#a8640e"
+PAGE_BG = "#18121f"
 INK, DIM, GOLD, BAD = "#e8e6f4", "#9a98b8", "#ffcf4a", "#ff8866"
 INKS = {"doing": "#f2a33a", "todo": "#9fb0d8", "review": "#b48cff", "blocked": "#ff8866", "done": "#7fc08a"}
 READ_S = 2.0
@@ -39,6 +43,8 @@ class ProjectsPanel:
         self.app, self.parent = app, parent
         self.rows: dict[str, dict] = {}
         self.open: set[str] = set()
+        self.more: set[str] = set()
+        self.pages: dict[str, list[dict]] = {}
         self.column = ""
         self._read = StoreThrottle(READ_S)
         self._key = None
@@ -97,10 +103,14 @@ class ProjectsPanel:
         column = self.column or None
         rows = pv.rows(directory, column, snap)
         found = {slug: pv.related(directory, slug, column, snap) for slug in sorted(self.open)}
-        key = (repr(rows), repr(found), column)
+        pages = {slug: project_pages.pages(directory, slug, snap=snap) for slug in sorted(self.open)}
+        key = (repr(rows), repr(found), repr(pages), column, tuple(sorted(self.more)))
         if key == self._key and not force:
             return
         self._key = key
+        self.pages = pages
+        for slug, found_pages in pages.items():
+            project_pages.write(directory, slug, found_pages)
         for child in list(self.list.winfo_children()):
             child.destroy()
         self.rows = {}
@@ -126,6 +136,10 @@ class ProjectsPanel:
             self._poll = None
 
     # --- actions -----------------------------------------------------------------------------------
+    def toggle_more(self, page_id: str) -> None:
+        self.more.symmetric_difference_update({page_id})
+        self.refresh(force=True)
+
     def toggle(self, slug: str) -> None:
         self.open.symmetric_difference_update({slug})
         self.refresh(force=True)
@@ -184,6 +198,7 @@ class ProjectsPanel:
         bg = frame["bg"]
         body = tk.Frame(frame, bg=bg)
         body.pack(fill="x", padx=(28, 8), pady=(0, 6))
+        self._pages(body, self.pages.get(found["slug"], []), bg)
         _title(body, "Tasks", bg)
         if not any(found["tasks"].values()):
             _line(body, "none", DIM, bg)
@@ -207,6 +222,36 @@ class ProjectsPanel:
         _title(body, "Decisions", bg)
         for decision in found["decisions"] or [{"question": "none", "status": ""}]:
             _line(body, f"{decision['question']}  {decision['status']}".rstrip(), INK, bg)
+
+
+    def _pages(self, body, found: list[dict], bg: str) -> None:
+        """GROK-ORCH.1: one block per task and conversation, the next action first; the rest folds under More."""
+        _title(body, "Pages: next action first", bg)
+        if not found:
+            _line(body, "none", DIM, bg)
+        for page in found:
+            box = tk.Frame(body, bg=PAGE_BG, highlightthickness=1, highlightbackground=EDGE)
+            box.pack(fill="x", pady=2)
+            top = tk.Frame(box, bg=PAGE_BG)
+            top.pack(fill="x", padx=6, pady=(3, 0))
+            tk.Label(top, text=page["next"], bg=PAGE_BG, fg=GOLD, font="DungeonTitle", anchor="w", justify="left",
+                     wraplength=560).pack(side="left", fill="x", expand=True)
+            shut = page["id"] not in self.more
+            if page["rest"]:
+                _button(top, "More ▸" if shut else "Less ▾", lambda i=page["id"]: self.toggle_more(i),
+                        PAGE_BG).pack(side="right")
+            what = "Chat" if page["kind"] == "chat" else "Task"
+            _line(box, f"{what}: {page['title']} · {page['status']}", INK, PAGE_BG)
+            if page["asks_open"]:
+                _line(box, f"Bot asks open: {page['asks_open']}", DIM, PAGE_BG)
+                for ask in page["asks"][:3]:
+                    _line(box, f"  {ask}", DIM, PAGE_BG)
+            for question in page["decisions"][1:3]:
+                _line(box, f"Also waiting on you: {question}", DIM, PAGE_BG)
+            if not shut:
+                for text in page["rest"]:
+                    _line(box, text, DIM, PAGE_BG)
+            tk.Frame(box, bg=PAGE_BG, height=3).pack(fill="x")
 
 
 def _chip() -> dict:
