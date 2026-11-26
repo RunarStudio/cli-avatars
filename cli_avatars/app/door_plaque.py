@@ -238,7 +238,8 @@ class Plaques:
                 scene.itemconfigure(tip, image=self._photo(scene, key))
             scene.coords(tip, x, y)
         else:
-            tip = scene.create_image(x, y, image=self._photo(scene, key), anchor="n", tags=(TIP,))
+            # disabled: the tip never takes the pointer, so it cannot fire the plaque's Leave and Enter
+            tip = scene.create_image(x, y, image=self._photo(scene, key), anchor="n", tags=(TIP,), state="disabled")
         scene.tag_raise(tip)
         self._tip = (name, tip)
 

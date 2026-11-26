@@ -39,6 +39,19 @@ class Desktop(unittest.TestCase):
                      "totals above topics", "totals steady", "totals in place", "totals hover", "project gone"):
             self.assertIn(f"ok {name}", proc.stdout)
 
+    def test_pointer_resting_on_a_plaque_edge_shows_once(self):
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as data:
+            proc = subprocess.run(
+                [sys.executable, str(root / "tests" / "_door_plaque_hover_probe.py"), str(root), data],
+                cwd=root, capture_output=True, text=True, timeout=120, shell=False,
+            )
+        if proc.returncode == 77:
+            self.skipTest("tkinter has no display")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        for name in ("edge shows", "loop ticks", "show once"):
+            self.assertIn(f"ok {name}", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
