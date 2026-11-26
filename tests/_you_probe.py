@@ -229,6 +229,8 @@ tick(1.0)
 check("opens once per approach", chats == ["a1b2c3d4"], str(chats))
 
 # phone rows carry the need and the badge
+hall.snapshot = None
+tick(0.05)
 rows = {row["id"]: row for row in hall.snapshot[1]}
 check("phone row carries the need", rows["a1b2c3d4"].get("need") == "reply", str(rows["a1b2c3d4"]))
 check("phone keeper carries the badge", rows[USER_ID].get("badge") == 2, str(rows[USER_ID]))

@@ -133,6 +133,8 @@ tick(0.3)
 check("long idle goes to the park", view.holds["e5f6a7b8"].room == park.NAME, str(view.holds.get("e5f6a7b8")))
 tick(18.0)
 check("reaches the park", room_at("e5f6a7b8") == park.NAME, str(hall._feet["e5f6a7b8"]))
+hall.snapshot = None
+tick(0.05)
 rows = {r["id"]: r for r in (hall.snapshot[1] if hall.snapshot else [])}
 check("phone rows carry the idle act", rows.get("e5f6a7b8", {}).get("idle", {}).get("act") in
       {"sit", "hit", "lift", "spar", "stroll"}, str(rows.get("e5f6a7b8")))

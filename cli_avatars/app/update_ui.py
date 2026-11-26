@@ -143,10 +143,19 @@ def _worker(app, install: Path, toolchain) -> None:
 
 
 def _finish(app, result: UpdateResult) -> None:
-    app._update_running = False
+    line = _bar(result)
+    helper = result.phase == PHASE_STAGED and bool(result.helper_argv) and result.helper_cwd is not None
+    if helper:
+        try:
+            spawn_detached(result.helper_argv, cwd=result.helper_cwd)
+        except (OSError, ValueError):
+            helper, line = False, "Update: could not start the restart helper"
+    # the phone reads from its own thread: the outcome is whole before running drops
     app._update_phase = result.phase
     app._update_note = result.message
-    _set_status(app, _bar(result))
+    app._update_line = line
+    app._update_running = False
+    _set_status(app, line)
     refresh = getattr(app, "_refresh_update_panel", None)
     if refresh is not None:
         refresh()
@@ -158,13 +167,7 @@ def _finish(app, result: UpdateResult) -> None:
         from cli_avatars.app.chime_cues import cue
 
         cue(app, "ready")
-    if result.phase != PHASE_STAGED or not result.helper_argv or result.helper_cwd is None:
-        _set_button(app, enabled=not getattr(app, "_update_block", ""))
-        return
-    try:
-        spawn_detached(result.helper_argv, cwd=result.helper_cwd)
-    except (OSError, ValueError):
-        _set_status(app, "Update: could not start the restart helper")
+    if not helper:
         _set_button(app, enabled=not getattr(app, "_update_block", ""))
         return
     quit_app = getattr(app, "_quit", None)
