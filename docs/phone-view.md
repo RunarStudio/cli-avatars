@@ -36,6 +36,8 @@ The map is the Dungeon's own pixels (every room, custom ones too, the Apothecary
 
 Reading only: the drawers open what the phone already shows; sending stays behind phone writes. Door signs and tier chips show once the rooms are big enough to read them. The map redraws at full rate only while something moves, otherwise at the sprites' own pace.
 
+On a phone (PHONECLEAN) the first open shows **Moving around the map** (drag, pinch or double-tap, tap a room or a bot, Rooms and Whole map, and who is who: the four chat tiers); **Got it** hides it for good on this phone and **?** under the map brings it back. **−** and **+** (top right) zoom one crisp step around the centre; **⛶ Full map** gives the map the whole screen (**⛶ Exit map** brings tasks and chat back). To keep the small map calm, the phone shows at the whole map only room names and the red decision seals: the count plaques come with the first zoom step, door signs and tier chips with the next, the tier legend lives in the hint, the mini-map shows once you zoom in, the totals line leaves out zeros, and the torch, candle and Active bots dot hold still. Wide (1024 px and up) is unchanged.
+
 ## Ask from the phone (PHONE.2)
 
 1. In the Dungeon: Settings, **Phone** tab, tick **Allow the phone to open sessions and send prompts** (off by default).
