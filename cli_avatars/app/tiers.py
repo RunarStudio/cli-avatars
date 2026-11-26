@@ -6,7 +6,7 @@ a bad value keeps the default. A launch takes the tier of the room it starts in;
 argv only when the launch runs the tier's CLI (Claude's flags are built in, the others' come from their template
 pieces, ``chat_clis``). A fresh session gets the tier's role text on stdin. Nothing here starts a process.
 GROK-ORCH.1: ``orchestrator.main`` (Settings, default Grok) picks the main tier's CLI; off Claude, the main tier sends
-no model or effort unless ``chat.tiers.main`` names one.
+no model or effort unless ``chat.tiers.main`` names one; a Claude model name there waits for Claude.
 """
 
 from __future__ import annotations
@@ -146,6 +146,8 @@ def table(config: object) -> dict[str, dict[str, str]]:
         for name in ("model", "effort"):
             if isinstance(own.get(name), str) and VALUE.match(own[name]):
                 row[name] = own[name]
+        if tier == "main" and row["cli"] != "claude" and row["model"] in MODELS["claude"]:
+            row["model"] = ""  # a Claude name off Claude: the CLI picks; config.json keeps it for Claude
         if row["cli"] == "claude" and row["effort"] not in EFFORTS:
             row["effort"] = DEFAULTS[tier]["effort"]
         out[tier] = row

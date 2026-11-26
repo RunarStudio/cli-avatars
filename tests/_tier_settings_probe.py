@@ -93,7 +93,7 @@ check("reset to default", "topic" not in saved["chat"]["tiers"] and rows["topic"
 orch["chips"]["grok"].invoke()
 root.update()
 check("main row follows the orchestrator switch", tuple(rows["main"]["model"].cget("values")) == ()
-      and rows["main"]["sample"].cget("text") == "Main orchestrator: grok opus, medium effort",
+      and rows["main"]["sample"].cget("text") == "Main orchestrator: grok's own model, medium effort",
       (rows["main"]["model"].cget("values"), rows["main"]["sample"].cget("text")))
 check("no new toplevel", not [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)])
 root.destroy()

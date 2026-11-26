@@ -14,7 +14,8 @@ Grok is the main orchestrator by default. **Settings › Chat › Main orchestra
 Cursor; Summon starts Claude or Grok), saved as `config.json` `orchestrator.main` and live at once: the next Summon,
 the throne room's lane and New chat's first CLI follow it. A chat that is running keeps going. An older
 `chat.tiers.main.cli` still counts while `orchestrator.main` is unset. Off Claude, the main tier sends no model or
-effort flag unless `chat.tiers.main` sets one; its chip shows the CLI (`GROK`).
+effort flag unless `chat.tiers.main` sets one; its chip shows the CLI (`GROK`). A Claude model name there
+(fable, opus, sonnet, haiku) is not sent off Claude; it stays saved and counts again when Claude is main.
 
 ## Create one
 
