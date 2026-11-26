@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/static/boss.css">
 <link rel="stylesheet" href="/static/voice.css">
 <link rel="stylesheet" href="/static/repos.css">
+<link rel="stylesheet" href="/static/projects.css">
 <link rel="stylesheet" href="/static/grok.css">
 <link rel="stylesheet" href="/static/check.css">
 <link rel="stylesheet" href="/static/text.css">
@@ -34,6 +35,7 @@
       <button id="needsBtn" class="icon needs" type="button" title="Nothing waits on you" aria-haspopup="dialog"><span class="bell" aria-hidden="true"></span><span id="needsCount" class="needs-count" hidden></span></button>
       <button id="mailBtn" class="icon mail" type="button" title="Mailroom: nothing to sort" aria-haspopup="dialog"><span class="env" aria-hidden="true"></span><span id="mailCount" class="needs-count" hidden></span></button>
       <button id="standupBtn" class="icon standup" type="button" title="Standup: not called yet" aria-haspopup="dialog"><span class="horn" aria-hidden="true"></span></button>
+      <button id="projectsBtn" class="icon projects-btn" type="button" title="Projects: tasks, topics, chats, repos" aria-haspopup="dialog"><span class="ledger" aria-hidden="true"></span></button>
       <button id="recapBtn" class="icon recap" type="button" title="Daily recap: what each agent did" aria-haspopup="dialog"><span class="scroll-ico" aria-hidden="true"></span></button>
       <button id="lapseBtn" class="icon lapse-btn" type="button" aria-pressed="false" title="Time-lapse: scrub the day and watch the avatars move"><span class="glass-ico" aria-hidden="true"></span></button>
       <button id="editRoom" class="icon" type="button" title="Edit this room" aria-haspopup="dialog" hidden>&#9998;</button>
@@ -247,6 +249,16 @@
     </div>
   </div>
 </div>
+<div id="projects" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="projectsTitle">
+  <div class="sheet-card pj-card">
+    <header class="bar"><h2 id="projectsTitle"><span class="ledger" aria-hidden="true"></span>Projects</h2><button id="projectsClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <div id="projectsColumns" class="pj-columns" role="group" aria-label="Filter by column"></div>
+      <ol id="projectsRows" class="pj-rows" aria-live="polite"></ol>
+      <p class="hint">Reading only. Start a chat from the Dungeon's Projects tab.</p>
+    </div>
+  </div>
+</div>
 <div id="standup" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="standupTitle">
   <div class="sheet-card su-card">
     <header class="bar"><h2 id="standupTitle"><span class="horn" aria-hidden="true"></span>Standup</h2><button id="standupClose" class="icon" type="button" title="Close">&#10005;</button></header>
@@ -330,6 +342,7 @@
 <script src="/static/voice.js"></script>
 <script src="/static/rise.js"></script>
 <script src="/static/repos.js"></script>
+<script src="/static/projects.js"></script>
 <script src="/static/tiers.js"></script>
 <script src="/static/grok.js"></script>
 <script src="/static/start.js"></script>

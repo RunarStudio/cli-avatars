@@ -46,6 +46,7 @@ from webui import (
     mail_routes,
     media,
     pack_routes,
+    projects_routes,
     push,
     repo_routes,
     sandbox_routes,
@@ -81,6 +82,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/rise.js": ("rise.js", "text/javascript; charset=utf-8"),
          "/static/repos.js": ("repos.js", "text/javascript; charset=utf-8"),
          "/static/park.js": ("park.js", "text/javascript; charset=utf-8"),
+         "/static/projects.js": ("projects.js", "text/javascript; charset=utf-8"),
+         "/static/projects.css": ("projects.css", "text/css; charset=utf-8"),
          "/static/repos.css": ("repos.css", "text/css; charset=utf-8"),
          "/static/tiers.js": ("tiers.js", "text/javascript; charset=utf-8"),
          "/static/start.js": ("start.js", "text/javascript; charset=utf-8"),
@@ -446,7 +449,9 @@ class Handler(BaseHTTPRequestHandler):
             return standup_routes.read(self)
         if path == "/api/repos":
             return repo_routes.read(self)
+        found = projects_routes.PATH.match(path)
         if found:
+            return projects_routes.read(self, found.group(1), query)
         if path == "/api/start":
             from webui import start_routes
 

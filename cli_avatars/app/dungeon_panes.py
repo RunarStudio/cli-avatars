@@ -78,6 +78,7 @@ def show_center(view, name: str) -> None:
     view._recap.pack_forget()
     view._mail.pack_forget()
     view._repos.pack_forget()
+    view._projects.pack_forget()
     throne = getattr(view, "_throne", None)
     if throne is not None:
         throne.pack_forget()
@@ -112,6 +113,14 @@ def show_center(view, name: str) -> None:
         view._center = "repos"
         if was != "repos":
             repos_panel.opened(view)
+    elif name == "projects":
+        from cli_avatars.app import projects_panel
+
+        view.app._picker_live = False
+        view._projects.pack(fill="both", expand=True)
+        view._center = "projects"
+        if was != "projects":
+            projects_panel.opened(view)
     elif name == "throne" and throne is not None:
         from cli_avatars.app.throne_panel import ensure
 
@@ -137,6 +146,7 @@ def show_center(view, name: str) -> None:
     mark(view._tab_recap, view._center == "recap")
     mark(view._tab_mail, view._center == "mailroom")
     mark(view._tab_repos, view._center == "repos")
+    mark(view._tab_projects, view._center == "projects")
 
 
 def show_right(view) -> None:
@@ -253,6 +263,8 @@ def _body(view, root) -> None:
     view._tab_mail.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_repos = Tab(strip, "repos", text="Repos", command=lambda: view.show_center("repos"))
     view._tab_repos.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    view._tab_projects = Tab(strip, "projects", text="Projects", command=lambda: view.show_center("projects"))
+    view._tab_projects.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view.scene = tk.Canvas(view._mid, bg=_FLOOR, highlightthickness=0, bd=0)
     view._skins = tk.Frame(view._mid, bg=_BG)
     view._tasks = tk.Frame(view._mid, bg=_BG)
@@ -260,6 +272,7 @@ def _body(view, root) -> None:
     view._recap = tk.Frame(view._mid, bg=_BG)
     view._mail = tk.Frame(view._mid, bg=_BG)
     view._repos = tk.Frame(view._mid, bg=_BG)
+    view._projects = tk.Frame(view._mid, bg=_BG)
     view.scene.bind("<Configure>", lambda _e: paint_floor(view.scene))
     attach_nav(view)
     rstrip = tk.Frame(view._right, bg=_TABS)

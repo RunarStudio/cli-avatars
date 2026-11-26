@@ -45,6 +45,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `cli_avatars/app/tiers.py`, `cli_avatars/app/summon.py` | HIERARCHY.1 / SUMMON.1: the four chat tiers (main, topic, task, subagent) with CLI, model, effort and role from `config.json` `chat.tiers`, picked per launch from where it starts; Summon opens the main session and starts its CLI on Daniel's click. `summon_ui.py`, `tier_art.py` draw the plate and chips (`docs/orchestrator-hierarchy.md`) |
 | `repos.py` | REPOS.1: repos as project records with a folder (add, remove), which agents work in each by role (Caine, sub-orchestrators, subagents) and since when; `repos_live.py`, `repos_panel.py`, `repo_badge.py`, `repo_art.py` show it, `webui/repo_routes.py` on the phone (`docs/repos.md`) |
 | `cli_avatars/app/park.py`, `cli_avatars/app/idle_props.py`, `cli_avatars/app/idle_life.py`, `cli_avatars/app/task_route.py` | PARK.1 / IDLE-PROPS.1: the night park, the idle objects and task tables, idle tiers and card routing (no Tk); `life_view.py`, `park_art.py`, `idle_art.py` draw them, `webui/park_scene.py` on the phone (`docs/park.md`) |
+| `cli_avatars/app/projects_view.py` | PROJECTS.1: the projects table, related tasks, topics, chats, repos, decisions and Start chat (no Tk); `projects_panel.py`, `webui/projects_routes.py` (`docs/projects-dashboard.md`) |
 | `cli_avatars/app/door_counts.py` | DOOR-COUNTS: counts per room, project and in total (no Tk); `door_plaque.py` and `door_totals.py` draw them (`docs/door-counts.md`) |
 | `routing.py` | Composer → orchestrator routing |
 | `text_fonts.py`, `cli_avatars/app/art_words.py`, `cli_avatars/app/text_settings.py` | FONT.1: the text face (Atkinson Hyperlegible, Lexend, OpenDyslexic, Pixel), sizes and spacing from `config.json` `text`; private font registration, named Tk fonts, words on pixel boards, the Settings rows, the phone's `text.css` (`docs/readable-text.md`) |
@@ -145,6 +146,7 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Readable text face, size and spacing (desktop and phone) | `docs/readable-text.md` |
 | Repos and which agents use them (desktop and phone) | `docs/repos.md` |
 | The park, idle objects and card routing (desktop and phone) | `docs/park.md` |
+| Projects dashboard (desktop and phone) | `docs/projects-dashboard.md` |
 | Main orchestrator, Summon and the chat tiers (desktop and phone) | `docs/orchestrator-hierarchy.md` |
 
 Hooks: install with `python -m cli_avatars_emit hooks install --apply`; do not rely on removed `claude_hooks_example.py`.

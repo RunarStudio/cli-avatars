@@ -1,0 +1,32 @@
+/* PROJECTS.1: the ledger button and the projects sheet as a guild ledger: one parchment row per project. */
+.icon.projects-btn { color: var(--dim); }
+.ledger { display: inline-block; width: 14px; height: 12px; vertical-align: middle; border: 2px solid currentColor;
+  border-radius: 1px; box-shadow: inset 0 3px 0 -1px currentColor, inset 0 -3px 0 -1px var(--torch); }
+h2 .ledger { margin-right: 6px; color: var(--torch-2); }
+.pj-card .sheet-body { background: radial-gradient(140% 70% at 50% 0%, #3a2a52 0%, #1d1529 60%, #120d19 100%); }
+.pj-columns { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.pj-chip { padding: 3px 10px; border: 1px solid var(--edge); border-radius: 12px; background: var(--stone-2);
+  color: var(--ink); font: 600 11px var(--mono); }
+.pj-chip.on { background: var(--torch); color: #1b1524; border-color: var(--torch-2); }
+.pj-rows { list-style: none; margin: 0 0 10px; padding: 0; }
+.pj-rows li.empty { color: var(--dim); padding: 18px 4px; text-align: center; }
+.pj-row { margin: 0 0 10px; color: #2a1c10; box-shadow: 0 0 0 1px #8a6a3a, 0 4px 9px #000a;
+  background: radial-gradient(120% 90% at 50% 40%, #efe3c2 0%, #e2cfa0 70%, #b89460 100%); }
+.pj-row.open { box-shadow: 0 0 0 2px var(--torch), 0 4px 12px #000c; }
+.pj-head { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; padding: 9px 12px; border: 0;
+  background: none; color: inherit; text-align: left; font: inherit; }
+.pj-name { font: 700 13px var(--mono); color: #7a1f3d; }
+.pj-status { justify-self: end; font: 600 10px var(--mono); color: #6b5233; text-transform: uppercase; }
+.pj-counts { font-size: 12px; color: #8a4a10; }
+.pj-meta { justify-self: end; font-size: 11px; color: #6b5233; }
+.pj-details { padding: 0 12px 10px; }
+.pj-details h4 { margin: 8px 0 2px; font: 700 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #6b5233; }
+.pj-list { list-style: none; margin: 0; padding: 0; font-size: 12px; overflow-wrap: anywhere; }
+.pj-list li { padding: 2px 0; border-bottom: 1px dotted #b8946066; }
+.pj-list li.none { color: #8a7a5a; }
+.pj-task b { display: inline-block; min-width: 52px; font: 700 10px var(--mono); text-transform: uppercase; }
+.pj-task.doing b { color: var(--doing); }
+.pj-task.blocked b { color: var(--blocked); }
+.pj-task.review b { color: var(--review); }
+.pj-task.done b { color: var(--done); }
+.pj-task i { margin-left: 6px; color: #6b5233; font-style: normal; font-size: 11px; }
