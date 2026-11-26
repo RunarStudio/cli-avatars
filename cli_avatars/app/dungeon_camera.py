@@ -111,6 +111,15 @@ class Camera:
         self.pan = (round(self.pan[0] * s2 / s1), round(self.pan[1] * s2 / s1))
         self._ease = (self.clock(), self.pan, (0, 0))
 
+    def hold(self, before, after) -> None:
+        """The map image changed from ``before`` to ``after`` ``(left, top, w, h)`` (a room grew or went): when zoomed
+        in, shift the pan so the floor under the view stays put; the whole-map view just fits again."""
+        if self.zoom == "auto" or before is None or after is None or self._ease is not None:
+            return
+        s = self.scale()
+        self.pan = (round(self.pan[0] + (after[2] - before[2]) * s / 2 + (after[0] - before[0]) * s),
+                    round(self.pan[1] + (after[3] - before[3]) * s / 2 + (after[1] - before[1]) * s))
+
     def saved(self) -> tuple[object, tuple[int, int]]:
         """Zoom and pan to store: where a running glide ends."""
         return self.zoom, (self._ease[2] if self._ease is not None else self.pan)

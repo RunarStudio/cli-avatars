@@ -37,7 +37,8 @@ def _cells(room: dict) -> set[tuple[int, int]]:
 def bench(room: dict, seats: int = SEATS) -> tuple[float, float] | None:
     """Absolute tile of the bench's back left corner, ``seats`` tiles long along the back right wall."""
     origin, size = room.get("origin"), room.get("size")
-    if not (isinstance(origin, list) and isinstance(size, list)) or room.get("corridor"):
+    if not (isinstance(origin, list) and isinstance(size, list)) or room.get("corridor") \
+            or room.get("kind") in ("oni-pit", "crypt"):
         return None
     slot = (room.get("prop_slots") or {}).get("bench") if isinstance(room.get("prop_slots"), dict) else None
     if isinstance(slot, list) and len(slot) == 2:

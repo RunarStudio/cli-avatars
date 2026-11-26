@@ -246,8 +246,8 @@ def build_scene(directory: Path | str) -> dict:
     rooms = []
     board = None
     for room in lay["rooms"]:
-        if room.get("corridor"):
-            continue
+        if room.get("corridor") or room.get("kind") in ("oni-pit", "crypt"):
+            continue  # the boss rooms ride in scene["boss"] (BOSS-ROOM.1)
         (u, v), (rw, rh) = room["origin"], room["size"]
         poly = [_px(u, v, left, top), _px(u + rw, v, left, top), _px(u + rw, v + rh, left, top),
                 _px(u, v + rh, left, top)]

@@ -317,12 +317,25 @@ def paint_rooms(canvas) -> bool:
 def refresh_rooms(canvas) -> bool:
     """START.1: repaint when the live layout changed. True when it did."""
     painter = getattr(canvas, "_rooms_painter", None)
+    before = _frame(painter)
     if not callable(getattr(painter, "sync", None)) or not painter.sync():
         return False
+    camera = getattr(canvas, "_camera", None)
+    if callable(getattr(camera, "hold", None)):
+        camera.hold(before, _frame(painter))
     try:
         return painter.paint(canvas)
     except Exception:
         return False
+
+
+def _frame(painter) -> tuple[int, int, int, int] | None:
+    """The composed map's origin and size, or None before it is drawn."""
+    base = getattr(painter, "_base", None)
+    if base is None:
+        return None
+    left, top = base.info.get("origin", (0, 0))
+    return (left, top, base.width, base.height)
 
 
 def rooms_scale(canvas) -> int:

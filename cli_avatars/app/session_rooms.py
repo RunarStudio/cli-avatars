@@ -19,7 +19,7 @@ import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from cli_avatars.app import custom_rooms, park, sandbox_rooms
+from cli_avatars.app import boss_rooms, custom_rooms, park, sandbox_rooms
 from cli_avatars.app import room_place as rp
 from cli_avatars.app.custom_rooms import (
     APOTHECARY,
@@ -108,7 +108,7 @@ class SessionRooms:
         if self.path is not None:
             self.rooms, self.looks = load_custom(self.path)
         self._cache: tuple = (None, None)
-        self.sandboxes, self.park_on = (lambda now: ()), park.switch(self.path)
+        self.sandboxes, self.park_on, self.boss = (lambda now: ()), park.switch(self.path), boss_rooms.switch(self.path)
 
     def open(self, kind: str, cli: str, topic: str) -> str:
         """Add a session; ``""`` when its room is placed, else why not."""
@@ -143,12 +143,14 @@ class SessionRooms:
 
     def layout(self, now: float) -> dict | None:
         """The Apothecary, a room per live session, your rooms, the sandboxes; the same object while unchanged."""
-        extra, on = self.sandboxes(now), self.park_on(now)
+        extra, on, boss = self.sandboxes(now), self.park_on(now), self.boss(now)
         key = (tuple((s.sid, s.kind, s.cli, s.slot, s.skin, s.size) for s in self.live(now)),
-               tuple(self.rooms), json.dumps(self.looks, sort_keys=True), extra, on)
+               tuple(self.rooms), json.dumps(self.looks, sort_keys=True), extra, on, boss)
         if self._cache[0] != key:
             built = park.extend(build_layout(load_layout(), self.live(now), self.rooms, self.looks), self._taken(), on)
-            self._cache = (key, sandbox_rooms.extend(built, extra, self._taken() + park.rects(built)))
+            built = boss_rooms.extend(built, self._taken(), boss)
+            self._cache = (key, sandbox_rooms.extend(built, extra, self._taken() + park.rects(built)
+                                                     + boss_rooms.rects(built)))
         return self._cache[1]
 
     def add_room(self, name: object, topic: object, size: object, skin: object, at: object, point: object) -> str:

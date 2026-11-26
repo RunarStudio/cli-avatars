@@ -49,7 +49,7 @@ class Obj:
 
 def _rooms(layout: dict | None) -> list[dict]:
     return [r for r in (layout or {}).get("rooms") or [] if isinstance(r, dict) and not r.get("corridor")
-            and r.get("kind") not in ("park", "sandbox") and isinstance(r.get("name"), str)]
+            and r.get("kind") not in ("park", "sandbox", "oni-pit", "crypt") and isinstance(r.get("name"), str)]
 
 
 def project_room(room: dict) -> bool:
