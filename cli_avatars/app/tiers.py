@@ -55,6 +55,7 @@ GLYPHS = {
 
 
 MAIN_DEFAULT = "grok"
+MODELS = {"claude": ("fable", "opus", "sonnet", "haiku")}
 
 
 def _own(config: object, tier: str) -> dict:
@@ -81,6 +82,53 @@ def save_main(path, cli: str) -> bool:
         return False
     return save_config_with(path, lambda data: {**data, "orchestrator": {
         **(data.get("orchestrator") if isinstance(data.get("orchestrator"), dict) else {}), "main": cli}})
+
+
+def models(cli: str) -> tuple[str, ...]:
+    """The model picker's suggestions for a CLI; any other name is free text checked by ``VALUE``."""
+    return MODELS.get(cli, ())
+
+
+def with_tier(config: object, tier: str, model: str | None = None, effort: str | None = None) -> dict:
+    """``config`` with ``chat.tiers.<tier>`` model and effort set; both ``None`` drops them (Reset to default)."""
+    data = dict(config) if isinstance(config, dict) else {}
+    chat = dict(data["chat"]) if isinstance(data.get("chat"), dict) else {}
+    rows = dict(chat["tiers"]) if isinstance(chat.get("tiers"), dict) else {}
+    own = {k: v for k, v in _own(data, tier).items() if k not in ("model", "effort")}
+    if model is not None:
+        own.update(model=model, effort=effort)
+    if own:
+        rows[tier] = own
+    else:
+        rows.pop(tier, None)
+    return {**data, "chat": {**chat, "tiers": rows}}
+
+
+def valid(tier: str, model: object, effort: object) -> bool:
+    """A tier, a model name ``VALUE`` accepts and an effort from ``EFFORTS``."""
+    return tier in TIERS and isinstance(model, str) and bool(VALUE.match(model)) and effort in EFFORTS
+
+
+def save_tier(path, tier: str, model: str, effort: str) -> bool:
+    """Settings: write ``chat.tiers.<tier>`` model and effort into config.json, keeping every other key."""
+    from cli_avatars.app.config_file import save_config_with
+
+    if not valid(tier, model, effort):
+        return False
+    return save_config_with(path, lambda data: with_tier(data, tier, model, effort))
+
+
+def reset_tier(path, tier: str) -> bool:
+    """Settings: drop the tier's model and effort from config.json, so it takes the default again."""
+    from cli_avatars.app.config_file import save_config_with
+
+    return tier in TIERS and save_config_with(path, lambda data: with_tier(data, tier))
+
+
+def sample(tier: str, rows: dict) -> str:
+    """``Main orchestrator: claude opus, medium effort``."""
+    row = rows[tier]
+    return f"{NAMES[tier]}: " + (f"{row['cli']} {describe(row)}" if row["model"] else describe(row))
 
 
 def table(config: object) -> dict[str, dict[str, str]]:

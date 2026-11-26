@@ -104,6 +104,9 @@ def mount(app, parent) -> dict:
 def _picked(app, cli: str, note) -> None:
     choose(app, cli)
     note.config(text=_says(app))
+    refresh = getattr(app, "_tier_rows_refresh", None)
+    if refresh is not None:
+        refresh()
 
 
 def _says(app) -> str:
