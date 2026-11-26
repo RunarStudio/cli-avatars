@@ -291,6 +291,16 @@ class OverlayApp:
 
         start_update(self)
 
+    def _check_updates(self):
+        from cli_avatars.app.check_ui import start_check
+
+        start_check(self)
+
+    def _check_block(self) -> str:
+        from cli_avatars.app.check_ui import check_block
+
+        return check_block(self)
+
     def _setup_tray(self):
         return setup_tray(self)
 

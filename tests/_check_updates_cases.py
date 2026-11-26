@@ -13,7 +13,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import MethodType, ModuleType, SimpleNamespace
 from unittest import mock
 
 import focus
@@ -191,9 +191,12 @@ class Tray(_Base):
         fake.Menu = lambda *a: a
         fake.Menu.SEPARATOR = "-"
         fake.Icon = lambda *a, **kw: SimpleNamespace(run=lambda: None)
+        from cli_avatars.app.shell import OverlayApp
         from cli_avatars.desktop import tray
 
         self.app._show_hud_win = self.app._update_app = lambda: None
+        self.app._check_updates = MethodType(OverlayApp._check_updates, self.app)
+        self.app._check_block = MethodType(OverlayApp._check_block, self.app)
         self.app.desktop_escape = False
         with mock.patch.dict(sys.modules, {"pystray": fake}), mock.patch.object(tray, "HAS_PIL", True):
             tray.setup_tray(self.app)

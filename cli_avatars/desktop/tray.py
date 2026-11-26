@@ -51,8 +51,8 @@ def _setup_tray(self):
         ))
         items.append(pystray.MenuItem(
             "Check for updates",
-            lambda icon, item: self.root.after(0, lambda: _check(self)),
-            enabled=lambda item: _can_check(self),
+            lambda icon, item: self.root.after(0, self._check_updates),
+            enabled=lambda item: not self._check_block(),
         ))
         items.append(pystray.MenuItem(
             "Activity bubbles",
@@ -70,18 +70,6 @@ def _setup_tray(self):
     except Exception as e:
         print(f"[overlay] tray icon failed: {e}")
         self._tray = None
-
-
-def _check(app) -> None:
-    from cli_avatars.app.check_ui import start_check
-
-    start_check(app)
-
-
-def _can_check(app) -> bool:
-    from cli_avatars.app.check_ui import check_block
-
-    return not check_block(app)
 
 
 def setup_tray(app: object) -> None:
