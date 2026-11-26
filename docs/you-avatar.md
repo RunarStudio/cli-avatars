@@ -45,7 +45,7 @@ plain sprite at the Apothecary's centre that moved only by right-click > Move me
 ## Sound
 
 A bubble from a new row already rings that row's cue (`arrive`, or `decide` for a decision). A bubble from the hook
-state alone plays `arrive`. Cues are off with `sound.cues: false`, play on Windows, and wait while a task is in
+state alone plays `arrive`. A pose that only a row's bubble causes adds no `knock` or `sigh`. Cues are off with `sound.cues: false`, play on Windows, and wait while a task is in
 focus.
 
 ## Phone
