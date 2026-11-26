@@ -61,8 +61,7 @@ def pack(model: sr.SessionRooms, rows: dict) -> str:
     """What the main orchestrator starts with: the open topic rooms and the tiers it delegates to."""
     rooms = [s.sid for s in model.sessions if s.kind == sr.SIMPLE and not s.closing]
     lines = [PACK_HEAD, "topic rooms: " + (", ".join(rooms) if rooms else "none yet (open one per topic)")]
-    lines += [f"{tiers.NAMES[t].lower()}: {rows[t]['cli']} {rows[t]['model']}, {rows[t]['effort']} effort"
-              for t in tiers.TIERS]
+    lines += [f"{tiers.NAMES[t].lower()}: {rows[t]['cli']} {tiers.describe(rows[t])}" for t in tiers.TIERS]
     return "\n".join(lines + [PACK_END]) + "\n"
 
 
@@ -86,7 +85,7 @@ def summon(app, ask_folder, event=None) -> tuple[bool, str]:
     rows = tiers.table(config)
     cli = rows["main"]["cli"]
     if cli not in CLI_NAMES:
-        return False, "The main tier's CLI must be Claude or Grok: set chat.tiers.main.cli in config.json."
+        return False, "The main orchestrator must be Claude or Grok: pick one in Settings › Chat."
     if load_binary_pin(directory, cli) is None:
         return False, f"Confirm the {CLI_NAMES[cli]} binary first: pick {CLI_NAMES[cli]} in Chat, Use this binary."
     if cli != "claude" and template(config, cli) is None:
@@ -119,8 +118,7 @@ def summon(app, ask_folder, event=None) -> tuple[bool, str]:
         return False, f"The throne room is open; not started: {exc}"
     pane.started(request, process)
     chime_cues.cue(app, "summon")
-    return True, f"Summoned: the main orchestrator is on the throne ({rows['main']['model']}, " \
-                 f"{rows['main']['effort']} effort)."
+    return True, f"Summoned: the main orchestrator is on the throne ({tiers.describe(rows['main'])})."
 
 
 def _topic(directory: Path | str, ask_folder) -> tuple[str, str]:

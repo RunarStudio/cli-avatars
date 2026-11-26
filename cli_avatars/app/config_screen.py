@@ -244,6 +244,10 @@ def _build_config_ui(self, win):
         font=FONT, relief="flat", padx=10, pady=4, cursor="hand2")
     rescan_btn.pack(pady=6)
 
+    from cli_avatars.app import orch_settings
+
+    self._orch_settings = orch_settings.mount(self, tab(" Chat "))
+
     tbots = tab(" Bots ")
     build_bots_settings(self, tbots)
 

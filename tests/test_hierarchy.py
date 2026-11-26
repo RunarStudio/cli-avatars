@@ -24,6 +24,7 @@ from registry.facade import Registry  # noqa: E402
 from topics import set_topic  # noqa: E402
 
 SID = "c1a0de00-0000-4000-8000-000000000001"
+CLAUDE_MAIN = {"orchestrator": {"main": "claude"}}
 
 
 class TableTest(unittest.TestCase):
@@ -31,7 +32,8 @@ class TableTest(unittest.TestCase):
         table = tiers.table({})
         self.assertEqual(tuple(table), tiers.TIERS)
         self.assertEqual(tiers.TIERS, ("main", "topic", "task", "subagent"))
-        self.assertEqual(table["main"], {"cli": "claude", "model": "fable", "effort": "high"})
+        self.assertEqual(table["main"], {"cli": "grok", "model": "", "effort": ""})
+        self.assertEqual(tiers.table(CLAUDE_MAIN)["main"], {"cli": "claude", "model": "fable", "effort": "high"})
         self.assertEqual(table["topic"], {"cli": "claude", "model": "fable", "effort": "high"})
         self.assertEqual(table["task"], {"cli": "claude", "model": "opus", "effort": "medium"})
         self.assertEqual(table["subagent"], {"cli": "claude", "model": "haiku", "effort": "low"})
@@ -71,7 +73,7 @@ class TierOfTest(_Rooms):
         self.assertEqual(tiers.tier_of(self.data, self.task_room), "task")
 
     def test_launch_carries_model_effort_and_a_fresh_role(self):
-        main = tiers.launch(self.data, {}, "high-keep", "claude", fresh=True)
+        main = tiers.launch(self.data, CLAUDE_MAIN, "high-keep", "claude", fresh=True)
         self.assertEqual((main["tier"], main["model"], main["effort"]), ("main", "fable", "high"))
         self.assertIn("main orchestrator", main["role"])
         task = tiers.launch(self.data, {}, self.task_room, "claude", fresh=False)
@@ -85,7 +87,7 @@ class TierOfTest(_Rooms):
 
 class PhoneAndSignTest(_Rooms):
     def test_phone_reads_the_tiers_and_whether_a_main_is_open(self):
-        view = tiers.phone(self.data, {})
+        view = tiers.phone(self.data, CLAUDE_MAIN)
         self.assertTrue(view["main"])
         self.assertEqual([t["glyph"] for t in view["tiers"]], ["crown", "banner", "scroll", "spark"])
         self.assertEqual(view["tiers"][0]["label"], "FABLE · HIGH")

@@ -95,3 +95,39 @@ def start(directory: Path | str, *, topic: str, title: str, project: str, cli: s
     except (EventRejected, OSError):
         return "", "The chat was not stored."
     return room, ""
+
+
+def quick(directory: Path | str, cli: str) -> tuple[str, str]:
+    """GROK-ORCH.1: Start with nothing picked: a fresh ``chat-<n>`` topic titled ``<CLI> chat <n>``, the CLI joined."""
+    from topics import list_topics
+
+    if cli not in CHAT_CLIS:
+        return "", "Pick Claude, Grok or Cursor."
+    try:
+        taken = {str(t["id"]) for t in list_topics(directory, timeout=0.3)}
+    except (EventRejected, OSError):
+        taken = set()
+    n = 1
+    while f"chat-{n}" in taken:
+        n += 1
+    from cli_avatars.app.chat_clis import NAMES
+    from cli_avatars.model.room import add_participant
+    from topics import ensure_topic
+
+    room = f"chat-{n}"
+    try:
+        ensure_topic(directory, room, title=f"{NAMES[cli]} chat {n}")
+        add_participant(directory, room, cli)
+    except (EventRejected, OSError):
+        return "", "The chat was not stored."
+    return room, ""
+
+
+def default_cli(config: object, enabled: dict[str, bool]) -> str:
+    """The CLI the card picks first: the main orchestrator's (Settings), else the first one set up."""
+    from cli_avatars.app.tiers import main_cli
+
+    main = main_cli(config)
+    if enabled.get(main):
+        return main
+    return next((cli for cli in CHAT_CLIS if enabled.get(cli)), "")

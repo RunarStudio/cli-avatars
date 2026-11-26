@@ -57,7 +57,7 @@ subprocess.Popen = counting_popen
 played = []
 cues.play = lambda _app, name: played.append(name)
 script = install(work)
-config = {}
+config = {"orchestrator": {"main": "claude"}}
 window = ChatWindow(root, directory=data, agents=[], config=lambda: config, offscreen=True, room_pane=RoomPane)
 app = SimpleNamespace(config=config, places=None, _chat_directory=lambda: data, _chat_window=window,
                       _session_rooms=sr.SessionRooms(data / "ui" / "session_rooms.json"))

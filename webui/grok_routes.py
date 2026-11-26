@@ -1,15 +1,15 @@
 """GROK-CHAT phone routes: the Grok topics list (read) and **+ New Grok topic** (a write, behind the usual guards).
 
-``GET /api/grok``: ``rows`` (room, kind, title, last line, time, turns, state; never a session id or a path) and
-whether Grok can run (``ready``, ``why``). ``POST /api/grok/topics`` with ``{"bound": <room>}`` makes a Grok topic
-bound to that room and answers ``{"room": …}``; it starts no CLI. Sending goes through ``POST /api/chat/<room>`` with
-``"cli": "grok"``: the phone's confirm tap is Daniel's Enter.
+``GET /api/grok``: ``rows`` (room, kind, title, project, last line, time, turns, state; never a session id or a
+path) and whether Grok can run (``ready``, ``why``). ``POST /api/grok/topics`` with ``{"bound": <room>}`` makes a
+Grok topic bound to that room and answers ``{"room": …}``; it starts no CLI. Sending goes through
+``POST /api/chat/<room>`` with ``"cli": "grok"``: the phone's confirm tap is Daniel's Enter.
 """
 
 from __future__ import annotations
 
 from chat_window import room_tools
-from cli_avatars.app import grok_topics
+from cli_avatars.app import chat_list, grok_topics
 from events import EventRejected
 from topics import valid_topic_id
 
@@ -26,6 +26,9 @@ def read(handler) -> None:
     if ready and load_binary_pin(directory, "grok") is None:
         why = "Confirm the Grok binary once in the Dungeon's chat (Use this binary), then send from here."
     rows = grok_topics.rows(directory, running=lambda room: room_tools().running(room, "grok"))
+    projects = {r["room"]: r["project"] for r in chat_list.rows(directory)}
+    for row in rows:
+        row["project"] = projects.get(row["room"], "") or chat_list.NO_PROJECT
     handler._json({"rows": rows, "ready": ready, "why": why})
 
 

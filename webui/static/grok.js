@@ -31,7 +31,11 @@ function grokPaintList() {
   const list = $("grokList"), g = state.grok;
   list.replaceChildren();
   if (!g.rows.length) list.append(el("li", "empty", "No Grok conversations yet. Make one below, or send to Grok in a room."));
-  for (const r of g.rows) {
+  const groups = new Map();
+  for (const r of g.rows) { const k = r.project || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+  for (const [project, rows] of groups) {
+  if (project && groups.size > 1) list.append(el("li", "grok-project", project));
+  for (const r of rows) {
     const li = el("li", "grok-row" + (r.room === state.chatKey && state.chatCli === "grok" ? " lit" : "") + (r.live ? " live" : ""));
     const head = el("div", "grok-head");
     head.append(grokDiamond(r.state), el("b", "", r.title));
@@ -41,6 +45,7 @@ function grokPaintList() {
     if (r.last) li.append(el("p", "grok-last", r.last));
     li.addEventListener("click", () => grokOpen(r.room, r.title));
     list.append(li);
+  }
   }
   $("grokNew").disabled = !state.writes.writes || !state.chatKey;
   $("grokWhy").textContent = g.why || (state.writes.writes ? "" : "Sending from the phone is off (Dungeon: Settings › Phone).");

@@ -1,10 +1,11 @@
 """START-SETUP.1 CHAT: the New chat card. One place to go back to a chat or to start one. Not a new window.
 
-Opened from the toolbar's New chat, the composer's New chat and a room's right-click. Recent chats are one click.
-A new one: topic (an existing one, or a new name and project), the CLI (Claude, Grok, Cursor; a missing one is greyed
-with a "set up" link to the start card), an optional task, Start. Start writes the topic and room files
-(``new_chat_model.start``), opens the chat on it with that CLI picked and plays the ``pack`` cue. It starts no CLI:
-that happens on Daniel's Enter in the chat.
+Opened from the toolbar's New chat, the composer's New chat and a room's right-click. Every chat is listed by project,
+newest first (GROK-ORCH.1, ``chat_list``); one click reopens it with its CLI, and the next send resumes its session.
+A new one: topic (an existing one, a new name and project, or no name for a quick ``chat-<n>``), the CLI (the main
+orchestrator first; a missing one is greyed with a "set up" link to the start card), an optional task, Start. Start
+writes the topic and room files (``new_chat_model.start``), opens the chat on it with that CLI picked and plays the
+``pack`` cue. It starts no CLI: that happens on Daniel's Enter in the chat.
 """
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ from cli_avatars.app.chat_clis import NAMES
 
 NEW_TOPIC = "+ New topic"
 NO_TASK = "No task"
+SHOWN = 30
+LIST_H = 170
 
 
 def open_card(app, topic: str = "") -> NewChatCard:
@@ -37,17 +40,25 @@ class NewChatCard:
         self.card = kc.Card(app.root, "New chat", width=440)
         body = self.card.body
         kc.heading(body, "Go back to a chat")
-        self.recent = model.recent(directory)
-        box = tk.Frame(body, bg=kc.PARCH)
-        box.pack(fill="x")
+        from cli_avatars.app import chat_list
+
+        self.recent = [{**row, "id": row["room"]} for row in chat_list.rows(directory)]
+        box = self._scroll_box(body)
         if not self.recent:
             kc.note(box, "No chats yet: start the first one below.")
         self.recent_buttons = []
-        for row in self.recent:
-            label = row["title"] + (f"  ·  {row['project']}" if row["project"] else "")
-            btn = kc.button(box, label, lambda r=row["id"]: self.reach(r), bg=kc.PAPER, fg=kc.INK)
-            btn.pack(fill="x", pady=1)
-            self.recent_buttons.append(btn)
+        shown = 0
+        for project, rows in chat_list.by_project(self.recent):
+            if shown >= SHOWN:
+                break
+            tk.Label(box, text=project, bg=kc.PARCH, fg=kc.WINE, font="DungeonBubble", anchor="w").pack(fill="x")
+            for row in rows[:SHOWN - shown]:
+                btn = kc.button(box, _label(row), lambda r=row: self.reach(r["room"], r["cli"]), bg=kc.PAPER,
+                                fg=kc.INK)
+                btn.config(anchor="w")
+                btn.pack(fill="x", pady=1)
+                self.recent_buttons.append(btn)
+                shown += 1
         kc.heading(body, "Start a new one")
         self.topics = model.topic_choices(directory)
         titles = {tid: title for tid, title in self.topics}
@@ -68,7 +79,8 @@ class NewChatCard:
         self._task_ids = {title: cid for cid, title in self.tasks}
         self.task = tk.StringVar(body, NO_TASK)
         self._menu(self._field(body, "Task"), self.task, [NO_TASK, *self._task_ids])
-        kc.note(body, "Optional. A task chat carries the task's context and pack.")
+        kc.note(body, "Optional. A task chat carries the task's context and pack. No topic name and no task: a "
+                "quick chat.")
         foot = tk.Frame(body, bg=kc.PARCH)
         foot.pack(fill="x", pady=(8, 0))
         self.status = tk.Label(foot, text="", bg=kc.PARCH, fg=kc.BAD_INK, font="DungeonBubble", anchor="w",
@@ -77,18 +89,25 @@ class NewChatCard:
         self.start_btn = kc.button(foot, "Start", self.start)
         self.start_btn.pack(side="right")
 
-    def reach(self, room: str) -> None:
-        """One click: that chat opens in the chat dock."""
+    def reach(self, room: str, cli: str = "") -> None:
+        """One click: that chat opens in the chat dock with its CLI picked; the next send resumes its session."""
         self.card.close()
         self.app._show_chat(topic_id=room)
+        pane = getattr(getattr(self.app, "_chat_window", None), "_room", None)
+        if pane is not None and cli:
+            pane.pick_target(cli)
 
     def start(self) -> None:
         """Daniel's Start: write the chat, open it with the CLI picked, chime. No CLI starts."""
         cli = self.cli.get()
         picked = self.topic.get()
         topic = self._by_title.get(picked, "") if picked != NEW_TOPIC else ""
-        room, why = model.start(self.app._chat_directory(), topic=topic, title=self.name.get(),
-                                project=self.project.get(), cli=cli, card=self._task_ids.get(self.task.get(), ""))
+        card = self._task_ids.get(self.task.get(), "")
+        if not (topic or card or self.name.get().strip()):
+            room, why = model.quick(self.app._chat_directory(), cli)
+        else:
+            room, why = model.start(self.app._chat_directory(), topic=topic, title=self.name.get(),
+                                    project=self.project.get(), cli=cli, card=card)
         if why:
             self.status.config(text=why)
             return
@@ -113,8 +132,10 @@ class NewChatCard:
         from cli_avatars.app.chat_clis import state
 
         directory, config = self.app._chat_directory(), getattr(self.app, "config", {})
+        enabled = {cli: state(directory, config, cli, room_tools().resolve).enabled for cli in CHAT_CLIS}
+        self.cli.set(model.default_cli(config, enabled))
         for cli in CHAT_CLIS:
-            ok = state(directory, config, cli, room_tools().resolve).enabled
+            ok = enabled[cli]
             chip = tk.Radiobutton(row, text=NAMES[cli], value=cli, variable=self.cli, indicatoron=0,
                                   bg=kc.PAPER, fg=kc.INK, selectcolor=kc.GOLD, activebackground=kc.GOLD,
                                   disabledforeground="#a89878", font="DungeonText", relief="flat", bd=0, padx=8,
@@ -126,14 +147,28 @@ class NewChatCard:
                                 cursor="hand2")
                 link.pack(side="left", padx=(0, 8))
                 link.bind("<Button-1>", lambda _e: self._setup())
-            if ok and not self.cli.get():
-                self.cli.set(cli)
 
     def _setup(self) -> None:
         from cli_avatars.app import start_card
 
         self.card.close()
         start_card.reopen(self.app)
+
+    def _scroll_box(self, parent) -> tk.Frame:
+        """The chat list in a short scrolling well, so a long history keeps Start on screen."""
+        wrap = tk.Frame(parent, bg=kc.PARCH)
+        wrap.pack(fill="x")
+        canvas = tk.Canvas(wrap, bg=kc.PARCH, height=LIST_H, highlightthickness=0, bd=0)
+        bar = tk.Scrollbar(wrap, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=bar.set)
+        bar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="x", expand=True)
+        box = tk.Frame(canvas, bg=kc.PARCH)
+        item = canvas.create_window(0, 0, window=box, anchor="nw")
+        box.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all"),
+                                                            height=min(LIST_H, box.winfo_reqheight())))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(item, width=e.width))
+        return box
 
     def _field(self, parent, label: str) -> tk.Frame:
         row = tk.Frame(parent, bg=kc.PARCH)
@@ -157,6 +192,20 @@ class NewChatCard:
         menu["menu"].config(bg=kc.PAPER, fg=kc.INK, activebackground=kc.GOLD, font="DungeonText")
         menu.pack(side="left", fill="x", expand=True)
         return menu
+
+
+def _label(row: dict) -> str:
+    """``Moon forge · Grok · resumes · 3h ago``: plain words, one line."""
+    import time
+
+    from cli_avatars.app.chat_clis import NAMES as CLIS
+
+    run = CLIS.get(row["cli"], "Inbox")
+    state = "resumes" if row["resumes"] else "new session" if row["cli"] else ""
+    age = max(0, int(time.time() - row["at"])) if row["at"] else None
+    ago = "" if age is None else "just now" if age < 60 else f"{age // 60}m ago" if age < 3600 else \
+        f"{age // 3600}h ago" if age < 86400 else f"{age // 86400}d ago"
+    return " · ".join(x for x in (row["title"], run, state, ago) if x)
 
 
 def room_at(app, x: int, y: int) -> str:

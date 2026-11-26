@@ -5,6 +5,8 @@ send quick narrow jobs to subagents. ``config.json`` ``chat.tiers.<tier>`` = ``{
 a bad value keeps the default. A launch takes the tier of the room it starts in; its model and effort go into the
 argv only when the launch runs the tier's CLI (Claude's flags are built in, the others' come from their template
 pieces, ``chat_clis``). A fresh session gets the tier's role text on stdin. Nothing here starts a process.
+GROK-ORCH.1: ``orchestrator.main`` (Settings, default Grok) picks the main tier's CLI; off Claude, the main tier sends
+no model or effort unless ``chat.tiers.main`` names one.
 """
 
 from __future__ import annotations
@@ -52,16 +54,47 @@ GLYPHS = {
 }
 
 
-def table(config: object) -> dict[str, dict[str, str]]:
-    """Every tier's ``{cli, model, effort}``: the defaults, edited by ``chat.tiers``; a bad value keeps its default."""
+MAIN_DEFAULT = "grok"
+
+
+def _own(config: object, tier: str) -> dict:
     chat = config.get("chat") if isinstance(config, dict) else None
     raw = chat.get("tiers") if isinstance(chat, dict) else None
+    return raw[tier] if isinstance(raw, dict) and isinstance(raw.get(tier), dict) else {}
+
+
+def main_cli(config: object) -> str:
+    """The main orchestrator's CLI: ``orchestrator.main``, else an older ``chat.tiers.main.cli``, else Grok."""
+    raw = config.get("orchestrator") if isinstance(config, dict) else None
+    picked = raw.get("main") if isinstance(raw, dict) else None
+    if picked in CHAT_CLIS:
+        return picked
+    older = _own(config, "main").get("cli")
+    return older if older in CHAT_CLIS else MAIN_DEFAULT
+
+
+def save_main(path, cli: str) -> bool:
+    """Settings: write ``orchestrator.main`` into config.json, keeping every other key."""
+    from cli_avatars.app.config_file import save_config_with
+
+    if cli not in CHAT_CLIS:
+        return False
+    return save_config_with(path, lambda data: {**data, "orchestrator": {
+        **(data.get("orchestrator") if isinstance(data.get("orchestrator"), dict) else {}), "main": cli}})
+
+
+def table(config: object) -> dict[str, dict[str, str]]:
+    """Every tier's ``{cli, model, effort}``: the defaults, edited by ``chat.tiers``; a bad value keeps its default."""
     out = {}
     for tier in TIERS:
-        own = raw.get(tier) if isinstance(raw, dict) and isinstance(raw.get(tier), dict) else {}
+        own = _own(config, tier)
         row = dict(DEFAULTS[tier])
         if own.get("cli") in CHAT_CLIS:
             row["cli"] = own["cli"]
+        if tier == "main":
+            row["cli"] = main_cli(config)
+            if row["cli"] != DEFAULTS["main"]["cli"]:
+                row["model"] = row["effort"] = ""
         for name in ("model", "effort"):
             if isinstance(own.get(name), str) and VALUE.match(own[name]):
                 row[name] = own[name]
@@ -96,20 +129,28 @@ def launch(directory: Path | str, config: object, room: str, cli: str, fresh: bo
     tier = tier_of(directory, room)
     rows = table(config)
     own = rows[tier]["cli"] == cli
-    return {"tier": tier, "model": rows[tier]["model"] if own else None,
-            "effort": rows[tier]["effort"] if own else None, "role": role(tier, rows) if fresh else ""}
+    return {"tier": tier, "model": (rows[tier]["model"] or None) if own else None,
+            "effort": (rows[tier]["effort"] or None) if own else None, "role": role(tier, rows) if fresh else ""}
 
 
 def role(tier: str, rows: dict) -> str:
     """The tier's fixed role text, naming who it delegates to and on which model."""
-    names = {t: f"{rows[t]['model']}, {rows[t]['effort']} effort" for t in TIERS}
+    names = {t: describe(rows[t]) for t in TIERS}
     return f"{ROLE_HEAD}\n{_ROLE[tier].format(**names)}\n{ROLE_END}\n"
 
 
+def describe(row: dict) -> str:
+    """``fable, high effort``; a tier with no model set says its CLI picks."""
+    if not row["model"]:
+        return f"{row['cli']}'s own model" + (f", {row['effort']} effort" if row["effort"] else "")
+    return f"{row['model']}, {row['effort']} effort" if row["effort"] else row["model"]
+
+
 def chip(tier: str, rows: dict) -> dict:
-    """The tier chip: glyph name, colour, pixel rows and ``MODEL · EFFORT``."""
+    """The tier chip: glyph name, colour, pixel rows and ``MODEL · EFFORT`` (the CLI when no model is set)."""
     glyph, color, pixels = GLYPHS[tier]
-    label = f"{rows[tier]['model']} · {rows[tier]['effort']}".upper()
+    row = rows[tier]
+    label = " · ".join(x for x in (row["model"] or row["cli"], row["effort"]) if x).upper()
     return {"tier": tier, "glyph": glyph, "color": color, "rows": list(pixels), "label": label}
 
 
