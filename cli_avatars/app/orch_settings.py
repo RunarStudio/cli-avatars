@@ -60,9 +60,9 @@ def mount(app, parent) -> dict:
     """The tab's rows; returns the widgets for probes."""
     font = fonts.face(9)
     tk.Label(parent, text="", bg=BG).pack(pady=2)
+    tk.Label(parent, text="Main orchestrator", bg=BG, fg=FG, font=font, anchor="w").pack(fill="x", padx=12)
     row = tk.Frame(parent, bg=BG, pady=3)
     row.pack(fill="x", padx=12)
-    tk.Label(row, text="Main orchestrator", bg=BG, fg=FG, font=font, width=18, anchor="w").pack(side="left")
     var = tk.StringVar(parent, tiers.main_cli(getattr(app, "config", None)))
     chips = {}
     for cli in CHAT_CLIS:
@@ -75,11 +75,11 @@ def mount(app, parent) -> dict:
     note = tk.Label(parent, text=_says(app), bg=BG, fg="#8899bb", font=font, anchor="w", justify="left",
                     wraplength=520)
     note.pack(fill="x", padx=12, pady=(0, 8))
+    tk.Label(parent, text="Bot bridge folder", bg=BG, fg=FG, font=font, anchor="w").pack(fill="x", padx=12)
     row = tk.Frame(parent, bg=BG, pady=3)
     row.pack(fill="x", padx=12)
-    tk.Label(row, text="Bot bridge folder", bg=BG, fg=FG, font=font, width=18, anchor="w").pack(side="left")
     raw = (getattr(app, "config", None) or {}).get("bridge")
-    entry = tk.Entry(row, bg=SEL, fg=FG, insertbackground=FG, font=font, relief="flat", width=34)
+    entry = tk.Entry(row, bg=SEL, fg=FG, insertbackground=FG, font=font, relief="flat", width=10)
     entry.insert(0, raw.get("dir", "") if isinstance(raw, dict) and isinstance(raw.get("dir"), str) else "")
     entry.pack(side="left", fill="x", expand=True)
     save = tk.Button(row, text="Save", bg=SEL, fg=FG, activebackground="#334477", activeforeground="white", font=font,
@@ -88,6 +88,8 @@ def mount(app, parent) -> dict:
     where = tk.Label(parent, text=_where(app), bg=BG, fg="#8899bb", font=font, anchor="w", justify="left",
                      wraplength=520)
     where.pack(fill="x", padx=12)
+    for label in (note, where):
+        label.bind("<Configure>", lambda e: e.widget.config(wraplength=max(120, e.width - 4)))
 
     def _save_folder():
         save_bridge(app, entry.get())
