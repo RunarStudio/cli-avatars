@@ -166,9 +166,10 @@ ribbon. Tap the ribbon to read the decision, the answer and why it is news there
 
 ## Backlog boss
 
-The map shows the backlog boss, an oni in a pit in the Apothecary, with its HP bar. It grows with the blocked and
+The map shows the backlog boss, an oni in its own room (the Oni Pit, sized by HP), with its HP bar. It grows with the blocked and
 overdue tasks; when HP drops, each lost point plays a hit. Tap it for its sheet: HP, the week's burn-down and the tasks
-that feed it (tap one to pick it). Read-only over SSE; the phone never writes `boss.json`. No sound on the phone.
+that feed it (tap one to pick it). BOSS-ROOM.1: the Crypt beside it holds a skull per forgotten card; tap it for the
+forgotten list (read-only). Read-only over SSE; the phone never writes `boss.json`. No sound on the phone.
 Details: [backlog-boss.md](backlog-boss.md).
 
 ## Talk to it

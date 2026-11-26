@@ -19,6 +19,7 @@ The main layout: HALL, PIT and PANTRY as above, plus the atelier, the owner's of
 ![Create your room panel and the main structure with a new room](img/map-create-room.png)
 
 - The four MAP.2 rooms are the standard rooms (`standard: true`, a lock badge); they can be re-skinned, never deleted. **START.1:** the Dungeon now starts with one room, the Apothecary (the old Pantry); Hall, Pit and Atelier are not shown by default, and each opened orchestrator session adds its own room (`orchestrator-rooms.md`).
+- **BOSS-ROOM.1:** the Oni Pit and the Crypt are placed in code off the Apothecary (`boss_rooms.py`), each on a spot reserved at its largest size; they grow and shrink with the backlog and are never saved to the map file (`backlog-boss.md`).
 - **Create your room** is a panel inside the Dungeon tab: name, topic, size (S/M/L), skin (thumbnails of the 30), connect to (a room and its free point). The new room gets a `CUSTOM` badge; it can be edited or deleted.
 - On create the app puts the room on the nearest free spot where the corridor rule holds, picks the door facing the chosen point, adds a connection point there if needed, appends the room and the link to `building/maps/main.json` and saves (write to a temp file, then rename). No spot fits: the panel says so and nothing is saved.
 
