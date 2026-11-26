@@ -50,6 +50,7 @@ _stamp_path.write_text(json.dumps(_stamp, indent=2) + "\n", encoding="utf-8")
 datas = [
     (str(ROOT / "Sprites"), "Sprites"),
     (str(ROOT / "building"), "building"),
+    (str(ROOT / "assets" / "fonts"), "assets/fonts"),
     (str(ROOT / "Caine_Icon.ico"), "."),
     (str(ROOT / "Caine_Icon.png"), "."),
     (str(_stamp_path), "."),
@@ -84,6 +85,7 @@ hiddenimports = [
     "sessions",
     "sprite_loader",
     "subskins",
+    "text_fonts",
     "topics",
     "win32",
     "PIL",

@@ -15,6 +15,7 @@ ROOT = Path(SPECPATH)
 datas = [
     (str(ROOT / "Sprites"), "Sprites"),
     (str(ROOT / "building"), "building"),
+    (str(ROOT / "assets" / "fonts"), "assets/fonts"),
     (str(ROOT / "webui" / "static"), "webui/static"),
     (str(ROOT / "Caine_Icon.ico"), "."),
     (str(ROOT / "Caine_Icon.png"), "."),
@@ -60,6 +61,7 @@ hiddenimports = [
     "standup",
     "subskins",
     "timelapse",
+    "text_fonts",
     "topics",
     "win32",
     "PIL",

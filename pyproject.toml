@@ -58,6 +58,7 @@ py-modules = [
     "standup",
     "subskins",
     "timelapse",
+    "text_fonts",
     "topics",
     "win32",
 ]
