@@ -1,3 +1,5 @@
+import text_fonts as fonts
+
 """DOOR-BUGS.1: one Settings line Daniel can copy. Counts and states only: no paths, hosts or names."""
 
 
@@ -19,7 +21,7 @@ def mount(app, parent):
     """Settings row: Diagnostics and a Copy button, the line below it, wrapped, refreshed every 2 s."""
     import tkinter as tk
 
-    bg, fg, sel, font = "#0d0d1a", "#aaccff", "#223366", ("Courier", 9)
+    bg, fg, sel, font = "#0d0d1a", "#aaccff", "#223366", fonts.face(9)
     row = tk.Frame(parent, bg=bg, pady=3)
     row.pack(fill="x", padx=12)
     tk.Label(row, text="Diagnostics", bg=bg, fg=fg, font=font, width=18, anchor="w").pack(side="left")

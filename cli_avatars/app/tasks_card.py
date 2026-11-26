@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+import text_fonts as fonts
 from board.model import COLUMNS, effective_progress
 from cli_avatars.app.tasks_edit import history_lines
 from cli_avatars.app.tasks_view import STATUS_BADGES, summary_age, ts_epoch
@@ -86,9 +87,27 @@ class CardPanel:
         self.where_ts: float | None = None
         self.status_badge: tk.Frame | None = None
         self.frame = tk.Frame(parent, bg=WOOD)
-        self.sheet = tk.Frame(self.frame, bg=PARCH, highlightthickness=2, highlightbackground=EDGE)
-        self.sheet.pack(fill="both", expand=True, padx=4, pady=4)
+        self.view = tk.Canvas(self.frame, bg=PARCH, highlightthickness=2, highlightbackground=EDGE, bd=0)
+        self.view.pack(fill="both", expand=True, padx=4, pady=4)
+        self.sheet = tk.Frame(self.view, bg=PARCH)
+        sheet = self.view.create_window(0, 0, window=self.sheet, anchor="nw")
+        self.view.bind("<Configure>", lambda e: self.view.itemconfigure(sheet, width=e.width))
+        self.sheet.bind("<Configure>", self._scroll_room)
+        scroll = self.view.yview_scroll
+        self.view.bind_class("CardWheel", "<MouseWheel>", lambda e: scroll(-1 if e.delta > 0 else 1, "units"))
+        self.view.bind_class("CardWheel", "<Button-4>", lambda _e: scroll(-1, "units"))
+        self.view.bind_class("CardWheel", "<Button-5>", lambda _e: scroll(1, "units"))
         self.errors: dict[str, tk.Label] = {}
+
+    def _scroll_room(self, _event=None) -> None:
+        """Readable text can outgrow the panel: the sheet scrolls, and the wheel works over every row."""
+        self.view.configure(scrollregion=self.view.bbox("all"))
+        stack = [self.view]
+        while stack:
+            widget = stack.pop()
+            if "CardWheel" not in widget.bindtags():
+                widget.bindtags((*widget.bindtags(), "CardWheel"))
+            stack.extend(widget.winfo_children())
 
     @property
     def open(self) -> bool:
@@ -266,7 +285,7 @@ class CardPanel:
         pin.create_rectangle(2, 1, 4, 3, fill="#fff2c0", width=0)
         pin.create_rectangle(3, 6, 5, 10, fill=PARCH, width=0)
         pin.pack(side="left", padx=(5, 3), pady=2)
-        tk.Label(band, text="WHERE WE ARE", bg=WINE, fg=GOLD, font="DungeonBubble").pack(side="left")
+        tk.Label(band, text=fonts.caps("WHERE WE ARE"), bg=WINE, fg=GOLD, font="DungeonBubble").pack(side="left")
         self.where_age = tk.Label(band, text="", bg=WINE, fg=PARCH, font="DungeonBubble")
         self.where_age.pack(side="right", padx=5)
         self.where_text = tk.Label(self.where, text="", bg=PAPER, fg=INK, font="DungeonText", anchor="w",
@@ -304,7 +323,8 @@ class CardPanel:
             slip.pack(fill="x", pady=(6, 0))
             top = tk.Frame(slip, bg=GOLD)
             top.pack(fill="x")
-            tk.Label(top, text="◆ DECISION", bg=GOLD, fg=INK, font="DungeonBubble").pack(side="left", padx=4)
+            tk.Label(top, text=fonts.caps("◆ DECISION"), bg=GOLD, fg=INK, font="DungeonBubble").pack(side="left",
+                                                                                                   padx=4)
             tk.Label(top, text=f"{row['from']} asks", bg=GOLD, fg=WINE, font="DungeonBubble").pack(side="right",
                                                                                                     padx=4)
             tk.Label(slip, text=row["question"], bg=PAPER, fg=INK, font="DungeonText", anchor="w", justify="left",
@@ -439,6 +459,7 @@ class CardPanel:
     def _clear(self) -> None:
         for child in self.sheet.winfo_children():
             child.destroy()
+        self.view.yview_moveto(0)
         self.errors = {}
         self.status_badge = None
         self.pack = None

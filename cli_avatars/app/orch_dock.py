@@ -4,12 +4,14 @@ import time
 import tkinter as tk
 from dataclasses import replace
 
+import text_fonts as fonts
+
 
 def render(self, parent, rows) -> None:
     self._orch_ages = {}
     if rows:
         tk.Label(parent, text="Orchestrator rooms", bg="#0d0d1a", fg="#e0aa3e",
-                 font=("Courier", 10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
+                 font=fonts.face(10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
     for row in rows:
         render_row(self, parent, row)
 
@@ -70,7 +72,7 @@ def render_row(self, parent, row) -> None:
     for index, text in enumerate(lines):
         amber = row.amber and row.note and text == row.note
         fg = "#ffbe3c" if amber else "#e0aa3e" if index == 0 else "#e8e6f4" if index == 1 else "#9a98b8"
-        font = ("Courier", 10, "bold") if index == 0 else ("Courier", 9)
+        font = fonts.face(10, "bold") if index == 0 else fonts.face(9)
         label = tk.Label(frame, text=text, bg=bg, fg=fg, font=font, anchor="w", justify="left", cursor="hand2")
         label.pack(anchor="w", fill="x")
         if ages is not None and row.last and index == len(lines) - 1:

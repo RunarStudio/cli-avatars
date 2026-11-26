@@ -10,6 +10,7 @@ import tkinter as tk
 from dataclasses import replace
 from types import SimpleNamespace
 
+import text_fonts as fonts
 from cli_avatars.app import orch_dock
 from cli_avatars.app.bots_ui import bot_signature, render_bot_sections
 from cli_avatars.app.toolbar_widgets import paint
@@ -279,19 +280,19 @@ def _render_topic_groups(self, groups, cards, counts) -> None:
     orch_dock.render(self, parent, getattr(self, "_orch_rows", None) or [])
     if not groups:
         tk.Label(parent, text="No topics", bg=bg, fg="#9a98b8",
-                 font=("Courier", 10), anchor="w").pack(anchor="w", padx=12, pady=8)
+                 font=fonts.face(10), anchor="w").pack(anchor="w", padx=12, pady=8)
     for project, topics in groups:
         label = project or "No project"
         tk.Label(parent, text=label, bg=bg, fg="#88aaff",
-                 font=("Courier", 10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
+                 font=fonts.face(10, "bold"), anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
         for topic in topics:
             self._render_topic_card(parent, topic, int(counts.get(str(topic.get("id")), 0)))
     render_bot_sections(self, parent)
     tk.Label(parent, text="Orchestrators", bg=bg, fg="#9a98b8",
-             font=("Courier", 9), anchor="w").pack(anchor="w", padx=12, pady=(10, 2))
+             font=fonts.face(9), anchor="w").pack(anchor="w", padx=12, pady=(10, 2))
     if not cards:
         tk.Label(parent, text="No orchestrators", bg=bg, fg="#9a98b8",
-                 font=("Courier", 10), anchor="w").pack(anchor="w", padx=12, pady=4)
+                 font=fonts.face(10), anchor="w").pack(anchor="w", padx=12, pady=4)
     for card in cards:
         self._render_orchestrator_dot(parent, card)
     self._bind_rooms_scroll(parent)
@@ -326,21 +327,21 @@ def _render_topic_card(self, parent, topic, decisions: int) -> None:
     head = tk.Frame(body, bg=bg)
     head.pack(fill="x")
     tk.Label(head, text=str(topic.get("title") or topic_id), bg=bg, fg="#e8e6f4",
-             font=("Courier", 10, "bold"), cursor="hand2").pack(side="left")
+             font=fonts.face(10, "bold"), cursor="hand2").pack(side="left")
     status = str(topic.get("status") or "open")
     chip = tk.Label(head, text=status_label(status), bg=STATUS_COLOR.get(status, "#9a98b8"),
                     fg="#141018" if status == "waiting_on_user" else "white",
-                    font=("Courier", 8), padx=4, cursor="hand2")
+                    font=fonts.face(8), padx=4, cursor="hand2")
     chip.pack(side="left", padx=(8, 0))
     if decisions:
         tk.Label(head, text=f"decisions {decisions}", bg=bg, fg="#9a98b8",
-                 font=("Courier", 8), cursor="hand2").pack(side="right")
+                 font=fonts.face(8), cursor="hand2").pack(side="right")
     dots = tk.Frame(body, bg=bg)
     dots.pack(fill="x", pady=(4, 0))
     for agent_id in members[:8]:
         _name, _skin, agent_status = self._member_face(str(agent_id))
         tk.Label(dots, text="●", bg=bg, fg=dot_color(agent_status),
-                 font=("Courier", 8), cursor="hand2").pack(side="left", padx=(0, 2))
+                 font=fonts.face(8), cursor="hand2").pack(side="left", padx=(0, 2))
     self._bind_topic_click(frame, topic_id)
 
 
@@ -391,22 +392,22 @@ def _render_orchestrator_dot(self, parent, card) -> None:
     row = tk.Frame(parent, bg=bg)
     row.pack(fill="x", padx=12, pady=1)
     dot = fade_hex(card.dot) if card.dimmed else card.dot
-    tk.Label(row, text="●", bg=bg, fg=dot, font=("Courier", 10)).pack(side="left")
+    tk.Label(row, text="●", bg=bg, fg=dot, font=fonts.face(10)).pack(side="left")
     tk.Label(row, text=card.name, bg=bg, fg=ink,
-             font=("Courier", 9)).pack(side="left", padx=(4, 0))
+             font=fonts.face(9)).pack(side="left", padx=(4, 0))
     if card.mark:
         tk.Label(row, text=card.mark, bg=bg, fg="#c6c6dc",
-                 font=("Courier", 9)).pack(side="left", padx=(6, 0))
+                 font=fonts.face(9)).pack(side="left", padx=(6, 0))
     for sub in card.subs:
         sub_dot = fade_hex(sub.dot) if card.dimmed else sub.dot
-        tk.Label(row, text="●", bg=bg, fg=sub_dot, font=("Courier", 8)).pack(side="left", padx=(6, 0))
+        tk.Label(row, text="●", bg=bg, fg=sub_dot, font=fonts.face(8)).pack(side="left", padx=(6, 0))
     if card.warn:
         icon = self._room_warn(card.dimmed)
         if icon is not None:
             warn = tk.Label(row, image=icon, bg=bg)
             warn.image = icon
             warn.pack(side="left", padx=(4, 0))
-    age = tk.Label(row, text=card.activity, bg=bg, fg="#9a98b8", font=("Courier", 9))
+    age = tk.Label(row, text=card.activity, bg=bg, fg="#9a98b8", font=fonts.face(9))
     age.pack(side="right")
     ages = getattr(self, "_rooms_ages", None)
     if ages is not None:

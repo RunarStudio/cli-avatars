@@ -12,6 +12,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 
+import text_fonts as fonts
 from cli_avatars.app import update_ui
 from cli_avatars.paths import REPO_ROOT
 from cli_avatars.update import progress
@@ -147,7 +148,7 @@ def fill_settings(app, frame, row) -> None:
     button = tk.Button(
         row, text="Check for updates", command=lambda: start_check(app),
         bg=_SEL, fg=_FG, activebackground="#334477", activeforeground="white",
-        font=("Courier", 9, "bold"), relief="flat", padx=10, pady=4, cursor="hand2",
+        font=fonts.face(9, "bold"), relief="flat", padx=10, pady=4, cursor="hand2",
     )
     button.pack(side="left", padx=(8, 0))
     if busy:
@@ -160,9 +161,9 @@ def fill_settings(app, frame, row) -> None:
             PHASE_CURRENT: (f"Check: up to date · {at}", _OK),
             PHASE_NEWS: (f"Check: {result.message} · {at}", _NEWS),
         }.get(result.phase, ("Check stopped: " + result.message, _BAD))
-        tk.Label(frame, text="  " + text, bg=_BG, fg=color, font=("Courier", 9, "bold"), anchor="w").pack(fill="x")
+        tk.Label(frame, text="  " + text, bg=_BG, fg=color, font=fonts.face(9, "bold"), anchor="w").pack(fill="x")
         for subject in result.subjects if result.phase == PHASE_NEWS else ():
-            tk.Label(frame, text="    · " + subject, bg=_BG, fg=_DIM, font=("Courier", 9), anchor="w",
+            tk.Label(frame, text="    · " + subject, bg=_BG, fg=_DIM, font=fonts.face(9), anchor="w",
                      justify="left").pack(fill="x")
     sync_check_tool(app)
 
@@ -193,7 +194,7 @@ def _badge(widget, count: int) -> None:
             return
         badge = getattr(widget, "_check_badge", None)
         if badge is None or not badge.winfo_exists():
-            badge = tk.Label(widget.master, bg=EMBER, fg=EMBER_INK, font=("Courier", 8, "bold"), padx=2, pady=0,
+            badge = tk.Label(widget.master, bg=EMBER, fg=EMBER_INK, font=fonts.face(8, "bold"), padx=2, pady=0,
                              bd=0, highlightthickness=1, highlightbackground=EMBER_EDGE, cursor="hand2")
             badge.bind("<Button-1>", lambda _e: widget.invoke())
             widget._check_badge = badge

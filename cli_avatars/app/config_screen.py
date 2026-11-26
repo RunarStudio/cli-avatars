@@ -4,6 +4,7 @@ import tkinter as tk
 from dataclasses import replace
 from tkinter import ttk
 
+import text_fonts as fonts
 from activity import bind_settings, bubble_settings
 from cli_avatars.app.bots_ui import build_bots_settings
 from cli_avatars.app.close_choice import mount_setting as mount_close_setting
@@ -28,8 +29,8 @@ def _build_config_ui(self, win):
 
     mount_update_settings(self, win)
     BG, FG, SEL = "#0d0d1a", "#aaccff", "#223366"
-    FONT = ("Courier", 9)
-    BFONT = ("Courier", 9, "bold")
+    FONT = fonts.face(9)
+    BFONT = fonts.face(9, "bold")
 
     style = ttk.Style(win)
     style.theme_use("default")
@@ -60,7 +61,7 @@ def _build_config_ui(self, win):
         tk.Scale(parent, variable=var, from_=lo, to=hi, resolution=res,
                  orient="horizontal", bg=BG, fg=FG, troughcolor=SEL,
                  highlightthickness=0, showvalue=True, length=150,
-                 font=("Courier", 7)).pack(side="left")
+                 font=fonts.face(7)).pack(side="left")
 
     def spinbox(parent, var, lo, hi, inc=1):
         tk.Spinbox(parent, textvariable=var, from_=lo, to=hi, increment=inc,
@@ -102,7 +103,7 @@ def _build_config_ui(self, win):
         tk.Scale(parent, variable=v_scale, from_=0.5, to=4.0, resolution=0.5,
                  orient="horizontal", bg=BG, fg=FG, troughcolor=SEL,
                  highlightthickness=0, showvalue=True, length=150,
-                 font=("Courier", 7), command=_on_scale_cfg).pack(side="left")
+                 font=fonts.face(7), command=_on_scale_cfg).pack(side="left")
 
     def fps_widget(parent):
         om = tk.OptionMenu(parent, v_fps, "10", "20", "30", "60")
@@ -112,6 +113,9 @@ def _build_config_ui(self, win):
         om["menu"].config(bg=SEL, fg=FG, font=FONT)
         om.pack(side="left")
 
+    from cli_avatars.app.text_settings import mount as mount_text_settings
+
+    mount_text_settings(self, td)
     row(td, "Avatar scale",  scale_widget)
     row(td, "Overlay FPS",   fps_widget)
 
@@ -129,13 +133,13 @@ def _build_config_ui(self, win):
         lambda p: tk.Scale(p, variable=v_flalpha, from_=0.0, to=1.0, resolution=0.05,
                            orient="horizontal", bg=BG, fg=FG, troughcolor=SEL,
                            highlightthickness=0, showvalue=True, length=150,
-                           font=("Courier", 7), command=_on_floor_alpha).pack(side="left"))
+                           font=fonts.face(7), command=_on_floor_alpha).pack(side="left"))
 
     row(td, "Overlay opacity",
         lambda p: tk.Scale(p, variable=v_walpha, from_=0.1, to=1.0, resolution=0.05,
                            orient="horizontal", bg=BG, fg=FG, troughcolor=SEL,
                            highlightthickness=0, showvalue=True, length=150,
-                           font=("Courier", 7), command=_on_win_alpha).pack(side="left"))
+                           font=fonts.face(7), command=_on_win_alpha).pack(side="left"))
 
     v_boot = tk.BooleanVar(win, desktop_settings(getattr(self, "config", {})).bootcheck)
 

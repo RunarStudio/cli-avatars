@@ -6,14 +6,15 @@ sprite, so it follows a walking avatar and never jumps when a neighbour passes.
 
 from __future__ import annotations
 
+import text_fonts as fonts
+
 
 def plate_pixels(scene, text: str) -> tuple[int, int]:
-    """Measured nameplate size. Courier 7 bold, the same face the sprite draws."""
-    import tkinter.font as tkfont
+    """Measured nameplate size. The 7 pt bold text face, the same one the sprite draws."""
 
     font = getattr(scene, "_plate_font", None)
     if font is None:
-        font = tkfont.Font(scene, family="Courier", size=7, weight="bold")
+        font = fonts.tk_font(scene, 7, "bold")
         try:
             scene._plate_font = font
         except Exception:

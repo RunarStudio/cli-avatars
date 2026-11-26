@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import tkinter as tk
 
+import text_fonts as fonts
 from cli_avatars.app.chat_clis import COLORS, INBOX, NAMES, targets
 
 PLATE, FACE, INK, OFF_INK, EDGE = "#0e1420", "#1a2438", "#aaccff", "#555a70", "#2a3048"
-FONT = ("Courier", 8, "bold")
+FONT = fonts.face(8, "bold")
 PX = 2
 GEMS = {
     INBOX: ("111111", "110011", "101101", "100001", "111111"),
@@ -52,7 +53,7 @@ class Chip(tk.Frame):
         self.config(bg=colour if self.lit else EDGE, cursor="hand2" if self.enabled else "arrow")
         for widget in (self.face, self.gem, self.label):
             widget.config(bg=face)
-        self.label.config(fg="#ffffff" if self.lit else INK if self.enabled else OFF_INK)
+        self.label.config(fg=fonts.OFF_WHITE if self.lit else INK if self.enabled else OFF_INK)
         self.gem.delete("all")
         for y, row in enumerate(GEMS[self.key]):
             for x, bit in enumerate(row):

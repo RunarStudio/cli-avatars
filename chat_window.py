@@ -38,6 +38,7 @@ from chatlog import (
     shown_skin,
     talk_icon,
 )
+import text_fonts as fonts
 from decisions import answer_decision, list_decisions, pin_answered
 from events import EventRejected, app_data_dir
 from registry.facade import Registry
@@ -166,10 +167,10 @@ MOMENT = "#3a2a10"
 ACCENT = "#88aaff"
 LINE = "#223366"
 BTN = "#334477"
-FONT = ("Courier", 10)
-FONT_BOLD = ("Courier", 10, "bold")
-FONT_SMALL = ("Courier", 8)
-FONT_TITLE = ("Courier", 11, "bold")
+FONT = fonts.face(10)
+FONT_BOLD = fonts.face(10, "bold")
+FONT_SMALL = fonts.face(8)
+FONT_TITLE = fonts.face(11, "bold")
 
 
 def simulated_agents(now: float = 1_700_000_200.0) -> list[SimpleNamespace]:
@@ -549,7 +550,7 @@ class ChatWindow:
         )
         self._pin_btn = tk.Button(
             header, text="Pins", command=self._toggle_pins,
-            bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+            bg=BTN, fg=fonts.OFF_WHITE, activebackground="#4466aa", activeforeground="white",
             font=FONT_SMALL, relief="flat", padx=8, pady=1, cursor="hand2",
         )
         self._pin_box = tk.Frame(header, bg="#12121f")
@@ -567,7 +568,7 @@ class ChatWindow:
         row.pack(fill="x", pady=(6, 4))
         self._to_btn = tk.Button(
             row, text="To:", command=self._post_to_menu,
-            bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+            bg=BTN, fg=fonts.OFF_WHITE, activebackground="#4466aa", activeforeground="white",
             font=FONT, relief="flat", padx=8, pady=2, cursor="hand2", anchor="w", width=1,
         )
         self._to_btn.pack(side="top", fill="x")  # the whole row; buttons packed beside it go under
@@ -584,7 +585,7 @@ class ChatWindow:
         self._entry = entry
         tk.Button(
             text_row, text="Send", command=self._on_enter,
-            bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+            bg=BTN, fg=fonts.OFF_WHITE, activebackground="#4466aa", activeforeground="white",
             font=FONT, relief="flat", padx=12, pady=3, cursor="hand2",
         ).pack(side="right")
         foot = tk.Frame(composer, bg=BG)
@@ -592,7 +593,7 @@ class ChatWindow:
         if self._on_new_chat is not None:
             self._new_chat_btn = tk.Button(
                 foot, text="New chat", command=self._on_new_chat,
-                bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+                bg=BTN, fg=fonts.OFF_WHITE, activebackground="#4466aa", activeforeground="white",
                 font=FONT_SMALL, relief="flat", padx=8, pady=1, cursor="hand2",
             )
             self._new_chat_btn.pack(side="right")
@@ -787,7 +788,7 @@ class ChatWindow:
         label = "Hide pins" if self._pins_open else f"Pins {len(pins)}"
         self._pin_btn = tk.Button(
             header, text=label, command=self._toggle_pins,
-            bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+            bg=BTN, fg=fonts.OFF_WHITE, activebackground="#4466aa", activeforeground="white",
             font=FONT_SMALL, relief="flat", padx=8, pady=1, cursor="hand2",
         )
         self._pin_btn.pack(anchor="w", padx=8, pady=(2, 4))
@@ -810,7 +811,7 @@ class ChatWindow:
             tk.Button(
                 row, text="Unpin",
                 command=lambda topic_id=topic_id, pin_id=pin_id: self._unpin(topic_id, pin_id),
-                bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+                bg=BTN, fg=fonts.OFF_WHITE, activebackground="#4466aa", activeforeground="white",
                 font=FONT_SMALL, relief="flat", padx=6, pady=0, cursor="hand2",
             ).pack(side="right")
 
@@ -897,9 +898,9 @@ class ChatWindow:
         else:
             tk.Label(row, text=line.icon, bg=bg, fg=META, font=FONT_SMALL).grid(
                 row=0, column=4, padx=4)
-        tk.Label(row, text=line.note, bg=bg, fg=INK, font=FONT, anchor="w",
-                 justify="left", wraplength=280).grid(
-                     row=0, column=5, padx=(4, 8), pady=4, sticky="ew")
+        note = tk.Label(row, text=line.note, bg=bg, fg=INK, font=FONT, anchor="w", justify="left", wraplength=280)
+        note.grid(row=1, column=0, columnspan=6, padx=(6, 8), pady=(0, 6), sticky="ew")
+        fonts.fit(note)
         row.grid_columnconfigure(5, weight=1)
 
     def _render_decision(self, parent, row, by_id) -> None:
@@ -931,7 +932,7 @@ class ChatWindow:
             tk.Button(
                 body, text="Pin",
                 command=lambda decision_id=str(row.get("id") or ""): self._pin(decision_id),
-                bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+                bg=BTN, fg=fonts.OFF_WHITE, activebackground="#4466aa", activeforeground="white",
                 font=FONT, relief="flat", padx=8, pady=2, cursor="hand2",
             ).pack(anchor="w", pady=(4, 0))
             return
@@ -947,7 +948,7 @@ class ChatWindow:
             tk.Button(
                 body, text=f"{letter}  {item.get('text') or ''}",
                 command=lambda decision_id=decision_id, letter=letter: self._answer(decision_id, letter),
-                bg=BTN, fg="white", activebackground="#4466aa", activeforeground="white",
+                bg=BTN, fg=fonts.OFF_WHITE, activebackground="#4466aa", activeforeground="white",
                 font=FONT, relief="flat", padx=8, pady=2, cursor="hand2",
             ).pack(anchor="w", pady=1)
 

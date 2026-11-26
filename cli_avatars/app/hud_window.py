@@ -8,6 +8,7 @@ import logging
 import time
 import tkinter as tk
 
+import text_fonts as fonts
 from bundle_paths import asset_path
 from cli_avatars.app.close_choice import restore
 from cli_avatars.app.throttle import StoreThrottle
@@ -102,7 +103,7 @@ def _create_hud_win(self):
     except tk.TclError:
         pass
     bg = "#111018"
-    font = ("Courier", 10)
+    font = fonts.face(10)
     self._hud_win = parent
     self._hud_status_box = tk.Frame(parent, bg=bg)
     self._hud_status_box.pack(side="left", fill="x", expand=True)
@@ -137,7 +138,7 @@ def _paint_hud_rows(self, rows):
     if labels is None:
         labels = []
         self._hud_status_labels = labels
-    font = getattr(self, "_hud_status_font", ("Courier", 10))
+    font = getattr(self, "_hud_status_font", fonts.face(10))
     bg = getattr(self, "_hud_status_bg", "#0d0d1a")
     while len(labels) < len(rows):
         lbl = tk.Label(box, text="", bg=bg, fg="#aaccff",
@@ -189,7 +190,7 @@ def _update_hud_win(self, agents):
         self._decision_count = count
         decisions.config(
             text="  " + decisions_caption(count),
-            fg="#ffffff" if count else "#aaaaaa",
+            fg=fonts.OFF_WHITE if count else "#aaaaaa",
         )
 
 

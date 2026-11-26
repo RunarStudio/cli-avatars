@@ -13,6 +13,7 @@ import time
 import tkinter as tk
 from types import SimpleNamespace
 
+import text_fonts as fonts
 from cli_avatars import VERSION
 from cli_avatars.app.config_file import save_config_with
 from cli_avatars.app.dungeon_geom import floor_diamonds
@@ -300,7 +301,7 @@ def _mount_label(app) -> None:
         text="Boot check …",
         bg="#111018",
         fg=_DIM,
-        font=("Courier", 10),
+        font=fonts.face(10),
         cursor="hand2",
     )
     label.pack(side="right", padx=(4, 10))
@@ -364,13 +365,13 @@ def _fill_panel(panel, report: BootReport | None, trend: Trend | None) -> None:
     for child in list(panel.winfo_children()):
         child.destroy()
     if report is None or trend is None or not report.checks:
-        tk.Label(panel, text="  Boot check running", bg=_BG, fg=_DIM, font=("Courier", 10), anchor="w").pack(
+        tk.Label(panel, text="  Boot check running", bg=_BG, fg=_DIM, font=fonts.face(10), anchor="w").pack(
             fill="x", padx=8, pady=6,
         )
         return
     tk.Label(
         panel, text="  " + status_line(report, trend), bg=_BG, fg=_status_color(report, trend),
-        font=("Courier", 10, "bold"), anchor="w",
+        font=fonts.face(10, "bold"), anchor="w",
     ).pack(fill="x", padx=8, pady=(6, 2))
     for check in report.checks:
         note = ""
@@ -383,7 +384,7 @@ def _fill_panel(panel, report: BootReport | None, trend: Trend | None) -> None:
             text=f"  {check.status:<8} {check.ms:7.1f} ms  {check.name}  {check.detail}{note}",
             bg=_BG,
             fg=_row_color(check, trend),
-            font=("Courier", 9),
+            font=fonts.face(9),
             anchor="w",
         ).pack(fill="x", padx=8)
 

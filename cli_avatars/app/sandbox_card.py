@@ -10,6 +10,7 @@ from __future__ import annotations
 import tkinter as tk
 
 import sandbox
+import text_fonts as fonts
 from cli_avatars.app.sandbox_cues import cue
 
 STONE, STONE_HI, EMBER, RUNE, PAPER, INK, SOFT, WINE, GOLD, ERR = (
@@ -64,7 +65,7 @@ class SandboxSection:
         band = tk.Frame(self.frame, bg=STONE)
         band.pack(fill="x")
         icon(band, STONE, TABLET).pack(side="left", padx=(5, 4), pady=2)
-        tk.Label(band, text="SANDBOX", bg=STONE, fg=RUNE, font="DungeonBubble").pack(side="left")
+        tk.Label(band, text=fonts.caps("SANDBOX"), bg=STONE, fg=RUNE, font="DungeonBubble").pack(side="left")
         self.state = tk.Label(band, text="", bg=STONE, fg=EMBER, font="DungeonBubble")
         self.state.pack(side="right", padx=5)
         self.try_button = button(band, "⚠ Try it risky", self.try_it, WINE)

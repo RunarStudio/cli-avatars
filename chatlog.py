@@ -577,6 +577,12 @@ def _find_font(names: Sequence[str]) -> Path | None:
 
 
 def _load_font(size: int, *, bold: bool = False):
+    """The chosen text face (FONT.1), else the old monospace one under Pixel."""
+    import text_fonts as fonts
+
+    face = fonts.pil_font(size, bold)
+    if face is not None:
+        return face
     from PIL import ImageFont
 
     names = (

@@ -8,6 +8,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import filedialog
 
+import text_fonts as fonts
 from cli_avatars.app import summon
 from cli_avatars.app.session_rooms import model_for
 
@@ -39,7 +40,7 @@ def plate(master) -> tk.PhotoImage | None:
 def button(parent, command) -> tk.Button:
     photo = plate(parent)
     btn = tk.Button(parent, command=command, bd=0, relief="flat", highlightthickness=0, cursor="hand2",
-                    bg="#2a0f1c", activebackground="#3e1424", fg=GOLD, font=("Courier", 9, "bold"),
+                    bg="#2a0f1c", activebackground="#3e1424", fg=GOLD, font=fonts.face(9, "bold"),
                     text="♛ Summon orchestrator")
     if photo is not None:
         btn.config(image=photo, text="")
@@ -70,7 +71,7 @@ def click_throne(panel) -> None:
     try:
         canvas.delete(NOTE)
         if not started:
-            canvas.create_text(0, 0, text=text, fill=ERR, font=("Courier", 9), tags=(NOTE,))
+            canvas.create_text(0, 0, text=text, fill=ERR, font=fonts.face(9), tags=(NOTE,))
     except tk.TclError:
         return
     sync_throne(panel)

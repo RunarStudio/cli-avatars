@@ -9,6 +9,7 @@ from __future__ import annotations
 import tkinter as tk
 
 import context_packs
+import text_fonts as fonts
 from cli_avatars.app import pack_art
 
 LEATHER = pack_art.LEATHER
@@ -42,7 +43,7 @@ class PackSection:
         band = tk.Frame(self.frame, bg=LEATHER)
         band.pack(fill="x")
         pack_art.icon(band, LEATHER).pack(side="left", padx=(5, 4), pady=2)
-        tk.Label(band, text="CONTEXT PACK", bg=LEATHER, fg=GOLD, font="DungeonBubble").pack(side="left")
+        tk.Label(band, text=fonts.caps("CONTEXT PACK"), bg=LEATHER, fg=GOLD, font="DungeonBubble").pack(side="left")
         self.size = tk.Label(band, text="", bg=LEATHER, fg=PARCH, font="DungeonBubble")
         self.size.pack(side="right", padx=5)
         tk.Label(self.frame, text="Every new chat on this task starts with this pack.", bg=PAPER, fg=SOFT,

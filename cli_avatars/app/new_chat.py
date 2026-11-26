@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+import text_fonts as fonts
 from board.model import CHAT_CLIS
 from cli_avatars.app import kit_card as kc
 from cli_avatars.app import new_chat_model as model
@@ -121,7 +122,7 @@ class NewChatCard:
             chip.pack(side="left", padx=(0, 4))
             self.chips[cli] = chip
             if not ok:
-                link = tk.Label(row, text="set up", bg=kc.PARCH, fg=kc.WINE, font=("Courier", 8, "underline"),
+                link = tk.Label(row, text="set up", bg=kc.PARCH, fg=kc.WINE, font=fonts.face(8, "underline"),
                                 cursor="hand2")
                 link.pack(side="left", padx=(0, 8))
                 link.bind("<Button-1>", lambda _e: self._setup())

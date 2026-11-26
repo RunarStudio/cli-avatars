@@ -17,6 +17,7 @@ import tkinter as tk
 
 import focus
 import mailroom
+import text_fonts as fonts
 from cli_avatars.app import cues, mail_art
 from cli_avatars.app.tasks_card import EDGE, GOLD, INK, PARCH, WINE
 from cli_avatars.app.throttle import StoreThrottle
@@ -116,8 +117,8 @@ class MailPanel:
         self._bg = c.create_image(0, 0, anchor="nw")
         self._letters = c.create_image(0, 0, anchor="nw")
         self._sack = c.create_image(0, 0, anchor="nw")
-        self._plaque = c.create_text(0, 0, text="MAILROOM", fill="#2a1a08", font="DungeonTitle")
-        self._count = c.create_text(0, 0, text="", fill=GOLD, font=("Courier", 22, "bold"))
+        self._plaque = c.create_text(0, 0, text=fonts.caps("MAILROOM"), fill="#2a1a08", font="DungeonTitle")
+        self._count = c.create_text(0, 0, text="", fill=GOLD, font=fonts.face(22, "bold"))
         self._count_note = c.create_text(0, 0, text="", fill=PARCH, font="DungeonBubble")
         self._title = c.create_text(0, 0, text="Letters to sort", anchor="w", fill=GOLD, font="DungeonTitle")
         self._held = c.create_text(0, 0, text="", anchor="e", fill="#c8b8ff", font="DungeonBubble")

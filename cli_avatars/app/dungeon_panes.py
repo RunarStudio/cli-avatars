@@ -21,37 +21,21 @@ _FLOOR = "#1a1422"
 _TABS = "#0c0a10"
 
 
-def install_fonts(root) -> None:
-    """Point-sized faces. ``tk scaling`` rebuilds them when the window DPI changes.
+def install_fonts(root, config=None) -> None:
+    """Point-sized faces from the ``text`` choice (FONT.1). ``tk scaling`` rebuilds them when the window DPI changes.
 
     The Font objects stay on the root. A named font disappears if nothing
     keeps a Python reference to it.
     """
-    import tkinter.font as tkfont
+    import text_fonts as fonts
 
-    held = getattr(root, "_dungeon_fonts", None)
-    if not isinstance(held, dict):
-        held = {}
-        root._dungeon_fonts = held
-    specs = (
-        ("DungeonText", {"family": "Courier", "size": 10}),
-        ("DungeonTitle", {"family": "Courier", "size": 11, "weight": "bold"}),
-        ("DungeonBubble", {"family": "Courier", "size": 8}),
-    )
-    known = set(tkfont.names(root))
-    for name, opts in specs:
-        if name in held:
-            continue
-        if name in known:
-            held[name] = tkfont.nametofont(name)
-        else:
-            held[name] = tkfont.Font(root, name=name, **opts)
+    fonts.install(root, config or {})
 
 
 def mount(view) -> None:
     """Build toolbar, docks, scene, and status bar on ``view.app.root``."""
     root = view.app.root
-    install_fonts(root)
+    install_fonts(root, getattr(view.app, "config", None))
     root.title("Dungeon")
     root.minsize(720, 480)
     root.configure(bg=_BG)

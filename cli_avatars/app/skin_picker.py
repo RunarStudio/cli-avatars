@@ -4,6 +4,7 @@ import re
 import time
 import tkinter as tk
 
+import text_fonts as fonts
 from cli_avatars.desktop.capabilities import HAS_PIL
 from cli_avatars.model.agent import S
 from cli_avatars.sprites.registry import (
@@ -88,10 +89,10 @@ def _picker_frame(self, cache, name, row, t_ms, box, hue=0):
 
 def _build_picker_ui(self, win, agent_id=None, on_apply=None):
     P = self.PICK
-    TITLE = ("Consolas", 18, "bold")
-    LBL = ("Consolas", 9, "bold")
-    BODY = ("Consolas", 10)
-    SMALL = ("Consolas", 9)
+    TITLE = fonts.face(18, "bold")
+    LBL = fonts.face(9, "bold")
+    BODY = fonts.face(10)
+    SMALL = fonts.face(9)
     cache: dict = {}
     draws: list = []            # (canvas, item_id, fn() -> (skin, row, hue), box, floor_y, cx)
 
@@ -110,7 +111,7 @@ def _build_picker_ui(self, win, agent_id=None, on_apply=None):
     # ── header ────────────────────────────────────────────────
     head = tk.Frame(win, bg=P["night"])
     head.pack(fill="x", padx=16, pady=(14, 8))
-    tk.Label(head, text="CHOOSE YOUR SKIN", font=TITLE, bg=P["night"], fg=P["ink"]).pack(side="left")
+    tk.Label(head, text=fonts.caps("CHOOSE YOUR SKIN"), font=TITLE, bg=P["night"], fg=P["ink"]).pack(side="left")
     tk.Label(head, text=f"{len(skins)} skins · {len(agent_ids)} agents", font=SMALL,
              bg=P["night"], fg=P["dim"], bd=1, relief="solid", padx=8).pack(side="right")
 
@@ -151,7 +152,7 @@ def _build_picker_ui(self, win, agent_id=None, on_apply=None):
         cv.pack(padx=4, pady=(4, 0))
         item = cv.create_image(CARD // 2, CARD, anchor="s")
         draws.append((cv, item, (lambda s=sn: (s, 0, 0)), CARD - 8, CARD - 4, CARD // 2))
-        tk.Label(card, text=sn.replace("_", " "), font=("Consolas", 8), bg=P["slot"], fg=P["ink"]).pack(pady=(0, 4))
+        tk.Label(card, text=sn.replace("_", " "), font=fonts.face(8), bg=P["slot"], fg=P["ink"]).pack(pady=(0, 4))
         for w in (card, cv, *card.winfo_children()):
             w.bind("<Button-1>", lambda e, s=sn: select(s))
             w.bind("<MouseWheel>", lambda e: rc.yview_scroll(int(-e.delta / 120), "units"))
@@ -230,7 +231,7 @@ def _build_picker_ui(self, win, agent_id=None, on_apply=None):
     sc.set(TUNING.avatar_scale)
     sc.pack(fill="x", pady=(2, 12))
 
-    apply_btn = tk.Label(right, text="APPLY SKIN", font=("Consolas", 13, "bold"), bg=P["select"],
+    apply_btn = tk.Label(right, text=fonts.caps("APPLY SKIN"), font=fonts.face(13, "bold"), bg=P["select"],
                          fg=P["night"], pady=8, cursor="hand2")
     apply_btn.pack(fill="x")
     toast = tk.Label(right, text="", font=SMALL, bg=P["panel"], fg=P["select"],

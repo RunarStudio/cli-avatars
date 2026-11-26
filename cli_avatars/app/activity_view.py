@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import text_fonts as fonts
 from activity import BubbleSpot, bubble_settings, layout_bubbles, rollup_id, spring_dots
 from bubbles import render_text_frame, text_frame_size
 from cli_avatars.app.render import photos_for
@@ -26,7 +27,7 @@ def _font(app: Any):
         root = getattr(app, "root", None)
         if root is None:
             return None
-        return tkfont.Font(root, family="Courier", size=8)
+        return fonts.tk_font(root, 8)
 
 
 def _measure(app: Any, text: str) -> tuple[int, int]:
@@ -267,7 +268,7 @@ class ActivityDraw:
             image_id = canvas.create_image(spot.x, spot.y, image=photo, anchor="nw", tags="activity_bubble")
             tx = spot.x + spot.bw / 2
             ty = spot.y + body / 2
-            face = _font(app) or ("Courier", 8)
+            face = _font(app) or fonts.face(8)
             try:
                 text_id = canvas.create_text(
                     tx, ty, text=spot.text, font=face, fill="#202848",
@@ -275,7 +276,7 @@ class ActivityDraw:
                 )
             except Exception:
                 text_id = canvas.create_text(
-                    tx, ty, text=spot.text, font=("Courier", 8), fill="#202848",
+                    tx, ty, text=spot.text, font=fonts.face(8), fill="#202848",
                     tags="activity_bubble",
                 )
             drawn = {

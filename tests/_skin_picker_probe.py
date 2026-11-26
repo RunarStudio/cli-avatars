@@ -20,6 +20,7 @@ except Exception:
     raise SystemExit(77)
 
 from cli_avatars.app import avatar_menu, cues  # noqa: E402
+import text_fonts as fonts  # noqa: E402
 from cli_avatars.app.skin_picker import PICK, PICK_ANIMS, PICK_FRAME_MS, SkinPicker  # noqa: E402
 from cli_avatars.app.skin_picks import SkinPicks  # noqa: E402
 from cli_avatars.model.agent import AgentInfo  # noqa: E402
@@ -78,7 +79,7 @@ widget("michimaru").event_generate("<Button-1>")
 root.update()
 check("browse and select a card", p["skin"]() == "michimaru", p["skin"]())
 p["hue"].set(90)
-widget("APPLY SKIN").event_generate("<Button-1>")
+widget(fonts.caps("APPLY SKIN")).event_generate("<Button-1>")
 root.update()
 check("apply changes the selected avatar", agents["fx2"].skin == "michimaru_h90" and agents["fx1"].skin == "meowatar",
       (agents["fx1"].skin, agents["fx2"].skin))
@@ -96,7 +97,7 @@ root.update()
 check("a bot avatar is the one selected", panel()["id"]() == "bot:owl", panel()["id"]())
 panel()["select"]("ember_mage")
 app._focus = {"task": "t1", "title": "", "topic": "", "waiting": 0}
-widget("APPLY SKIN").event_generate("<Button-1>")
+widget(fonts.caps("APPLY SKIN")).event_generate("<Button-1>")
 root.update()
 check("a bot avatar gets the skin", SkinPicks(store).get("bot:owl") == "ember_mage" and bot.skin == "ember_mage",
       (SkinPicks(store).get("bot:owl"), bot.skin))

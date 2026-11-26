@@ -14,6 +14,7 @@ import tkinter as tk
 from datetime import date
 
 import recap
+import text_fonts as fonts
 from board.store import LocalStore
 from cli_avatars.app import cues, recap_art
 from cli_avatars.app.tasks_card import EDGE, INK, SOFT, WINE
@@ -151,12 +152,12 @@ class RecapPanel:
         self._images: dict = {}
         self.rebuilds = 0
         self._bg = self.canvas.create_image(0, 0, anchor="nw", tags=("bg",))
-        self._title = self.canvas.create_text(0, 0, text="Daily recap", fill=INK, font=("Courier", 15, "bold"),
+        self._title = self.canvas.create_text(0, 0, text="Daily recap", fill=INK, font=fonts.face(15, "bold"),
                                               tags=("head",))
         self._day = self.canvas.create_text(0, 0, text="", fill=WINE, font="DungeonTitle", tags=("head",))
-        self._prev = self.canvas.create_text(0, 0, text="◄", fill=WINE, font=("Courier", 14, "bold"),
+        self._prev = self.canvas.create_text(0, 0, text="◄", fill=WINE, font=fonts.face(14, "bold"),
                                              tags=("head", "nav"))
-        self._next = self.canvas.create_text(0, 0, text="►", fill=WINE, font=("Courier", 14, "bold"),
+        self._next = self.canvas.create_text(0, 0, text="►", fill=WINE, font=fonts.face(14, "bold"),
                                              tags=("head", "nav"))
         self._totals = self.canvas.create_text(0, 0, text="", fill=SOFT, font="DungeonBubble", tags=("head",))
         self._rule = self.canvas.create_line(0, 0, 0, 0, fill=EDGE, width=2, dash=(6, 2, 2, 2), tags=("head",))

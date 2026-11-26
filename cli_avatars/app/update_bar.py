@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+import text_fonts as fonts
 from cli_avatars.app.update_art import bar_image
 from cli_avatars.update.progress import Bar
 
@@ -24,7 +25,7 @@ class UpdateBar:
         self._image.pack(anchor="w")
         self._caption = None
         if caption:
-            self._caption = tk.Label(self.widget, bg=bg, fg=BAD, font=("Courier", 9), anchor="w", justify="left")
+            self._caption = tk.Label(self.widget, bg=bg, fg=BAD, font=fonts.face(9), anchor="w", justify="left")
         self.bar = Bar(0, "idle", False, "")
         self._t = 0
         self._job = None

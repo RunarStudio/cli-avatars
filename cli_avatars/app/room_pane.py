@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from tkinter import filedialog
 from types import SimpleNamespace
 
+import text_fonts as fonts
 from board.model import CHAT_CLIS
 from cli_avatars.app import cli_chips, cues, grok_topics, pack_pane, room_log, task_sessions, tiers
 from cli_avatars.app.chat_clis import COLORS, NAMES, launch, short_path, state, template
@@ -45,8 +46,8 @@ OK_INK = "#7fd18b"
 ERR_INK = "#ff7a7a"
 BTN = "#334477"
 BTN_ON = "#5577cc"
-FONT = ("Courier", 10)
-FONT_SMALL = ("Courier", 8)
+FONT = fonts.face(10)
+FONT_SMALL = fonts.face(8)
 PIN_BG = "#1a1426"
 PIN_EDGE = "#7a1f3d"
 PIN_GOLD = "#ffcf4a"
@@ -116,7 +117,7 @@ class RoomPane:
         self._bin_label.pack(side="left", fill="x", expand=True)
         self._bin_btn = tk.Button(
             self._bin_row, text="Use this binary", command=self.confirm_binary, font=FONT_SMALL,
-            bg=BTN, fg="white", relief="flat", padx=6, pady=1,
+            bg=BTN, fg=fonts.OFF_WHITE, relief="flat", padx=6, pady=1,
         )
         self._bin_btn.pack(side="right")
         self._bin_before = before
@@ -481,7 +482,7 @@ class RoomPane:
             return
 
     def _small(self, parent, text: str, command) -> tk.Button:
-        btn = tk.Button(parent, text=text, command=command, font=FONT_SMALL, bg=BTN, fg="white",
+        btn = tk.Button(parent, text=text, command=command, font=FONT_SMALL, bg=BTN, fg=fonts.OFF_WHITE,
                         activebackground=BTN_ON, activeforeground="white", disabledforeground="#666688",
                         relief="flat", padx=6, pady=1)
         btn.pack(side="right", padx=1)

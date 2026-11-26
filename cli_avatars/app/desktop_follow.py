@@ -134,11 +134,9 @@ def _window_dpi(widget) -> int | None:
 def _reapply_fonts(widget) -> None:
     """Named Dungeon fonts, then every widget font, so Tk rebuilds point sizes."""
     try:
-        import tkinter.font as tkfont
+        import text_fonts as fonts
 
-        tkfont.nametofont("DungeonText").configure(family="Courier", size=10)
-        tkfont.nametofont("DungeonTitle").configure(family="Courier", size=11, weight="bold")
-        tkfont.nametofont("DungeonBubble").configure(family="Courier", size=8)
+        fonts.reapply(widget)
     except Exception:
         pass
     _walk_fonts(widget)

@@ -15,10 +15,10 @@ from __future__ import annotations
 import threading
 import time
 import tkinter as tk
-import tkinter.font as tkfont
 from dataclasses import replace
 from pathlib import Path
 
+import text_fonts as fonts
 from cli_avatars.app import memmap_view as mv
 from cli_avatars.app.memmap_feed import MapFeed, Request, Result, strongest_edges
 from cli_avatars.app.memmap_items import Items
@@ -34,7 +34,7 @@ from cli_avatars.app.memmap_store import (
 from memmap.graph import WINDOWS
 
 REFRESH_S = 1.0
-FONT = ("Courier", 9)
+FONT = fonts.face(9)
 
 
 class MemmapPanel:
@@ -84,7 +84,7 @@ class MemmapPanel:
         self.body = tk.Frame(self.frame, bg=mv.BG)
         self._window_row()
         self.canvas = tk.Canvas(self.body, bg=mv.BG, highlightthickness=0, bd=0, height=120)
-        self._label_font = tkfont.Font(self.canvas, family="Courier", size=8)
+        self._label_font = fonts.tk_font(self.canvas, 8)
         self._label_fixed = {"font": self._label_font, "anchor": "n", "tags": "label"}
         self._items = Items(self.canvas)
         metrics = self._label_font.metrics()
@@ -115,7 +115,7 @@ class MemmapPanel:
     def _header(self) -> None:
         row = tk.Frame(self.frame, bg=mv.BAR)
         row.pack(fill="x", side="top")
-        tk.Label(row, text="  Memory map", bg=mv.BAR, fg=mv.HEAD, font=("Courier", 11, "bold")).pack(side="left")
+        tk.Label(row, text="  Memory map", bg=mv.BAR, fg=mv.HEAD, font=fonts.face(11, "bold")).pack(side="left")
         self.expand_btn = self._button(row, "expand", self.toggle_expanded)
         self.expand_btn.pack(side="right", padx=(2, 4), pady=2)
         self.fold_btn = self._button(row, "[-]", self.toggle_collapsed)
@@ -136,8 +136,8 @@ class MemmapPanel:
         row = tk.Frame(self.body, bg=mv.BG)
         row.pack(fill="x", side="bottom", padx=6)
         for kind, color in mv.KIND_COLOR.items():
-            tk.Label(row, text="●", bg=mv.BG, fg=color, font=("Courier", 8)).pack(side="left")
-            name = tk.Label(row, text=mv.KIND_SHORT[kind], bg=mv.BG, fg=mv.DIM, font=("Courier", 8))
+            tk.Label(row, text="●", bg=mv.BG, fg=color, font=fonts.face(8)).pack(side="left")
+            name = tk.Label(row, text=mv.KIND_SHORT[kind], bg=mv.BG, fg=mv.DIM, font=fonts.face(8))
             name.pack(side="left", padx=(0, 4))
 
     def _metrics_row(self) -> None:
@@ -148,9 +148,9 @@ class MemmapPanel:
                            ("tasks", "#44cc88")):
             cell = tk.Frame(row, bg="#16162a", cursor="hand2")
             cell.pack(side="left", expand=True, fill="x")
-            value = tk.Label(cell, text="0", bg="#16162a", fg=color, font=("Courier", 10, "bold"), cursor="hand2")
+            value = tk.Label(cell, text="0", bg="#16162a", fg=color, font=fonts.face(10, "bold"), cursor="hand2")
             value.pack(anchor="w", padx=6)
-            name = tk.Label(cell, text=key, bg="#16162a", fg=mv.DIM, font=("Courier", 8), cursor="hand2")
+            name = tk.Label(cell, text=key, bg="#16162a", fg=mv.DIM, font=fonts.face(8), cursor="hand2")
             name.pack(anchor="w", padx=6)
             for widget in (cell, value, name):
                 widget.bind("<Button-1>", lambda _e, k=key: self.show_metric(k))
@@ -163,7 +163,7 @@ class MemmapPanel:
         self.expand_btn.config(text="restore" if state.expanded else "expand")
         for name, btn in self.window_btns.items():
             on = name == state.window
-            btn.config(bg=mv.ON if on else mv.SEL, fg="white" if on else mv.FG)
+            btn.config(bg=mv.ON if on else mv.SEL, fg=fonts.OFF_WHITE if on else mv.FG)
         self.frame.pack_forget()
         self.sash.pack_forget()
         if state.collapsed:

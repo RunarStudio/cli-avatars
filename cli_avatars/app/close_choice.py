@@ -11,6 +11,7 @@ import sys
 import tkinter as tk
 from dataclasses import replace
 
+import text_fonts as fonts
 from cli_avatars.app.config_file import save_config_with
 from cli_avatars.app.tasks_card import EDGE, GOLD, INK, PAPER, PARCH, SOFT, WINE, WOOD, button
 from cli_avatars.desktop.settings import desktop_settings, with_on_close
@@ -131,7 +132,7 @@ def set_choice(app, choice: str) -> None:
 
 def mount_setting(app, parent) -> tk.StringVar:
     """Settings row "When I close the window: Ask / Minimize to tray / Quit"."""
-    bg, fg, sel, font = "#0d0d1a", "#aaccff", "#223366", ("Courier", 9)
+    bg, fg, sel, font = "#0d0d1a", "#aaccff", "#223366", fonts.face(9)
     current = desktop_settings(getattr(app, "config", {})).on_close
     var = tk.StringVar(parent, LABELS[current])
     app._on_close_var = var

@@ -12,6 +12,7 @@ import time
 import tkinter as tk
 from types import SimpleNamespace
 
+import text_fonts as fonts
 from cli_avatars.app import grok_cues, grok_topics, grok_voice, room_log
 from cli_avatars.app.chat_clis import COLORS
 from cli_avatars.app.cli_chips import EDGE, FACE, FONT, INK, OFF_INK, PLATE, PX
@@ -56,14 +57,14 @@ class GrokList:
             child.destroy()
         if not self.rows:
             tk.Label(self.body, text="No Grok conversations yet. Send to Grok here, or + New Grok topic.",
-                     bg=PLATE, fg=OFF_INK, font=("Courier", 8), anchor="w").pack(fill="x", padx=6, pady=3)
+                     bg=PLATE, fg=OFF_INK, font=fonts.face(8), anchor="w").pack(fill="x", padx=6, pady=3)
         current = [r for r in self.rows if r["room"] == self.pane.room_id]
         for row in (current + [r for r in self.rows if r["room"] != self.pane.room_id])[:SHOWN]:
             self._row(row, row["room"] == self.pane.room_id)
         more = len(self.rows) - SHOWN
         if more > 0:
             tk.Label(self.body, text=f"+{more} more (phone: Grok topics)", bg=PLATE, fg=OFF_INK,
-                     font=("Courier", 8), anchor="w").pack(fill="x", padx=6)
+                     font=fonts.face(8), anchor="w").pack(fill="x", padx=6)
         self.read_btn.config(state="normal" if grok_voice.available() else "disabled")
         self.auto_btn.config(text=f"Auto-read: {'on' if self.auto_read else 'off'}")
 
@@ -132,19 +133,19 @@ class GrokList:
         text.pack(side="left", fill="x", expand=True)
         top = tk.Frame(text, bg=face)
         top.pack(fill="x")
-        tk.Label(top, text=row["title"][:34], bg=face, fg="#ffffff" if lit else INK, font=FONT,
+        tk.Label(top, text=row["title"][:34], bg=face, fg=fonts.OFF_WHITE if lit else INK, font=FONT,
                  anchor="w").pack(side="left")
         stamp = time.strftime("%H:%M", time.localtime(row["at"])) if row["at"] else ""
         tk.Label(top, text=f"{TAGS.get(row['kind'], '')} · {row['state']} · {stamp}", bg=face, fg=OFF_INK,
-                 font=("Courier", 7)).pack(side="right", padx=4)
+                 font=fonts.face(7)).pack(side="right", padx=4)
         if row["last"]:
-            tk.Label(text, text=row["last"][:60], bg=face, fg=GROK if lit else "#8a96b0", font=("Courier", 8),
+            tk.Label(text, text=row["last"][:60], bg=face, fg=GROK if lit else "#8a96b0", font=fonts.face(8),
                      anchor="w").pack(fill="x")
         for widget in (tile, inner, gem, text, top, *top.winfo_children(), *text.winfo_children()):
             widget.bind("<Button-1>", lambda _e, room=row["room"]: self.pick(room))
 
     def _button(self, parent, text: str, command) -> tk.Button:
-        btn = tk.Button(parent, text=text, command=command, font=("Courier", 8), bg="#1d2a44", fg=INK,
+        btn = tk.Button(parent, text=text, command=command, font=fonts.face(8), bg="#1d2a44", fg=INK,
                         activebackground=GROK, activeforeground=PLATE, disabledforeground=OFF_INK, relief="flat",
                         padx=5, pady=0)
         btn.pack(side="right", padx=1, pady=2)

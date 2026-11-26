@@ -11,6 +11,7 @@ import threading
 import tkinter as tk
 from pathlib import Path
 
+import text_fonts as fonts
 from cli_avatars.app.update_bar import UpdateBar
 from cli_avatars.update import progress
 from cli_avatars.update.config import update_config
@@ -48,7 +49,7 @@ def mount_update_status(app) -> None:
     parent = getattr(app, "_status_parent", None)
     if parent is None:
         return
-    label = tk.Label(parent, text="", bg="#111018", fg=_DIM, font=("Courier", 10), anchor="w")
+    label = tk.Label(parent, text="", bg="#111018", fg=_DIM, font=fonts.face(10), anchor="w")
     label.pack(side="left", padx=(10, 4))
     app._update_label = label
     bar = _bars(app)["status"] = UpdateBar(parent, 132, 12, "#111018", side="left", padx=(10, 0), before=label)
@@ -192,11 +193,11 @@ def _fill(app) -> None:
     checked = state.get("last_checked") or "not yet"
     tk.Label(
         frame, text=f"  {version}  ·  {commit or 'no commit'}  ·  dev",
-        bg=_BG, fg=_FG, font=("Courier", 10, "bold"), anchor="w",
+        bg=_BG, fg=_FG, font=fonts.face(10, "bold"), anchor="w",
     ).pack(fill="x")
     tk.Label(
         frame, text=f"  Last checked  {checked}",
-        bg=_BG, fg=_DIM, font=("Courier", 9), anchor="w",
+        bg=_BG, fg=_DIM, font=fonts.face(9), anchor="w",
     ).pack(fill="x", pady=(2, 4))
     reason = getattr(app, "_update_block", "Checking git and PyInstaller")
     running = bool(getattr(app, "_update_running", False))
@@ -205,7 +206,7 @@ def _fill(app) -> None:
     button = tk.Button(
         row, text="Update app", command=lambda: start_update(app),
         bg=_SEL, fg=_FG, activebackground="#334477", activeforeground="white",
-        font=("Courier", 9, "bold"), relief="flat", padx=10, pady=4, cursor="hand2",
+        font=fonts.face(9, "bold"), relief="flat", padx=10, pady=4, cursor="hand2",
     )
     button.pack(side="left")
     bar = _bars(app)["settings"] = UpdateBar(frame, 220, 14, _BG, caption=True, anchor="w", padx=8,
@@ -214,7 +215,7 @@ def _fill(app) -> None:
     if reason or running or getattr(app, "_check_running", False):
         button.config(state="disabled", cursor="")
     if reason:
-        tk.Label(frame, text="  " + reason, bg=_BG, fg=_BAD, font=("Courier", 9), anchor="w").pack(fill="x")
+        tk.Label(frame, text="  " + reason, bg=_BG, fg=_BAD, font=fonts.face(9), anchor="w").pack(fill="x")
     app._update_button = button
     from cli_avatars.app.check_ui import fill_settings
 

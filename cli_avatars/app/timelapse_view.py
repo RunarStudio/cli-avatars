@@ -15,6 +15,7 @@ import time
 from datetime import date
 
 import focus
+import text_fonts as fonts
 import timelapse
 from board.model import PERSON
 from cli_avatars.app import cues
@@ -272,7 +273,7 @@ class Lapse:
         words = f"{timelapse.clock(self.minute)}"
         if text is None or not scene.find_withtag(text):
             text = self._items["clock"] = scene.create_text(0, 0, text="", anchor="s", fill="#ffe6a0",
-                                                            font=("Courier", 11, "bold"), tags=(TAG,))
+                                                            font=fonts.face(11, "bold"), tags=(TAG,))
         if scene.itemcget(text, "text") != words:
             scene.itemconfigure(text, text=words)
         scene.coords(text, px, y0 + 2)

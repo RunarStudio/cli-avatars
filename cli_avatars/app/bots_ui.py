@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+import text_fonts as fonts
 from bots.roster import SKINS, hue_degrees
 from bots.status_source import SourceConfig, valid_branch, valid_url
 from cli_avatars.desktop.capabilities import HAS_PIL
@@ -19,8 +20,8 @@ _INK = "#e8e6f4"
 _DIM = "#9a98b8"
 _ACCENT = "#88aaff"
 _SEL = "#223366"
-_FONT = ("Courier", 9)
-_SMALL = ("Courier", 8)
+_FONT = fonts.face(9)
+_SMALL = fonts.face(8)
 _THUMB = 40
 
 
@@ -50,7 +51,7 @@ def render_bot_sections(app, parent) -> None:
         app._bot_vars = vars_
     vars_.clear()
     tk.Label(
-        parent, text="Bots", bg=_BG, fg=_ACCENT, font=("Courier", 10, "bold"), anchor="w",
+        parent, text="Bots", bg=_BG, fg=_ACCENT, font=fonts.face(10, "bold"), anchor="w",
     ).pack(anchor="w", padx=12, pady=(12, 2))
     try:
         sections = service.sections()
@@ -100,7 +101,7 @@ def _group_block(app, parent, service, group, bots, photos, vars_) -> None:
     tk.Button(
         head, text=f"{mark} {group.name}", command=lambda: _collapse(app, service, group),
         bg=_BG, fg=_ACCENT, activebackground=_BG, activeforeground="white",
-        font=("Courier", 10, "bold"), relief="flat", anchor="w", cursor="hand2",
+        font=fonts.face(10, "bold"), relief="flat", anchor="w", cursor="hand2",
     ).pack(side="left")
     shown = tk.BooleanVar(value=group.show_in_dungeon)
     vars_.append(shown)
@@ -187,7 +188,7 @@ def _refresh_topics(app) -> None:
 
 def _settings_body(app, parent, service, refill) -> None:
     config = service.source_config()
-    tk.Label(parent, text="Status source", bg=_BG, fg=_ACCENT, font=("Courier", 10, "bold")).pack(
+    tk.Label(parent, text="Status source", bg=_BG, fg=_ACCENT, font=fonts.face(10, "bold")).pack(
         anchor="w", padx=12, pady=(8, 2),
     )
     kind = tk.StringVar(value=config.kind)
@@ -210,7 +211,7 @@ def _settings_body(app, parent, service, refill) -> None:
         bg=_SEL, fg="#aaccff", font=_FONT, relief="flat", cursor="hand2",
     ).pack(anchor="w", padx=12, pady=4)
 
-    tk.Label(parent, text="Groups", bg=_BG, fg=_ACCENT, font=("Courier", 10, "bold")).pack(
+    tk.Label(parent, text="Groups", bg=_BG, fg=_ACCENT, font=fonts.face(10, "bold")).pack(
         anchor="w", padx=12, pady=(10, 2),
     )
     sections = service.sections()
@@ -227,7 +228,7 @@ def _settings_body(app, parent, service, refill) -> None:
         bg=_SEL, fg="#aaccff", font=_FONT, relief="flat", cursor="hand2",
     ).pack(side="left", padx=6)
 
-    tk.Label(parent, text="Bots", bg=_BG, fg=_ACCENT, font=("Courier", 10, "bold")).pack(
+    tk.Label(parent, text="Bots", bg=_BG, fg=_ACCENT, font=fonts.face(10, "bold")).pack(
         anchor="w", padx=12, pady=(10, 2),
     )
     names = [group.name for group, _bots in sections]
@@ -237,7 +238,7 @@ def _settings_body(app, parent, service, refill) -> None:
             _bot_editor(app, parent, service, bot, names, ids, refill)
     tk.Button(
         parent, text="Import example", command=lambda: _import(app, service, refill),
-        bg=_SEL, fg="#aaccff", font=("Courier", 9, "bold"), relief="flat", cursor="hand2",
+        bg=_SEL, fg="#aaccff", font=fonts.face(9, "bold"), relief="flat", cursor="hand2",
     ).pack(anchor="w", padx=12, pady=(8, 12))
 
 
