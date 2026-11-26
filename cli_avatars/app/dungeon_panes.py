@@ -217,6 +217,7 @@ def _toolbar(view, root) -> None:
     app._new_chat_btn = control(panels, "new_chat", text="New chat", command=lambda: _help(app, "new_chat"))
     window = group(bar, WINDOW, side="right")
     app._update_tool = control(window, "update", text="Update", command=lambda: _update(app))
+    app._check_tool = control(window, "check", text="Check for updates", command=lambda: _check(app))
     _sync_update(app)
     view._pin = control(window, "pin", text="Pin", command=view.toggle_pin)
     menu = tk.Menu(bar, tearoff=0, bg=_BAR, fg=_INK)
@@ -308,6 +309,12 @@ def _update(app) -> None:
     from cli_avatars.app import update_ui
 
     update_ui.start_update(app)
+
+
+def _check(app) -> None:
+    from cli_avatars.app import check_ui
+
+    check_ui.start_check(app)
 
 
 def _sync_update(app) -> None:

@@ -1,8 +1,8 @@
 """Update app in the Settings dock and on the status bar.
 
-The button, the tray item and the phone (``PhoneUpdate``) call ``start_update``. Progress replaces the
-status-bar text and fills the update bar there and in Settings (UPDATE-BAR.1). No extra window is created.
-A missing git or PyInstaller leaves the button disabled and names the reason.
+The button, the tray item and the phone (``PhoneUpdate``) call ``start_update``; Check for updates is ``check_ui``.
+Progress replaces the status-bar text and fills the update bar there and in Settings (UPDATE-BAR.1). No extra
+window is created. A missing git or PyInstaller leaves the button disabled and names the reason.
 """
 
 from __future__ import annotations
@@ -78,15 +78,22 @@ def sync_update_tool(app) -> None:
     """Toolbar Update: enabled when the update may run, else disabled with the reason as tooltip."""
     button = getattr(app, "_update_tool", None)
     if button is None:
-        return
+        from cli_avatars.app.check_ui import sync_check_tool
+
+        return sync_check_tool(app)
     reason = getattr(app, "_update_block", "Checking git and PyInstaller")
     if not reason and getattr(app, "_update_running", False):
         reason = "Update: already running"
+    if not reason and getattr(app, "_check_running", False):
+        reason = "Update: wait for the check to finish"
     try:
         button.config(state="disabled" if reason else "normal", cursor="" if reason else "hand2")
     except tk.TclError:
         return
     button._kit_reason = reason
+    from cli_avatars.app.check_ui import sync_check_tool
+
+    sync_check_tool(app)
 
 
 def start_update(app) -> str:
@@ -94,6 +101,9 @@ def start_update(app) -> str:
     if getattr(app, "_update_running", False):
         _set_status(app, "Update: already running")
         return "Update: already running"
+    if getattr(app, "_check_running", False):
+        _set_status(app, "Update: wait for the check to finish")
+        return "Update: wait for the check to finish"
     reason = getattr(app, "_update_block", "Checking git and PyInstaller")
     if reason:
         _set_status(app, reason)
@@ -104,6 +114,7 @@ def start_update(app) -> str:
         _set_status(app, SOURCE_REASON)
         return SOURCE_REASON
     app._update_running = True
+    app._bar_owner = "update"
     app._update_phase = ""
     app._update_pct = 0
     _set_button(app, enabled=False)
@@ -138,6 +149,10 @@ def _finish(app, result: UpdateResult) -> None:
     refresh = getattr(app, "_refresh_update_panel", None)
     if refresh is not None:
         refresh()
+    if result.phase == PHASE_CURRENT:
+        from cli_avatars.app.check_ui import clear
+
+        clear(app)
     if result.phase in (PHASE_CURRENT, PHASE_STAGED):
         from cli_avatars.app.chime_cues import cue
 
@@ -185,20 +200,25 @@ def _fill(app) -> None:
     ).pack(fill="x", pady=(2, 4))
     reason = getattr(app, "_update_block", "Checking git and PyInstaller")
     running = bool(getattr(app, "_update_running", False))
+    row = tk.Frame(frame, bg=_BG)
+    row.pack(anchor="w", padx=8, pady=(0, 4))
     button = tk.Button(
-        frame, text="Update app", command=lambda: start_update(app),
+        row, text="Update app", command=lambda: start_update(app),
         bg=_SEL, fg=_FG, activebackground="#334477", activeforeground="white",
         font=("Courier", 9, "bold"), relief="flat", padx=10, pady=4, cursor="hand2",
     )
-    button.pack(anchor="w", padx=8, pady=(0, 4))
+    button.pack(side="left")
     bar = _bars(app)["settings"] = UpdateBar(frame, 220, 14, _BG, caption=True, anchor="w", padx=8,
                                                 pady=(0, 4))
     bar.show(_progress(app))
-    if reason or running:
+    if reason or running or getattr(app, "_check_running", False):
         button.config(state="disabled", cursor="")
     if reason:
         tk.Label(frame, text="  " + reason, bg=_BG, fg=_BAD, font=("Courier", 9), anchor="w").pack(fill="x")
     app._update_button = button
+    from cli_avatars.app.check_ui import fill_settings
+
+    fill_settings(app, frame, row)
 
 
 def _bar(result: UpdateResult) -> str:
@@ -220,6 +240,10 @@ def _bars(app) -> dict:
 
 def _progress(app) -> progress.Bar:
     """The bar for the latest line; a running phase raises the share a failure keeps."""
+    if getattr(app, "_bar_owner", "") == "check":
+        from cli_avatars.app.check_ui import bar as check_bar
+
+        return check_bar(app)
     running = bool(getattr(app, "_update_running", False))
     line = getattr(app, "_update_line", "")
     bar = progress.bar(line, getattr(app, "_update_phase", ""), running, getattr(app, "_update_pct", 0))
@@ -303,9 +327,13 @@ class PhoneUpdate:
                 phase, note = "updated", f"Updated to {commit}"
             else:
                 phase, note = "rolled_back", f"The new build failed its boot check; back on {commit or 'the old build'}"
-        bar = progress.bar(line, phase, running, getattr(app, "_update_pct", 0))
+        from cli_avatars.app import check_ui
+
+        checking = getattr(app, "_bar_owner", "") == "check"
+        bar = check_ui.bar(app) if checking else progress.bar(line, phase, running, getattr(app, "_update_pct", 0))
         return {"version": version, "commit": commit, "channel": "dev", "last_checked": state.get("last_checked", ""),
-                "enabled": not reason and not running, "reason": reason, "running": running,
+                "enabled": not reason and not running and not getattr(app, "_check_running", False),
+                "reason": reason, "running": running, "check": check_ui.phone_status(app),
                 "line": line, "phase": phase, "note": note, "started": getattr(app, "_ops_started", 0),
                 "pct": bar.pct, "tone": bar.tone, "shimmer": bar.shimmer}
 
@@ -313,6 +341,15 @@ class PhoneUpdate:
         """``""`` when the update started, else why not (running, a missing tool, from source)."""
         try:
             return self._call(lambda: start_update(self.app)) or ""
+        except Exception:
+            return "The Dungeon did not answer. Try again."
+
+    def check(self) -> str:
+        """CHECK-UPD.1: ``""`` when the check started, else why not (running, an update running, no git)."""
+        from cli_avatars.app.check_ui import start_check
+
+        try:
+            return self._call(lambda: start_check(self.app)) or ""
         except Exception:
             return "The Dungeon did not answer. Try again."
 

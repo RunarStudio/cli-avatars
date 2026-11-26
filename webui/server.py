@@ -16,6 +16,8 @@ SANDBOX: ``/api/cards/<id>/sandbox`` (read, and promote/bin as a write) lives in
 PHONE-VOICE: ``/api/voice/parse`` and ``/api/voice/summary`` (reads) live in ``voice_routes``.
 TIMELAPSE: ``/api/timelapse?day=`` (read) is one day of ghosts in map pixels; ``/api/chat/<topic>?around=<ts>``
 opens a chat at a moment; SSE ``timelapse`` when the day's logs change.
+CHECK-UPD.1: ``POST /api/update/check`` only looks at dev, so it needs the cookie and CSRF but not writes;
+``/api/update`` carries the CSRF value for it.
 """
 
 from __future__ import annotations
@@ -81,6 +83,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/repos.css": ("repos.css", "text/css; charset=utf-8"),
          "/static/tiers.js": ("tiers.js", "text/javascript; charset=utf-8"),
          "/static/start.js": ("start.js", "text/javascript; charset=utf-8"),
+         "/static/check.js": ("check.js", "text/javascript; charset=utf-8"),
+         "/static/check.css": ("check.css", "text/css; charset=utf-8"),
          "/static/grok.js": ("grok.js", "text/javascript; charset=utf-8"),
          "/static/grok.css": ("grok.css", "text/css; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
@@ -92,6 +96,7 @@ DEFAULT_TAIL, MAX_TAIL = 30, 200
 KEEPALIVE = 15.0
 WRITE_BURST, WRITE_WINDOW = 10, 60.0
 CSRF_HEADER = "X-CLI-Avatars-CSRF"
+CHECK_PATH = "/api/update/check"
 AVATAR_TICK = 0.25
 SUGGEST_MAX = 12
 _BAD_PATH = re.compile(r"\.\.|%2e|%2f|%5c|\\|//", re.IGNORECASE)
@@ -179,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
         """A write: writes on, paired, CSRF header, JSON body under the cap, under the rate limit."""
         if self._stopped():
             return
-        if not self.server.writes():
+        if not self.server.writes() and self.path != CHECK_PATH:
             return self._refuse_body()
         self.close_connection = True
         if len(self.path) > MAX_URL:
@@ -213,6 +218,9 @@ class Handler(BaseHTTPRequestHandler):
         actions = self.server.actions
         if path == "/api/update":
             why = self.server.updater.start()
+            return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
+        if path == CHECK_PATH:
+            why = self.server.updater.check()
             return self._json({"why": why}, 409) if why else self._json({"ok": True}, 202)
         if path == "/api/restart":
             why = self.server.updater.restart()
@@ -467,7 +475,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, png, "image/png", {"Cache-Control": "private, max-age=3600"}) if png \
                 else self._error(404)
         if path == "/api/update":
-            return self._json(self.server.updater.status())
+            return self._json({**self.server.updater.status(), "csrf": auth.csrf_value(auth.load_token(directory))})
         if path == "/api/map.png":
             png = scene.map_png(directory)
             return self._send(200, png, "image/png", {"Cache-Control": "private, max-age=60"}) if png \
@@ -662,6 +670,7 @@ class NoUpdate:
     """``python -m webui`` alone: Update runs from the app, so the phone shows why not."""
 
     REASON = "Update runs in the Dungeon app. Start the app to update from here."
+    CHECK_REASON = "Check for updates runs in the Dungeon app. Start the app to check from here."
 
     def seq(self) -> int:
         return 0
@@ -671,10 +680,15 @@ class NoUpdate:
 
         version, commit = display_version()
         return {"version": version, "commit": commit, "channel": "dev", "last_checked": "", "enabled": False,
-                "reason": self.REASON, "running": False, "line": "", "phase": "", "note": ""}
+                "reason": self.REASON, "running": False, "line": "", "phase": "", "note": "",
+                "check": {"enabled": False, "reason": self.CHECK_REASON, "running": False, "phase": "", "note": "",
+                          "behind": 0, "subjects": [], "at": ""}}
 
     def start(self) -> str:
         return self.REASON
+
+    def check(self) -> str:
+        return self.CHECK_REASON
 
     def restart(self) -> str:
         return "Restart runs in the Dungeon app. Start the app to restart it from here."

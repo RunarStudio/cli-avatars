@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="/static/voice.css">
 <link rel="stylesheet" href="/static/repos.css">
 <link rel="stylesheet" href="/static/grok.css">
+<link rel="stylesheet" href="/static/check.css">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -130,6 +131,8 @@
       <ol id="updSteps" class="upd-steps" aria-label="Update steps"></ol>
       <div id="updBar" class="upd-bar" hidden role="progressbar" aria-label="Update progress" aria-valuemin="0" aria-valuemax="100"><span id="updFill" class="upd-fill"></span></div>
       <p id="updLine" class="upd-line" aria-live="polite"></p>
+      <div class="chk-row"><button id="chkGo" class="ghost" type="button">Check for updates</button><p id="chkLine" class="chk-line" aria-live="polite"></p></div>
+      <ol id="chkList" class="chk-list" hidden aria-label="New on dev"></ol>
       <div class="upd-acts"><button id="updGo" class="send" type="button">Update app</button><button id="rstGo" class="ghost" type="button">Restart</button></div>
       <p id="updWhy" class="upd-why"></p>
       <section class="repos" aria-labelledby="reposTitle">
@@ -328,5 +331,6 @@
 <script src="/static/tiers.js"></script>
 <script src="/static/grok.js"></script>
 <script src="/static/start.js"></script>
+<script src="/static/check.js"></script>
 </body>
 </html>

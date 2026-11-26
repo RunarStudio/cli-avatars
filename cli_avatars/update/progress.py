@@ -52,3 +52,14 @@ def bar(line: str, phase: str, running: bool, last: int = 0) -> Bar:
     if phase in BAD_PHASES:
         return Bar(max(last, FAIL_MIN), "bad", False, text)
     return Bar(0, "idle", False, text)
+
+
+def check_bar(line: str, phase: str, running: bool) -> Bar:
+    """CHECK-UPD.1: a check is only the fetch phase: busy with its glint, red there on a failure, else hidden."""
+    text = (line or "").removeprefix("Check: ")
+    pct, shimmer = STEPS[0][1], STEPS[0][2]
+    if running:
+        return Bar(pct, "busy", shimmer, text)
+    if phase in BAD_PHASES:
+        return Bar(pct, "bad", False, text)
+    return Bar(0, "idle", False, text)
