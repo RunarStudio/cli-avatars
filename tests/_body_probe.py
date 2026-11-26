@@ -177,7 +177,9 @@ view._motion(canvas, -5, -5)
 tick(0.1)
 check("hover leaves", "hover" not in view._items)
 
-rows = hall.snapshot[1] if hall.snapshot else []
+hall.snapshot = None
+tick(0.05)
+rows =hall.snapshot[1] if hall.snapshot else []
 by = {r["id"]: r for r in rows}
 check("phone rows carry the pose", by.get("e5f6a7b8", {}).get("pose") == SLUMP, str(by.get("e5f6a7b8")))
 check("phone rows carry the smoke", by.get("a1b2c3d4", {}).get("smoke", 0) > 0)
