@@ -46,6 +46,17 @@ model itself: the task role tells the task chat which model to ask for. The chip
 model and effort shows on the composer's Run row and hangs under each room's door sign; the phone shows the same
 chips and a legend, read-only.
 
+## Pick model and effort in Settings (TIERS-SETTINGS.1)
+
+**Settings › Chat › Chat tiers** has one row per tier: its glyph, name and where it runs, a model box (suggestions
+from the tier's CLI, e.g. fable, opus, sonnet, haiku for Claude, or type any plain name), an effort list and **Reset
+to default**. A pick saves `chat.tiers.<tier>.model` and `.effort` at once; the sample line under the row
+(`Main orchestrator: claude opus, medium effort`), the door chips and the next launch follow. A chat that is running
+keeps going. The main row's CLI is the one picked above it (`orchestrator.main`); switching it changes the row's
+suggestions. The phone's App sheet (⚙) shows the same rows, editable when the phone may send. **Update** keeps
+`config.json`: the new build gets your file, your values win and only keys you never had come from the new build.
+The defaults in `tiers.py` do not change.
+
 ## Change them
 
 `config.json`, any tier, any field; a bad value keeps the default:
