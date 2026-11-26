@@ -1,0 +1,16 @@
+/* TIERS-SETTINGS.1: the chat tier rows in the App sheet, each edged in its tier's colour. */
+.tier-set { margin: 14px 0 6px; padding-top: 10px; border-top: 1px solid #33284a; }
+.tier-set h3 { margin: 0 0 8px; color: var(--torch-2); }
+.tier-rows { list-style: none; margin: 0; padding: 0; }
+.tier-row { margin: 0 0 8px; padding: 8px 10px; background: #17121f; box-shadow: inset 3px 0 0 var(--tier), 0 0 0 1px #33284a, 0 3px 0 #0b0811; }
+.tier-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.tier-mark { flex: none; image-rendering: pixelated; }
+.tier-head b { color: var(--ink); }
+.tier-head small { color: var(--dim); }
+.tier-chip { margin-left: auto; font: 700 11px var(--mono); letter-spacing: .08em; color: var(--tier); }
+.tier-form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; margin-top: 6px; }
+.tier-form input, .tier-form select { font: inherit; min-width: 0; color: var(--ink); background: #0d0a14; border: 0; box-shadow: inset 0 0 0 1px #33284a; padding: 7px 8px; }
+.tier-form input:focus, .tier-form select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--tier); }
+.tier-form button { white-space: nowrap; }
+.tier-sample { margin: 6px 0 0; font-size: 13px; color: var(--dim); }
+@media (max-width: 360px) { .tier-form { grid-template-columns: 1fr 1fr; } .tier-form input { grid-column: 1 / -1; } }

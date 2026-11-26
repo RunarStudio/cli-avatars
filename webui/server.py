@@ -52,6 +52,7 @@ from webui import (
     sandbox_routes,
     scene,
     standup_routes,
+    tier_routes,
     writes,
 )
 
@@ -81,6 +82,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/voice.css": ("voice.css", "text/css; charset=utf-8"),
          "/static/rise.js": ("rise.js", "text/javascript; charset=utf-8"),
          "/static/repos.js": ("repos.js", "text/javascript; charset=utf-8"),
+         "/static/tier_settings.js": ("tier_settings.js", "text/javascript; charset=utf-8"),
+         "/static/tier_settings.css": ("tier_settings.css", "text/css; charset=utf-8"),
          "/static/park.js": ("park.js", "text/javascript; charset=utf-8"),
          "/static/projects.js": ("projects.js", "text/javascript; charset=utf-8"),
          "/static/projects.css": ("projects.css", "text/css; charset=utf-8"),
@@ -279,6 +282,9 @@ class Handler(BaseHTTPRequestHandler):
         repo = repo_routes.PATH.match(path)
         if repo:
             return repo_routes.write(self, repo.group(1), body)
+        tier = tier_routes.PATH.match(path)
+        if tier:
+            return tier_routes.write(self, tier.group(1), body)
         pack = pack_routes.PATH.match(path)
         if pack:
             return pack_routes.write(self, pack.group(1), body)
@@ -449,6 +455,8 @@ class Handler(BaseHTTPRequestHandler):
             return standup_routes.read(self)
         if path == "/api/repos":
             return repo_routes.read(self)
+        if path == "/api/tiers":
+            return tier_routes.read(self)
         found = projects_routes.PATH.match(path)
         if found:
             return projects_routes.read(self, found.group(1), query)

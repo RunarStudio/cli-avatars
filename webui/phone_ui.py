@@ -9,9 +9,9 @@ import tkinter as tk
 from dataclasses import replace
 
 import text_fonts as fonts
-from cli_avatars.app import door_counts
+from cli_avatars.app import door_counts, tier_settings
 from events import app_data_dir
-from webui import auth, config, live, qr, repo_routes, server, writes
+from webui import auth, config, live, qr, repo_routes, server, tier_routes, writes
 
 _BG, _FG, _SEL, _DIM, _BAD = "#0d0d1a", "#aaccff", "#223366", "#9a98b8", "#ff8866"
 _FONT = fonts.face(9)
@@ -40,6 +40,8 @@ def start(app, settings: config.WebSettings) -> str:
     live.set_roster(lambda _lay, _now: live.dungeon_roster(app))
     live.set_sessions(lambda: door_counts.session_rows(app))
     repo_routes.set_seen(lambda: getattr(app, "_repo_seen", {}))
+    tier_routes.set_target(getattr(app, "_config_path", None),
+                           lambda config: calls(lambda: tier_settings.apply_live(app, config)))
     return ""
 
 
@@ -47,6 +49,7 @@ def stop(app) -> None:
     live.set_roster(None)
     live.set_sessions(None)
     repo_routes.set_seen(None)
+    tier_routes.set_target(None, None)
     server.stop(getattr(app, "_phone_server", None))
     app._phone_server = None
     calls = getattr(app, "_phone_calls", None)

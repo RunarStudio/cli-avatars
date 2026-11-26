@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/static/boss.css">
 <link rel="stylesheet" href="/static/voice.css">
 <link rel="stylesheet" href="/static/repos.css">
+<link rel="stylesheet" href="/static/tier_settings.css">
 <link rel="stylesheet" href="/static/projects.css">
 <link rel="stylesheet" href="/static/grok.css">
 <link rel="stylesheet" href="/static/check.css">
@@ -147,6 +148,11 @@
           <button class="send" type="submit">Add repo</button>
         </form>
         <p id="repoNote" class="hint" aria-live="polite"></p>
+      </section>
+      <section class="tier-set" aria-labelledby="tierTitle">
+        <h3 id="tierTitle">Chat tiers</h3>
+        <ul id="tierRows" class="tier-rows" aria-live="polite"></ul>
+        <p id="tierNote" class="hint" aria-live="polite"></p>
       </section>
       <label class="push-row"><input id="pushToggle" type="checkbox"><span class="push-switch" aria-hidden="true"></span>
         <span><b>Alerts when closed</b><small>A new decision or blocked task reaches this phone with the page shut.</small></span></label>
@@ -342,6 +348,7 @@
 <script src="/static/voice.js"></script>
 <script src="/static/rise.js"></script>
 <script src="/static/repos.js"></script>
+<script src="/static/tier_settings.js"></script>
 <script src="/static/projects.js"></script>
 <script src="/static/tiers.js"></script>
 <script src="/static/grok.js"></script>
