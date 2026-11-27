@@ -54,7 +54,7 @@ One small JSON file per bot, at `status/<bot-slug>.json` inside the fetched tree
 
 Unknown keys are ignored. A wrong type, a wrong state, or a slug that does not match the file is ignored. Text is passed through `sanitize_text`, then `redact_secrets` (installed from the chat window before the first read), before it is shown. A file older than 30 minutes is shown as `offline` with no line. No file means offline.
 
-`busy` and `thinking` use those avatar rows. `waiting_on_user` and `blocked` use the blocked row. `offline` uses idle, with the grey dot.
+`busy` and `thinking` use those avatar rows. `waiting_on_user` and `blocked` use the blocked row. `offline` uses idle. The dot is the avatar row's colour in the one palette (`cli_avatars/app/status_ink.py`); `offline` is the idle grey, dimmed.
 
 ## Pull
 

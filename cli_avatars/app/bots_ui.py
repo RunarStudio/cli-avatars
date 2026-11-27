@@ -13,9 +13,10 @@ import tkinter as tk
 import text_fonts as fonts
 from bots.roster import SKINS, hue_degrees
 from bots.status_source import SourceConfig, valid_branch, valid_url
+from cli_avatars.app import status_ink
 from cli_avatars.app.toolbar_widgets import wrap_tabs
 from cli_avatars.desktop.capabilities import HAS_PIL
-from rooms import idle_thumbnail
+from rooms import fade_hex, idle_thumbnail
 
 _BG = "#0d0d1a"
 _INK = "#e8e6f4"
@@ -144,9 +145,15 @@ def _bot_row(parent, bot, status, photos) -> None:
     line = tk.Frame(text, bg=_BG)
     line.pack(anchor="w")
     tk.Label(line, text=title, bg=_BG, fg=_INK, font=_FONT).pack(side="left")
-    tk.Label(line, text="●", bg=_BG, fg=status.dot, font=_FONT).pack(side="left", padx=(6, 0))
+    tk.Label(line, text="●", bg=_BG, fg=_dot(status), font=_FONT).pack(side="left", padx=(6, 0))
     if status.line:
         tk.Label(text, text=status.line, bg=_BG, fg=_DIM, font=_SMALL).pack(anchor="w")
+
+
+def _dot(status) -> str:
+    """The bot's avatar state in the one palette; offline is the idle grey, dimmed."""
+    ink = status_ink.colour(status.avatar_state)
+    return fade_hex(ink) if status.state == "offline" else ink
 
 
 def _thumb(bot):

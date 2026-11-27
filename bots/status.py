@@ -55,15 +55,6 @@ AVATAR_STATE = {
     "offline": "idle",
 }
 
-DOT = {
-    "idle": "#44ff88",
-    "busy": "#ff8844",
-    "thinking": "#ffdd44",
-    "waiting_on_user": "#FFB000",
-    "blocked": "#ff4444",
-    "offline": "#6a6a80",
-}
-
 
 @dataclass(frozen=True)
 class BotStatus:
@@ -76,10 +67,6 @@ class BotStatus:
     @property
     def avatar_state(self) -> str:
         return AVATAR_STATE.get(self.state, "idle")
-
-    @property
-    def dot(self) -> str:
-        return DOT.get(self.state, DOT["offline"])
 
 
 def offline(bot: str, now: float) -> BotStatus:

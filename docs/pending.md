@@ -72,7 +72,6 @@ yet). Size: S (hours), M (a day), L (several days).
 |---|---|---|---|---|
 | Default Grok command taken from the real `grok --help` | Grok works with no `config.json` edit | waits maintainers for `grok --help` | S | [grok-chat.md](grok-chat.md) |
 | Status for your bots: a small writer, or derived from `.grok/sessions` with no tool call | bot dots show the truth | waits maintainers: where bots run, Grok Build CLI or not | M | [bot-status.md](bot-status.md) |
-| Bots rows' dots still use `bots/status.DOT` (busy orange) | one palette everywhere | ready | S | [bot-status.md](bot-status.md) |
 | Grok adapter for the memory map (which `.md` files Grok reads) | memory map covers both CLIs | waits `grok login` and one hook check | M | [task-backend-and-memory-map.md](task-backend-and-memory-map.md) |
 | MCP live on the PC: `pip install mcp`, register, smoke test | agents use the task tools for real | waits maintainers' OK | S | [mcp.md](mcp.md) |
 
