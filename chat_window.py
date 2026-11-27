@@ -143,6 +143,11 @@ def sandbox_git(cwd, *args: str) -> tuple[int, str]:
     return _runner().run_git(cwd, *args)
 
 
+def start_curator(python: str, script, root) -> bool:
+    """MEMORY.1: the runner starts the notes curator (fixed argv, no shell) on the Consolidate now click."""
+    return _runner().start_curator(python, script, root)
+
+
 def room_tools() -> SimpleNamespace:
     """The runner's checks the room pane may call. None of them starts a process."""
     runner = _runner()
@@ -907,8 +912,9 @@ class ChatWindow:
 
     def _remember_menu(self, event, line) -> None:
         """MEMORY.1: right-click a message, Remember… opens the Memory tab's form with its text."""
-        from cli_avatars.app import memory_panel
+        import importlib
 
+        memory_panel = importlib.import_module("cli_avatars.app.memory_panel")
         menu = tk.Menu(self.win, tearoff=0, bg=BG, fg=INK, activebackground=BTN, activeforeground="white", font=FONT)
         topic = self._topic_id or ""
         menu.add_command(label="Remember…", command=lambda: memory_panel.offer(

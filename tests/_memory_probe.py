@@ -110,7 +110,7 @@ def start(_python, _script, where):
 
 panel.watch(True)
 with mock.patch.object(fixture.curator, "git", fixture.fixture_git(fixture.curator.git)), \
-        mock.patch("cli_avatars.runner.curator.start", start):
+        mock.patch("chat_window.start_curator", start):
     panel.consolidate_button.invoke()
 panel._at = 0
 panel.watch(True)

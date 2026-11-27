@@ -53,7 +53,8 @@ Pick the type and the category, then Save. A soft cue plays unless a task is in 
 
 `tools/memory_curator.py` is stdlib only. **Create** copies it to `_app/`. It runs nightly from the OS scheduler at
 `memory.consolidate_at` (default 03:00). **Consolidate now** only asks it to run: the app writes `_app/consolidate.request`
-and starts `python _app/memory_curator.py --root <notes root>` (fixed argv, shell false). With no Python found, the
+and `cli_runner.start_curator` starts `python _app/memory_curator.py --root <notes root>` (fixed argv, shell false). With
+no Python found, the
 request waits for the nightly run. The app never edits a note.
 
 One run:

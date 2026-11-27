@@ -63,7 +63,7 @@ def consolidate_now(root: Path, start=None) -> str:
     if not script.is_file() or not python:
         return "Asked. The curator runs at its scheduled time (no Python found to start it now)."
     if start is None:
-        from cli_avatars.runner.curator import start
+        from chat_window import start_curator as start
     return "Consolidating…" if start(python, script, root) else "Asked. The curator could not start now."
 
 

@@ -34,6 +34,11 @@ def offer(text: str, source: str, topic: str = "") -> bool:
     return True
 
 
+def remember_card(card: dict) -> bool:
+    """A task card's title into the Remember form."""
+    return offer(card.get("title", ""), f"task:{str(card.get('id', ''))[:8]}", card.get("topic") or "")
+
+
 def ensure(view) -> MemoryPanel:
     panel = getattr(view.app, "_memory_panel", None)
     if panel is None:

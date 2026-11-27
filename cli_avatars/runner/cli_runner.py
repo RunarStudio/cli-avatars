@@ -885,6 +885,21 @@ def run_git(cwd: Path | str, *args: str) -> tuple[int, str]:
     return done.returncode, (done.stdout + done.stderr).strip()
 
 
+def start_curator(python: str, script: Path, root: Path) -> bool:
+    """MEMORY.1: ``python script --root root`` on the Consolidate now click, detached, output dropped.
+
+    Fixed argv, no shell, no wait; False when it could not start.
+    """
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    try:
+        subprocess.Popen([python, str(script), "--root", str(root)], cwd=str(root), shell=False,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         close_fds=True, creationflags=flags, start_new_session=os.name != "nt")
+    except OSError:
+        return False
+    return True
+
+
 def validate_working_dir(
     raw: str | Path,
     *,
