@@ -91,7 +91,7 @@ WORK.mkdir(parents=True, exist_ok=True)
 pin = cli_runner.confirm_binary(cli_runner.resolve_binary("grok", finder=lambda _n: str(install(WORK)),
                                                           templated=True))
 save_binary_pin(DATA, "grok", pin.path, pin.size, pin.mtime_ns, pin.shim)
-set_topic(DATA, "lantern", title="Lantern workshop", project="lantern", status="open")
+set_topic(DATA, "lantern", title="Lantern workshop in the east wing", project="lantern", status="open")
 for _ in range(2):
     grok_topics.new_topic(DATA, "lantern")
 registry = Registry(DATA)

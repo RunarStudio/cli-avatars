@@ -16,6 +16,7 @@ import text_fonts as fonts
 from cli_avatars.app import grok_cues, grok_topics, grok_voice, room_log
 from cli_avatars.app.chat_clis import COLORS
 from cli_avatars.app.cli_chips import EDGE, FACE, FONT, INK, OFF_INK, PLATE, PX
+from cli_avatars.app.toolbar_widgets import wrap_tabs
 from events import EventRejected
 
 GROK = COLORS["grok"]
@@ -35,10 +36,10 @@ class GrokList:
         self.frame = tk.Frame(parent, bg=EDGE, padx=1, pady=1)
         head = tk.Frame(self.frame, bg=PLATE)
         head.pack(fill="x")
-        tk.Label(head, text="◆ Grok topics", bg=PLATE, fg=GROK, font=FONT).pack(side="left", padx=(6, 4), pady=2)
+        name = tk.Label(head, text="◆ Grok topics", bg=PLATE, fg=GROK, font=FONT)
         self.auto_btn = self._button(head, "Auto-read: off", self.toggle_auto)
         self.read_btn = self._button(head, "Read aloud", self.read_aloud)
-        self._button(head, "+ New Grok topic", self.new_topic)
+        wrap_tabs(head, [name, self._button(head, "+ New Grok topic", self.new_topic), self.read_btn, self.auto_btn])
         self.body = tk.Frame(self.frame, bg=PLATE)
         self.body.pack(fill="x")
         self.rows: list[dict] = []
@@ -133,15 +134,17 @@ class GrokList:
         text.pack(side="left", fill="x", expand=True)
         top = tk.Frame(text, bg=face)
         top.pack(fill="x")
-        tk.Label(top, text=row["title"][:34], bg=face, fg=fonts.OFF_WHITE if lit else INK, font=FONT,
-                 anchor="w").pack(side="left")
+        title = tk.Label(top, text=row["title"][:34], bg=face, fg=fonts.OFF_WHITE if lit else INK, font=FONT,
+                         anchor="w")
+        title.pack(side="left")
         stamp = time.strftime("%H:%M", time.localtime(row["at"])) if row["at"] else ""
-        tk.Label(top, text=f"{TAGS.get(row['kind'], '')} · {row['state']} · {stamp}", bg=face, fg=OFF_INK,
-                 font=fonts.face(7)).pack(side="right", padx=4)
+        meta = tk.Label(text, text=f"{TAGS.get(row['kind'], '')} · {row['state']} · {stamp}", bg=face, fg=OFF_INK,
+                        font=fonts.face(7))
+        _fit(top, title, meta)
         if row["last"]:
             tk.Label(text, text=row["last"][:60], bg=face, fg=GROK if lit else "#8a96b0", font=fonts.face(8),
                      anchor="w").pack(fill="x")
-        for widget in (tile, inner, gem, text, top, *top.winfo_children(), *text.winfo_children()):
+        for widget in (tile, inner, gem, text, top, title, *text.winfo_children()):
             widget.bind("<Button-1>", lambda _e, room=row["room"]: self.pick(room))
 
     def _button(self, parent, text: str, command) -> tk.Button:
@@ -150,6 +153,20 @@ class GrokList:
                         padx=5, pady=0)
         btn.pack(side="right", padx=1, pady=2)
         return btn
+
+
+def _fit(top: tk.Frame, title: tk.Label, meta: tk.Label) -> None:
+    """The room/state/time tag beside the title, or on its own line below it when both do not fit."""
+
+    def lay(_event=None) -> None:
+        meta.pack_forget()
+        if top.winfo_width() >= title.winfo_reqwidth() + meta.winfo_reqwidth() + 8:
+            meta.pack(in_=top, side="right", padx=4)
+        else:
+            meta.pack(after=top, anchor="w")
+
+    top.bind("<Configure>", lay, add="+")
+    lay()
 
 
 def _gem(canvas: tk.Canvas, state: str) -> None:

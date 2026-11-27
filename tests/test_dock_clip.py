@@ -31,6 +31,9 @@ class DockClip(unittest.TestCase):
     def test_run_row_reads_in_full(self):
         self.assertChecks("Run and controls rows read in full", "every composer line reads in full")
 
+    def test_grok_strip_reads_in_full(self):
+        self.assertChecks("Grok topics strip reads in full")
+
 
 if __name__ == "__main__":
     unittest.main()
