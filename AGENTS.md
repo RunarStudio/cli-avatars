@@ -49,6 +49,7 @@ CLI Avatars is a Python desktop overlay: animated pixel-art avatars walk on scre
 | `cli_avatars/app/door_counts.py` | DOOR-COUNTS: counts per room, project and in total (no Tk); `door_plaque.py` and `door_totals.py` draw them (`docs/door-counts.md`) |
 | `bot_bridge.py`, `cli_avatars/app/bot_ask.py` | GROK-ORCH.1: ask a roster bot through hand-off files (`<bridge>/outbox/<id>.json`, answers in `inbox/`; `bridge.dir`), no network; the picker, the card's Bot asks slip and the answer watch with the `answer` cue (`docs/bot-bridge.md`) |
 | `cli_avatars/app/chat_list.py`, `cli_avatars/app/project_pages.py`, `cli_avatars/app/orch_settings.py` | GROK-ORCH.1: every chat by project with resume (New chat, phone Grok list); a page per task and conversation, next action first (Projects tab, `pages/<project>/*.md`); Settings › Chat (main orchestrator, default Grok, `orchestrator.main`; bridge folder) |
+| `cli_avatars/app/memory_notes.py`, `cli_avatars/app/memory_inbox.py`, `tools/memory_curator.py` | MEMORY.1: the notes root and the never-read list (the one reader), the app's append-only inbox, and the standalone curator (pull, merge, log, one commit, push); `memory_panel.py`, `memory_settings.py`, `memory_actions.py` (Tk tab, Settings › Memory, Consolidate now and Obsidian), `topic_rooms.py` (Topic rooms), `webui/memory_routes.py` on the phone (`docs/memory.md`) |
 | `routing.py` | Composer → orchestrator routing |
 | `text_fonts.py`, `cli_avatars/app/art_words.py`, `cli_avatars/app/text_settings.py` | FONT.1: the text face (Atkinson Hyperlegible, Lexend, OpenDyslexic, Pixel), sizes and spacing from `config.json` `text`; private font registration, named Tk fonts, words on pixel boards, the Settings rows, the phone's `text.css` (`docs/readable-text.md`) |
 | `cli_avatars_emit.py` | `python -m cli_avatars_emit` — state, say, inbox, hooks installer |
@@ -151,5 +152,6 @@ Cite the task **ID** in commit messages when the change completes or advances th
 | Projects dashboard (desktop and phone) | `docs/projects-dashboard.md` |
 | Main orchestrator, Summon and the chat tiers (desktop and phone) | `docs/orchestrator-hierarchy.md` |
 | Ask a roster bot through hand-off files (bot bridge) | `docs/bot-bridge.md` |
+| Memory: notes, inbox, curator, Topic rooms, inactive bots (desktop and phone) | `docs/memory.md` |
 
 Hooks: install with `python -m cli_avatars_emit hooks install --apply`; do not rely on removed `claude_hooks_example.py`.
