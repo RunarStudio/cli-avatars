@@ -294,6 +294,7 @@ cli-avatars/
     ├── claude-hooks.md     ← How to use the hooks integration
     ├── grok-sessions.md    ← How Grok Build sessions are detected
     ├── agent-chat-protocol.md ← Short instructions for an agent using the local chat
+    ├── pending.md          ← What is left to do
     └── media/chat-window.png ← Chat window preview
 ```
 
