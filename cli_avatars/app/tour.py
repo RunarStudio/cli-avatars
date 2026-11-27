@@ -2,7 +2,8 @@
 
 Shown once (``tour_steps.STORE``) after the start card closes; Help → Take the tour and Settings replay it. Back,
 Next and Skip; a step whose widget is not on screen is passed over. The To: step opens the chat dock first.
-Callouts are frames placed inside the Dungeon window; there is no new window.
+Callouts are frames placed inside the Dungeon window; there is no new window. A callout for a widget over an open side
+dock stays inside that dock, off the centre view.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from cli_avatars.app import kit_card as kc
 from cli_avatars.app import tour_steps
 
 WIDTH = 300
+MIN_WIDTH = 200
 
 
 def maybe_start(app) -> None:
@@ -100,8 +102,10 @@ class Tour:
         root = self.app.root
         root.update_idletasks()
         count = len(tour_steps.STEPS)
-        self.card = kc.Card(root, f"{step.title}  ·  {index + 1} of {count}", on_close=self.close, width=WIDTH)
-        kc.note(self.card.body, step.text, fg=kc.INK, wrap=WIDTH - 20)
+        dock = _dock(self.app, widget)
+        width = WIDTH if dock is None else max(MIN_WIDTH, min(WIDTH, dock[1] - dock[0] - 8))
+        self.card = kc.Card(root, f"{step.title}  ·  {index + 1} of {count}", on_close=self.close, width=width)
+        kc.note(self.card.body, step.text, fg=kc.INK, wrap=width - 20)
         row = tk.Frame(self.card.body, bg=kc.PARCH)
         row.pack(fill="x", pady=(8, 0))
         kc.button(row, "Skip tour", self.close, bg=kc.WOOD).pack(side="left")
@@ -109,9 +113,9 @@ class Tour:
         kc.button(row, "Done" if last else "Next", self.close if last else self.next).pack(side="right")
         if index:
             kc.button(row, "Back", self.back, bg=kc.WOOD).pack(side="right", padx=4)
-        self._place(widget)
+        self._place(widget, dock)
 
-    def _place(self, widget) -> None:
+    def _place(self, widget, dock=None) -> None:
         """Beside the widget: below it when there is room, else above; an arrow joins the two."""
         root, outer = self.app.root, self.card.outer
         outer.update_idletasks()
@@ -122,7 +126,8 @@ class Tour:
         ww, wh = widget.winfo_width(), widget.winfo_height()
         below = wy + wh + 14 + h <= rh
         y = wy + wh + 14 if below else max(4, wy - h - 14)
-        x = max(4, min(wx + ww // 2 - w // 2, rw - w - 4))
+        low, high = (4, rw - w - 4) if dock is None else (dock[0] + 4, max(dock[0] + 4, dock[1] - w - 4))
+        x = max(low, min(wx + ww // 2 - w // 2, high))
         outer.place_configure(relx=0, rely=0, x=x, y=y, anchor="nw")
         self.arrow = tk.Canvas(root, width=16, height=12, bg=kc.WOOD, highlightthickness=0, bd=0)
         points = (0, 12, 8, 0, 16, 12) if below else (0, 0, 8, 12, 16, 0)
@@ -131,6 +136,23 @@ class Tour:
         self.arrow.place(x=ax, y=y - 12 if below else y + h)
         tk.Misc.lift(self.arrow)
         outer.lift()
+
+
+def _dock(app, widget) -> tuple[int, int] | None:
+    """The left and right edges, in the window, of the open side dock under the widget's middle; else None."""
+    view = getattr(app, "dungeon", None)
+    root = app.root
+    middle = widget.winfo_rootx() + widget.winfo_width() // 2
+    for dock in (getattr(view, "_left", None), getattr(view, "_right", None)):
+        try:
+            if dock is None or not dock.winfo_ismapped():
+                continue
+            x0 = dock.winfo_rootx()
+            if x0 <= middle < x0 + dock.winfo_width():
+                return x0 - root.winfo_rootx(), x0 + dock.winfo_width() - root.winfo_rootx()
+        except tk.TclError:
+            continue
+    return None
 
 
 def _open_chat(app) -> None:
