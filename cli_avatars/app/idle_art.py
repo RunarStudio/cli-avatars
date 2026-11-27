@@ -103,7 +103,7 @@ def _well(used: bool, step: int) -> Sprite:
         p.line([(x, 31), (x, 37)], STONE_D)
     p.ellipse(20, 30, 13, 6, STONE_L)
     p.ellipse(20, 30, 9, 4, (14, 16, 30))
-    p.ellipse(20, 31, 6, 2, WATER if not used else mix(WATER, WATER_L, 0.3 + 0.3 * math.sin(step)))
+    p.ellipse(20, 31, 6, 2, WATER if not used else mix(WATER, WATER_L, 0.3))
     for x in (9, 31):
         p.line([(x, 30), (x, 8)], WOOD, 2)
     p.poly([(5, 10), (20, 2), (35, 10), (20, 14)], WOOD_D)

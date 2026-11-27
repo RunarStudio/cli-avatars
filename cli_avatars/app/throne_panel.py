@@ -23,13 +23,12 @@ from cli_avatars.app.av_roster import GROK, LOOKS, shrink
 from cli_avatars.app.dungeon_rooms import fit_scale
 from cli_avatars.app.needs_walk import read_rooms
 from cli_avatars.app.standup_panel import Stage
-from cli_avatars.app.throne_art import FRAMES, RoomScene, ThroneArt
+from cli_avatars.app.throne_art import RoomScene, ThroneArt
 from cli_avatars.app.throne_px import BG
 from cli_avatars.app.throttle import StoreThrottle
 
 REFRESH_MS = 1000
 WALK_MS = 200
-FLICKER_MS = 180
 BOARD_EVERY = 3
 LORD_SKIN = "caine"
 _LOG = logging.getLogger("cli_avatars.throne")
@@ -50,7 +49,6 @@ class ThronePanel:
         self._sheets: dict = {}
         self._live = False
         self._job = None
-        self._flick_job = None
         self._key = None
         self._busy = False
         self._result = None
@@ -77,18 +75,16 @@ class ThronePanel:
         if not self._live:
             self._live = True
             self._refresh()
-            self._flicker()
 
     def hide(self) -> None:
         self._live = False
         self.canvas.pack_forget()
-        for job in (self._job, self._flick_job):
-            if job is not None:
-                try:
-                    self.canvas.after_cancel(job)
-                except tk.TclError:
-                    pass
-        self._job = self._flick_job = None
+        if self._job is not None:
+            try:
+                self.canvas.after_cancel(self._job)
+            except tk.TclError:
+                pass
+        self._job = None
 
     # Data
     def scene(self) -> RoomScene:
@@ -244,7 +240,7 @@ class ThronePanel:
 
     def _work(self, scene: RoomScene) -> None:
         try:
-            self._result = self._art.render(scene, 1 if self.stage.walking() else FRAMES)
+            self._result = self._art.render(scene, 1)
         except Exception:
             _LOG.exception("throne room render failed")
             self._result = []
@@ -259,14 +255,6 @@ class ThronePanel:
             return
         if self._busy:
             self.canvas.after(50, self._poll)
-
-    def _flicker(self) -> None:
-        if not self._live:
-            return
-        if self._frames:
-            self._frame = (self._frame + 1) % len(self._frames)
-            self._draw()
-        self._flick_job = self.canvas.after(FLICKER_MS, self._flicker)
 
     def _draw(self) -> None:
         if not self._frames:

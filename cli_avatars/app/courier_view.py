@@ -13,7 +13,6 @@ changed in place.
 from __future__ import annotations
 
 import logging
-import math
 import sys
 import time
 
@@ -245,7 +244,7 @@ class CourierView:
             return
         s = max(1, int(painter._scale))
         keep: set[str] = set()
-        pulse = round((0.5 + 0.5 * math.sin(now * math.tau * 0.8)) * 7)
+        pulse = 4
         by_room: dict[str, int] = {}
         layout = painter.layout or {}
         for card, info in sorted(self.lit.items(), key=lambda kv: -kv[1]["ts"]):

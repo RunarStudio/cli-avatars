@@ -50,7 +50,7 @@ the newest 200. A malformed file reads as empty.
   live sandbox it shows the branch (Copy), **Promote**, **Bin** and **Open chat**.
 - **Dungeon floor**: each live sandbox is a small chamber off the Apothecary, in the ember-cistern stones, with ember
   cracks across the floor, a rune fence on its open sides and a warning brazier. Cracks, runes and the brazier
-  flicker. The chat's avatar stands inside while the chat runs. A promoted chamber is sealed in gold and fades out;
+  glow steadily. The chat's avatar stands inside while the chat runs. A promoted chamber is sealed in gold and fades out;
   a binned one opens a pit and drops into the dark (1.6 s). No window opens.
 
 ## Phone

@@ -1,7 +1,7 @@
 """YOU-AVATAR art, drawn in code with Pillow: the keeper (Daniel's avatar), its bubbles, badge and ring.
 
 The keeper is a 40x40 sprite like the roster looks, feet on row 37: a crimson cloak with an ermine collar and gold
-trim, a small gold crown, and a lantern on a staff whose glow flickers. Two idle frames and four walk frames.
+trim, a small gold crown, and a lantern on a staff with a steady glow. Two idle frames and four walk frames.
 A bubble is a kind-coloured speech balloon with a ``!`` or ``?``; the badge is a red coin with a count.
 """
 
@@ -132,7 +132,7 @@ def keeper(frame: int, walking: bool) -> Image.Image:
     d.point((sx + 3, ly + 2 + (f % 2)), fill=CORE)
     d.point((sx + 3, ly - 2), fill=IRON)
     img = _outline(img)
-    _glow(img, (sx + 3, ly + 2), 8, 0.85 if f % 2 == 0 else 1.0)
+    _glow(img, (sx + 3, ly + 2), 8, 1.0)
     return img
 
 
@@ -185,13 +185,13 @@ def badge(count: int, scale: int) -> Image.Image:
 
 
 @lru_cache(maxsize=16)
-def ring(scale: int, phase: int) -> Image.Image:
-    """The selection ring under the feet: a gold iso ellipse that pulses over four phases."""
+def ring(scale: int) -> Image.Image:
+    """The selection ring under the feet: a steady gold iso ellipse."""
     s = max(1, int(scale))
     w, h = 26 * s, 11 * s
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    a = (150, 200, 255, 200)[phase % 4]
+    a = 200
     d.ellipse((0, 0, w - 1, h - 1), outline=(255, 214, 110, a), width=max(1, s))
     d.ellipse((2 * s, 2 * s, w - 1 - 2 * s, h - 1 - 2 * s), outline=(255, 240, 190, a // 3), width=max(1, s))
     return img

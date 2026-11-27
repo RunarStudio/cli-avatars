@@ -10,6 +10,7 @@ import math
 
 import numpy as np
 
+from cli_avatars.app import still
 from cli_avatars.app.dungeon_rooms import TILE_HALF_H, TILE_HALF_W, compose, load_manifest
 from cli_avatars.app.inside_roster import FEET_UP
 from cli_avatars.app.room_floor import Plan
@@ -20,7 +21,6 @@ TAG = "room-glow"
 FRAME_S = 2.4
 FADE_IN, FADE_OUT = 0.25, 0.45
 STEPS = 4
-FLICKER = (1.0, 0.9, 0.96, 0.86)
 TORCH_GAIN = np.array((1.45, 0.95, -0.12), np.float32)
 TORCH_ADD = np.array((26.0, 12.0, 0.0), np.float32)
 HINT_GAIN = np.array((0.05, 0.3, 0.6), np.float32)
@@ -74,8 +74,7 @@ class RoomGlow:
         level = self.level(now)
         if not self._on and level <= 0.0:
             self.room = None
-        flick = FLICKER[int(now * 7) % len(FLICKER)] if level >= 1.0 else 1.0
-        step = math.ceil(level * STEPS) * flick
+        step = math.ceil(level * STEPS)
         self._show(scene, painter, "home", self.room, step)
         try:
             rise_for(self).paint(scene, painter, getattr(getattr(hall, "book", None), "app", None), self, now)
@@ -122,9 +121,9 @@ class RoomGlow:
             scene.tag_raise(item, "rooms")
         elif self._keys.get(kind) != key:
             scene.itemconfigure(item, image=photo_)
-            scene.coords(item, x, y)
+            still.move(scene, item, x, y)
         else:
-            scene.coords(item, x, y)
+            still.move(scene, item, x, y)
         self._keys[kind] = key
 
 
