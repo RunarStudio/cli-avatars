@@ -15,7 +15,7 @@ import text_fonts as fonts
 from board.model import COLUMNS, effective_progress
 from cli_avatars.app import memory_panel
 from cli_avatars.app.tasks_edit import history_lines
-from cli_avatars.app.tasks_keep import changed, fill_checks, swap_badge
+from cli_avatars.app.tasks_keep import changed, field_values, fill_checks, follow, swap_badge
 from cli_avatars.app.tasks_view import STATUS_BADGES, summary_age, ts_epoch
 from standup import pin_text
 
@@ -231,12 +231,16 @@ class CardPanel:
         button(row, "Remember", lambda: memory_panel.remember_card(self.card or {}), WOOD).pack(side="left", padx=4)
         button(row, "Close", self._close, WOOD).pack(side="right")
         self._error("form")
-        self._fill_fields(card)
+        self._shown = {}
         self.update(card)
 
     def update(self, card: dict) -> None:
         """Refresh what any change can touch, keeping text the user is still typing."""
         self.card = card
+        self.head_title.config(text=card["title"])
+        follow({"title": self.title, "body": self.body, "labels": self.labels, "topic": self.topic,
+                "progress": self.progress, "note": self.note, "learnt": self.learnt_entry},
+               field_values(card), self._shown)
         if changed(self.head, card["column"]):
             self.status_badge = swap_badge(self.status_badge, badge(self.head, card["column"]), self.head_title)
         if card["column"] == "done":
@@ -415,15 +419,6 @@ class CardPanel:
                 label.pack(fill="x", padx=8, after=label.anchor_widget)
             else:
                 label.pack_forget()
-
-    def _fill_fields(self, card: dict) -> None:
-        self.title.insert(0, card["title"])
-        self.body.insert("1.0", card["body"])
-        self.labels.insert(0, ", ".join(card["labels"]))
-        self.topic.insert(0, card["topic"] or "")
-        self.progress.insert(0, "" if card["progress"] is None else str(card["progress"]))
-        self.note.insert(0, card["status_note"])
-        self.learnt_entry.insert(0, card["learnt"])
 
     def _fill_menu(self) -> None:
         self.assign_menu.delete(0, "end")

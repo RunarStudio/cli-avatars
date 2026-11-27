@@ -13,6 +13,29 @@ def changed(widget, value) -> bool:
     return True
 
 
+def field_values(card: dict) -> dict:
+    """The text each open card field shows for ``card``."""
+    return {"title": card["title"], "body": card["body"], "labels": ", ".join(card["labels"]),
+            "topic": card["topic"] or "", "progress": "" if card["progress"] is None else str(card["progress"]),
+            "note": card["status_note"], "learnt": card["learnt"]}
+
+
+def follow(fields: dict, values: dict, shown: dict) -> None:
+    """Put each new value in its field unless Daniel has typed over what was shown there; ``shown`` remembers."""
+    for name, widget in fields.items():
+        text = widget.get("1.0", "end-1c") if widget.winfo_class() == "Text" else widget.get()
+        if name in shown and text not in (shown[name], values[name]):
+            continue
+        if text != values[name]:
+            if widget.winfo_class() == "Text":
+                widget.delete("1.0", "end")
+                widget.insert("1.0", values[name])
+            else:
+                widget.delete(0, "end")
+                widget.insert(0, values[name])
+        shown[name] = values[name]
+
+
 def swap_badge(old, new, before):
     """The new status badge, packed before the title; the old one goes."""
     if old is not None:
