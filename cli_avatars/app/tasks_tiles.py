@@ -83,7 +83,7 @@ def card_tile(parent, card: TaskCard, open_chat=lambda room, new: None) -> tk.Fr
 
 def shape(card: TaskCard) -> tuple:
     """What decides a card's widgets; two cards of one shape differ only in text, so a refit is enough."""
-    return (card.title, card.column, card.decisions, bool(card.status_note), bool(card.learnt),
+    return (card.column, card.decisions, bool(card.status_note), bool(card.learnt),
             card.progress is None, bool(card.chats), card.chat_room)
 
 
@@ -94,6 +94,7 @@ def _texts(card: TaskCard) -> dict[str, str]:
 def refit(box: tk.Frame, card: TaskCard) -> None:
     """Update a card of the same ``shape`` in place: changed texts and the progress bar only."""
     parts = box.parts
+    set_text(parts["title"], card.title)
     for key, text in _texts(card).items():
         if key in parts:
             set_text(parts[key], text)

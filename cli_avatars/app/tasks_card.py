@@ -14,6 +14,7 @@ import tkinter as tk
 import text_fonts as fonts
 from board.model import COLUMNS, effective_progress
 from cli_avatars.app.tasks_edit import history_lines
+from cli_avatars.app.tasks_keep import changed, fill_checks, swap_badge
 from cli_avatars.app.tasks_view import STATUS_BADGES, summary_age, ts_epoch
 from standup import pin_text
 
@@ -234,10 +235,8 @@ class CardPanel:
     def update(self, card: dict) -> None:
         """Refresh what any change can touch, keeping text the user is still typing."""
         self.card = card
-        if self.status_badge is not None:
-            self.status_badge.destroy()
-        self.status_badge = badge(self.head, card["column"])
-        self.status_badge.pack(side="left", padx=(6, 0), before=self.head_title)
+        if changed(self.head, card["column"]):
+            self.status_badge = swap_badge(self.status_badge, badge(self.head, card["column"]), self.head_title)
         if card["column"] == "done":
             if not self.learnt_frame.winfo_manager():
                 self.learnt_frame.pack(fill="x", padx=8, pady=(6, 0), after=self.columns)
@@ -248,13 +247,8 @@ class CardPanel:
             widget.config(bg=GOLD if lit else WOOD, fg=INK if lit else PAPER)
         names = dict(self._choices())
         self.assign.config(text=f"{names.get(card['assignee'] or '', card['assignee'])} ▾")
-        for child in self.checks.winfo_children():
-            child.destroy()
-        for index, item in enumerate(card["checklist"]):
-            var = tk.BooleanVar(self.checks, item["done"])
-            tk.Checkbutton(self.checks, text=item["text"], variable=var, bg=PARCH, fg=INK, selectcolor=PAPER,
-                           activebackground=PARCH, font="DungeonText", anchor="w", wraplength=290, justify="left",
-                           command=lambda i=index, v=var: self._do("check_tick", i, v.get())).pack(fill="x")
+        fill_checks(self.checks, card["checklist"], lambda index, done: self._do("check_tick", index, done),
+                    bg=PARCH, fg=INK, selectcolor=PAPER, activebackground=PARCH)
         shown = effective_progress(card)
         auto = card["progress"] is None and shown is not None
         self.progress_caption.config(text=f"Progress {shown}%" if auto else "Progress")
@@ -376,9 +370,11 @@ class CardPanel:
         self._error("chats")
 
     def _fill_chats(self, card: dict) -> None:
+        rows = self._chats(card)
+        if not changed(self.chat_list, rows):
+            return
         for child in self.chat_list.winfo_children():
             child.destroy()
-        rows = self._chats(card)
         if not rows:
             tk.Label(self.chat_list, text="No chats yet. New chat opens one with this task's context.",
                      bg=PARCH, fg=SOFT, font="DungeonBubble", anchor="w", wraplength=300, justify="left").pack(fill="x")

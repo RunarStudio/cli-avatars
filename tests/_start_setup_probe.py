@@ -96,7 +96,7 @@ host._status_parent.pack(side="bottom", fill="x")
 start_bootcheck(host)
 card = start_card.card(host)
 check("start_card_shown", card is not None and card.card.outer.winfo_manager() == "place")
-check("boot_rows_pending", len(card.rows) == 14 and any(r["status"] == "wait" for r in card.rows.values()))
+check("boot_rows_pending", len(card.rows) == 15 and any(r["status"] == "wait" for r in card.rows.values()))
 check("boot_rows_live", pump(lambda: card.boot_done and "repo:lantern" in card.setup, 15))
 check("boot_rows_all_done", all(r["status"] != "wait" for k, r in card.rows.items() if not k.startswith(("cli", "repo"))))
 check("missing_folder_needs_you", card.rows["repo:lantern"]["status"] == "fail" and card.card.alive(),

@@ -45,7 +45,7 @@ class SetupRows(unittest.TestCase):
                 "print(' '.join(c.name for c in build_checks(*map(__import__('pathlib').Path, sys.argv[1:4]), 1)))")
         names = subprocess.run([sys.executable, "-c", code, str(ROOT), str(ROOT / "x.json"), str(self.data)], cwd=ROOT,
                                capture_output=True, text=True, timeout=30, check=True).stdout.split()
-        self.assertEqual(len(names), 14)
+        self.assertEqual(len(names), 15)
         for name in names:
             self.assertIn(name, sc.BOOT_LABELS, name)
             self.assertNotIn("_", sc.BOOT_LABELS[name])

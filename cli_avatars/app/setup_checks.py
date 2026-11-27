@@ -19,7 +19,7 @@ BOOT_LABELS = {
     "skins_manifest": "Avatar skins list", "dpi": "Screen scaling", "monitors": "Monitors",
     "event_bus": "Event messages", "hook_port": "Hook port", "board_store": "Task board",
     "registry_store": "Agent registry", "app_data": "Data folder", "scene_tick": "Map drawing speed",
-    "sprites_40": "Avatar sprites", "sprites_32": "Subagent sprites",
+    "sprites_40": "Avatar sprites", "sprites_32": "Subagent sprites", "task_edit": "Task edits in place",
 }
 _DETAILS = {
     "missing": "not found", "display": "no screen to draw on", "minsize": "window too small",

@@ -16,6 +16,7 @@ from pathlib import Path
 import bot_bridge
 import text_fonts as fonts
 from cli_avatars.app import kit_card as kc
+from cli_avatars.app.tasks_keep import changed
 from cli_avatars.app.throttle import StoreThrottle
 
 STATE_INK = {bot_bridge.PENDING: "#8a5a10", bot_bridge.ANSWERED: "#2f6b2a", bot_bridge.STALE: "#a02818"}
@@ -169,6 +170,8 @@ class AskSection:
         found = bot_bridge.listing(bridge, card=card["id"])
         open_n = bot_bridge.open_count(found)
         self.title.config(text=f"Bot asks ({open_n} open)" if open_n else "Bot asks")
+        if not changed(self.rows, found):
+            return
         for child in self.rows.winfo_children():
             child.destroy()
         if not found:

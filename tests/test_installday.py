@@ -203,6 +203,24 @@ class SendSends(unittest.TestCase):
         self.assertIn("ok send_pins_a_binary_found_on_path", result.stdout)
 
 
+class TaskEditKeepsWidgets(unittest.TestCase):
+    """Ask 8: editing a task's title or body keeps the tile and the open card; the boot check says so."""
+
+    def test_task_edit_probe(self):
+        import subprocess  # noqa: TID251  # the probe keeps Tk out of this process
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run([sys.executable, str(ROOT / "tests" / "_task_edit_probe.py"), str(ROOT), tmp],
+                                    capture_output=True, text=True, timeout=60,
+                                    env=dict(os.environ, CLI_AVATARS_DATA_DIR=tmp, HOME=tmp))
+        if result.returncode == 77:
+            self.skipTest("no Tk")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for name in ("title_edit_keeps_the_tile", "title_edit_keeps_the_open_card", "body_edit_keeps_the_card_list",
+                     "boot_check_passes"):
+            self.assertIn(f"ok {name}", result.stdout)
+
+
 class Bridge(_Base):
     def test_instructions_name_the_folders_and_the_answer_shape(self):
         from cli_avatars.app import bridge_setup

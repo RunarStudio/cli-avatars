@@ -169,7 +169,25 @@ def build_checks(sprites_dir, config_path, data_dir, port: int) -> list[Check]:
         Check("scene_tick", check_scene_tick),
         Check("sprites_40", lambda: check_sprites_40(sprites_dir)),
         Check("sprites_32", lambda: check_sprites_32(sprites_dir)),
+        Check("task_edit", check_task_edit),
     ]
+
+
+def check_task_edit() -> tuple[str, str]:
+    """INSTALL-DAY.1: a task edit keeps its widgets: the tile's shape ignores the title, an unchanged part is kept."""
+    from dataclasses import replace
+
+    from cli_avatars.app.tasks_keep import changed
+    from cli_avatars.app.tasks_tiles import shape
+    from cli_avatars.app.tasks_view import TaskCard
+
+    card = TaskCard("t1", "Relight the forge", None, None, (0, 0), "todo", "", "")
+    if shape(card) != shape(replace(card, title="Relight the big forge", summary="Bring the coal first.")):
+        return "fail", "an edit rebuilds the card list"
+    part = SimpleNamespace()
+    if not changed(part, [{"text": "coal"}]) or changed(part, [{"text": "coal"}]):
+        return "fail", "an edit repaints the open card"
+    return "ok", "edits update in place"
 
 
 def check_scene_tick() -> tuple[str, str]:
