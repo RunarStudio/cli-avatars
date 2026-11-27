@@ -536,6 +536,8 @@ def write_rooms_preview(path: Path | str | None = None, now: float = PREVIEW_NOW
     """Draw the rooms list from ``sample_agents``. Returns the PNG path."""
     from PIL import Image, ImageDraw
 
+    from cli_avatars.app.status_ink import colour
+
     target = Path(path) if path else Path(__file__).resolve().parent / "docs" / "media" / "rooms-list.png"
     target.parent.mkdir(parents=True, exist_ok=True)
     cards = build_rooms(sample_agents(now), now)
@@ -594,7 +596,7 @@ def write_rooms_preview(path: Path | str | None = None, now: float = PREVIEW_NOW
             plate.paste(sprite, (0, 0), sprite)
             image.paste(plate.convert("RGB"), (tx, ty))
         else:
-            dot = _hex(fade_hex(card.dot) if card.dimmed else card.dot)
+            dot = _hex(fade_hex(colour(card.status)) if card.dimmed else colour(card.status))
             draw.rectangle([tx, ty, tx + thumb - 1, ty + thumb - 1], fill=dot)
 
         name_fill = dim_ink if card.dimmed else ink
@@ -609,7 +611,7 @@ def write_rooms_preview(path: Path | str | None = None, now: float = PREVIEW_NOW
         time_w = int(name_font.getlength(card.activity))
         time_x = margin + card_w - 14 - time_w
         draw.text((time_x, y + 12), card.activity, font=name_font, fill=name_fill)
-        dot_color_hex = fade_hex(card.dot) if card.dimmed else card.dot
+        dot_color_hex = fade_hex(colour(card.status)) if card.dimmed else colour(card.status)
         dot_x = time_x - 18
         draw.ellipse([dot_x, y + 16, dot_x + 10, y + 26], fill=_hex(dot_color_hex))
         if card.warn and warn is not None:
@@ -618,7 +620,7 @@ def write_rooms_preview(path: Path | str | None = None, now: float = PREVIEW_NOW
 
         sy = y + top_pad + head
         for sub in card.subs:
-            sub_dot = fade_hex(sub.dot) if card.dimmed else sub.dot
+            sub_dot = fade_hex(colour(sub.status)) if card.dimmed else colour(sub.status)
             draw.ellipse([nx, sy + 4, nx + 8, sy + 12], fill=_hex(sub_dot))
             draw.text((nx + 14, sy), sub.name, font=sub_font, fill=name_fill)
             sub_time = sub.activity

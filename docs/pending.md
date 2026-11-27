@@ -42,7 +42,6 @@ yet). Size: S (hours), M (a day), L (several days).
 |---|---|---|---|---|
 | Map config: rooms placed by hand in one file, door spots, generated corridors, 30 room skins | the map you design, not a fixed one | waits maintainers' OK on the 30-skin sheet | L | [map-config.md](map-config.md) |
 | Create your room: custom rooms in small, mid, large | rooms for your own topics | waits OK on the size and flow preview | M | [orchestrator-rooms.md](orchestrator-rooms.md) |
-| Rooms preview image (`rooms.write_rooms_preview`) still uses its own `DOT_COLOR` (busy blue) | one palette everywhere | ready | S | [bot-status.md](bot-status.md) |
 | Object sets `torture` and `blood` off by default, opt-in per layout (`theme.allow_sets`, not built) | taste of the default map | waits maintainers' decision | S | [building-scene.md](building-scene.md) |
 | Two orchestrator-room defaults were taken (meeting in the asker's room; orchestrators may add `proposed` cards to their own topic) | flip either if unwanted | waits maintainers to confirm | S | [orchestrator-rooms.md](orchestrator-rooms.md) |
 | Wander: agents leave by the open door and come back (default off) | life on the map; lowest priority | later | S | [windowed-dungeon.md](windowed-dungeon.md) |
