@@ -325,16 +325,24 @@ def _render_topic_card(self, parent, topic, decisions: int) -> None:
     body.pack(side="left", fill="x", expand=True, padx=(6, 0))
     head = tk.Frame(body, bg=bg)
     head.pack(fill="x")
-    tk.Label(head, text=str(topic.get("title") or topic_id), bg=bg, fg="#e8e6f4",
-             font=fonts.face(10, "bold"), cursor="hand2").pack(side="left")
+    title = tk.Label(head, text=str(topic.get("title") or topic_id), bg=bg, fg="#e8e6f4",
+                     font=fonts.face(10, "bold"), cursor="hand2", justify="left")
+    title.grid(row=0, column=0, sticky="w")
     status = str(topic.get("status") or "open")
     chip = tk.Label(head, text=status_label(status), bg=STATUS_COLOR.get(status, "#9a98b8"),
                     fg="#141018" if status == "waiting_on_user" else "white",
                     font=fonts.face(8), padx=4, cursor="hand2")
-    chip.pack(side="left", padx=(8, 0))
+    chip.grid(row=0, column=1, sticky="nw", padx=(8, 0))
+    head.columnconfigure(2, weight=1)
+    side = [chip]
     if decisions:
-        tk.Label(head, text=f"decisions {decisions}", bg=bg, fg="#9a98b8",
-                 font=fonts.face(8), cursor="hand2").pack(side="right")
+        count = tk.Label(head, text=f"decisions {decisions}", bg=bg, fg="#9a98b8",
+                         font=fonts.face(8), cursor="hand2")
+        count.grid(row=0, column=3, sticky="ne", padx=(8, 0))
+        side.append(count)
+    # A narrow dock wraps the title instead of clipping the chip.
+    head.bind("<Configure>", lambda event: title.configure(
+        wraplength=max(1, event.width - sum(w.winfo_reqwidth() + 8 for w in side))))
     dots = tk.Frame(body, bg=bg)
     dots.pack(fill="x", pady=(4, 0))
     for agent_id in members[:8]:
