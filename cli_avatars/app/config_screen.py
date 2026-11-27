@@ -11,6 +11,7 @@ from cli_avatars.app.close_choice import mount_setting as mount_close_setting
 from cli_avatars.app.config_file import save_config_with
 from cli_avatars.app.cues import enabled as cue_enabled
 from cli_avatars.app.diagnostics import mount as mount_diagnostics
+from cli_avatars.app.toolbar_widgets import wrap_tabs
 from cli_avatars.desktop.settings import desktop_settings, with_bootcheck
 from cli_avatars.sprites.registry import REGISTRY
 from cli_avatars.tuning import TUNING
@@ -167,14 +168,16 @@ def _build_config_ui(self, win):
             bg=BG, fg=FG, selectcolor=SEL, activebackground=BG, activeforeground="white",
             font=FONT, highlightthickness=0,
         ).pack(side="left")
-        from cli_avatars.app import start_card, tour
-
-        for text, command in (("Start check", lambda: start_card.reopen(self)), ("Tour", lambda: tour.start(self))):
-            tk.Button(parent, text=text, command=command, bg=SEL, fg=FG, activebackground="#334477",
-                      activeforeground="white", font=FONT, relief="flat", padx=6, cursor="hand2").pack(
-                side="left", padx=(6, 0))
 
     row(td, "Boot check", boot_widget)
+    from cli_avatars.app import start_card, tour
+
+    boot_tools = tk.Frame(td, bg=BG)
+    boot_tools.pack(fill="x", padx=12)
+    wrap_tabs(boot_tools, [
+        tk.Button(boot_tools, text=text, command=command, bg=SEL, fg=FG, activebackground="#334477",
+                  activeforeground="white", font=FONT, relief="flat", padx=6, cursor="hand2")
+        for text, command in (("Start check", lambda: start_card.reopen(self)), ("Tour", lambda: tour.start(self)))])
     mount_close_setting(self, td)
     mount_diagnostics(self, td)
 

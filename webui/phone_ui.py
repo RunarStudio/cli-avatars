@@ -10,6 +10,7 @@ from dataclasses import replace
 
 import text_fonts as fonts
 from cli_avatars.app import door_counts, tier_settings
+from cli_avatars.app.toolbar_widgets import wrap_tabs
 from events import app_data_dir
 from webui import auth, config, live, qr, repo_routes, server, tier_routes, writes
 
@@ -100,7 +101,11 @@ def build_phone_settings(app, parent) -> None:
     def line(text, fg=_FG):
         label = tk.Label(parent, text=text, bg=_BG, fg=fg, font=_FONT, anchor="w", justify="left", wraplength=440)
         label.pack(fill="x", padx=12, pady=2)
+        fit(label)
         return label
+
+    def fit(widget):
+        widget.bind("<Configure>", lambda e: e.widget.config(wraplength=max(120, e.width - 4)), add="+")
 
     line("Phone view: the Dungeon map, tasks and room chat in a browser.", _DIM)
     head = tk.Frame(parent, bg=_BG)
@@ -108,23 +113,26 @@ def build_phone_settings(app, parent) -> None:
     tk.Checkbutton(head, variable=v_on, text="Serve the phone view", command=lambda: _apply(),
                    bg=_BG, fg=_FG, selectcolor=_SEL, activebackground=_BG, activeforeground="white",
                    font=_FONT, highlightthickness=0).pack(side="left")
-    tk.Checkbutton(parent, variable=v_writes, text="Allow the phone to open sessions and send prompts",
-                   command=lambda: _apply(), bg=_BG, fg=_FG, selectcolor=_SEL, activebackground=_BG,
-                   activeforeground="white", font=_FONT, highlightthickness=0).pack(anchor="w", padx=12)
+    writes = tk.Checkbutton(parent, variable=v_writes, text="Allow the phone to open sessions and send prompts",
+                            command=lambda: _apply(), bg=_BG, fg=_FG, selectcolor=_SEL, activebackground=_BG,
+                            activeforeground="white", font=_FONT, highlightthickness=0, anchor="w",
+                            justify="left")
+    writes.pack(fill="x", padx=12)
+    writes.bind("<Configure>", lambda e: e.widget.config(wraplength=max(120, e.width - 30)), add="+")
     line("Off by default. On: Send on the phone runs your own CLI here, in the room's folder, like Enter "
          "in the Dungeon's chat.", _DIM)
     pick = tk.Frame(parent, bg=_BG)
     pick.pack(fill="x", padx=12, pady=2)
-    tk.Label(pick, text="Listen on", bg=_BG, fg=_FG, font=_FONT, width=12, anchor="w").pack(side="left")
+    listen = tk.Label(pick, text="Listen on", bg=_BG, fg=_FG, font=_FONT, width=12, anchor="w")
     menu = tk.OptionMenu(pick, v_if, *labels, command=lambda _v: _apply())
     menu.configure(bg=_SEL, fg=_FG, activebackground="#334477", font=_FONT, highlightthickness=0, relief="flat")
-    menu.pack(side="left")
+    wrap_tabs(pick, [listen, menu])
     addr = tk.Frame(parent, bg=_BG)
     addr.pack(fill="x", padx=12, pady=2)
-    tk.Label(addr, text="Phone address", bg=_BG, fg=_FG, font=_FONT, width=12, anchor="w").pack(side="left")
+    named = tk.Label(addr, text="Phone address", bg=_BG, fg=_FG, font=_FONT, width=12, anchor="w")
     entry = tk.Entry(addr, textvariable=v_addr, bg=_SEL, fg=_FG, insertbackground=_FG, font=_FONT, width=38,
                      relief="flat")
-    entry.pack(side="left")
+    wrap_tabs(addr, [named, entry])
     entry.bind("<Return>", lambda _e: _apply())
     entry.bind("<FocusOut>", lambda _e: _apply())
     line("Keep Loopback and run `tailscale serve --bg 47280`, then paste its https://...ts.net address "

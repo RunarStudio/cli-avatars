@@ -12,6 +12,7 @@ from tkinter import ttk
 
 import text_fonts as fonts
 from cli_avatars.app import tiers
+from cli_avatars.app.toolbar_widgets import wrap_tabs
 
 BG, FG, SEL, DIM, BAD = "#0d0d1a", "#aaccff", "#223366", "#8899bb", "#ff8866"
 
@@ -87,12 +88,10 @@ def _row(app, parent, tier: str, font) -> dict:
     line = tk.Frame(box, bg=BG)
     line.pack(fill="x", pady=(2, 0))
     model = ttk.Combobox(line, width=12, font=font, style="Tier.TCombobox")
-    model.pack(side="left")
     effort = ttk.Combobox(line, width=7, font=font, values=tiers.EFFORTS, state="readonly", style="Tier.TCombobox")
-    effort.pack(side="left", padx=(6, 0))
     back = tk.Button(line, text="Reset to default", bg=SEL, fg=FG, activebackground="#334477",
                      activeforeground="white", font=font, relief="flat", padx=8, cursor="hand2")
-    back.pack(side="left", padx=(6, 0))
+    wrap_tabs(line, [model, effort, back])
     sample = tk.Label(box, text="", bg=BG, fg=DIM, font=font, anchor="w", justify="left", wraplength=360)
     sample.pack(fill="x")
     sample.bind("<Configure>", lambda e: e.widget.config(wraplength=max(120, e.width - 4)))

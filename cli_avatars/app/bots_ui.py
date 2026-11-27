@@ -13,6 +13,7 @@ import tkinter as tk
 import text_fonts as fonts
 from bots.roster import SKINS, hue_degrees
 from bots.status_source import SourceConfig, valid_branch, valid_url
+from cli_avatars.app.toolbar_widgets import wrap_tabs
 from cli_avatars.desktop.capabilities import HAS_PIL
 from rooms import idle_thumbnail
 
@@ -251,64 +252,65 @@ def _group_editor(app, parent, service, group, refill) -> None:
     row = tk.Frame(parent, bg=_BG)
     row.pack(fill="x", padx=12, pady=1)
     name = tk.StringVar(value=group.name)
-    tk.Entry(
+    entry = tk.Entry(
         row, textvariable=name, bg=_SEL, fg=_INK, insertbackground=_INK, font=_FONT, width=16, relief="flat",
-    ).pack(side="left")
-    tk.Button(
+    )
+    up = tk.Button(
         row, text="Up", command=lambda: _move(app, service, group.id, -1, refill),
         bg=_SEL, fg="#aaccff", font=_SMALL, relief="flat",
-    ).pack(side="left", padx=2)
-    tk.Button(
+    )
+    down = tk.Button(
         row, text="Down", command=lambda: _move(app, service, group.id, 1, refill),
         bg=_SEL, fg="#aaccff", font=_SMALL, relief="flat",
-    ).pack(side="left")
+    )
     collapsed = tk.BooleanVar(value=group.collapsed)
-    tk.Checkbutton(
+    fold = tk.Checkbutton(
         row, text="Collapse", variable=collapsed,
         command=lambda gid=group.id, var=collapsed: _set_collapsed(app, service, gid, var, refill),
         bg=_BG, fg=_DIM, selectcolor=_SEL, activebackground=_BG, font=_SMALL, highlightthickness=0,
-    ).pack(side="left", padx=4)
-    tk.Button(
+    )
+    rename = tk.Button(
         row, text="Rename", command=lambda gid=group.id, var=name: _rename(app, service, gid, var, refill),
         bg=_SEL, fg="#aaccff", font=_SMALL, relief="flat",
-    ).pack(side="left")
+    )
+    wrap_tabs(row, [entry, up, down, fold, rename])
 
 
 def _bot_editor(app, parent, service, bot, names, ids, refill) -> None:
     row = tk.Frame(parent, bg=_BG)
     row.pack(fill="x", padx=12, pady=1)
     hidden = service.hidden(bot.id) if hasattr(service, "hidden") else False
-    tk.Label(row, text=bot.name, bg=_BG, fg=_GREY if hidden else _INK, font=_SMALL, width=16,
-             anchor="w").pack(side="left")
+    parts = [tk.Label(row, text=bot.name, bg=_BG, fg=_GREY if hidden else _INK, font=_SMALL, width=16, anchor="w")]
     by_id = dict(zip(ids, names, strict=True))
     current = by_id.get(bot.group_id, names[0] if names else "")
     group_var = tk.StringVar(value=current)
     if names:
         menu = tk.OptionMenu(row, group_var, *names)
         menu.config(bg=_SEL, fg="#aaccff", font=_SMALL, highlightthickness=0, relief="flat")
-        menu.pack(side="left")
+        parts.append(menu)
     skin_var = tk.StringVar(value=bot.skin if bot.skin in SKINS else SKINS[0])
     skin = tk.OptionMenu(row, skin_var, *SKINS)
     skin.config(bg=_SEL, fg="#aaccff", font=_SMALL, highlightthickness=0, relief="flat")
-    skin.pack(side="left", padx=2)
-    tk.Button(
+    parts.append(skin)
+    parts.append(tk.Button(
         row, text="Assign",
         command=lambda: _assign(app, service, bot.id, group_var, skin_var, names, ids, refill),
         bg=_SEL, fg="#aaccff", font=_SMALL, relief="flat",
-    ).pack(side="left")
+    ))
+    wrap_tabs(row, parts)
     if not hasattr(service, "hidden"):
         return
     line = tk.Frame(parent, bg=_BG)
     line.pack(fill="x", padx=24)
     pin = tk.BooleanVar(value=bot.always_show)
-    tk.Checkbutton(
+    show = tk.Checkbutton(
         line, text="Always show", variable=pin, command=lambda: _pin(app, service, bot.id, pin, refill),
         bg=_BG, fg=_DIM, selectcolor=_SEL, activebackground=_BG, font=_SMALL, highlightthickness=0,
-    ).pack(side="left")
+    )
     seen = service.last_seen(bot.id)
     words = f"last seen {_ago(time.time() - seen)}" if seen else "no status yet"
-    tk.Label(line, text=("hidden · " if hidden else "") + words, bg=_BG,
-             fg=_GREY if hidden else _DIM, font=_SMALL).pack(side="left", padx=6)
+    wrap_tabs(line, [show, tk.Label(line, text=("hidden · " if hidden else "") + words, bg=_BG,
+                                    fg=_GREY if hidden else _DIM, font=_SMALL)])
 
 
 def _ago(seconds: float) -> str:
