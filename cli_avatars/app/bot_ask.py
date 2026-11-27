@@ -175,15 +175,19 @@ class AskSection:
         for child in self.rows.winfo_children():
             child.destroy()
         if not found:
-            tk.Label(self.rows, text="None yet. Ask a bot… sends this task to one of your bots.", bg=kc.PAPER,
-                     fg=kc.SOFT, font="DungeonBubble", anchor="w").pack(fill="x")
+            none = tk.Label(self.rows, text="None yet. Ask a bot… sends this task to one of your bots.", bg=kc.PAPER,
+                            fg=kc.SOFT, font="DungeonBubble", anchor="w", justify="left")
+            none.pack(fill="x")
+            none.bind("<Configure>", lambda e, label=none: label.config(wraplength=max(120, e.width - 4)))
         for row in found[:SHOWN]:
             line = tk.Frame(self.rows, bg=kc.PAPER)
             line.pack(fill="x", pady=1)
             tk.Label(line, text=row["status"], bg=kc.PAPER, fg=STATE_INK[row["status"]], font="DungeonBubble",
                      width=8, anchor="w").pack(side="left")
-            tk.Label(line, text=f"{row['bot_name']}: {row['ask']}"[:80], bg=kc.PAPER, fg=kc.INK, font="DungeonBubble",
-                     anchor="w").pack(side="left", fill="x", expand=True)
+            ask = tk.Label(line, text=f"{row['bot_name']}: {row['ask']}"[:80], bg=kc.PAPER, fg=kc.INK,
+                           font="DungeonBubble", anchor="w", justify="left")
+            ask.pack(side="left", fill="x", expand=True)
+            ask.bind("<Configure>", lambda e, label=ask: label.config(wraplength=max(120, e.width - 4)))
             if row["answer"]:
                 tk.Label(self.rows, text="  " + row["answer"][:300], bg=kc.PAPER, fg="#2f6b2a",
                          font=fonts.face(8), anchor="w", justify="left", wraplength=290).pack(fill="x")

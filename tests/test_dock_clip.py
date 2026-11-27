@@ -34,6 +34,9 @@ class DockClip(unittest.TestCase):
     def test_grok_strip_reads_in_full(self):
         self.assertChecks("Grok topics strip reads in full")
 
+    def test_task_card_reads_in_full(self):
+        self.assertChecks("task card reads in full", "bot ask row shown", "task card with a bot ask reads in full")
+
 
 if __name__ == "__main__":
     unittest.main()

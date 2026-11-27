@@ -25,6 +25,8 @@ try:
 except Exception:
     raise SystemExit(77)
 
+import bot_bridge  # noqa: E402
+from bots.roster import parse_roster  # noqa: E402
 from bubbles import BubbleBoard  # noqa: E402
 from cli_avatars.app import chat, grok_topics  # noqa: E402
 from cli_avatars.app.bootcheck import _ProbeHost  # noqa: E402
@@ -98,6 +100,12 @@ registry = Registry(DATA)
 card = registry.task_create("lantern", "Polish the brass lantern for the night market", topic="lantern")["id"]
 for cli in ("grok", "claude"):
     start_chat(registry, card, cli)
+asked = registry.task_create("lantern", "Hang the lantern over the north gate", topic="lantern")["id"]
+roster = parse_roster({"schema_version": 1, "groups": [{"id": "forge", "name": "Forge", "collapsed": False, "order": 0}],
+                       "bots": [{"id": "brass-scout", "name": "Brass Scout", "emoji": "", "group_id": "forge",
+                                 "skin": "caine"}]})
+bot_bridge.ask(DATA, bot_bridge.root(DATA, {}), roster, "brass-scout",
+               "Which hook on the north gate holds a brass lantern through a windy night?", card=asked)
 
 host = _ProbeHost(root)
 host.scanner = types.SimpleNamespace(bubbles=BubbleBoard(), get_agents=lambda: {})
@@ -143,6 +151,13 @@ check("task card open", sheet.winfo_ismapped())
 snap("card")
 cut = clipped(sheet, panel.card_panel.frame)
 check("task card reads in full", not cut, cut)
+panel.open_card(asked)
+for _ in range(3):
+    root.update()
+asks = [str(w.cget("text")) for line in panel.card_panel.asks.rows.winfo_children() for w in line.winfo_children()]
+check("bot ask row shown", any(t.startswith("Brass Scout:") for t in asks), asks)
+cut = clipped(panel.card_panel.sheet, panel.card_panel.frame)
+check("task card with a bot ask reads in full", not cut, cut)
 check("no CLI ran", not ran, ran)
 root.destroy()
 print("done")
