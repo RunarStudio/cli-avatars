@@ -1251,7 +1251,7 @@ def _popen(
         "bufsize": 0,
     }
     if sys.platform == "win32":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "CREATE_NO_WINDOW", 0)
     else:
         kwargs["start_new_session"] = True
     proc = subprocess.Popen(**kwargs)  # type: ignore[arg-type]
