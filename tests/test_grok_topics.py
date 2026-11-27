@@ -126,7 +126,7 @@ class PhoneGrokTest(_Writes):
         while time.time() < deadline:
             done = [m for m in topic_messages(self.dir, topic) if m["from"] == "grok:room" and m["icon"] == "ok"]
             if len(done) >= count:
-                return
+                return self.wait_done(topic)
             time.sleep(0.05)
         self.fail(f"no grok reply: {topic_messages(self.dir, topic)}")
 
@@ -151,6 +151,21 @@ class PhoneGrokTest(_Writes):
                          [("grok-1", "topic"), ("lantern", "room")])
         self.assertNotIn(task_sessions.session(self.dir, "grok-1", "grok"), json.dumps(body))
         self.assertNotIn(str(self.work), json.dumps(body))
+
+    def test_a_room_row_shows_once_its_turn_ends_after_the_reply(self):
+        from cli_avatars.app import room_log
+
+        finish = room_log.finish_turn
+
+        def slow(*args, **kwargs):
+            time.sleep(0.3)  # the CLI exits a moment after its reply line
+            return finish(*args, **kwargs)
+
+        with unittest.mock.patch.object(room_log, "finish_turn", slow):
+            status, body = self.request("/api/chat/lantern", "POST", {"text": "and here?", "cli": "grok"})
+            self.assertEqual(status, 202, body)
+            self.wait_grok("lantern")
+        self.assertEqual([(r["room"], r["kind"]) for r in self.request("/api/grok")[1]["rows"]], [("lantern", "room")])
 
     def test_the_page_has_the_grok_list_bar_and_spoken_replies(self):
         static = ROOT / "webui" / "static"
