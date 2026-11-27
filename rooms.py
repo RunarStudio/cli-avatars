@@ -536,7 +536,7 @@ def write_rooms_preview(path: Path | str | None = None, now: float = PREVIEW_NOW
     """Draw the rooms list from ``sample_agents``. Returns the PNG path."""
     from PIL import Image, ImageDraw
 
-    from cli_avatars.app.status_ink import colour
+    from status_palette import colour
 
     target = Path(path) if path else Path(__file__).resolve().parent / "docs" / "media" / "rooms-list.png"
     target.parent.mkdir(parents=True, exist_ok=True)

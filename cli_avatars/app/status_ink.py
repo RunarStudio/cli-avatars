@@ -8,25 +8,12 @@ state change brightens the word for ``PULSE_MS`` with a few ``after`` steps, the
 from __future__ import annotations
 
 from cli_avatars.app.throne_px import mix
+from status_palette import PALETTE, colour  # noqa: F401  # the one palette, re-exported
 
-PALETTE = {
-    "idle": "#9a98b8",
-    "busy": "#4fd16a",
-    "thinking": "#a77bff",
-    "subagent": "#2ec4b6",
-    "blocked": "#ffb000",
-    "error": "#ff5a5a",
-    "done": "#7fb4ff",
-}
 WORDS = {"blocked": "needs you"}
 FONT = "DungeonF7b"
 PULSE_MS = 600
 PULSE = (0.8, 0.6, 0.4, 0.2, 0.0)  # white share per step; the steps span PULSE_MS
-
-
-def colour(status: str) -> str:
-    """The state's colour; an unknown state is idle grey."""
-    return PALETTE.get(status, PALETTE["idle"])
 
 
 def word(status: str) -> str:

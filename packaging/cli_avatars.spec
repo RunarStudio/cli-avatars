@@ -99,6 +99,7 @@ hiddenimports = [
     "standup",
     "subskins",
     "timelapse",
+    "status_palette",
     "text_fonts",
     "topics",
     "win32",
