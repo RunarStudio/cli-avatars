@@ -110,7 +110,7 @@ hiddenimports = [
     "pystray",
     "pywinctl",
     "cryptography",
-] + collect_submodules("cli_avatars") + collect_submodules("bots") + collect_submodules("board") + collect_submodules("registry") + collect_submodules("resources") + collect_submodules("webui")
+] + collect_submodules("cli_avatars") + collect_submodules("bots") + collect_submodules("board") + collect_submodules("registry") + collect_submodules("resources") + collect_submodules("webui") + collect_submodules("cli_avatars_mcp") + collect_submodules("memmap")
 
 
 def _analysis(script):

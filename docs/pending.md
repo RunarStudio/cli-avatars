@@ -87,7 +87,6 @@ yet). Size: S (hours), M (a day), L (several days).
 | What | Why it matters | Status | Size | Doc |
 |---|---|---|---|---|
 | New pre-release from current `dev` (the last one is from this morning, before usage and status colours) | testers get today's fixes | ready | S | [install-and-update.md](install-and-update.md) |
-| Portable `cli-avatars.spec` lacks `collect_submodules("webui")` (the installer spec has it) | the portable exe may serve a blank phone view | ready | S | [install-and-update.md](install-and-update.md) |
 | Rebuild the committed `build/` exes | they predate Grok chat, MCP and the phone | waits maintainers (Windows build) | S | [install-and-update.md](install-and-update.md) |
 | Tauri port: canvas rendering, window sidecar, one binary, auto-update | v1.0, no Python on the PC | later | L | — |
 
