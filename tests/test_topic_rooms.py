@@ -72,6 +72,14 @@ class TopicRooms(unittest.TestCase):
         model.topics = lambda now: ()
         self.assertFalse(any(r.get("name") == "compost" for r in model.layout(NOW)["rooms"]))
 
+    def test_a_topic_room_finds_a_spot_when_the_park_and_pits_ring_the_apothecary(self):
+        model = SessionRooms(self.base / "ui" / "session_rooms.json")
+        model.topics = lambda now: (("Garden/compost", "compost", "pinned"), ("Garden/tomatoes", "tomatoes", "recent"))
+        lay = model.layout(NOW)
+        self.assertTrue({"Park", "Oni Pit"} <= {r.get("name") for r in lay["rooms"]})
+        self.assertEqual(sorted(r["name"] for r in lay["rooms"] if tr.room_type(r) == tr.TOPIC), ["compost", "tomatoes"])
+        self.assertIsNotNone(Plan.from_layout(lay).floor("tomatoes"))
+
     def test_recent_days_comes_from_config(self):
         self.assertEqual(tr.recent_days({}), 7.0)
         self.assertEqual(tr.recent_days({"rooms": {"topic_recent_days": 2}}), 2.0)

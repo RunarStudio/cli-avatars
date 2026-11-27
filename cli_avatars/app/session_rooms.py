@@ -107,9 +107,8 @@ class SessionRooms:
         self.looks: dict[str, dict] = {}
         if self.path is not None:
             self.rooms, self.looks = load_custom(self.path)
-        self._cache: tuple = (None, None)
+        self._cache, self.topics = (None, None), topic_rooms.published
         self.sandboxes, self.park_on, self.boss = (lambda now: ()), park.switch(self.path), boss_rooms.switch(self.path)
-        self.topics = topic_rooms.published
 
     def open(self, kind: str, cli: str, topic: str) -> str:
         """Add a session; ``""`` when its room is placed, else why not."""
@@ -150,9 +149,8 @@ class SessionRooms:
         if self._cache[0] != key:
             built = park.extend(build_layout(load_layout(), self.live(now), self.rooms, self.looks), self._taken(), on)
             built = boss_rooms.extend(built, self._taken(), boss)
-            built = sandbox_rooms.extend(built, extra, self._taken() + park.rects(built) + boss_rooms.rects(built))
-            self._cache = (key, topic_rooms.extend(built, topics, self._taken() + park.rects(built)
-                                                   + boss_rooms.rects(built) + _rects_of(built, "sandbox")))
+            self._cache = (key, topic_rooms.extend(sandbox_rooms.extend(
+                built, extra, rects := self._taken() + park.rects(built) + boss_rooms.rects(built)), topics, rects))
         return self._cache[1]
 
     def add_room(self, name: object, topic: object, size: object, skin: object, at: object, point: object) -> str:
@@ -284,12 +282,6 @@ class SessionRooms:
     def _save(self) -> None:
         if self.path is not None:
             save(self.path, [s for s in self.sessions if not s.closing], self.rooms, self.looks)
-
-
-def _rects_of(layout: dict | None, kind: str) -> list[tuple[int, int, int, int]]:
-    """The tile rects of ``kind`` rooms and their corridors already on ``layout``."""
-    return [(r["origin"][0], r["origin"][1], r["size"][0], r["size"][1]) for r in (layout or {}).get("rooms") or []
-            if isinstance(r, dict) and str(r.get("build", "")).startswith(f"{kind}~")]
 
 
 def build_layout(base: dict | None, sessions, rooms=(), looks=None) -> dict | None:
@@ -503,7 +495,6 @@ def model_for(app) -> SessionRooms:
                 path = None
         found = SessionRooms(path)
         if callable(getattr(app, "_chat_directory", None)):
-            found.sandboxes = sandbox_rooms.feed(app._chat_directory)
-        found.topics = topic_rooms.feed(app)
+            found.sandboxes, found.topics = sandbox_rooms.feed(app._chat_directory), topic_rooms.feed(app)
         app._session_rooms = found
     return found

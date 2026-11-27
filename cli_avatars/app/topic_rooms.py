@@ -3,8 +3,8 @@
 Rooms have a type: Tasks (every room so far: sessions, yours, sandboxes) or Topic. A Topic room comes from a topic
 note (``type: topic`` or ``type: resource``, topics are resources) and stands only while its topic is active (an
 open task card or a live session room on it), recent (its note updated within ``rooms.topic_recent_days``, default
-7) or pinned (``ui/topic_rooms.json``). It is an S room in the Scribe's Nook skin off the Apothecary; double-click
-opens its card in the Memory tab, and the card's Go to room glides back to it.
+7) or pinned (``ui/topic_rooms.json``). It is an S room in the Scribe's Nook skin off the Apothecary, else off the
+first room with space; double-click opens its card in the Memory tab, and the card's Go to room glides back to it.
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ RECENT_DAYS = 7
 PINS = "ui/topic_rooms.json"
 MAX_ROOMS = 4
 REREAD_S = 5.0
-POINTS = tuple(rp.points(APOTHECARY_RECT))
 _LAST: list = [()]
 
 
@@ -97,16 +96,17 @@ def extend(layout: dict | None, rows, taken) -> dict | None:
     """``layout`` with one Topic room and its corridor per row that finds a free spot and a free name."""
     if layout is None or not rows:
         return layout
-    taken, out = list(taken), list(layout.get("rooms") or [])
+    taken, out = list(taken) + _rects_of(layout, "sandbox"), list(layout.get("rooms") or [])
     used = {str(r.get("name", "")).lower() for r in out}
     for key, name, why in rows:
         if name.lower() in used:
             continue
-        found = next(((p, f) for p in POINTS if (f := rp.place(APOTHECARY_RECT, p, SIZE_TILES["S"], taken))), None)
+        found = next(((at, p, f) for at, rect in _anchors(out) for p in rp.points(rect)
+                      if (f := rp.place(rect, p, SIZE_TILES["S"], taken))), None)
         if found is None:
             continue
-        point, placed = found
-        room = CustomRoom(f"tp-{zlib.crc32(key.encode('utf-8')):08x}", name, "", "S", SKIN, APOTHECARY, point)
+        at, point, placed = found
+        room = CustomRoom(f"tp-{zlib.crc32(key.encode('utf-8')):08x}", name, "", "S", SKIN, at, point)
         taken += [placed.room, *placed.corridors]
         items = room_items(room, placed, door_cells([room], {room.rid: placed}), _corridor)
         for item in items:
@@ -116,6 +116,22 @@ def extend(layout: dict | None, rows, taken) -> dict | None:
         used.add(name.lower())
         out += items
     return dict(layout, rooms=out)
+
+
+def _anchors(rooms) -> list[tuple[str, tuple[int, int, int, int]]]:
+    """The Apothecary first, then every room already on the map, to hang a Topic room off."""
+    out = [(APOTHECARY, APOTHECARY_RECT)]
+    for room in rooms:
+        if room.get("name") and room.get("name") != APOTHECARY and not room.get("corridor") \
+                and isinstance(room.get("origin"), list) and isinstance(room.get("size"), list):
+            out.append((room["name"], (*room["origin"], *room["size"])))
+    return out
+
+
+def _rects_of(layout: dict, kind: str) -> list[tuple[int, int, int, int]]:
+    """The tile rects of ``kind`` rooms and their corridors already on ``layout``."""
+    return [(r["origin"][0], r["origin"][1], r["size"][0], r["size"][1]) for r in layout.get("rooms") or []
+            if isinstance(r, dict) and str(r.get("build", "")).startswith(f"{kind}~")]
 
 
 def topic_of_room(layout: dict | None, name: str) -> str:
