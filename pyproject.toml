@@ -113,3 +113,5 @@ select = ["E", "F", "W", "I", "B", "TID"]
 "packaging/cli_avatars.spec" = ["TID"]
 # Git fetch for bot status. Argv is fixed and shell is false. Not a model CLI.
 "bots/status_source.py" = ["TID251"]
+# MEMORY.1: the standalone curator runs git (pull, add, commit, push) with fixed argv, shell false.
+"tools/memory_curator.py" = ["TID251"]

@@ -55,6 +55,7 @@ datas = [
     (str(ROOT / "Caine_Icon.ico"), "."),
     (str(ROOT / "Caine_Icon.png"), "."),
     (str(ROOT / "docs" / "examples" / "bots-roster.example.json"), "docs/examples"),
+    (str(ROOT / "tools" / "memory_curator.py"), "tools"),
     (str(_stamp_path), "."),
 ]
 
