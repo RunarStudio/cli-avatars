@@ -49,6 +49,9 @@ def post_prompt(directory: Path | str, room_id: str, cli: str, prompt: str) -> N
         "ts": time.time(), "from": "user", "to": cli_sender(cli), "channel": room_id,
         "icon": "speech", "note": prompt.replace("\n", " "), "name": "You", "kind": "msg",
     }, note_limit=CHUNK_LIMIT)
+    from cli_avatars.app import onboarding
+
+    onboarding.tick(directory, "chat")
 
 
 def post_messages(directory: Path | str, room_id: str, cli: str, messages: list[Message]) -> None:

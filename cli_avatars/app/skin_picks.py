@@ -126,5 +126,8 @@ def apply(app, aid: str, skin: str, now: float) -> None:
     picks = picks_of(app)
     if picks is not None:
         picks.set(aid, skin, now)
+    from cli_avatars.app import onboarding
+
+    onboarding.tick_app(app, "skin")
     if cues.enabled(getattr(app, "config", None)) and not focus_mode.state(app)["task"]:
         cues.play(app, "shimmer")

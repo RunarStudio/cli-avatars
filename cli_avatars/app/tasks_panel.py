@@ -192,6 +192,10 @@ class TasksPanel:
             panel.show_errors(out.errors)
         if out.errors:
             return out
+        if name == "create":
+            from cli_avatars.app import onboarding
+
+            onboarding.tick(self._directory(), "task")
         if name == "create" or out.card is None or "archived" in out.card["labels"]:
             self.close_card()
         elif panel.open and panel.card is not None and panel.card["id"] == out.card["id"]:

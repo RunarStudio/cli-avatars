@@ -140,6 +140,10 @@ def show_center(view, name: str) -> None:
         view.app._picker_live = False
         view.scene.pack(fill="both", expand=True)
         view._center = "dungeon"
+        if was == "throne":
+            from cli_avatars.app import onboarding
+
+            onboarding.tick_app(view.app, "dungeon")
     mark(view._tab_dungeon, view._center == "dungeon")
     mark(view._tab_tasks, view._center == "tasks")
     mark(getattr(view, "_tab_throne", None), view._center == "throne")

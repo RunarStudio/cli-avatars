@@ -381,7 +381,7 @@ class DungeonWindow:
             left_w, right_w = saved.left_width, saved.right_width
         prefs(self).update(left=left_w, right=right_w)
         repack(self)
-        show_center(self, "dungeon")
+        show_center(self, "throne" if saved is None else "dungeon")
         if self._right_open:
             show_right(self)
         self.app._chat_shown = self._right_open and self._right_tab == "chat" and self._pop is None

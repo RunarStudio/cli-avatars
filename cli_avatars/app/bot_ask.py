@@ -130,6 +130,9 @@ class Picker:
         if row is None:
             self.status.config(text="The ask was not written: check the bridge folder in Settings › Chat.")
             return None
+        from cli_avatars.app import onboarding
+
+        onboarding.tick(self.directory, "bot")
         self.card.close()
         if self.on_sent is not None:
             self.on_sent(row)

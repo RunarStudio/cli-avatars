@@ -14,10 +14,12 @@ import logging
 import threading
 import time
 import tkinter as tk
+from dataclasses import replace
 
 from cli_avatars.app import atelier as at
-from cli_avatars.app import summon_ui
+from cli_avatars.app import onboarding, skin_picks, summon_ui
 from cli_avatars.app import throne_model as tm
+from cli_avatars.app.av_roster import GROK, LOOKS, shrink
 from cli_avatars.app.dungeon_rooms import fit_scale
 from cli_avatars.app.needs_walk import read_rooms
 from cli_avatars.app.standup_panel import Stage
@@ -29,6 +31,7 @@ REFRESH_MS = 1000
 WALK_MS = 200
 FLICKER_MS = 180
 BOARD_EVERY = 3
+LORD_SKIN = "caine"
 _LOG = logging.getLogger("cli_avatars.throne")
 
 
@@ -62,6 +65,11 @@ class ThronePanel:
         self._project = None
         self._errands = at.Errands()
         self._rooms = StoreThrottle()
+        self._starter: list = []
+        self._guide = tk.Label(self.canvas, bg="#1a1426", fg="#e8e6f4", font="DungeonBubble", justify="left",
+                               anchor="nw", padx=8, pady=5, wraplength=340, highlightthickness=1,
+                               highlightbackground="#e0aa3e")
+        self._guide_text = ""
         self.stage = Stage(self)
 
     def show(self) -> None:
@@ -91,19 +99,48 @@ class ThronePanel:
         seating, marked = self._errands.step(seating, at.needing_guest(topics, cards, agents), time.monotonic())
         if self.stage.show is not None:
             seating, marked = self.stage.seating(seating, actors), frozenset()
-        project = tm.lord_project(agents, seating)
+        if self._ticks % BOARD_EVERY == 0:
+            self._starter = self._read_starter()
+            self._show_guide()
+        project = onboarding.PROJECT if self._starter else tm.lord_project(agents, seating)
         if project != self._project or self._ticks % BOARD_EVERY == 0:
             self._project, self._cards = project, self._read_cards(project)
         self._ticks += 1
         sprites = {}
+        lord = seating.placed[0].actor.id if seating.placed else ""
+        picked = skin_picks.mapping(self.app)
         for placed in seating.placed:
-            image = self._frame_1x(placed.actor)
+            actor = placed.actor
+            if actor.id == lord and actor.id not in picked and not actor.sub:
+                actor = replace(actor, skin=LORD_SKIN)
+            image = self._frame_1x(actor)
             if image is not None:
                 sprites[placed.actor.id] = image
         guest = self._frame_1x(tm.Actor(at.GUEST_ID, at.GUEST_NAME, skin=at.GUEST_SKIN))
         if guest is not None:
             sprites[at.GUEST_ID] = guest
         return RoomScene(seating, tm.board_columns(self._cards), tm.lights(a.state for a in actors), sprites, marked)
+
+    def _read_starter(self) -> list:
+        """INSTALLDAY: the starter cards while one is still open; the board shows them first."""
+        directory = getattr(self.app, "_chat_directory", None)
+        try:
+            return onboarding.steps(directory()) if callable(directory) else []
+        except Exception:
+            _LOG.exception("starter cards read failed")
+            return []
+
+    def _show_guide(self) -> None:
+        """The open starter steps over the hall, updated in place only when the words change."""
+        text = onboarding.guide(self._starter)
+        if text == self._guide_text:
+            return
+        self._guide_text = text
+        if text:
+            self._guide.config(text=text)
+            self._guide.place(relx=1.0, x=-8, y=8, anchor="ne")
+        else:
+            self._guide.place_forget()
 
     def _room_agents(self, agents: dict) -> tuple[dict, str]:
         """ORCH.ROOM: the selected topic's room and its lord; every agent when no orchestrator room is selected."""
@@ -179,6 +216,8 @@ class ThronePanel:
                 return None
             self._sheets[actor.skin] = sheet
         image = sheet.get_image(registry.animation_row(actor.skin, actor.state), 1)
+        if image is not None and actor.skin.split("_h")[0] == LOOKS[GROK].skin:
+            image = shrink(image, LOOKS[GROK].shrink)
         if image is not None and sheet.placeholder:
             image = image.copy()
             image.paste((0, 0, 0, 0), (0, 0, 12, 7))
