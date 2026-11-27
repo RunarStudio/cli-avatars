@@ -5,7 +5,7 @@ The real app starts in-process on a temporary HOME, data folder, config.json and
 made-up notes and bots. The curator runs in-process on a throwaway repo with no remote, its commit made by git
 plumbing (the fleet's git guard refuses porcelain commits outside its repos). Run it under Xvfb:
 
-    xvfb-run -a -s "-screen 0 1366x768x24" python tools/shot_memory.py <out-dir>
+    xvfb-run -a -s "-screen 0 1366x1080x24" python tools/shot_memory.py <out-dir>
 """
 
 from __future__ import annotations
@@ -29,13 +29,14 @@ for name in ("home", "data", "saves"):
 os.environ.update(HOME=str(_TMP / "home"), USERPROFILE=str(_TMP / "home"), CLI_AVATARS_DATA_DIR=str(_TMP / "data"),
                   GIT_CONFIG_GLOBAL=str(_TMP / "gitconfig"), GIT_CONFIG_NOSYSTEM="1")
 W, H = 1366, 768
+TALL = 1080  # Settings tabs do not scroll: the bot list needs the height
 NOTES = _TMP / "saves" / "memory"
 
 
-def grab():
+def grab(height: int = H):
     from PIL import ImageGrab
 
-    return ImageGrab.grab(bbox=(0, 0, W, H), xdisplay=os.environ.get("DISPLAY")).convert("RGB")
+    return ImageGrab.grab(bbox=(0, 0, W, height), xdisplay=os.environ.get("DISPLAY")).convert("RGB")
 
 
 def seed() -> None:
@@ -140,9 +141,10 @@ def main(out: Path) -> int:
         at(10.8, frame)
         at(11.0, lambda: _pin(app))
         at(17.5, lambda: _go(app, "compost"))
-        at(19.5, lambda: grab().save(out / "topic-rooms.png"))
+        at(19.5, lambda: _marked(app, grab()).save(out / "topic-rooms.png"))
+        at(19.8, lambda: root.geometry(f"{W}x{TALL}+0+0"))
         at(20.0, lambda: (app.dungeon.set_left(True), app.dungeon.set_right(True, "settings"), _bots_tab(app)))
-        at(22.0, lambda: grab().save(out / "inactive-bots.png"))
+        at(22.0, lambda: grab(TALL).save(out / "inactive-bots.png"))
         at(22.5, root.destroy)
         for seconds, fn in steps:
             root.after(int(seconds * 1000), fn)
@@ -191,6 +193,26 @@ def _go(app, room: str) -> None:
     if not dungeon_nav.jump(app, room):
         print(f"no room {room} on the map")
     dungeon_nav._button(app.dungeon, "fit")
+
+
+def _marked(app, image):
+    """The shot with each Topic room ringed and named (the map draws no room names)."""
+    from PIL import ImageDraw
+
+    from cli_avatars.app import topic_rooms as tr
+    from cli_avatars.app.room_floor import Plan
+
+    scene = app.dungeon.scene
+    painter = scene._rooms_painter
+    draw = ImageDraw.Draw(image)
+    for room in painter.layout.get("rooms") or []:
+        if tr.room_type(room) != tr.TOPIC:
+            continue
+        x, y = painter.to_canvas(*Plan.from_layout(painter.layout).floor(room["name"]).centre())
+        x, y = x + scene.winfo_rootx(), y + scene.winfo_rooty()
+        draw.ellipse((x - 70, y - 40, x + 70, y + 40), outline=(255, 214, 102), width=3)
+        draw.text((x - 66, y - 62), f"Topic room: {room['name']} ({room['why']})", fill=(255, 214, 102))
+    return image
 
 
 def _bots_tab(app) -> None:
