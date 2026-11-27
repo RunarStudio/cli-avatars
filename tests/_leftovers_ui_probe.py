@@ -40,7 +40,7 @@ def box(widget) -> tuple[int, int, int, int]:
 
 
 host = _ProbeHost(root)
-host.scanner = SimpleNamespace(bubbles=BubbleBoard())
+host.scanner = SimpleNamespace(bubbles=BubbleBoard(), get_agents=lambda: {})
 host._chat_directory = lambda: data
 host._show_chat = lambda topic_id=None, address_id=None: None
 host._status_parent = None

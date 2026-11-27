@@ -70,38 +70,22 @@ class Tab(tk.Frame):
         paint(self, False)
 
 
-def wrap_tabs(strip, tabs) -> None:
-    """Tabs in rows that fit the strip's width: a narrow centre wraps them instead of cutting the last ones off."""
-    rows: list[tk.Frame] = []
-    shown: list = [None]
+def fit_tabs(strip, tabs) -> None:
+    """While the tabs with their words are wider than the strip, only the selected one keeps its word."""
+    full: dict = {}
 
     def lay(_event=None) -> None:
         width = strip.winfo_width()
         if width <= 1:
             return
-        lines, used = [[]], 6
         for tab in tabs:
-            need = tab.winfo_reqwidth() + 4
-            if lines[-1] and used + need > width:
-                lines.append([])
-                used = 6
-            lines[-1].append(tab)
-            used += need
-        key = tuple(len(line) for line in lines)
-        if key == shown[0]:
-            return
-        shown[0] = key
-        while len(rows) < len(lines):
-            rows.append(tk.Frame(strip, bg=strip.cget("bg")))
+            if str(tab.button.cget("compound")) != "none":
+                full[tab] = tab.winfo_reqwidth()
+        compact = sum(full.get(tab, tab.winfo_reqwidth()) + 4 for tab in tabs) + 6 > width
         for tab in tabs:
-            tab.pack_forget()
-        for i, row in enumerate(rows):
-            row.pack_forget()
-            if i < len(lines):
-                row.pack(fill="x")
-                for n, tab in enumerate(lines[i]):
-                    tab.pack(in_=row, side="left", anchor="s", padx=(6, 2) if n == 0 else 2, pady=(4, 0))
-                    tab.lift(row)
+            if getattr(tab, "_kit_compact", False) != compact:
+                tab._kit_compact = compact
+                paint(tab, getattr(tab, "_kit_on", False))
 
     strip.bind("<Configure>", lay, add="+")
     lay()
@@ -114,9 +98,11 @@ def paint(widget, on: bool) -> None:
     key = widget._kit_key
     colors = kit.colors(key, on)
     if isinstance(widget, Tab):
+        widget._kit_on = on
         widget.accent.config(bg=kit.COLORS[kit.TAB][3] if on else kit.TAB_EDGE)
         widget.button.config(
-            image=widget._kit_icons[on], pady=4 if on else 2, activebackground=colors["bg"], **colors,
+            image=widget._kit_icons[on], pady=4 if on else 2, activebackground=colors["bg"],
+            compound="none" if getattr(widget, "_kit_compact", False) and not on else "left", **colors,
         )
         widget.button.pack_configure(pady=(0, 0 if on else 1))
         return
