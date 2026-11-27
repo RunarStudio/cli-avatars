@@ -43,8 +43,9 @@ def _load(path: Path) -> dict:
 
 
 def _tailscale(binary: str, *args: str, timeout: float = 30.0) -> subprocess.CompletedProcess:
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
     return subprocess.run([binary, *args], shell=False, stdin=subprocess.DEVNULL, capture_output=True,
-                          text=True, timeout=timeout)
+                          text=True, timeout=timeout, creationflags=flags)
 
 
 def serve_address(status: object, port: int) -> str:
