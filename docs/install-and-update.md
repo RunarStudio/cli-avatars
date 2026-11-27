@@ -12,6 +12,17 @@ CLI Avatars installs per user on Windows and can rebuild itself from the `dev` b
 4. Run `dist\CLI-Avatars-Setup.exe` and start CLI Avatars from the Start menu.
 5. To get the latest dev later, press **Update** on the toolbar.
 
+## The first start (INSTALLDAY)
+
+The first start needs no setup (`cli_avatars/app/first_run.py`, once, marked by `ui/first_run.json`):
+
+- Chats and files are saved in `Documents/CLI Avatars` (OneDrive's Documents when Windows keeps it there), created. Change it in the Start check (**Save chats and files in**) or Settings; it is `files.dir` in config.json.
+- `claude` and `grok` found on PATH are confirmed, as **Use this binary** would. The main orchestrator is Grok, else the CLI that is there. A value you set is kept.
+- The app opens on the Throne Room, whose chat works in the save folder: Send never opens a folder dialog. Its task board holds six starter cards that tick as you go (`cli_avatars/app/onboarding.py`); a deleted card never comes back.
+- Missing pieces say so in plain words: no git keeps Update and Try it risky off with a download link; a missing CLI names its install page. The installed app needs no Python.
+- The Start check's **Bot bridge (optional)** shows the bridge folder, copies it or a paste-ready block for the other app, and **Test bridge** writes and reads back a sample ([bot-bridge.md](bot-bridge.md)).
+- Default looks: the main orchestrator is Caine, Claude sessions are Michimaru, Grok bots are amongo at 70 %. A skin you picked wins.
+
 ## Your Claude and Grok sessions, and the chat (Windows)
 
 1. Run `claude` and `grok` in a normal Windows terminal, not in WSL. The app reads `%USERPROFILE%\.claude\projects` and `%USERPROFILE%\.grok\sessions` (`%GROK_HOME%\sessions` when `GROK_HOME` is set). A session shows while it was active in the last 15 minutes: send an idle one a prompt. If `.grok\sessions` does not exist after a Grok run, your Grok CLI keeps its sessions elsewhere: set `GROK_HOME` to that folder's parent.
