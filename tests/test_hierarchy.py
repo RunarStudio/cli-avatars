@@ -33,10 +33,10 @@ class TableTest(unittest.TestCase):
         self.assertEqual(tuple(table), tiers.TIERS)
         self.assertEqual(tiers.TIERS, ("main", "topic", "task", "subagent"))
         self.assertEqual(table["main"], {"cli": "grok", "model": "", "effort": ""})
-        self.assertEqual(tiers.table(CLAUDE_MAIN)["main"], {"cli": "claude", "model": "fable", "effort": "high"})
-        self.assertEqual(table["topic"], {"cli": "claude", "model": "fable", "effort": "high"})
-        self.assertEqual(table["task"], {"cli": "claude", "model": "opus", "effort": "medium"})
-        self.assertEqual(table["subagent"], {"cli": "claude", "model": "haiku", "effort": "low"})
+        self.assertEqual(tiers.table(CLAUDE_MAIN)["main"], {"cli": "claude", "model": "", "effort": "high"})
+        self.assertEqual(table["topic"], {"cli": "claude", "model": "", "effort": "high"})
+        self.assertEqual(table["task"], {"cli": "claude", "model": "", "effort": "medium"})
+        self.assertEqual(table["subagent"], {"cli": "claude", "model": "", "effort": "low"})
 
     def test_config_edits_a_tier_and_bad_values_keep_the_default(self):
         config = {"chat": {"tiers": {"task": {"model": "sonnet", "effort": "high"},
@@ -74,10 +74,10 @@ class TierOfTest(_Rooms):
 
     def test_launch_carries_model_effort_and_a_fresh_role(self):
         main = tiers.launch(self.data, CLAUDE_MAIN, "high-keep", "claude", fresh=True)
-        self.assertEqual((main["tier"], main["model"], main["effort"]), ("main", "fable", "high"))
+        self.assertEqual((main["tier"], main["model"], main["effort"]), ("main", None, "high"))
         self.assertIn("main orchestrator", main["role"])
         task = tiers.launch(self.data, {}, self.task_room, "claude", fresh=False)
-        self.assertEqual((task["tier"], task["model"], task["effort"], task["role"]), ("task", "opus", "medium", ""))
+        self.assertEqual((task["tier"], task["model"], task["effort"], task["role"]), ("task", None, "medium", ""))
 
     def test_another_cli_than_the_tiers_runs_with_its_own_model(self):
         cursor = tiers.launch(self.data, {}, self.task_room, "cursor", fresh=True)
@@ -90,7 +90,7 @@ class PhoneAndSignTest(_Rooms):
         view = tiers.phone(self.data, CLAUDE_MAIN)
         self.assertTrue(view["main"])
         self.assertEqual([t["glyph"] for t in view["tiers"]], ["crown", "banner", "scroll", "spark"])
-        self.assertEqual(view["tiers"][0]["label"], "FABLE · HIGH")
+        self.assertEqual(view["tiers"][0]["label"], "CLAUDE · HIGH")
         with tempfile.TemporaryDirectory() as empty:
             self.assertFalse(tiers.phone(empty, {})["main"])
         from webui import server
@@ -128,7 +128,7 @@ class RoleTest(unittest.TestCase):
         self.assertIn("task chats", tiers.role("topic", table))
         task = tiers.role("task", table)
         self.assertIn("subagents", task)
-        self.assertIn("haiku", task)
+        self.assertIn("claude's own model", task)
         self.assertIn("task chat", tiers.role("subagent", table))
         for tier in tiers.TIERS:
             text = tiers.role(tier, table)
@@ -142,7 +142,7 @@ class RoleTest(unittest.TestCase):
             self.assertEqual(chip["glyph"], name)
             self.assertTrue(all(len(r) == len(chip["rows"][0]) for r in chip["rows"]))
             self.assertTrue(chip["color"].startswith("#"))
-        self.assertEqual(tiers.chip("task", table)["label"], "OPUS · MEDIUM")
+        self.assertEqual(tiers.chip("task", table)["label"], "CLAUDE · MEDIUM")
 
 
 class ArgvTest(unittest.TestCase):

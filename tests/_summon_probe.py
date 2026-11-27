@@ -110,7 +110,7 @@ check("first_summon_asks_the_folder_once", asked == [1], asked)
 kwargs = popen_calls[0]
 argv = kwargs["args"]
 check("fixed_argv_shell_false", kwargs["shell"] is False and isinstance(argv, list), kwargs.get("shell"))
-check("main_tier_model_and_effort", argv[-4:] == ["--model", "fable", "--effort", "high"], argv)
+check("main_tier_model_and_effort", argv[-3:] == ["plan", "--effort", "high"], argv)
 check("opened_the_main_session", [(s.sid, s.kind) for s in app._session_rooms.sessions] == [("high-keep", "main")],
       app._session_rooms.sessions)
 check("folder_in_the_room_file_only", load_room(data, "high-keep").working_dir == str(project.resolve()))

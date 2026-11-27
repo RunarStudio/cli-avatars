@@ -98,7 +98,7 @@ class OrchestratorSetting(_Data):
     def test_the_setting_switches_it_and_a_bad_value_keeps_grok(self):
         self.assertEqual(tiers.main_cli({"orchestrator": {"main": "claude"}}), "claude")
         self.assertEqual(tiers.table({"orchestrator": {"main": "claude"}})["main"],
-                         {"cli": "claude", "model": "fable", "effort": "high"})
+                         {"cli": "claude", "model": "", "effort": "high"})
         self.assertEqual(tiers.main_cli({"orchestrator": {"main": "bash"}}), "grok")
         self.assertEqual(tiers.main_cli({"orchestrator": "oops"}), "grok")
 

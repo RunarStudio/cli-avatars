@@ -18,11 +18,12 @@ from pathlib import Path
 from board.model import CHAT_CLIS
 
 TIERS = ("main", "topic", "task", "subagent")
+# MODELFIX: no default model, so Claude runs on the model the user set in their own Claude Code.
 DEFAULTS = {
-    "main": {"cli": "claude", "model": "fable", "effort": "high"},
-    "topic": {"cli": "claude", "model": "fable", "effort": "high"},
-    "task": {"cli": "claude", "model": "opus", "effort": "medium"},
-    "subagent": {"cli": "claude", "model": "haiku", "effort": "low"},
+    "main": {"cli": "claude", "model": "", "effort": "high"},
+    "topic": {"cli": "claude", "model": "", "effort": "high"},
+    "task": {"cli": "claude", "model": "", "effort": "medium"},
+    "subagent": {"cli": "claude", "model": "", "effort": "low"},
 }
 NAMES = {"main": "Main orchestrator", "topic": "Topic orchestrator", "task": "Task chat", "subagent": "Subagent"}
 WHERE = {"main": "throne room", "topic": "simple room", "task": "on a card", "subagent": "in a task chat"}
@@ -90,13 +91,14 @@ def models(cli: str) -> tuple[str, ...]:
 
 
 def with_tier(config: object, tier: str, model: str | None = None, effort: str | None = None) -> dict:
-    """``config`` with ``chat.tiers.<tier>`` model and effort set; both ``None`` drops them (Reset to default)."""
+    """``config`` with ``chat.tiers.<tier>`` model and effort set (model ``""``: effort only); both ``None`` drops
+    them (Reset to default)."""
     data = dict(config) if isinstance(config, dict) else {}
     chat = dict(data["chat"]) if isinstance(data.get("chat"), dict) else {}
     rows = dict(chat["tiers"]) if isinstance(chat.get("tiers"), dict) else {}
     own = {k: v for k, v in _own(data, tier).items() if k not in ("model", "effort")}
     if model is not None:
-        own.update(model=model, effort=effort)
+        own.update({"model": model, "effort": effort} if model else {"effort": effort})
     if own:
         rows[tier] = own
     else:
@@ -105,8 +107,8 @@ def with_tier(config: object, tier: str, model: str | None = None, effort: str |
 
 
 def valid(tier: str, model: object, effort: object) -> bool:
-    """A tier, a model name ``VALUE`` accepts and an effort from ``EFFORTS``."""
-    return tier in TIERS and isinstance(model, str) and bool(VALUE.match(model)) and effort in EFFORTS
+    """A tier, a model name ``VALUE`` accepts (``""``: the CLI's own model) and an effort from ``EFFORTS``."""
+    return tier in TIERS and isinstance(model, str) and (model == "" or bool(VALUE.match(model))) and effort in EFFORTS
 
 
 def save_tier(path, tier: str, model: str, effort: str) -> bool:
@@ -220,3 +222,4 @@ def phone(directory: Path | str, config: object) -> dict:
     rows = table(config)
     return {"main": bool(main_sid(directory)),
             "tiers": [{**chip(t, rows), "name": NAMES[t], "cli": rows[t]["cli"], "does": DOES[t]} for t in TIERS]}
+

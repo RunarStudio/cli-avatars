@@ -87,7 +87,7 @@ check("bad typed model saves nothing", saved["chat"]["tiers"]["task"]["model"] =
 rows["topic"]["reset"].invoke()
 root.update()
 saved = json.loads(config_file.read_text(encoding="utf-8"))
-check("reset to default", "topic" not in saved["chat"]["tiers"] and rows["topic"]["model"].get() == "fable"
+check("reset to default", "topic" not in saved["chat"]["tiers"] and rows["topic"]["model"].get() == ""
       and rows["topic"]["effort"].get() == "high", saved)
 
 orch["chips"]["grok"].invoke()

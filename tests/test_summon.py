@@ -68,7 +68,7 @@ class StateTest(unittest.TestCase):
         self.assertIn("main orchestrator", prompt)
         self.assertIn(summon.PACK_HEAD, prompt)
         self.assertIn("west-keep", prompt)
-        self.assertIn("opus", prompt)
+        self.assertIn("topic orchestrator: claude's own model, high effort", prompt)
 
 
 class ProbeTest(unittest.TestCase):

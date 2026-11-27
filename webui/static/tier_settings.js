@@ -43,6 +43,7 @@ function tierForm(t) {
   for (const m of t.suggest) { const o = el("option"); o.value = m; list.append(o); }
   model.setAttribute("list", list.id);
   model.value = t.model;
+  model.placeholder = t.cli + "'s own model";
   model.maxLength = 48;
   model.setAttribute("aria-label", t.name + " model");
   model.enterKeyHint = "done";
@@ -59,7 +60,7 @@ function tierForm(t) {
 }
 
 async function saveTier(tier, body) {
-  if (!body.reset && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$/.test(body.model)) {
+  if (!body.reset && body.model && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$/.test(body.model)) {
     $("tierNote").textContent = "Not a model name: letters, digits, . _ - (up to 48).";
     return;
   }

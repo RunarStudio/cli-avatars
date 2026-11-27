@@ -61,7 +61,8 @@ def pack(model: sr.SessionRooms, rows: dict) -> str:
     """What the main orchestrator starts with: the open topic rooms and the tiers it delegates to."""
     rooms = [s.sid for s in model.sessions if s.kind == sr.SIMPLE and not s.closing]
     lines = [PACK_HEAD, "topic rooms: " + (", ".join(rooms) if rooms else "none yet (open one per topic)")]
-    lines += [f"{tiers.NAMES[t].lower()}: {rows[t]['cli']} {tiers.describe(rows[t])}" for t in tiers.TIERS]
+    lines += [f"{tiers.NAMES[t].lower()}: {rows[t]['cli'] + ' ' if rows[t]['model'] else ''}{tiers.describe(rows[t])}"
+              for t in tiers.TIERS]
     return "\n".join(lines + [PACK_END]) + "\n"
 
 

@@ -98,7 +98,7 @@ def _row(app, parent, tier: str, font) -> dict:
 
     def save(_event=None) -> None:
         picked, level = model.get().strip(), effort.get()
-        if not tiers.VALUE.match(picked):
+        if picked and not tiers.VALUE.match(picked):
             sample.config(text=f"“{picked[:24]}” is not a model name: letters, digits, . _ - (up to 48).",
                           fg=BAD)
             return

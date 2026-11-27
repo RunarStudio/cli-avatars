@@ -51,7 +51,7 @@ class SaveTest(unittest.TestCase):
 
     def test_bad_values_save_nothing(self):
         before = self.path.read_text(encoding="utf-8")
-        for tier, model, effort in (("main", "x; rm -rf", "low"), ("main", "opus", "insane"), ("main", "", "low"),
+        for tier, model, effort in (("main", "x; rm -rf", "low"), ("main", "opus", "insane"),
                                     ("throne", "opus", "low"), ("topic", 5, "low")):
             with self.subTest(tier=tier, model=model, effort=effort):
                 self.assertFalse(tiers.save_tier(self.path, tier, model, effort))
@@ -74,10 +74,10 @@ class SaveTest(unittest.TestCase):
 
     def test_defaults_stay_as_they_are(self):
         self.assertEqual(tiers.DEFAULTS, {
-            "main": {"cli": "claude", "model": "fable", "effort": "high"},
-            "topic": {"cli": "claude", "model": "fable", "effort": "high"},
-            "task": {"cli": "claude", "model": "opus", "effort": "medium"},
-            "subagent": {"cli": "claude", "model": "haiku", "effort": "low"},
+            "main": {"cli": "claude", "model": "", "effort": "high"},
+            "topic": {"cli": "claude", "model": "", "effort": "high"},
+            "task": {"cli": "claude", "model": "", "effort": "medium"},
+            "subagent": {"cli": "claude", "model": "", "effort": "low"},
         })
 
 
@@ -153,16 +153,16 @@ class PhoneTiers(_Writes):
         self.assertEqual((status, body["writes"], body["efforts"]), (200, True, list(tiers.EFFORTS)))
         main = body["tiers"][0]
         self.assertEqual((main["tier"], main["name"], main["where"], main["model"], main["effort"]),
-                         ("main", "Main orchestrator", "throne room", "fable", "high"))
+                         ("main", "Main orchestrator", "throne room", "", "high"))
         self.assertEqual(main["suggest"], ["fable", "opus", "sonnet", "haiku"])
-        self.assertEqual(main["sample"], "Main orchestrator: claude fable, high effort")
+        self.assertEqual(main["sample"], "Main orchestrator: claude's own model, high effort")
         status, body = self.request("/api/tiers/main", "POST", {"model": "opus", "effort": "medium"})
         self.assertEqual((status, body["tier"]["sample"]), (200, "Main orchestrator: claude opus, medium effort"))
         saved = json.loads(self.config.read_text(encoding="utf-8"))
         self.assertEqual(saved["chat"]["tiers"]["main"], {"model": "opus", "effort": "medium"})
         self.assertEqual(tiers.table(self.live["config"])["main"]["model"], "opus")
         status, body = self.request("/api/tiers/main", "POST", {"reset": True})
-        self.assertEqual((status, body["tier"]["model"]), (200, "fable"))
+        self.assertEqual((status, body["tier"]["model"]), (200, ""))
 
     def test_bad_writes(self):
         for path, body in (("/api/tiers/main", {"model": "x y", "effort": "low"}),

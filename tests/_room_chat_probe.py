@@ -103,7 +103,7 @@ args, kwargs = popen_calls[0]
 argv = kwargs.get("args", args[0] if args else None)
 check("popen_list_and_shell_false", isinstance(argv, list) and kwargs.get("shell") is False, kwargs.get("shell"))
 check("argv_is_constant", argv[1:] == ["-p", "--output-format", "stream-json", "--verbose",
-                                        "--permission-mode", "plan", "--model", "fable", "--effort", "high"], argv)
+                                        "--permission-mode", "plan", "--effort", "high"], argv)
 check("prompt_not_in_argv", all(PROMPT not in part for part in argv))
 turns = [json.loads(line) for line in (project / "fake-turns.jsonl").read_text(encoding="utf-8").splitlines()]
 check("prompt_on_stdin_after_header", turns[0]["stdin"].endswith(PROMPT)
