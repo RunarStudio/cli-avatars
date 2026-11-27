@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from cli_avatars.app import still
 from cli_avatars.app.render import photos_for
 from cli_avatars.app.room_fit import child_size
 from cli_avatars.sprites.registry import REGISTRY
@@ -77,6 +78,6 @@ def draw_inside_sub_marks(scene, av, app) -> None:
         if photo is None:
             continue
         try:
-            scene.create_image(left, top, image=photo, anchor="nw", tags=("inside-sub",))
+            still.pool(scene, "inside-sub").image(left, top, photo)
         except Exception:
             return

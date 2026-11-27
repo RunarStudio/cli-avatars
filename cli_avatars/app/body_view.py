@@ -18,7 +18,7 @@ import focus
 import needs_you
 from cli_avatars.app import body_art as art
 from cli_avatars.app import body_spots as spots
-from cli_avatars.app import cues
+from cli_avatars.app import cues, still
 from cli_avatars.app.body import IDLE, SLUMP, STRIDE, TAP, WORDS, Found, Runs, Shift, Thresholds, reasons, states
 from cli_avatars.app.room_floor import wander
 from cli_avatars.app.throttle import StoreThrottle
@@ -290,9 +290,9 @@ class BodyView:
                 scene.tag_raise(item, "rooms")
         elif self._keys.get(name) != key:
             scene.itemconfigure(item, image=photo)
-        scene.coords(item, x, y)
+        still.move(scene, item, x, y)
         if not floor:
-            scene.tag_raise(item)
+            still.lift(scene, item)
         self._keys[name] = key
 
     def _anchor(self, seats: int) -> tuple[int, int]:

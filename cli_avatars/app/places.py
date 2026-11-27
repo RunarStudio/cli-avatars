@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import time
 
+from cli_avatars.app import still
 from cli_avatars.app.dungeon_map import (
     client_rect_v,
     drop_on_dungeon,
@@ -269,7 +270,7 @@ class PlaceBook:
         if scene is None:
             return
         try:
-            scene.delete("inside-sub")
+            still.pool(scene, "inside-sub").begin()
         except Exception:
             return
         now = self._now or time.time()
@@ -308,8 +309,9 @@ class PlaceBook:
                 self._paint_inside(scene, aid, (0.0, 0.0), photos, dragging, now, posed=True)
         room.paint_user(scene, photos, now)
         room.paint_marks(scene)
+        still.pool(scene, "inside-sub").end()
         try:
-            scene.tag_lower("floor")
+            still.sink(scene, "floor")
         except Exception:
             return
 

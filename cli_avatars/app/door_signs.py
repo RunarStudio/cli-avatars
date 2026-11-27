@@ -12,6 +12,7 @@ import sys
 
 import text_fonts as fonts
 from cli_avatars.app import art_words as words
+from cli_avatars.app import still
 from cli_avatars.app.orch_rooms import board_cards, door_sign
 from cli_avatars.app.throne_model import GOLD
 from cli_avatars.app.throne_px import Buf, t35, to_image, tone
@@ -186,7 +187,7 @@ class Signs:
             else:
                 if self._keys.get(topic) != key:
                     scene.itemconfigure(item, image=photo)
-                scene.coords(item, x, y)
+                still.move(scene, item, x, y)
             self._keys[topic] = key
 
     def _photo(self, scene, key: tuple):
