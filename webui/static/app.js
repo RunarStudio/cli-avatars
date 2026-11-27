@@ -92,6 +92,7 @@ function zoomToRoom(name, quiet) {
   const room = state.scene && state.scene.rooms.find((r) => r.name === name);
   if (!room) return;
   state.room = name;
+  state.tapped = null;
   state.home = false;
   state.glow = performance.now();
   animateTo(fitView(room.box, 0.82));
@@ -201,12 +202,14 @@ function tapMap(sx, sy) {
   if (found && found.kind === "avatar" && typeof openBot === "function") return openBot(found.a);
   const room = found && found.room;
   if (!room) return;
-  if (room.name === state.room && !state.anim) return openRooms(room.id);
+  // a second tap on the room a tap opened edits it; a room reached by a Rooms jump opens its tasks first
+  if (room.name === state.room && state.tapped === room.name && !state.anim) return openRooms(room.id);
   if (typeof openRoomSheet === "function") openRoomSheet(room);
   const card = state.cards.find((c) => c.room === room.name);
   state.sel = card ? card.id : null;
   renderTasks();
   zoomToRoom(room.name);
+  state.tapped = room.name;
   showChat(room.name === "Apothecary" ? null : room.name, room.title);
 }
 
