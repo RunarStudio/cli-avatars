@@ -99,7 +99,8 @@ def ensure(view) -> None:
 
 
 def open_item(app, item: dict) -> None:
-    """A card item opens its card on the Tasks tab; a room item opens that room's chat in the dock."""
+    """A card item opens its card on the Tasks tab; a room item opens that room's chat in the dock, a decision on
+    its Inbox."""
     view = getattr(app, "dungeon", None)
     if item.get("kind") == "mail" and view is not None:
         view.show_center("mailroom")
@@ -117,6 +118,9 @@ def open_item(app, item: dict) -> None:
         return
     if item.get("room"):
         app._show_chat(topic_id=item["room"])
+        pane = getattr(getattr(app, "_chat_window", None), "_room", None)
+        if item.get("kind") == "decision" and pane is not None:
+            pane.pick_target("inbox")  # decisions show in the Inbox thread; a CLI target hides it
 
 
 def clear_item(app, item: dict) -> None:
