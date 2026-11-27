@@ -8,7 +8,7 @@
   background: repeating-conic-gradient(from 0deg, #5ef0d8 0 5deg, transparent 5deg 15deg, #9a7aff 15deg 18deg, transparent 18deg 30deg);
   -webkit-mask: radial-gradient(circle, transparent 0 58%, #000 60% 66%, transparent 68%);
   mask: radial-gradient(circle, transparent 0 58%, #000 60% 66%, transparent 68%);
-  opacity: .55; animation: rune-turn 14s linear infinite; }
+  opacity: .55; }
 .rune-mic .mic-glyph { position: absolute; left: 50%; top: 22%; width: 30%; height: 38%; transform: translateX(-50%);
   border-radius: 40% 40% 45% 45%; background: linear-gradient(180deg, #b8fff2, #5ef0d8 55%, #2a9a8a);
   box-shadow: 0 0 6px #5ef0d8, inset 0 -2px 0 #1f6a6a; }
@@ -18,12 +18,10 @@
   transform: translateX(-50%); background: #8af5e2; box-shadow: -5px 7px 0 -0px #8af5e2, 5px 7px 0 0 #8af5e2; }
 .rune-mic:hover::before { opacity: .8; }
 .rune-mic.on { background: radial-gradient(circle at 50% 38%, #2a8a80 0%, #1a4a5a 55%, #0d1a24 100%);
-  box-shadow: 0 0 0 2px #5ef0d8, 0 0 22px #5ef0d8aa, 0 0 44px #9a7aff66; animation: rune-pulse .9s ease-in-out infinite; }
-.rune-mic.on::before { opacity: 1; animation-duration: 3s; }
+  box-shadow: 0 0 0 2px #5ef0d8, 0 0 22px #5ef0d8aa, 0 0 44px #9a7aff66; }
+.rune-mic.on::before { opacity: 1; }
 .rune-mic.big { width: 88px; height: 88px; }
 .rune-mic.big::before { inset: -10px; }
-@keyframes rune-turn { to { transform: rotate(360deg); } }
-@keyframes rune-pulse { 50% { transform: scale(1.06); } }
 
 .voice-row { display: flex; align-items: center; gap: 10px; margin: 6px 0 8px 14px; }
 .voice-row:empty { display: none; }
@@ -67,7 +65,7 @@
 .vp-detail { margin: 0 0 8px; font-size: 12px; color: #4a3520; overflow-wrap: anywhere; }
 .vp-topic { width: 100%; margin: 0 0 8px; min-height: 36px; font: 13px var(--mono); color: #2a1c10; background: #f6eed6;
   border: 1px solid #8a6a3a; }
-.voice.sealed .voice-state { color: #8af5a0; animation: landed 1.4s ease-out 1; }
+.voice.sealed .voice-state { color: #8af5a0; animation: landed .3s ease-out 1; }
 .voice-say { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .voice-line { margin: 0; color: #b8fff2; font-size: 12px; font-style: italic; }
 .voice-line:empty { display: none; }
@@ -80,7 +78,5 @@
   background: linear-gradient(180deg, #17323a, #0f2128); border: 2px solid var(--deep);
   box-shadow: 0 0 0 1px #5ef0d8, 0 0 24px #5ef0d855, 0 8px 20px #000a; animation: rise-up .22s ease-out; }
 .voice-caption[hidden] { display: none; }
-.voice-caption .rune-tiny { animation: rune-pulse .7s ease-in-out infinite; }
 .voice-caption.held { color: #d8c8a0; box-shadow: 0 0 0 1px #b0862a, 0 8px 20px #000a; }
-.voice-caption.held .rune-tiny { animation: none; filter: grayscale(1); }
-@media (prefers-reduced-motion: reduce) { .rune-mic::before, .rune-mic.on, .voice-caption .rune-tiny { animation: none; } }
+.voice-caption.held .rune-tiny { filter: grayscale(1); }

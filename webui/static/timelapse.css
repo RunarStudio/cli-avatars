@@ -7,8 +7,7 @@
   clip-path: polygon(0 0, 100% 0, 58% 50%, 100% 100%, 0 100%, 42% 50%); }
 .glass-ico::after { content: ""; position: absolute; left: 2px; right: 2px; bottom: 2px; height: 4px; background: #f2a33a;
   clip-path: polygon(50% 0, 100% 100%, 0 100%); }
-.icon.lapse-btn[aria-pressed="true"] .glass-ico { filter: drop-shadow(0 0 4px #ffd27a); animation: lapse-turn 2.4s steps(2) infinite; }
-@keyframes lapse-turn { 50% { transform: rotate(180deg); } }
+.icon.lapse-btn[aria-pressed="true"] .glass-ico { filter: drop-shadow(0 0 4px #ffd27a); }
 .lapse { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 5px 6px 4px; color: var(--ink);
   background: linear-gradient(180deg, #2b2234ee, #17111ff2); border: 2px solid var(--deep);
   box-shadow: inset 0 1px 0 #5a4e66, inset 0 -2px 0 #0b0811, 0 0 0 1px #4a3f55, 0 6px 18px #000c; }
@@ -27,4 +26,3 @@
 .lapse-now { margin: 1px 2px 0; font-size: 10px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat .msg.moment { background: linear-gradient(90deg, #3a2a10, #5a3a0800); box-shadow: inset 3px 0 0 #f2a33a;
   transition: background 1.2s; }
-@media (prefers-reduced-motion: reduce) { .icon.lapse-btn[aria-pressed="true"] .glass-ico { animation: none; } }

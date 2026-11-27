@@ -3,7 +3,7 @@
 .chk-row .ghost { flex: none; padding: 0 12px; }
 .chk-row .ghost:disabled { filter: grayscale(.8) brightness(.6); cursor: default; }
 .chk-line { flex: 1; margin: 0; min-width: 0; font-size: 12px; overflow-wrap: anywhere; color: var(--dim); }
-.chk-line.busy { color: var(--torch-2); } .chk-line.busy::before { content: "\25B8 "; animation: flick 1s steps(2) infinite; }
+.chk-line.busy { color: var(--torch-2); } .chk-line.busy::before { content: "\25B8 "; }
 .chk-line.ok { color: #5ad16a; } .chk-line.ok::before { content: "\2714 "; }
 .chk-line.news { color: #ffb060; text-shadow: 0 0 8px #ff7a1e55; } .chk-line.news::before { content: "\2726 "; }
 .chk-line.bad { color: #ff9a7a; } .chk-line.bad::before { content: "\2716 "; }

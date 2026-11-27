@@ -1,6 +1,5 @@
 /* MESSENGER: the lit card and its ribbon */
-.courier-lit { box-shadow: 0 0 0 2px #ffce6e, 0 0 16px #ffce6e88 !important; animation: courier-glow 1.6s ease-in-out infinite; }
-@keyframes courier-glow { 50% { box-shadow: 0 0 0 2px #ffce6e, 0 0 26px #ffce6ecc; } }
+.courier-lit { box-shadow: 0 0 0 2px #ffce6e, 0 0 16px #ffce6e88 !important; }
 .courier-ribbon { display: block; width: calc(100% + 8px); margin: -2px -4px 5px; padding: 3px 8px; border: 0;
   border-top: 1px solid #e2b24a; border-bottom: 1px solid #60101e; background: #a41e30; color: #faeece;
   font: 700 11px var(--mono); letter-spacing: .04em; text-align: left; cursor: pointer;
