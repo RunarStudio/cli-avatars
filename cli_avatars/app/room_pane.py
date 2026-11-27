@@ -24,7 +24,6 @@ from board.model import CHAT_CLIS
 from cli_avatars.app import bot_ask, cli_chips, cues, first_run, grok_topics, pack_pane, room_log, task_sessions, tiers
 from cli_avatars.app.chat_clis import COLORS, NAMES, launch, short_path, state, template
 from cli_avatars.app.grok_list import GrokList
-from cli_avatars.app.toolbar_widgets import wrap_tabs
 from cli_avatars.model.room import (
     PERMISSION_MODES,
     Room,
@@ -103,9 +102,7 @@ class RoomPane:
         self._composer = composer
         bar = tk.Frame(composer, bg=BG)
         bar.pack(fill="x", pady=(6, 0), before=before)
-        run = tk.Label(bar, text="Run:", bg=BG, fg=META, font=FONT_SMALL)
-        self.chips = cli_chips.build(bar, self.pick_target)
-        wrap_tabs(bar, [run, *self.chips.values(), bar.tier_chip])
+        tk.Label(bar, text="Run:", bg=BG, fg=META, font=FONT_SMALL).pack(side="left", padx=(0, 4))
         # Own row: the docked chat is too narrow for targets and session controls on one line.
         controls = tk.Frame(composer, bg=BG)
         controls.pack(fill="x", pady=(2, 0), before=before)
@@ -114,7 +111,7 @@ class RoomPane:
         self._mode_btn = self._small(controls, "plan", self.toggle_mode)
         self._folder_btn = self._small(controls, "Folder…", self.pick_folder)
         self._ask_btn = self._small(controls, "Ask a bot…", self.ask_bot)
-        wrap_tabs(controls, [self._ask_btn, self._folder_btn, self._mode_btn, self._new_btn, self._stop_btn])
+        self.chips = cli_chips.build(bar, self.pick_target, controls)
         self._small(self.window._to_btn.master, "Copy context", self.copy_context)  # beside To:, the roomy row
         self._bin_row = tk.Frame(composer, bg=BG)
         self._bin_label = tk.Label(self._bin_row, text="", bg=BG, fg=META, font=FONT_SMALL, anchor="w")

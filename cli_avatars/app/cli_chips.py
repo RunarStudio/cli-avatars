@@ -12,6 +12,7 @@ import tkinter as tk
 
 import text_fonts as fonts
 from cli_avatars.app.chat_clis import COLORS, INBOX, NAMES, targets
+from cli_avatars.app.toolbar_widgets import wrap_tabs
 
 PLATE, FACE, INK, OFF_INK, EDGE = "#0e1420", "#1a2438", "#aaccff", "#555a70", "#2a3048"
 FONT = fonts.face(8, "bold")
@@ -138,14 +139,13 @@ class TierChip(tk.Frame):
                                               width=0)
 
 
-def build(parent, on_pick) -> dict[str, Chip]:
-    chips = {}
-    for key in targets():
-        chip = Chip(parent, key, on_pick)
-        chip.pack(side="left", padx=2)
-        chips[key] = chip
+def build(parent, on_pick, controls=None) -> dict[str, Chip]:
+    """The chips after ``parent``'s Run label; the row, and the ``controls`` row right to left, wrap to the width."""
+    chips = {key: Chip(parent, key, on_pick) for key in targets()}
     parent.tier_chip = TierChip(parent)
-    parent.tier_chip.pack(side="right", padx=2)
+    wrap_tabs(parent, parent.winfo_children())
+    if controls is not None:
+        wrap_tabs(controls, controls.winfo_children()[::-1])
     return chips
 
 
