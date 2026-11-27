@@ -85,7 +85,8 @@ def build_bots_settings(app, parent) -> None:
         canvas.configure(scrollregion=canvas.bbox("all"))
         canvas.itemconfig(window, width=event.width)
 
-    body.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+    body.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all"),
+                                                             height=body.winfo_reqheight()))
     canvas.bind("<Configure>", _fit)
 
     def refill() -> None:

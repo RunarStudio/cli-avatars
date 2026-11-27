@@ -46,9 +46,9 @@ def _build_config_ui(self, win):
     nb.pack(fill="both", expand=True, padx=8, pady=8)
 
     def tab(label):
-        f = ttk.Frame(nb, style="Dark.TFrame")
-        nb.add(f, text=label)
-        return f
+        from cli_avatars.app import scroll_tab
+
+        return scroll_tab.add(nb, label, BG)
 
     def row(parent, label, widget_fn, pady=3):
         r = tk.Frame(parent, bg=BG, pady=pady)
