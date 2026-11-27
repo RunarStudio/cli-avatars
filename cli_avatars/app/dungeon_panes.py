@@ -299,16 +299,20 @@ def _body(view, root) -> None:
     attach_nav(view)
     rstrip = tk.Frame(view._right, bg=_TABS)
     rstrip.pack(fill="x")
-    view._rtab_chat = Tab(rstrip, "dock_chat", text="Chat", command=lambda: view.set_right(True, "chat"))
-    view._rtab_chat.pack(side="left", anchor="s", padx=(6, 2), pady=(4, 0))
-    view._rtab_needs = Tab(rstrip, "dock_needs", text="Needs you", command=lambda: view.set_right(True, "needs"))
-    view._rtab_needs.pack(side="left", anchor="s", padx=2, pady=(4, 0))
-    view._rtab_settings = Tab(
-        rstrip, "dock_settings", text="Settings", command=lambda: view.set_right(True, "settings"),
-    )
-    view._rtab_settings.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    # Pop out is packed first so it keeps its width; the tabs fit in what is left
     view._pop_btn = control(rstrip, "pop", text="Pop out", command=view.toggle_pop)
     view._pop_btn.pack(side="right", padx=6, pady=3)
+    rtabs = tk.Frame(rstrip, bg=_TABS)
+    rtabs.pack(side="left", fill="x", expand=True)
+    view._rtab_chat = Tab(rtabs, "dock_chat", text="Chat", command=lambda: view.set_right(True, "chat"))
+    view._rtab_chat.pack(side="left", anchor="s", padx=(6, 2), pady=(4, 0))
+    view._rtab_needs = Tab(rtabs, "dock_needs", text="Needs you", command=lambda: view.set_right(True, "needs"))
+    view._rtab_needs.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    view._rtab_settings = Tab(
+        rtabs, "dock_settings", text="Settings", command=lambda: view.set_right(True, "settings"),
+    )
+    view._rtab_settings.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    fit_tabs(rtabs, [view._rtab_chat, view._rtab_needs, view._rtab_settings])
     view._right_body = tk.Frame(view._right, bg=_BG)
     view._right_body.pack(fill="both", expand=True)
     # Parent is the root so the chat frame can be packed into a popped-out Toplevel.
