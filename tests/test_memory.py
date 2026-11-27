@@ -12,6 +12,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from cli_avatars.app import memory_actions as ma  # noqa: E402
 from cli_avatars.app import memory_inbox as mi  # noqa: E402
 from cli_avatars.app import memory_notes as mn  # noqa: E402
 
@@ -218,6 +219,29 @@ class Curator(Base):
         mi.append(self.notes, "idea", "a cold frame", "task:t3", "Garden", "", now=NOON)
         curator.clear(self.notes, merged)
         self.assertEqual(mn.inbox_count(self.notes), 1)
+
+
+class Actions(Base):
+    def test_obsidian_url_and_scheduler_lines(self):
+        self.assertEqual(ma.obsidian_url(Path("/notes/my memory")), "obsidian://open?path=%2Fnotes%2Fmy%20memory")
+        opened = []
+        self.assertTrue(ma.open_in_obsidian(self.notes, lambda url: opened.append(url) or True))
+        self.assertTrue(opened[0].startswith("obsidian://open?path="))
+        self.assertEqual(ma.consolidate_at({}), "03:00")
+        self.assertEqual(ma.consolidate_at({"memory": {"consolidate_at": "4:30"}}), "04:30")
+        self.assertEqual(ma.consolidate_at({"memory": {"consolidate_at": "late"}}), "03:00")
+        lines = ma.scheduler_lines(self.notes, "04:30", "pyw")
+        self.assertIn('schtasks /Create /F /SC DAILY /ST 04:30 /TN "CLI Avatars memory curator"', lines["windows"])
+        self.assertIn("memory_curator.py", lines["windows"])
+        self.assertTrue(lines["cron"].startswith('30 4 * * * "pyw"'))
+
+    def test_consolidate_now_only_asks_and_starts_the_curator(self):
+        started = []
+        self.assertEqual(ma.consolidate_now(self.notes, lambda *a: started.append(a) or True), "Consolidating…")
+        self.assertTrue(mn.status(self.notes)["requested"])
+        python, script, root = started[0]
+        self.assertEqual((script, root), (self.notes / mn.CURATOR, self.notes))
+        self.assertIn("Set up", ma.consolidate_now(self.base / "none", lambda *a: True))
 
 
 if __name__ == "__main__":

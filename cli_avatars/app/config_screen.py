@@ -253,6 +253,10 @@ def _build_config_ui(self, win):
     tbots = tab(" Bots ")
     build_bots_settings(self, tbots)
 
+    from cli_avatars.app import memory_settings
+
+    self._memory_settings = memory_settings.mount(self, tab(" Memory "))
+
     tphone = tab(" Phone ")
     build_phone_settings(self, tphone)
 

@@ -227,6 +227,7 @@ class CardPanel:
         self.history.pack(fill="both", expand=True, padx=8, pady=(4, 0))
         row = self._row()
         button(row, "Archive", lambda: self._do("archive"), "#4a3a2a").pack(side="left")
+        button(row, "Remember", self._remember, WOOD).pack(side="left", padx=4)
         button(row, "Close", self._close, WOOD).pack(side="right")
         self._error("form")
         self._fill_fields(card)
@@ -448,6 +449,13 @@ class CardPanel:
     def _comment(self) -> None:
         if self._do("comment", self.comment_entry.get()):
             self.comment_entry.delete(0, "end")
+
+    def _remember(self) -> None:
+        """MEMORY.1: the card's title into the Memory tab's Remember form."""
+        from cli_avatars.app import memory_panel
+
+        card = self.card or {}
+        memory_panel.offer(card.get("title", ""), f"task:{str(card.get('id', ''))[:8]}", card.get("topic") or "")
 
     def _do(self, name: str, *args, **kw) -> bool:
         if self.card is None:

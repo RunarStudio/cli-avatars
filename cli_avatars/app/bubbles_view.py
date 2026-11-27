@@ -240,10 +240,14 @@ class BubblesView:
 
 
 def _repos_step(app) -> None:
-    """REPOS.1: which agents work in Daniel's repos; a failure never stops the tick."""
-    from cli_avatars.app import repos_panel
+    """REPOS.1: which agents work in Daniel's repos; MEMORY.1: the Memory tab; a failure never stops the tick."""
+    from cli_avatars.app import memory_panel, repos_panel
 
     try:
         repos_panel.step(app)
     except Exception:
         logging.getLogger("cli_avatars.repos").exception("repos step failed")
+    try:
+        memory_panel.step(app)
+    except Exception:
+        logging.getLogger("cli_avatars.memory").exception("memory step failed")

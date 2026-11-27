@@ -902,6 +902,24 @@ class ChatWindow:
         note.grid(row=1, column=0, columnspan=6, padx=(6, 8), pady=(0, 6), sticky="ew")
         fonts.fit(note)
         row.grid_columnconfigure(5, weight=1)
+        for widget in (row, note):
+            widget.bind("<Button-3>", lambda event, said=line: self._remember_menu(event, said))
+
+    def _remember_menu(self, event, line) -> None:
+        """MEMORY.1: right-click a message, Remember… opens the Memory tab's form with its text."""
+        from cli_avatars.app import memory_panel
+
+        menu = tk.Menu(self.win, tearoff=0, bg=BG, fg=INK, activebackground=BTN, activeforeground="white", font=FONT)
+        topic = self._topic_id or ""
+        menu.add_command(label="Remember…", command=lambda: memory_panel.offer(
+            line.note, f"chat:{topic}@{line.clock}", topic))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            try:
+                menu.grab_release()
+            except Exception:
+                pass
 
     def _render_decision(self, parent, row, by_id) -> None:
         answered = row.get("status") == "answered"

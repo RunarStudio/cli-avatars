@@ -136,6 +136,14 @@ def double(app, event) -> None:
     from cli_avatars.app.room_floor import Plan
 
     room = Plan.from_layout(painter.layout).room_at(*tile)
+    from cli_avatars.app.topic_rooms import topic_of_room
+
+    topic = topic_of_room(painter.layout, room) if room is not None else ""
+    if topic:
+        from cli_avatars.app.memory_panel import show_topic
+
+        show_topic(app, topic)
+        return
     if room is not None and jump(app, room):
         from cli_avatars.app.room_glow import glow_for
 

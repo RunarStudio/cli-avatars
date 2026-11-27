@@ -4,8 +4,9 @@
 ``rune``: a low hum and a glassy ping, when one of Daniel's repos goes in use. ``summon`` (SUMMON.1): a herald's
 horn rising a fourth over a low drum, then a hall bell, when the main orchestrator is summoned. ``found``
 (CHECK-UPD.1): two soft pings rising a third over a faint hum, when Check for updates finds new commits on dev.
-``answer`` (GROK-ORCH.1): a paper flick and one soft low bell, when a bot's answer lands on a card. All wait while a
-task is in focus.
+``answer`` (GROK-ORCH.1): a paper flick and one soft low bell, when a bot's answer lands on a card. ``remember`` and
+``consolidated`` (MEMORY.1): a line kept in the memory inbox, a consolidation finished. All wait while a task is in
+focus.
 """
 
 from __future__ import annotations
@@ -31,7 +32,31 @@ def cue(app, name: str) -> None:
 
 
 def sound(name: str) -> np.ndarray:
-    return {"ready": _ready, "rune": _rune, "summon": _summon, "found": _found, "answer": _answer}[name]()
+    return {"ready": _ready, "rune": _rune, "summon": _summon, "found": _found, "answer": _answer,
+            "remember": _remember, "consolidated": _consolidated}[name]()
+
+
+def _remember() -> np.ndarray:
+    """MEMORY.1: a soft quill tick (a short filtered click) and one low warm note under it."""
+    out = np.zeros(int(RATE * 0.7), np.float32)
+    m = int(RATE * 0.03)
+    tick = np.random.default_rng(11).standard_normal(m) * _env(m, 0.001, 140)
+    _add(out, 0.0, np.convolve(tick, np.ones(6) / 6, "same") * 0.25)
+    n = int(RATE * 0.6)
+    t = np.arange(n) / RATE
+    _add(out, 0.04, (np.sin(2 * np.pi * 293.66 * t) + 0.2 * np.sin(2 * np.pi * 587.33 * t)) * _env(n, 0.01, 6) * 0.3)
+    return out
+
+
+def _consolidated() -> np.ndarray:
+    """MEMORY.1: two soft bells, A4 then D5, settling."""
+    out = np.zeros(int(RATE * 1.2), np.float32)
+    for at, pitch in ((0.0, 440.0), (0.22, 587.33)):
+        n = int(RATE * 0.9)
+        t = np.arange(n) / RATE
+        _add(out, at, (np.sin(2 * np.pi * pitch * t) + 0.3 * np.sin(2 * np.pi * pitch * 2.0 * t))
+             * _env(n, 0.005, 4.5) * 0.3)
+    return out
 
 
 def _env(n: int, attack: float, decay: float) -> np.ndarray:

@@ -34,6 +34,8 @@ UPDATE-BAR and REPOS (``chime_cues``): ``ready``: an anvil tap and a rising fift
 ``rune``: a low hum and a glassy ping, when a repo goes in use; ``summon``: a horn and a hall bell, when the main
 orchestrator is summoned (SUMMON.1); ``found``: two soft rising pings, when Check for updates finds new commits
 (CHECK-UPD.1).
+MEMORY.1 (``chime_cues``): ``remember``: a soft quill tick and one low warm note, when a line goes to the inbox;
+``consolidated``: two soft bells settling a fourth apart, when the curator finishes.
 GROK-CHAT (``grok_cues``): ``grok-send``: a crystal flicked, when a prompt goes to Grok; ``grok-reply``: a diamond
 chime, when its reply lands.
 Windows plays it through ``winsound``; elsewhere there is no stdlib player and the cue is silent.
@@ -105,7 +107,7 @@ def wav(name: str) -> bytes:
         from cli_avatars.app.courier_cues import sound as courier_sound
 
         return _pcm(courier_sound(name))
-    if name in ("ready", "rune", "summon", "found", "answer"):
+    if name in ("ready", "rune", "summon", "found", "answer", "remember", "consolidated"):
         from cli_avatars.app.chime_cues import sound as chime_sound
 
         return _pcm(chime_sound(name))

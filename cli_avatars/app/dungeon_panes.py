@@ -79,6 +79,7 @@ def show_center(view, name: str) -> None:
     view._mail.pack_forget()
     view._repos.pack_forget()
     view._projects.pack_forget()
+    view._memory.pack_forget()
     throne = getattr(view, "_throne", None)
     if throne is not None:
         throne.pack_forget()
@@ -121,6 +122,14 @@ def show_center(view, name: str) -> None:
         view._center = "projects"
         if was != "projects":
             projects_panel.opened(view)
+    elif name == "memory":
+        from cli_avatars.app import memory_panel
+
+        view.app._picker_live = False
+        view._memory.pack(fill="both", expand=True)
+        view._center = "memory"
+        if was != "memory":
+            memory_panel.opened(view)
     elif name == "throne" and throne is not None:
         from cli_avatars.app.throne_panel import ensure
 
@@ -151,6 +160,7 @@ def show_center(view, name: str) -> None:
     mark(view._tab_mail, view._center == "mailroom")
     mark(view._tab_repos, view._center == "repos")
     mark(view._tab_projects, view._center == "projects")
+    mark(view._tab_memory, view._center == "memory")
 
 
 def show_right(view) -> None:
@@ -269,6 +279,8 @@ def _body(view, root) -> None:
     view._tab_repos.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_projects = Tab(strip, "projects", text="Projects", command=lambda: view.show_center("projects"))
     view._tab_projects.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    view._tab_memory = Tab(strip, "memory", text="Memory", command=lambda: view.show_center("memory"))
+    view._tab_memory.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view.scene = tk.Canvas(view._mid, bg=_FLOOR, highlightthickness=0, bd=0)
     view._skins = tk.Frame(view._mid, bg=_BG)
     view._tasks = tk.Frame(view._mid, bg=_BG)
@@ -277,6 +289,10 @@ def _body(view, root) -> None:
     view._mail = tk.Frame(view._mid, bg=_BG)
     view._repos = tk.Frame(view._mid, bg=_BG)
     view._projects = tk.Frame(view._mid, bg=_BG)
+    view._memory = tk.Frame(view._mid, bg=_BG)
+    from cli_avatars.app import memory_panel
+
+    memory_panel.install(view)
     view.scene.bind("<Configure>", lambda _e: paint_floor(view.scene))
     attach_nav(view)
     rstrip = tk.Frame(view._right, bg=_TABS)
