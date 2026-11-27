@@ -116,10 +116,13 @@ check("task tables drawn", len(canvas.find_withtag(life_view.TABLE)) >= 3)
 
 agents["a1b2c3d4"].status = "idle"
 agents["a1b2c3d4"].last_seen = clock[0] - 90
-tick(0.3)
+walked = False
+for _ in range(6):  # the trip is seen on any step: one that starts beside the object ends within 0.3 s
+    tick(0.05)
+    walked = walked or "a1b2c3d4" in hall._trips
 hold = view.holds.get("a1b2c3d4")
 check("short idle takes an object", hold is not None and hold.tier == idle_life.SHORT, str(view.holds))
-check("walks there through the doors", "a1b2c3d4" in hall._trips)
+check("walks there through the doors", walked)
 tick(14.0)
 check("stands at it", near(hall._feet["a1b2c3d4"], view.holds["a1b2c3d4"].feet),
       f"{hall._feet['a1b2c3d4']} {view.holds['a1b2c3d4'].feet}")
