@@ -66,7 +66,10 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board", "registry", "resources"]
+include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board", "memmap", "registry", "resources", "webui"]
+
+[tool.setuptools.package-data]
+webui = ["static/*"]
 
 [tool.ruff]
 line-length = 120

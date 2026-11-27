@@ -33,14 +33,14 @@ class PackagingTests(unittest.TestCase):
     def test_packages_find_includes_subpackages(self):
         text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn(
-            'include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board", "registry", "resources"]',
+            'include = ["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board", "memmap", "registry", "resources", "webui"]',
             text,
         )
         from setuptools import find_packages
 
         found = set(find_packages(
             str(ROOT),
-            include=["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board", "registry", "resources"],
+            include=["cli_avatars", "cli_avatars.*", "cli_avatars_mcp", "bots", "bots.*", "board", "memmap", "registry", "resources", "webui"],
         ))
         for name in PACKAGES:
             self.assertIn(name, found)
