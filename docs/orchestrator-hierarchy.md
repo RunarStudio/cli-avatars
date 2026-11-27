@@ -32,14 +32,17 @@ effort flag unless `chat.tiers.main` sets one; its chip shows the CLI (`GROK`). 
 
 | Tier | Where it starts | Chip | Default | What it does |
 |------|-----------------|------|---------|--------------|
-| main | throne room | crown | Grok, its own model (Claude: `fable`, high) | plans, splits into topics, delegates; never does the work |
-| topic | simple room | banner | Claude `fable`, high | turns its topic into tasks, one task chat each |
-| task | a card's task chat | scroll | Claude `opus`, medium | does one task; sends quick lookups to subagents |
-| subagent | inside a task chat | spark | Claude `haiku`, low | one narrow job, fast and cheap, then reports back |
+| main | throne room | crown | Grok, its own model (Claude: your Claude model, high) | plans, splits into topics, delegates; never does the work |
+| topic | simple room | banner | Claude, your Claude model, high | turns its topic into tasks, one task chat each |
+| task | a card's task chat | scroll | Claude, your Claude model, medium | does one task; sends quick lookups to subagents |
+| subagent | inside a task chat | spark | Claude, your Claude model, low | one narrow job, fast and cheap, then reports back |
 
-Why: planning and splitting work is where a wrong call costs most, so the two orchestrator tiers get the strongest
-model and high effort. A task chat does the work on a strong model at medium effort. Subagents do the many small,
-mechanical jobs on the fastest, cheapest model.
+No tier picks a model out of the box (MODELFIX): a Claude chat sends no `--model` and runs on the model you set in
+your own Claude Code, so it never asks for one your plan does not include. The chip then shows the CLI
+(`CLAUDE · HIGH`) and the sample line says "claude's own model". Effort still has a default per tier (`--effort` works
+without `--model`, per `claude --help`): planning and splitting work is where a wrong call costs most, so the two
+orchestrator tiers think hardest; subagents do small, mechanical jobs at low effort. Want a stronger model for the
+orchestrators or a cheaper one for subagents? Set it per tier in Settings.
 
 Each launch takes its tier from where it starts. A fresh session gets the tier's role text on stdin (after the context
 pack and task, before your prompt), naming who it delegates to and on which model. The app cannot pick a subagent's
@@ -49,14 +52,20 @@ chips and a legend, read-only.
 
 ## Pick model and effort in Settings (TIERS-SETTINGS.1)
 
-**Settings › Chat › Chat tiers** has one row per tier: its glyph, name and where it runs, a model box (suggestions
-from the tier's CLI, e.g. fable, opus, sonnet, haiku for Claude, or type any plain name), an effort list and **Reset
-to default**. A pick saves `chat.tiers.<tier>.model` and `.effort` at once; the sample line under the row
-(`Main orchestrator: claude opus, medium effort`), the door chips and the next launch follow. A chat that is running
-keeps going. The main row's CLI is the one picked above it (`orchestrator.main`); switching it changes the row's
+**Settings › Chat › Chat tiers** has one row per tier: its glyph, name and where it runs, a model box (empty: your
+own Claude model; suggestions from the tier's CLI, e.g. fable, opus, sonnet, haiku for Claude, or type any plain
+name), an effort list and **Reset to default** (back to your own model and the tier's effort). A pick saves
+`chat.tiers.<tier>.model` and `.effort` at once (an effort with an empty model box saves the effort only); the sample
+line under the row (`Main orchestrator: claude opus, medium effort`), the door chips and the next launch follow. A chat
+that is running keeps going. The main row's CLI is the one picked above it (`orchestrator.main`); switching it changes the row's
 suggestions. The phone's App sheet (⚙) shows the same rows, editable when the phone may send. **Update** keeps
 `config.json`: the new build gets your file, your values win and only keys you never had come from the new build.
-The defaults in `tiers.py` do not change.
+The defaults in `tiers.py` do not change. A model you saved stays saved and is sent, also one you picked before
+MODELFIX.
+
+A model you saved that Claude turns down (not on your plan, or not a model name) shows one line in the chat after
+Claude's own message: `Claude refused the Topic orchestrator model “fable” (…). Settings › Chat › Chat tiers › Topic
+orchestrator: Reset to default runs it on your own Claude model.` Nothing switches model behind your back.
 
 ## Change them
 
