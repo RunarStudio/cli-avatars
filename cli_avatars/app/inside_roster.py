@@ -13,7 +13,18 @@ import zlib
 from contextlib import contextmanager
 from dataclasses import replace
 
-from cli_avatars.app.av_roster import GROK, USER_ID, base_hue, bot_hues, kind_of, look_for, roster_frame
+from cli_avatars.app.av_roster import (
+    GROK,
+    USER_ID,
+    base_hue,
+    bot_hues,
+    kind_of,
+    look_for,
+    look_key,
+    main_id,
+    roster_frame,
+    set_main,
+)
 from cli_avatars.app.needs_walk import Walker, beside, needing, read_rooms, stroll
 from cli_avatars.app.room_fit import fit_inside
 from cli_avatars.app.room_floor import Plan, along, length, wander
@@ -47,6 +58,8 @@ def roster_rows(feet: dict, inside: dict, rooms: dict, hues: dict, walking: set,
                "face": -1 if getattr(av, "dir", 1) < 0 else 1, "walk": aid in walking}
         if kind == GROK:
             row["hue"] = hues.get(aid, base_hue(aid))
+        if aid != USER_ID and look_key(agent) != kind:
+            row["look"] = look_key(agent)
         if body and aid in body:
             row.update(body[aid])
         if picks and aid in picks:
@@ -224,6 +237,7 @@ class Hall:
         inside = self.book.app._inside
         agents = {aid: inside[aid].agent for aid in spots if aid in inside}
         self.hues = bot_hues(aid for aid, agent in agents.items() if kind_of(agent) == GROK)
+        set_main(main_id(agents, getattr(self.book.app, "config", None)), agents)
         self._meet(agents, now)
         topics, cards = self._rooms()
         from cli_avatars.app import body_view, boss_view, courier_view, life_view, you_view
@@ -380,6 +394,7 @@ class Hall:
         inside = self.book.app._inside
         agents = {aid: inside[aid].agent for aid in spots if aid in inside}
         self.hues = bot_hues(aid for aid, agent in agents.items() if kind_of(agent) == GROK)
+        set_main(main_id(agents, getattr(self.book.app, "config", None)), agents)
         topics, cards = self._rooms()
         need = set(needing(topics, cards, agents))
         user, gap = self.user_spot(), STEP * self._scale()

@@ -42,6 +42,8 @@ def roster(lay, _now):
         row = {"id": aid, "kind": kind, "name": name, "room": room, "feet": (u + du, v + dv), "face": 1, "walk": False}
         if need:
             row["need"] = need
+        if kind == "orchestrator" and aid != "qu01":
+            row["look"] = "claude"  # INSTALLDAY: Quill is the main orchestrator (Caine), other Claude sessions Michimaru
         out.append(row)
     return out
 

@@ -138,7 +138,7 @@ class RosterTests(unittest.TestCase):
         self.assertEqual(saved.name, "OCA desk")
         moved = next(bot for bot in loaded.bots if bot.id == bot_id)
         self.assertEqual(moved.group_id, target)
-        self.assertEqual(moved.skin, "caine")
+        self.assertEqual(moved.skin, "amongo")
 
     def test_migration_without_version_assigns_ids(self):
         raw = {
@@ -157,7 +157,7 @@ class RosterTests(unittest.TestCase):
         names = {bot.name: bot for bot in roster.bots}
         self.assertEqual(names["Dwight"].group_id, "personal")
         self.assertEqual(names["Dwight"].skin, "bubble")
-        self.assertEqual(names["Stray"].skin, "caine")
+        self.assertEqual(names["Stray"].skin, "amongo")
         sections = {item.name: [bot.name for bot in bots] for item, bots in grouped(roster)}
         self.assertEqual(sections["Personal"], ["Dwight"])
         self.assertEqual(sections["Ungrouped"], ["Stray"])

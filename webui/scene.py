@@ -16,7 +16,7 @@ from pathlib import Path
 
 from board.model import COLUMNS, effective_progress
 from bundle_paths import asset_path
-from cli_avatars.app.av_roster import LOOKS, shift_body
+from cli_avatars.app.av_roster import LOOKS, native_cell, shift_body, shrink
 from cli_avatars.app.door_counts import read as read_counts
 from cli_avatars.app.door_counts import zeros
 from cli_avatars.app.dungeon_rooms import TILE_HALF_H, TILE_HALF_W, compose, load_manifest
@@ -29,7 +29,7 @@ from webui import live, park_scene
 from webui.skin_sprite import key_of, sheet_png, timing
 
 # roster look -> the Dungeon's AV.1 look; a Grok bot's own hue is "grok-<0..359>"
-_LOOK = re.compile(r"^(user|orchestrator|grok|subagent)(?:-(\d{1,3}))?$")
+_LOOK = re.compile(r"^(user|orchestrator|grok|subagent|claude)(?:-(\d{1,3}))?$")
 FEET_UP = 0.08
 COURIER_FEET = 0.04
 ORDER = {name: i for i, name in enumerate(("doing", "blocked", "review", "todo", "done"))}
@@ -153,19 +153,22 @@ def _look_png(key: str) -> tuple[bytes, int, int, int] | None:
 
     look = LOOKS[kind]
     try:
-        with Image.open(asset_path("Sprites", f"{look.skin}.png")) as img:
+        fname = "Michimaru.png" if look.skin == "michimaru" else f"{look.skin}.png"
+        with Image.open(asset_path("Sprites", fname)) as img:
             sheet = img.convert("RGBA")
     except (OSError, ValueError):
         return None
     rows = []
+    step = look.width or look.cell
     for row in (0, 1):
         cells = []
-        for col in range(sheet.width // look.cell):
-            box = (col * look.cell + look.dx, row * look.cell + look.dy)
-            cell = sheet.crop((*box, box[0] + look.size, box[1] + look.size))
+        for col in range(sheet.width // step):
+            box = (col * step, row * look.cell, (col + 1) * step, (row + 1) * look.cell)
+            frame = native_cell(sheet.crop(box), look)
+            cell = frame.crop((look.dx, look.dy, look.dx + look.size, look.dy + look.size))
             if cell.getchannel("A").getbbox() is None:
                 break
-            cells.append(shift_body(cell, int(hue)) if hue is not None else cell)
+            cells.append(shrink(shift_body(cell, int(hue)) if hue is not None else cell, look.shrink))
         rows.append(cells if cells or not rows else rows[0])
     if not rows[0]:
         return None
@@ -190,6 +193,8 @@ def sprite_key(row: dict) -> str:
     hue = row.get("hue")
     if isinstance(row.get("skin"), str):
         return key_of(row["skin"])
+    if row.get("look") in ("orchestrator", "claude"):
+        return row["look"]
     return f"grok-{hue}" if row["kind"] == "grok" and type(hue) is int and 0 <= hue < 360 else row["kind"]
 
 

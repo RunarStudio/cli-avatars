@@ -34,7 +34,7 @@ SKINS = (
     "frost_wanderer",
     "bunnylot",
 )
-DEFAULT_SKIN = "caine"
+DEFAULT_SKIN = "amongo"
 
 _ID = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,39})$")
 _SLUG = re.compile(r"[^a-z0-9]+")

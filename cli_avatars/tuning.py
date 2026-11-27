@@ -35,7 +35,7 @@ BODY_COLORS = [
 SPRITES_DIR = asset_path("Sprites")
 
 # Skin cycling order for real sessions (index 0 = first real session)
-REAL_SESSION_SKINS = ["caine", "meowatar", "amongo", "michimaru",
+REAL_SESSION_SKINS = ["michimaru", "caine", "meowatar", "amongo",
                       "ember_mage", "forest_scout", "frost_wanderer"]
 
 # Default spring rest. The leash radius is this times 3 at startup.

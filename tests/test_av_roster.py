@@ -22,6 +22,7 @@ from cli_avatars.app.av_roster import (  # noqa: E402
     look_for,
     roster_frame,
     shift_body,
+    shrink,
 )
 from cli_avatars.model.agent import AgentInfo  # noqa: E402
 
@@ -150,7 +151,7 @@ class Frame(unittest.TestCase):
     def test_a_bot_frame_is_hued(self):
         look = look_for(_agent("pip", source="bot"), {"pip": 150})
         native = _cell("amongo", 40)
-        self.assertEqual(roster_frame(native, look, 1, False).tobytes(), shift_body(native, 150).tobytes())
+        self.assertEqual(roster_frame(native, look, 1, False).tobytes(), shrink(shift_body(native, 150), 0.7).tobytes())
 
     def test_no_tkinter(self):
         self.assertNotIn("tkinter", Path(av_roster.__file__).read_text(encoding="utf-8"))
