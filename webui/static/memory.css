@@ -1,0 +1,12 @@
+/* MEMORY.1: the read-only Memory sheet. */
+.mem-ico { display: inline-block; width: 12px; height: 14px; border: 2px solid currentColor; border-radius: 2px;
+  box-shadow: 3px 3px 0 -1px var(--torch-2, #ffcf4a); vertical-align: -2px; }
+.mem-card-sheet .sheet-body { background: radial-gradient(140% 70% at 50% 0%, #2a2440 0%, #18131f 60%, #100c15 100%); }
+.mem-line { margin: 4px 0; color: #9a98b8; font-size: 13px; }
+.mem-warn { margin: 4px 0; color: #ff8866; font-size: 13px; }
+.mem-rows { list-style: none; margin: 0; padding: 0; }
+.mem-card { margin: 6px 0; padding: 8px 10px; border: 1px solid #33284a; border-radius: 6px; background: #1b1524; }
+.mem-card.room { border-color: #ffcf4a; }
+.mem-next { margin: 0 0 2px; color: #ffcf4a; overflow-wrap: anywhere; }
+.mem-name { display: block; color: #e8e6f4; }
+.mem-card small { color: #9a98b8; overflow-wrap: anywhere; }

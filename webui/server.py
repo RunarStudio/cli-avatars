@@ -88,6 +88,8 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/projects.js": ("projects.js", "text/javascript; charset=utf-8"),
          "/static/projects.css": ("projects.css", "text/css; charset=utf-8"),
          "/static/repos.css": ("repos.css", "text/css; charset=utf-8"),
+         "/static/memory.js": ("memory.js", "text/javascript; charset=utf-8"),
+         "/static/memory.css": ("memory.css", "text/css; charset=utf-8"),
          "/static/tiers.js": ("tiers.js", "text/javascript; charset=utf-8"),
          "/static/start.js": ("start.js", "text/javascript; charset=utf-8"),
          "/static/check.js": ("check.js", "text/javascript; charset=utf-8"),
@@ -460,6 +462,10 @@ class Handler(BaseHTTPRequestHandler):
             return repo_routes.read(self)
         if path == "/api/tiers":
             return tier_routes.read(self)
+        if path == "/api/memory":
+            from webui import memory_routes
+
+            return memory_routes.read(self)
         found = projects_routes.PATH.match(path)
         if found:
             return projects_routes.read(self, found.group(1), query)

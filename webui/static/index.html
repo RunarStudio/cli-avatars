@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/static/boss.css">
 <link rel="stylesheet" href="/static/voice.css">
 <link rel="stylesheet" href="/static/repos.css">
+<link rel="stylesheet" href="/static/memory.css">
 <link rel="stylesheet" href="/static/tier_settings.css">
 <link rel="stylesheet" href="/static/projects.css">
 <link rel="stylesheet" href="/static/grok.css">
@@ -39,6 +40,7 @@
       <button id="mailBtn" class="icon mail" type="button" title="Mailroom: nothing to sort" aria-haspopup="dialog"><span class="env" aria-hidden="true"></span><span id="mailCount" class="needs-count" hidden></span></button>
       <button id="standupBtn" class="icon standup" type="button" title="Standup: not called yet" aria-haspopup="dialog"><span class="horn" aria-hidden="true"></span></button>
       <button id="projectsBtn" class="icon projects-btn" type="button" title="Projects: tasks, topics, chats, repos" aria-haspopup="dialog"><span class="ledger" aria-hidden="true"></span></button>
+      <button id="memoryBtn" class="icon memory-btn" type="button" title="Memory: your topics and their next action (read only)" aria-haspopup="dialog"><span class="mem-ico" aria-hidden="true"></span></button>
       <button id="recapBtn" class="icon recap" type="button" title="Daily recap: what each agent did" aria-haspopup="dialog"><span class="scroll-ico" aria-hidden="true"></span></button>
       <button id="lapseBtn" class="icon lapse-btn" type="button" aria-pressed="false" title="Time-lapse: scrub the day and watch the avatars move"><span class="glass-ico" aria-hidden="true"></span></button>
       <button id="editRoom" class="icon" type="button" title="Edit this room" aria-haspopup="dialog" hidden>&#9998;</button>
@@ -296,6 +298,17 @@
     </div>
   </div>
 </div>
+<div id="memory" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="memoryTitle">
+  <div class="sheet-card mem-card-sheet">
+    <header class="bar"><h2 id="memoryTitle"><span class="mem-ico" aria-hidden="true"></span>Memory</h2><button id="memoryClose" class="icon" type="button" title="Close">&#10005;</button></header>
+    <div class="sheet-body">
+      <p id="memoryLine" class="mem-line" aria-live="polite"></p>
+      <p id="memoryWarn" class="mem-warn" hidden></p>
+      <ol id="memoryRows" class="mem-rows"></ol>
+      <p class="hint">Reading only. Remember and Consolidate now live in the Dungeon's Memory tab.</p>
+    </div>
+  </div>
+</div>
 <div id="standup" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="standupTitle">
   <div class="sheet-card su-card">
     <header class="bar"><h2 id="standupTitle"><span class="horn" aria-hidden="true"></span>Standup</h2><button id="standupClose" class="icon" type="button" title="Close">&#10005;</button></header>
@@ -380,6 +393,7 @@
 <script src="/static/voice.js"></script>
 <script src="/static/rise.js"></script>
 <script src="/static/repos.js"></script>
+<script src="/static/memory.js"></script>
 <script src="/static/tier_settings.js"></script>
 <script src="/static/projects.js"></script>
 <script src="/static/tiers.js"></script>
