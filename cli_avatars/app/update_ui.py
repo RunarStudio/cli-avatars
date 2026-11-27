@@ -218,11 +218,18 @@ def _fill(app) -> None:
     if reason or running or getattr(app, "_check_running", False):
         button.config(state="disabled", cursor="")
     if reason:
-        tk.Label(frame, text="  " + reason, bg=_BG, fg=_BAD, font=fonts.face(9), anchor="w").pack(fill="x")
+        wrap(tk.Label(frame, text=reason, bg=_BG, fg=_BAD, font=fonts.face(9), anchor="w")).pack(fill="x", padx=(10, 4))
     app._update_button = button
     from cli_avatars.app.check_ui import fill_settings
 
     fill_settings(app, frame, row)
+
+
+def wrap(label: tk.Label) -> tk.Label:
+    """A left-aligned line that wraps to its own width instead of running past the panel's edge."""
+    label.config(justify="left", wraplength=200)
+    label.bind("<Configure>", lambda e: label.config(wraplength=max(60, e.width - 4)))
+    return label
 
 
 def _bar(result: UpdateResult) -> str:

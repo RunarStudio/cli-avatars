@@ -161,10 +161,11 @@ def fill_settings(app, frame, row) -> None:
             PHASE_CURRENT: (f"Check: up to date · {at}", _OK),
             PHASE_NEWS: (f"Check: {result.message} · {at}", _NEWS),
         }.get(result.phase, ("Check stopped: " + result.message, _BAD))
-        tk.Label(frame, text="  " + text, bg=_BG, fg=color, font=fonts.face(9, "bold"), anchor="w").pack(fill="x")
+        update_ui.wrap(tk.Label(frame, text=text, bg=_BG, fg=color, font=fonts.face(9, "bold"),
+                                anchor="w")).pack(fill="x", padx=(10, 4))
         for subject in result.subjects if result.phase == PHASE_NEWS else ():
-            tk.Label(frame, text="    · " + subject, bg=_BG, fg=_DIM, font=fonts.face(9), anchor="w",
-                     justify="left").pack(fill="x")
+            update_ui.wrap(tk.Label(frame, text="· " + subject, bg=_BG, fg=_DIM, font=fonts.face(9),
+                                    anchor="w")).pack(fill="x", padx=(20, 4))
     sync_check_tool(app)
 
 
