@@ -60,7 +60,8 @@ model = sr.SessionRooms(DATA / "ui" / "session_rooms.json")
 model.open(sr.MAIN, "claude", "moon-forge")
 model.open(sr.SIMPLE, "claude", "glass-orchard")
 
-clock = [time.time()]
+# off Fridays: the boss burn-down parchment covers the Apothecary floor that day
+clock = [time.time() - (86400 if time.localtime().tm_wday == 4 else 0)]
 agents = {aid: AgentInfo(aid, name, status="idle", skin="caine", source="claude", project="lantern",
                          last_seen=clock[0] - 600) for aid, name in AGENTS}
 canvas = tk.Canvas(root, width=1200, height=760, highlightthickness=0, bd=0)
