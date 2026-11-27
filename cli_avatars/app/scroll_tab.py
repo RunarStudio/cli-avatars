@@ -44,5 +44,32 @@ def add(notebook, label: str, bg: str) -> tk.Frame:
     return inner
 
 
+def name_rows(notebook, font, colors: tuple[str, str, str, str]) -> tk.Frame:
+    """The notebook's tab names as buttons in rows above it, each in full (ttk squeezes them into one row).
+
+    ``colors``: background and text of a tab, then of the selected one.
+    """
+    from cli_avatars.app.toolbar_widgets import wrap_tabs
+
+    ttk.Style(notebook).layout(f"{notebook.cget('style')}.Tab", [])
+    strip = tk.Frame(notebook.master, bg=notebook.master.cget("bg"))
+    strip.pack(fill="x", padx=8, pady=(8, 0), before=notebook)
+    notebook.pack_configure(pady=(4, 8))
+    names = {}
+    for tab in notebook.tabs():
+        names[tab] = tk.Button(strip, text=str(notebook.tab(tab, "text")).strip(), font=font, relief="flat", bd=0,
+                               padx=8, pady=3, cursor="hand2", command=lambda t=tab: notebook.select(t))
+
+    def mark(_event=None) -> None:
+        for tab, button in names.items():
+            bg, fg = colors[2:] if tab == notebook.select() else colors[:2]
+            button.config(bg=bg, fg=fg, activebackground=colors[2], activeforeground=colors[3])
+
+    notebook.bind("<<NotebookTabChanged>>", mark, add="+")
+    mark()
+    wrap_tabs(strip, list(names.values()))
+    return strip
+
+
 def canvas_of(inner: tk.Frame) -> tk.Canvas:
     return inner.master

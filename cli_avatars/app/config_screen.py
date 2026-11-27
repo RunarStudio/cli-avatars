@@ -276,6 +276,10 @@ def _build_config_ui(self, win):
     row(tb, "Idle min frames",lambda p: spinbox(p, v_idlelo, 5, 200, 5))
     row(tb, "Idle max frames",lambda p: spinbox(p, v_idlehi, 5, 200, 5))
 
+    from cli_avatars.app import scroll_tab
+
+    scroll_tab.name_rows(nb, FONT, (SEL, FG, "#334477", "white"))
+
     # ── Apply button ──────────────────────────────────────────────
     tk.Frame(win, bg="#223366", height=1).pack(fill="x", padx=10, pady=4)
 
