@@ -335,6 +335,9 @@ function setAvatars(list, now) {
     const from = was ? place(was, now) : a.at;
     next.set(a.id, { a, from, to: a.at, t0: now });
   }
+  for (const a of StateInk.changed(state.walkers, list)) {
+    for (const chip of document.querySelectorAll(`.pm-state[data-bot="${a.id}"]`)) StateInk.paint(chip, a.state, state.scene.inks, true);
+  }
   state.walkers = next;
 }
 

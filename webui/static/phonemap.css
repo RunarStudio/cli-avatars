@@ -44,9 +44,9 @@
 .pm-cli, .pm-state, .pm-need { font-size: 11px; padding: 2px 6px; letter-spacing: .04em; white-space: nowrap; box-shadow: 0 0 0 2px var(--deep); }
 .pm-cli { color: #e8dcc0; background: #2a2038; }
 .pm-cli.claude { color: #1a0f05; background: var(--claude); } .pm-cli.grok { color: #08101c; background: var(--grok); }
-.pm-state { color: var(--dim); background: #1a1422; }
-.pm-state.busy, .pm-state.thinking { color: #08160a; background: #5ad16a; }
-.pm-state.blocked, .pm-state.error { color: #fff; background: var(--blocked); }
+.pm-state { color: var(--st, var(--dim)); background: #1a1422; box-shadow: 0 0 0 2px var(--deep), inset 0 0 0 1px var(--st, transparent); }
+.pm-state.pulse { animation: pm-pulse .6s ease-out 1; }
+@keyframes pm-pulse { from { filter: brightness(1.9); transform: scale(1.12); } to { filter: none; transform: none; } }
 .pm-need { color: #140a14; background: #ffcf4a; }
 .pm-need.reply { background: #7aa8ff; } .pm-need.blocked { background: #e0566a; } .pm-need.run { background: #6ad08a; }
 .pm-head { display: flex; gap: 14px; align-items: center; padding: 6px 2px 2px; }

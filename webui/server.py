@@ -98,6 +98,7 @@ FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/static/grok.css": ("grok.css", "text/css; charset=utf-8"),
          "/static/mapnav.js": ("mapnav.js", "text/javascript; charset=utf-8"),
          "/static/phonemap.js": ("phonemap.js", "text/javascript; charset=utf-8"),
+         "/static/stateink.js": ("stateink.js", "text/javascript; charset=utf-8"),
          "/static/phonemap.css": ("phonemap.css", "text/css; charset=utf-8"),
          "/sw.js": ("sw.js", "text/javascript; charset=utf-8")}
 OPEN = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}

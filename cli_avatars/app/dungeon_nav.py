@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from cli_avatars.app import cues, focus_mode, you_view
+from cli_avatars.app import cues, focus_mode, status_ink, you_view
 from cli_avatars.app.dungeon_camera import Camera, key_pan
 from cli_avatars.app.nav_widget import widget_for
 
@@ -252,6 +252,7 @@ def _redraw(view) -> None:
     book = getattr(view.app, "places", None)
     if book is not None:
         book.draw_inside()
+        status_ink.sweep(book)
 
 
 def _camera(view):

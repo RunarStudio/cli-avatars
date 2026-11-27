@@ -16,6 +16,7 @@ from pathlib import Path
 
 from board.model import COLUMNS, effective_progress
 from bundle_paths import asset_path
+from cli_avatars.app import status_ink
 from cli_avatars.app.av_roster import LOOKS, native_cell, shift_body, shrink
 from cli_avatars.app.door_counts import read as read_counts
 from cli_avatars.app.door_counts import zeros
@@ -262,7 +263,7 @@ def build_scene(directory: Path | str) -> dict:
     lay = layout(directory)
     found = _map(lay, park_scene.props_on(directory))
     if found is None:
-        return {"map": None, "rooms": [], "avatars": [], "sprites": {}, "tasks": {}}
+        return {"map": None, "rooms": [], "avatars": [], "sprites": {}, "tasks": {}, "inks": dict(status_ink.PALETTE)}
     _png, (w, h), (left, top) = found
     rooms = []
     board = None
@@ -306,7 +307,7 @@ def build_scene(directory: Path | str) -> dict:
             sprites[key] = {"w": strip[1], "h": strip[2], "frames": strip[3],
                             "feet": COURIER_FEET if key == "courier" else FEET_UP, **timing(key)}
     scene = {"map": {"w": w, "h": h, "origin": [left, top]}, "rooms": rooms, "avatars": avatars, "sprites": sprites,
-             "counts": {"total": counts.total, "projects": counts.projects}}
+             "counts": {"total": counts.total, "projects": counts.projects}, "inks": dict(status_ink.PALETTE)}
     from cli_avatars.app.orch_rooms import board_cards
 
     scene["park"] = park_scene.state(directory, lay, left, top, board_cards(directory) if board is None else board)

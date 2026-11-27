@@ -6,7 +6,6 @@
 
 const MINI_W = 104;
 const FULL_KEY = "cli-avatars-map-full";
-const STATE_WORDS = { busy: "working", thinking: "thinking", blocked: "blocked", error: "error", done: "done", idle: "idle" };
 state.ring = null;
 state.drawer = null;
 
@@ -185,8 +184,10 @@ function portrait(a, k) {
 }
 
 function stateChip(a) {
-  const word = STATE_WORDS[a.state] || "here";
-  return el("span", "pm-state " + (a.state || "here"), word);
+  const chip = el("span");
+  chip.dataset.bot = a.id;
+  StateInk.paint(chip, a.state, state.scene && state.scene.inks, false);
+  return chip;
 }
 
 function cliChip(a) {

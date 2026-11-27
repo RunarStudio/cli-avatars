@@ -219,8 +219,9 @@ def step_avatars(self, frame: object) -> None:
 
     if book is not None:
         book.draw_inside()
-        from cli_avatars.app import dungeon_nav, timelapse_view
+        from cli_avatars.app import dungeon_nav, status_ink, timelapse_view
 
+        status_ink.sweep(book)
         timelapse_view.paint(book)
         dungeon_nav.paint(book)
         book.note_positions()
