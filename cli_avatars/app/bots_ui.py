@@ -306,7 +306,7 @@ def _bot_editor(app, parent, service, bot, names, ids, refill) -> None:
     ).pack(side="left")
     seen = service.last_seen(bot.id)
     words = f"last seen {_ago(time.time() - seen)}" if seen else "no status yet"
-    tk.Label(line, text=("hidden from the Dungeon · " if hidden else "") + words, bg=_BG,
+    tk.Label(line, text=("hidden · " if hidden else "") + words, bg=_BG,
              fg=_GREY if hidden else _DIM, font=_SMALL).pack(side="left", padx=6)
 
 
