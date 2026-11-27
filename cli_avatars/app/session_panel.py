@@ -17,7 +17,7 @@ from tkinter import filedialog
 
 from cli_avatars.app import session_rooms as sr
 from cli_avatars.app import session_walks as sw
-from cli_avatars.app import summon, summon_ui
+from cli_avatars.app import summon, summon_ui, usage, usage_panel
 
 BG = "#141018"
 ROW = "#1c1626"
@@ -58,6 +58,7 @@ class SessionPanel:
         self.rows = tk.Frame(self.frame, bg=BG)
         self.rows.pack(fill="x", padx=6, pady=(2, 6))
         self.refresh()
+        self.usage = usage_panel.mount(self)
 
     def _choice_row(self, var, choices) -> None:
         row = tk.Frame(self.frame, bg=BG)
@@ -149,9 +150,14 @@ class SessionPanel:
             self.summon_btn.pack_forget()
         for child in self.rows.winfo_children():
             child.destroy()
+        directory = getattr(self.app, "_chat_directory", None)
         for session in [s for s in self._model().sessions if not s.closing]:
             row = tk.Frame(self.rows, bg=ROW)
             row.pack(fill="x", pady=1)
+            if callable(directory):  # USAGE.1: what its CLI reported, on a line under the row
+                said = usage.label(usage.record(directory(), session.sid), session.cli)
+                tk.Label(row, text="   " + said, bg=ROW, fg=GOLD, font="DungeonText", anchor="w").pack(side="bottom",
+                                                                                                   fill="x")
             main = session.kind == sr.MAIN
             tk.Label(row, text=("♛ " if main else "• ") + session.sid, bg=ROW, fg=GOLD if main else INK,
                      font="DungeonText", anchor="w").pack(side="left", padx=(4, 2))

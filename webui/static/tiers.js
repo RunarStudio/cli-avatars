@@ -1,6 +1,7 @@
 // HIERARCHY.1 / SUMMON.1, read-only: each session room's tier chip (crown for the throne, banner for a topic room)
 // with its model and effort, a legend of the four tiers, and while no main orchestrator is open a note to summon
-// it on the PC. The phone never starts a CLI here: no buttons, no writes.
+// it on the PC. The phone never starts a CLI here: no buttons, no writes. USAGE.1: a room's chip is the model and
+// effort its CLI reported.
 "use strict";
 
 function tierGlyph(rows, color, x, y, k) {
@@ -36,8 +37,10 @@ function drawTiers() {
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
   for (const r of s.rooms) {
-    const t = r.kind === "main" ? by.main : r.kind === "simple" ? by.topic : null;
-    if (!t || v.s < signAt()) continue;
+    const tier = r.kind === "main" ? by.main : r.kind === "simple" ? by.topic : null;
+    if (!tier || v.s < signAt()) continue;
+    // USAGE.1: what the room's CLI reported, never the tier's setting
+    const t = { ...tier, label: (h.rooms || {})[r.id] || ((r.cli || tier.cli) + " · model ?").toUpperCase() };
     const cx = r.poly.reduce((a, p) => a + p[0], 0) / 4, cy = r.poly.reduce((a, p) => a + p[1], 0) / 4;
     const y = v.y + (cy + (r.poly[2][1] - cy) * 0.5) * v.s;
     tierChip(t, v.x + cx * v.s, y + px * (r.sign ? 3.75 : 1.9), px);

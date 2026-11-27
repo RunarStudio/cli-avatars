@@ -380,6 +380,20 @@ function showHint() {
   }
   list.hidden = !list.children.length;
   list.previousElementSibling.hidden = list.hidden;
+  const use = $("mapHintUsage"), u = h && h.usage;
+  use.replaceChildren();
+  for (const r of (u && u.rows) || []) {
+    const li = el("li");
+    li.append(el("b", "", (r.kind === "bot" ? "bot " : "") + r.name), el("span", "mh-said", r.label), el("small", "", r.line));
+    use.append(li);
+  }
+  if (u && u.rows.length) {
+    const li = el("li", "mh-total");
+    li.append(el("b", "", "Total"), el("small", "", u.total.line), el("small", "", u.note));
+    use.append(li);
+  }
+  use.hidden = !use.children.length;
+  use.previousElementSibling.hidden = use.hidden;
   $("mapHint").hidden = false;
   $("mapHintOk").focus();
 }

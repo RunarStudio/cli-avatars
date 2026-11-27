@@ -99,6 +99,11 @@
 .mh-tiers { gap: 4px; font-size: 12px; }
 .mh-tiers li { display: grid; grid-template-columns: 14px auto 1fr; gap: 8px; align-items: center; }
 .mh-tier { width: 10px; height: 10px; image-rendering: pixelated; }
+.mh-usage { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; max-height: 30vh; overflow-y: auto; }
+.mh-usage li { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; }
+.mh-usage .mh-said { color: var(--torch-2); text-align: right; }
+.mh-usage small { grid-column: 1 / -1; opacity: .8; }
+.mh-usage .mh-total { border-top: 1px solid rgba(255,255,255,.15); padding-top: 4px; }
 .mh-card .send { margin-top: 12px; }
 @media (max-width: 1023px) {
   .torch, .candle, .bots-chip.on .bots-dot { animation: none; }
