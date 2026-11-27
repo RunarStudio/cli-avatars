@@ -27,6 +27,7 @@ from bots.roster import (
     move_group,
     rename_group,
     save_roster,
+    set_always_show,
     set_group_flag,
     set_skin,
 )
@@ -47,6 +48,15 @@ log = logging.getLogger("cli_avatars.bots")
 
 _SOURCE_NAME = "source.json"
 _ROSTER_NAME = "roster.json"
+HIDE_AFTER_H = 3.0
+
+
+def hide_after_s(config: object) -> float:
+    """MEMORY.1: ``bots.hide_after_hours`` (default 3) in seconds."""
+    bots = config.get("bots") if isinstance(config, dict) else None
+    hours = bots.get("hide_after_hours") if isinstance(bots, dict) else None
+    ok = isinstance(hours, (int, float)) and not isinstance(hours, bool) and hours > 0
+    return float(hours if ok else HIDE_AFTER_H) * 3600.0
 
 
 class BotService:
@@ -64,6 +74,8 @@ class BotService:
         self._roster = Roster.empty()
         self._source = SourceConfig()
         self._statuses: dict[str, BotStatus] = {}
+        self._polled: float | None = None
+        self.hide_after_s = HIDE_AFTER_H * 3600.0
         self._load()
         self._scheduler = self._make_scheduler()
 
@@ -89,6 +101,25 @@ class BotService:
             return
         with self._lock:
             self._statuses = statuses
+            self._polled = moment
+
+    def last_seen(self, bot_id: str) -> float | None:
+        """When the bot's status file last changed; None with no file yet."""
+        with self._lock:
+            found = self._statuses.get(bot_id)
+        return found.updated_at if found is not None else None
+
+    def hidden(self, bot_id: str) -> bool:
+        """MEMORY.1: out of the Dungeon when its status is older than ``hide_after_s`` at the last poll, unless
+        pinned with Always show. A bot with no status file yet stays."""
+        with self._lock:
+            found, polled = self._statuses.get(bot_id), self._polled
+            pinned = any(bot.always_show for bot in self._roster.bots if bot.id == bot_id)
+        return not pinned and found is not None and polled is not None and \
+            polled - found.updated_at > self.hide_after_s
+
+    def set_always_show(self, bot_id: str, shown: bool) -> None:
+        self._update(lambda roster: set_always_show(roster, bot_id, shown))
 
     def signature(self) -> tuple:
         with self._lock:
@@ -96,7 +127,8 @@ class BotService:
                 (group.id, group.name, group.collapsed, group.order, group.show_in_dungeon)
                 for group in self._roster.groups
             )
-            bots = tuple((bot.id, bot.name, bot.emoji, bot.group_id, bot.skin) for bot in self._roster.bots)
+            bots = tuple((bot.id, bot.name, bot.emoji, bot.group_id, bot.skin, bot.always_show)
+                         for bot in self._roster.bots)
             states = tuple(sorted((key, item.state, item.line) for key, item in self._statuses.items()))
             return (groups, bots, states)
 
@@ -120,6 +152,8 @@ class BotService:
             if not group.show_in_dungeon:
                 continue
             for bot, status in bots:
+                if self.hidden(bot.id):
+                    continue
                 info = AgentInfo(
                     agent_id=f"bot:{bot.id}",
                     name=bot.name,

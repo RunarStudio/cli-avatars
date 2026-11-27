@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from events import sanitize_text
@@ -60,6 +60,7 @@ class Bot:
     emoji: str
     group_id: str
     skin: str
+    always_show: bool = False
 
 
 @dataclass(frozen=True)
@@ -140,6 +141,7 @@ def save_roster(path: Path, roster: Roster) -> None:
                 "emoji": bot.emoji,
                 "group_id": bot.group_id,
                 "skin": bot.skin,
+                **({"always_show": True} if bot.always_show else {}),
             }
             for bot in roster.bots
         ],
@@ -247,7 +249,7 @@ def assign_bot(roster: Roster, bot_id: str, group_id: str) -> Roster:
     if not any(group.id == group_id for group in roster.groups):
         return roster
     bots = tuple(
-        Bot(bot.id, bot.name, bot.emoji, group_id, bot.skin) if bot.id == bot_id else bot
+        replace(bot, group_id=group_id) if bot.id == bot_id else bot
         for bot in roster.bots
     )
     return Roster(roster.groups, bots)
@@ -256,10 +258,16 @@ def assign_bot(roster: Roster, bot_id: str, group_id: str) -> Roster:
 def set_skin(roster: Roster, bot_id: str, skin: str) -> Roster:
     chosen = skin if skin in SKINS else DEFAULT_SKIN
     bots = tuple(
-        Bot(bot.id, bot.name, bot.emoji, bot.group_id, chosen) if bot.id == bot_id else bot
+        replace(bot, skin=chosen) if bot.id == bot_id else bot
         for bot in roster.bots
     )
     return Roster(roster.groups, bots)
+
+
+def set_always_show(roster: Roster, bot_id: str, shown: bool) -> Roster:
+    """MEMORY.1: a pinned bot stays in the Dungeon however old its status is."""
+    return Roster(roster.groups, tuple(replace(bot, always_show=bool(shown)) if bot.id == bot_id else bot
+                                       for bot in roster.bots))
 
 
 def _split_bots(groups_raw: list, bots_raw: object) -> tuple[list, list]:
@@ -328,6 +336,7 @@ def _bots(rows: list, groups: list[Group], by_name: dict[str, str]) -> list[Bot]
                 sanitize_text(item.get("emoji"), EMOJI_LIMIT),
                 group_id,
                 skin if isinstance(skin, str) and skin in SKINS else DEFAULT_SKIN,
+                item.get("always_show") is True,
             )
         )
     return bots

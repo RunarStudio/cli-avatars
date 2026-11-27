@@ -7,6 +7,7 @@ icons; this text is the one line the status file is allowed to carry.
 
 from __future__ import annotations
 
+import time
 import tkinter as tk
 
 import text_fonts as fonts
@@ -20,6 +21,7 @@ _INK = "#e8e6f4"
 _DIM = "#9a98b8"
 _ACCENT = "#88aaff"
 _SEL = "#223366"
+_GREY = "#5a5870"
 _FONT = fonts.face(9)
 _SMALL = fonts.face(8)
 _THUMB = 40
@@ -231,6 +233,8 @@ def _settings_body(app, parent, service, refill) -> None:
     tk.Label(parent, text="Bots", bg=_BG, fg=_ACCENT, font=fonts.face(10, "bold")).pack(
         anchor="w", padx=12, pady=(10, 2),
     )
+    if hasattr(service, "hidden"):
+        _hide_row(app, parent, service)
     names = [group.name for group, _bots in sections]
     ids = [group.id for group, _bots in sections]
     for _group, bots in sections:
@@ -272,7 +276,9 @@ def _group_editor(app, parent, service, group, refill) -> None:
 def _bot_editor(app, parent, service, bot, names, ids, refill) -> None:
     row = tk.Frame(parent, bg=_BG)
     row.pack(fill="x", padx=12, pady=1)
-    tk.Label(row, text=bot.name, bg=_BG, fg=_INK, font=_SMALL, width=16, anchor="w").pack(side="left")
+    hidden = service.hidden(bot.id) if hasattr(service, "hidden") else False
+    tk.Label(row, text=bot.name, bg=_BG, fg=_GREY if hidden else _INK, font=_SMALL, width=16,
+             anchor="w").pack(side="left")
     by_id = dict(zip(ids, names, strict=True))
     current = by_id.get(bot.group_id, names[0] if names else "")
     group_var = tk.StringVar(value=current)
@@ -289,6 +295,67 @@ def _bot_editor(app, parent, service, bot, names, ids, refill) -> None:
         command=lambda: _assign(app, service, bot.id, group_var, skin_var, names, ids, refill),
         bg=_SEL, fg="#aaccff", font=_SMALL, relief="flat",
     ).pack(side="left")
+    if not hasattr(service, "hidden"):
+        return
+    line = tk.Frame(parent, bg=_BG)
+    line.pack(fill="x", padx=24)
+    pin = tk.BooleanVar(value=bot.always_show)
+    tk.Checkbutton(
+        line, text="Always show", variable=pin, command=lambda: _pin(app, service, bot.id, pin, refill),
+        bg=_BG, fg=_DIM, selectcolor=_SEL, activebackground=_BG, font=_SMALL, highlightthickness=0,
+    ).pack(side="left")
+    seen = service.last_seen(bot.id)
+    words = f"last seen {_ago(time.time() - seen)}" if seen else "no status yet"
+    tk.Label(line, text=("hidden from the Dungeon · " if hidden else "") + words, bg=_BG,
+             fg=_GREY if hidden else _DIM, font=_SMALL).pack(side="left", padx=6)
+
+
+def _ago(seconds: float) -> str:
+    minutes = max(0, int(seconds // 60))
+    if minutes < 60:
+        return f"{minutes} min ago"
+    hours = minutes // 60
+    return f"{hours} h ago" if hours < 48 else f"{hours // 24} days ago"
+
+
+def _pin(app, service, bot_id, var, refill) -> None:
+    service.set_always_show(bot_id, bool(var.get()))
+    refill()
+    _refresh_topics(app)
+
+
+def _hide_row(app, parent, service) -> None:
+    """MEMORY.1: Hide a bot from the Dungeon after N hours without a status update (``bots.hide_after_hours``)."""
+    from bots.service import hide_after_s
+    from cli_avatars.app.config_file import save_config_with
+
+    hours = tk.StringVar(value=f"{hide_after_s(getattr(app, 'config', None)) / 3600:g}")
+    row = tk.Frame(parent, bg=_BG)
+    row.pack(fill="x", padx=12, pady=1)
+    tk.Label(row, text="Hide after (h)", bg=_BG, fg="#aaccff", font=_SMALL, width=12, anchor="w").pack(side="left")
+    _entry(row, hours, 6)
+    note = tk.Label(row, text="", bg=_BG, fg=_DIM, font=_SMALL)
+
+    def save():
+        try:
+            value = float(hours.get())
+        except ValueError:
+            value = 0
+        if not 0 < value <= 24 * 30:
+            note.config(text="1 to 720 hours")
+            return
+        config = dict(getattr(app, "config", None) or {})
+        app.config = {**config, "bots": {**(config.get("bots") or {}), "hide_after_hours": value}}
+        service.hide_after_s = value * 3600
+        target = getattr(app, "_config_path", None)
+        if target is not None:
+            save_config_with(target, lambda data: {**data, "bots": {**(data.get("bots") or {}),
+                                                                     "hide_after_hours": value}})
+        note.config(text="Saved")
+
+    tk.Button(row, text="Save", command=save, bg=_SEL, fg="#aaccff", font=_SMALL, relief="flat").pack(side="left",
+                                                                                                    padx=4)
+    note.pack(side="left")
 
 
 def _field(parent, label, builder) -> None:

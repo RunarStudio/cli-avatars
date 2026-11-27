@@ -91,8 +91,9 @@ class OverlayApp:
         except Exception:
             print("[WARN] Bot status redaction did not install")
         try:
-            from bots.service import BotService
+            from bots.service import BotService, hide_after_s
             self.bots = BotService()
+            self.bots.hide_after_s = hide_after_s(self.config)
             self.bots.start()
         except Exception:
             print("[WARN] Bot roster did not start")
