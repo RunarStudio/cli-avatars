@@ -58,6 +58,7 @@ from routing import (
     unread_counts,
     window_box_from_config,
 )
+from status_palette import colour
 from topics import (
     STATUS_COLOR,
     SUMMARY_STALE,
@@ -1010,13 +1011,12 @@ class ChatWindow:
         meta = tk.Frame(words, bg=bg)
         meta.pack(anchor="w")
         tk.Label(meta, text=card.source, bg=bg, fg=ACCENT, font=FONT_SMALL).pack(side="left")
-        dot = card.dot
-        tk.Label(meta, text=" ●", bg=bg, fg=dot, font=FONT_SMALL).pack(side="left")
+        tk.Label(meta, text=" ●", bg=bg, fg=colour(card.status), font=FONT_SMALL).pack(side="left")
         self._click_avatar(frame, card.agent_id, by_id)
         for sub in card.subs:
             row = tk.Frame(frame, bg=bg, cursor="hand2")
             row.pack(fill="x", padx=(28, 0), pady=1)
-            tk.Label(row, text="●", bg=bg, fg=sub.dot, font=FONT_SMALL).pack(side="left")
+            tk.Label(row, text="●", bg=bg, fg=colour(sub.status), font=FONT_SMALL).pack(side="left")
             tk.Label(row, text=sub.name, bg=bg, fg=INK, font=FONT_SMALL).pack(side="left", padx=(4, 0))
             self._click_avatar(row, sub.agent_id, by_id)
 
