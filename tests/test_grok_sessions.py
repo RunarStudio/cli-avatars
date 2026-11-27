@@ -258,6 +258,15 @@ class TestGrokBuildSource(unittest.TestCase):
         again = self.src.scan()[0]
         self.assertEqual((again.status, again.tool), ("busy", "grep"))
 
+    def test_a_big_newest_line_reads_as_busy(self):
+        old = _line({"sessionUpdate": "turn_completed", "stopReason": "end_turn"})
+        big = _line({"sessionUpdate": "tool_call", "status": "in_progress", "kind": "edit",
+                     "rawInput": {"content": "x" * 20000}})
+        self.assertGreater(len(big), 8192)
+        _session(self.root, [old, big])
+        found = self.src.scan()[0]
+        self.assertEqual((found.status, found.tool), ("busy", "edit"))
+
     def test_error_turn_sets_failed_without_the_message(self):
         _session(self.root, [_line({
             "sessionUpdate": "turn_completed",

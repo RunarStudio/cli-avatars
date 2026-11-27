@@ -485,8 +485,13 @@ def _read_tail(path: Path, limit: int = _GROK_TAIL_BYTES) -> str:
             return ""
         with open(path, "rb") as handle:
             size = handle.seek(0, 2)
-            handle.seek(max(0, size - limit))
-            blob = handle.read(limit)
+            while True:
+                handle.seek(max(0, size - limit))
+                blob = handle.read(limit)
+                # The newest line must be whole: a big tool call alone fills the window and read as idle.
+                if limit >= size or limit >= TAIL_MAX or b"\n" in blob.rstrip(b"\n"):
+                    break
+                limit *= 4
     except OSError:
         return ""
     text = blob.decode("utf-8", errors="ignore")
