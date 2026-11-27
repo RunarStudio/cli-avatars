@@ -216,11 +216,16 @@ class PhonePack(_Writes):
         self.assertLess(stdin.index(cp.HEAD), stdin.index(tc.HEAD))  # after the room header, before the task
         self.assertIn("Soft cloth only", stdin[:stdin.index(cp.END)])
         self.assertTrue(stdin.endswith("wipe it"))
+        self.wait_done(room)  # a send while the first turn still runs is refused (409)
         self.assertEqual(self.request(f"/api/chat/{room}", "POST", {"text": "and the frame"})[0], 202)
         self.wait_reply(room, count=2)
         again = json.loads((self.work / "fake-turns.jsonl").read_text().splitlines()[1])["stdin"]
         self.assertNotIn(cp.HEAD, again)  # a resumed session already has it
         self.assertIn(tc.HEAD, again)
+
+    def test_the_second_send_waits_for_a_slow_first_turn_to_end(self):
+        (self.work / "fake-delay.txt").write_text("0.3")
+        self.test_read_pin_unpin_and_a_send_starts_with_the_pack()
 
     def test_page_ships_the_pack_and_sse_tells_it(self):
         from webui.server import STATIC
