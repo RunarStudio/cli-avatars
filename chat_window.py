@@ -103,8 +103,11 @@ def launch_cli(request, prompt: str, event=None):
 
     Argv is fixed by the runner; the prompt and the room context go on stdin, a task chat's
     context (``request.preamble``, TASK-CHAT.1) and a fresh session's tier role (``request.role``,
-    HIERARCHY.1) before the prompt; the tier's ``model`` and ``effort`` go to the runner. Raises ``CliRejected``.
+    HIERARCHY.1) before the prompt; the tier's ``model`` and ``effort`` go to the runner, and a model Claude refuses
+    adds one Reset line (``tiers.watch``). Raises ``CliRejected``.
     """
+    import importlib
+
     runner = _runner()
     process = runner.start(
         user_action=runner.UserAction.from_ui_event(event),
@@ -117,7 +120,7 @@ def launch_cli(request, prompt: str, event=None):
         open_cards=request.open_cards,
         permission_mode=request.mode,
         session_id=request.session_id,
-        on_stdout_line=request.on_line,
+        on_stdout_line=importlib.import_module("cli_avatars.app.tiers").watch(request),
         on_done=request.on_done,
         argv_template=getattr(request, "template", None),
         model=getattr(request, "model", None),

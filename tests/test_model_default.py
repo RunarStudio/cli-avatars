@@ -119,6 +119,17 @@ class StubRunTest(_Rooms):
         self.assertEqual(argv[-2:], ["--effort", "high"])
         self.assertFalse([t for t in shown if "Reset to default" in t])
 
+    def test_a_refused_saved_model_shows_one_line_with_tier_model_and_reset(self):
+        config = tiers.with_tier({}, "topic", "fable", "high")
+        argv, shown = self.run_room(config, "west-keep")
+        self.assertEqual(argv[argv.index("--model") + 1], "fable")
+        lines = [t for t in shown if "Reset to default" in t]
+        self.assertEqual(len(lines), 1, shown)
+        self.assertIn("Topic orchestrator", lines[0])
+        self.assertIn("fable", lines[0])
+        self.assertIn("Settings › Chat › Chat tiers", lines[0])
+        self.assertNotIn("\n", lines[0])
+
 
 if __name__ == "__main__":
     unittest.main()

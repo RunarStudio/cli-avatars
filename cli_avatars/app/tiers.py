@@ -57,6 +57,7 @@ GLYPHS = {
 
 MAIN_DEFAULT = "grok"
 MODELS = {"claude": ("fable", "opus", "sonnet", "haiku")}
+REFUSED = re.compile(r"issue with the selected model|may not have access to it|is not available on your")
 
 
 def _own(config: object, tier: str) -> dict:
@@ -223,3 +224,37 @@ def phone(directory: Path | str, config: object) -> dict:
     return {"main": bool(main_sid(directory)),
             "tiers": [{**chip(t, rows), "name": NAMES[t], "cli": rows[t]["cli"], "does": DOES[t]} for t in TIERS]}
 
+
+def refused(tier: str, model: str) -> str:
+    """The chat line when Claude turns down the model saved for ``tier``."""
+    return (f"Claude refused the {NAMES[tier]} model \u201c{model}\u201d (not on your plan, or not a model name). "
+            f"Settings \u203a Chat \u203a Chat tiers \u203a {NAMES[tier]}: Reset to default runs it on your own "
+            "Claude model.")
+
+
+def watch(request):
+    """``request.on_line``, plus one ``refused`` line when Claude turns down the model this launch sent."""
+    on_line, model = getattr(request, "on_line", None), getattr(request, "model", None)
+    if on_line is None or not model or request.cli != "claude" or getattr(request, "tier", None) not in TIERS:
+        return on_line
+    told = []
+
+    def line(text: str) -> None:
+        on_line(text)
+        if not told and _refusal(text):
+            told.append(True)
+            on_line(json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "text", "text": refused(request.tier, model)}]}}))
+
+    return line
+
+
+def _refusal(text: str) -> bool:
+    try:
+        obj = json.loads(text)
+    except (TypeError, ValueError, RecursionError):
+        return False
+    if not isinstance(obj, dict):
+        return False
+    return obj.get("error") == "model_not_found" or (
+        obj.get("type") == "result" and obj.get("is_error") is True and bool(REFUSED.search(str(obj.get("result")))))
