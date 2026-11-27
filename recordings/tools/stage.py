@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 REPO, WORK, SCENE = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve(), Path(sys.argv[3]).resolve()
-DATA = WORK / "data"
+DATA = Path(os.environ.get("REC_DATA") or WORK / "data")
 os.environ["CLI_AVATARS_DATA_DIR"] = str(DATA)
 os.environ["CLI_AVATARS_PORT"] = "47282"  # no listener runs (EventSource is off); the start check finds it free
 sys.path.insert(0, str(REPO))
@@ -29,14 +29,16 @@ import seed  # noqa: E402
 seed.seed(DATA, WORK)
 
 import cli_avatars.app.tasks_card as tasks_card  # noqa: E402
+import cli_avatars.app.tasks_edit as tasks_edit  # noqa: E402
 import registry.task_chats as task_chats  # noqa: E402
 
 # The app names its owner in a few labels; the recordings show "you" instead (no real names on screen).
 from board.model import PERSON  # noqa: E402
 
 task_chats.FOOTER = task_chats.FOOTER.replace(PERSON.title(), "you")
-_history = tasks_card.history_lines
-tasks_card.history_lines = lambda card, limit=8: [ln.replace(f" {PERSON} ", " you ") for ln in _history(card, limit)]
+_history = tasks_edit.history_lines
+tasks_card.history_lines = tasks_edit.history_lines = lambda card, limit=8: [ln.replace(f" {PERSON} ", " you ")
+                                                                            for ln in _history(card, limit)]
 
 import cli_avatars.app.shell as shell  # noqa: E402
 from cli_avatars.sprites import registry as sprites  # noqa: E402
@@ -45,6 +47,18 @@ from cli_avatars.sprites import registry as sprites  # noqa: E402
 OWN_SKINS = ("ember_mage", "forest_scout", "frost_wanderer")
 _sheets = sprites.REGISTRY.list_sheets
 sprites.REGISTRY.list_sheets = lambda: [n for n in _sheets() if n.startswith(OWN_SKINS) or sprites.is_subagent_sheet(n)]
+from cli_avatars.app import av_roster  # noqa: E402
+
+# The default looks per role stay (role, size, hue); the kit's own skins stand in for the bundled character sheets.
+av_roster.LOOKS[av_roster.ORCHESTRATOR] = av_roster.Look("frost_wanderer", 50, 40, 5, 2)
+av_roster.LOOKS[av_roster.CLAUDE] = av_roster.Look("forest_scout", 50, 40, 5, 2)
+av_roster.LOOKS[av_roster.GROK] = av_roster.Look("forest_scout", 50, 40, 5, 2, shrink=0.7)
+from cli_avatars.app import standup_panel  # noqa: E402
+
+standup_panel.step = lambda app, now=None: None  # the once-a-day standup show would cover the Throne Room in every take
+from cli_avatars.app import boss_view  # noqa: E402
+
+boss_view.BossView.chart_shown = lambda self: False  # the Friday burn-down would cover the map's left half
 import cli_avatars.desktop.monitors as dm  # noqa: E402
 import cli_avatars.world.scanner as scanner_mod  # noqa: E402
 from cli_avatars.desktop.monitors import monitors_from_raw  # noqa: E402
@@ -101,6 +115,13 @@ import tkinter.filedialog as _fd  # noqa: E402
 
 PICK = [str(WORK / "proyectos")]
 _fd.askdirectory = lambda **_kw: PICK[0]  # the folder dialog's answer; the scene sets it before the click
+
+if os.environ.get("REC_FIRST_RUN") == "1":  # as cli_avatars.app.main does on a fresh install
+    from chat_window import room_tools
+    from cli_avatars.app import first_run
+
+    for note in first_run.run(DATA, shell.CONFIG_PATH, room_tools()):
+        log("marks.jsonl", mark="first_run", text=note)
 
 app = shell.OverlayApp()
 app.root.geometry(f"{W}x{H}+0+0")

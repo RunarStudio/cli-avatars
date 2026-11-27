@@ -7,6 +7,9 @@ Dos vídeos de la aplicación tal como está en `dev`, grabados con la app real 
 | `demo.mp4` / `demo.png` | Demo corta: el escaparate de la herramienta, con música y los sonidos de la app. |
 | `tutorial.mp4` / `tutorial.png` | Tutorial: cómo se usa y para qué sirve cada parte, con locución en español. |
 | `SCRIPT.md` | El guion de los dos vídeos: tomas, planos, subtítulos y locución. |
+| `changes-2026-11-27.mp4` / `.png` | Los cambios del 27 nov 2026 (dev `2110b2a`), en inglés: subtítulos, música y sonidos de la app. |
+| `walkthrough-2026-11-27.mp4` / `.png` | Recorrido del 27 nov 2026, en inglés, con locución (Kokoro `am_michael`). |
+| `SCRIPT-2026-11-27.md` | El guion en inglés de esos dos vídeos (`tools/script_1127.py`). |
 | `tools/` | Los scripts que graban, ponen la voz y montan los vídeos. |
 
 Commit de `dev` grabado: **a7519f9** («CHAT: New chat card, first-run tour and a plain To: line»), versión 0.4.0.
@@ -26,7 +29,8 @@ avatar; la vista del móvil; Settings; y la comprobación de inicio y Update.
 ## Cómo se grabó
 
 - La app real (`cli_avatars`), sin cambiar su código, en un Xvfb privado de 1920×1080. Nadie ve ni oye nada.
-- Sin red: cada toma corre en un espacio de red nuevo que solo tiene loopback (`tools/netns.sh`, con `sudo unshare -n`).
+- Sin red: cada toma corre en un espacio de red nuevo que solo tiene loopback (`tools/sandbox.sh`, con `bwrap`), con un
+  `/home` vacío y el HOME falso de la toma montado en `/home/you`.
 - Datos inventados (`tools/seed.py`): cuatro salas, cuatro agentes, nueve tareas y sus chats. Una carpeta de datos
   propia por toma (`CLI_AVATARS_DATA_DIR`) y un HOME falso; nunca la carpeta de datos real.
 - `claude` y `grok` son dos stubs que devuelven una respuesta escrita de antemano: ninguna llamada real a una IA.
@@ -34,7 +38,8 @@ avatar; la vista del móvil; Settings; y la comprobación de inicio y Update.
   es la página de la app servida en loopback y abierta en Chrome headless y silenciado a 400 px.
 - Solo para la grabación: las pantallas muestran «you» donde la app pone el nombre de su dueño; el selector de aspecto
   enseña solo las skins genéricas del kit (`ember_mage`, `forest_scout`, `frost_wanderer`); las pestañas Phone y Bots de
-  Settings no salen en pantalla porque muestran un enlace con token y una URL.
+  Settings no salen en pantalla porque muestran un enlace con token y una URL (en los vídeos del 27 nov, Bots sale con
+  una URL inventada).
 
 ## Sonido
 
@@ -45,7 +50,7 @@ avatar; la vista del móvil; Settings; y la comprobación de inicio y Update.
 
 ## Cómo volver a grabar
 
-Hace falta Linux con Xvfb, xdotool, ffmpeg, `sudo -n` para `unshare -n`, Node con Playwright y Chrome, y Python con
+Hace falta Linux con Xvfb, xdotool, ffmpeg, `bwrap`, Node con Playwright y Chrome, y Python con
 Pillow y numpy (y Kokoro para la voz). Todas las rutas de salida deben ser absolutas.
 
 ```sh
@@ -56,6 +61,8 @@ REC_VO="$VOZ/durations.json" recordings/tools/record.sh tutorial "$TOMAS/tutoria
 python recordings/tools/edit.py demo "$TOMAS/demo" recordings/demo.mp4
 python recordings/tools/edit.py tutorial "$TOMAS/tutorial" recordings/tutorial.mp4 --vo "$VOZ" --size 1280x720
 ```
+
+Los del 27 nov: `record.sh changes …`, `voice.py "$VOZ" walk`, `record.sh walk …` y `edit.py changes|walk …`.
 
 `record.sh` acepta nombres de toma para repetir solo esas (por ejemplo `record.sh demo "$TOMAS/demo" d_board`).
 `edit.py` escribe el MP4 (H.264 + AAC, por debajo de 24 MB) y su póster PNG al lado.

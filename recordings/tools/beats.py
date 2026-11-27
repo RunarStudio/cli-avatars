@@ -37,7 +37,7 @@ def stub_update(app, work: Path) -> None:
     update_ui.apply_probe(app, Toolchain("git", ("python",), True, ""))
 
 
-def phone(data: Path, work: Path, kind: str) -> subprocess.Popen:
+def phone(data: Path, work: Path, kind: str, script: Path = PHONE_JS) -> subprocess.Popen:
     """Headless Chrome on the app's own phone page (127.0.0.1 inside the sandbox)."""
     import seed
 
@@ -46,7 +46,7 @@ def phone(data: Path, work: Path, kind: str) -> subprocess.Popen:
     url = f"http://127.0.0.1:{seed.WEB_PORT}/pair?t={auth.load_token(data)}"
     env = {**os.environ, "NODE_PATH": os.environ.get("REC_NODE_PATH", "")}
     log = open(work / "phone.log", "w")
-    return subprocess.Popen(["node", str(PHONE_JS), url, str(work / "phone"), kind], env=env, stdout=log, stderr=log)
+    return subprocess.Popen(["node", str(script), url, str(work / "phone"), kind], env=env, stdout=log, stderr=log)
 
 
 def ask(data: Path, who: str = "e5f6a7b8", room: str = "jardin-cristal",

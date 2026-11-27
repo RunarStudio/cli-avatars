@@ -1,6 +1,6 @@
 """Edit by code: takes + marks + cues -> one MP4 with zooms, captions, cards, phone inset, music, cues and voice.
 
-    python edit.py <demo|tutorial> <takes-root> <out.mp4> [--vo DIR] [--size 1920x1080] [--mb 23]
+    python edit.py <demo|tutorial|changes|walk> <takes-root> <out.mp4> [--vo DIR] [--size 1920x1080] [--mb 23]
 
 <takes-root>/<take>/ holds raw.mkv, marks.jsonl and cues.jsonl from record.sh (and phone/ for the phone take).
 --vo is voice.py's folder (durations.json + one WAV per sentence). Writes <out.mp4> and <out>.png (poster).
@@ -24,9 +24,12 @@ sys.path.insert(0, str(HERE))
 
 import cards  # noqa: E402
 import script  # noqa: E402
+import script_1127  # noqa: E402
 import sound  # noqa: E402
 
 FPS = 30
+CAPTIONED = ("demo", "changes")  # captions from cap marks; the others from the narration
+NARRATED = ("tutorial", "walk")
 SW, SH = 1920, 1080
 FULL = (0.0, 0.0, float(SW), float(SH))
 DIP = 0.25
@@ -123,7 +126,7 @@ class Take:
     def captions(self, durations: dict) -> list[tuple[float, float, str]]:
         """(start, end, text) in source time."""
         out = []
-        if self.kind == "demo":
+        if self.kind in CAPTIONED:
             caps = sorted((m for m in self.marks if m["mark"] == "cap"), key=lambda m: m["t"])
             for n, m in enumerate(caps):
                 end = caps[n + 1]["t"] if n + 1 < len(caps) else self.t_out
@@ -139,13 +142,17 @@ class Film:
         self.kind, self.root, self.vo, self.size = kind, root, vo, size
         self.scale = size[0] / SW
         self.durations = json.loads((vo / "durations.json").read_text()) if vo else {}
-        rows = script.DEMO if kind == "demo" else script.TUTORIAL
-        speed = 1.12 if kind == "demo" else 1.0
-        self.takes = [Take(root, name, speed, texts, kind) for name, _shot, texts in rows if (root / name).exists()]
-        title, sub, end = script.TITLES[kind]
-        lead = self.durations.get("intro_0", 0) + 1.6 if kind == "tutorial" else 4.4
-        tail = self.durations.get("outro_0", 0) + 2.2 if kind == "tutorial" else 4.2
-        self.head = (cards.Card(size, title, sub, "v0.4.0 · rama dev"), lead)
+        new = kind in script_1127.ROWS
+        rows = script_1127.ROWS[kind] if new else script.DEMO if kind == "demo" else script.TUTORIAL
+        speed = {"demo": 1.12, "changes": 1.2}.get(kind, 1.0)
+        fast = {"a_phone": 1.4, "a_memory": 1.3}  # the two long takes, so part A stays under 2.5 min
+        self.takes = [Take(root, name, fast.get(name, speed), texts, kind) for name, _shot, texts in rows
+                      if (root / name).exists()]
+        title, sub, end, tag = script_1127.TITLES[kind] if new else (*script.TITLES[kind], "v0.4.0 · rama dev")
+        self.chapters = script_1127.CHAPTERS if new else script.CHAPTERS
+        lead = self.durations.get("intro_0", 0) + 1.6 if kind in NARRATED else 4.0
+        tail = self.durations.get("outro_0", 0) + 2.2 if kind in NARRATED else 4.0
+        self.head = (cards.Card(size, title, sub, tag), lead)
         self.tail = (cards.Card(size, title, end, "", seed=19), tail)
         self.plan = [("card", self.head)] + [("take", t) for t in self.takes] + [("card", self.tail)]
         self.starts, t = [], 0.0
@@ -168,7 +175,7 @@ class Film:
             take = item
             reader = Reader(take.dir / "raw.mkv")
             caps = take.captions(self.durations)
-            plaque = cards.plaque(script.CHAPTERS[take.name], self.scale) if self.kind == "tutorial" else None
+            plaque = cards.plaque(self.chapters[take.name], self.scale) if take.name in self.chapters else None
             n = int(round(take.length * FPS))
             for f in range(n):
                 tau = f / FPS
@@ -260,11 +267,12 @@ class Film:
                     mix.add(sound.whoosh(0.7), at(take.phone[0][0]), 0.25)
                 if m["mark"] == "vo" and self.vo:
                     mix.add(sound.read_wav(self.vo / f"{m['key']}.wav"), at(m["t"]), 0.95, bus="voice")
-        if self.kind == "tutorial" and self.vo:
+        if self.kind in NARRATED and self.vo:
             mix.add(sound.read_wav(self.vo / "intro_0.wav"), 0.9, 0.95, bus="voice")
             mix.add(sound.read_wav(self.vo / "outro_0.wav"), self.starts[-1] + 0.8, 0.95, bus="voice")
-        bed = sound.music(self.duration, self.kind)
-        return mix.render(bed, 0.85 if self.kind == "demo" else 0.5, 0.55 if self.kind == "tutorial" else 0.0)
+        bed = sound.music(self.duration, "tutorial" if self.kind in NARRATED else "demo")
+        narrated = self.kind in NARRATED
+        return mix.render(bed, 0.5 if narrated else 0.85, 0.55 if narrated else 0.0)
 
 
 def encode(film: Film, out: Path, megabytes: float) -> None:
@@ -284,7 +292,7 @@ def encode(film: Film, out: Path, megabytes: float) -> None:
                 print(f"{film.kind}: {i / FPS:.0f}/{film.duration:.0f} s", file=sys.stderr, flush=True)
         pipe.stdin.close()
         pipe.wait()
-        audio_k = 128
+        audio_k = 128 if megabytes > 12 else 96
         video_k = int((megabytes * 8e6 * 0.965 / film.duration - audio_k * 1000) / 1000)
         common = ["-c:v", "libx264", "-preset", "slow", "-b:v", f"{video_k}k", "-maxrate", f"{video_k * 2}k",
                   "-bufsize", f"{video_k * 4}k", "-pix_fmt", "yuv420p", "-g", str(FPS * 4)]
@@ -300,7 +308,7 @@ def encode(film: Film, out: Path, megabytes: float) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("kind", choices=("demo", "tutorial"))
+    ap.add_argument("kind", choices=("demo", "tutorial", "changes", "walk"))
     ap.add_argument("takes", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--vo", type=Path)
