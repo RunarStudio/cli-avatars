@@ -9,7 +9,7 @@ from cli_avatars.app.dungeon_nav import attach as attach_nav
 from cli_avatars.app.dungeon_sash import make as sash
 from cli_avatars.app.dungeon_sash import reflow
 from cli_avatars.app.toolbar_kit import DESKTOP, PANEL, WINDOW
-from cli_avatars.app.toolbar_widgets import Tab, control, group, paint
+from cli_avatars.app.toolbar_widgets import Tab, control, group, paint, wrap_tabs
 
 _BG = "#141018"
 _BAR = "#111018"
@@ -266,21 +266,15 @@ def _body(view, root) -> None:
     strip = tk.Frame(view._mid, bg=_TABS)
     strip.pack(fill="x")
     view._tab_dungeon = Tab(strip, "dungeon", text="Dungeon", command=lambda: view.show_center("dungeon"))
-    view._tab_dungeon.pack(side="left", anchor="s", padx=(6, 2), pady=(4, 0))
     view._tab_tasks = Tab(strip, "tasks", text="Tasks", command=lambda: view.show_center("tasks"))
-    view._tab_tasks.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_throne = Tab(strip, "throne", text="Throne", command=lambda: view.show_center("throne"))
-    view._tab_throne.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_recap = Tab(strip, "recap", text="Recap", command=lambda: view.show_center("recap"))
-    view._tab_recap.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_mail = Tab(strip, "mailroom", text="Mailroom", command=lambda: view.show_center("mailroom"))
-    view._tab_mail.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_repos = Tab(strip, "repos", text="Repos", command=lambda: view.show_center("repos"))
-    view._tab_repos.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_projects = Tab(strip, "projects", text="Projects", command=lambda: view.show_center("projects"))
-    view._tab_projects.pack(side="left", anchor="s", padx=2, pady=(4, 0))
     view._tab_memory = Tab(strip, "memory", text="Memory", command=lambda: view.show_center("memory"))
-    view._tab_memory.pack(side="left", anchor="s", padx=2, pady=(4, 0))
+    wrap_tabs(strip, [view._tab_dungeon, view._tab_tasks, view._tab_throne, view._tab_recap, view._tab_mail,
+                      view._tab_repos, view._tab_projects, view._tab_memory])
     view.scene = tk.Canvas(view._mid, bg=_FLOOR, highlightthickness=0, bd=0)
     view._skins = tk.Frame(view._mid, bg=_BG)
     view._tasks = tk.Frame(view._mid, bg=_BG)

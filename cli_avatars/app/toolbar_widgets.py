@@ -70,6 +70,43 @@ class Tab(tk.Frame):
         paint(self, False)
 
 
+def wrap_tabs(strip, tabs) -> None:
+    """Tabs in rows that fit the strip's width: a narrow centre wraps them instead of cutting the last ones off."""
+    rows: list[tk.Frame] = []
+    shown: list = [None]
+
+    def lay(_event=None) -> None:
+        width = strip.winfo_width()
+        if width <= 1:
+            return
+        lines, used = [[]], 6
+        for tab in tabs:
+            need = tab.winfo_reqwidth() + 4
+            if lines[-1] and used + need > width:
+                lines.append([])
+                used = 6
+            lines[-1].append(tab)
+            used += need
+        key = tuple(len(line) for line in lines)
+        if key == shown[0]:
+            return
+        shown[0] = key
+        while len(rows) < len(lines):
+            rows.append(tk.Frame(strip, bg=strip.cget("bg")))
+        for tab in tabs:
+            tab.pack_forget()
+        for i, row in enumerate(rows):
+            row.pack_forget()
+            if i < len(lines):
+                row.pack(fill="x")
+                for n, tab in enumerate(lines[i]):
+                    tab.pack(in_=row, side="left", anchor="s", padx=(6, 2) if n == 0 else 2, pady=(4, 0))
+                    tab.lift(row)
+
+    strip.bind("<Configure>", lay, add="+")
+    lay()
+
+
 def paint(widget, on: bool) -> None:
     """Show ``on`` (selected tab, open panel, pinned window) on any toolbar control."""
     if widget is None:
