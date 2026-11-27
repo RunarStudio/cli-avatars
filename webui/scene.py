@@ -418,8 +418,21 @@ def _courier(card: dict, row: dict | None) -> dict:
 
 
 def decisions(directory: Path | str) -> list[dict]:
-    """DECIDE.1: open decisions on live cards, oldest first, as the phone shows them."""
-    return [public(row) for row in pending(directory)]
+    """DECIDE.1: open decisions on live cards and those asked in a room (Needs you lists both), oldest first, as the
+    phone shows them."""
+    from decisions import list_decisions
+
+    rooms = [{**row, "title": _room_title(directory, row["room"]), "topic": row["room"]}
+             for row in list_decisions(directory, open_only=True) if not row.get("card")]
+    return [public(row) for row in sorted(pending(directory) + rooms, key=lambda row: float(row["ts"]))]
+
+
+def _room_title(directory: Path | str, room: str) -> str:
+    try:
+        topic = get_topic(directory, room, timeout=0.2) or {}
+    except (EventRejected, OSError):
+        return room
+    return str(topic.get("title") or room)
 
 
 def focus_now(directory: Path | str) -> dict:
