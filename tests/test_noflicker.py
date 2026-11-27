@@ -160,18 +160,6 @@ class StaticHighlights(unittest.TestCase):
         keys = {sandbox_view.SandboxView._key(None, painter, chamber, 2, 10.0 + i * 0.05) for i in range(40)}
         self.assertEqual(len(keys), 1, "the live chamber flickers")
 
-    def test_throne_tab_starts_no_repeating_timer(self):
-        from cli_avatars.app.throne_panel import ThronePanel
-
-        jobs, refreshed = [], []
-        canvas = SimpleNamespace(pack=lambda **_k: None, after=lambda ms, fn: jobs.append(ms))
-        panel = SimpleNamespace(canvas=canvas, _live=False, _frames=[1, 2], _frame=0, _draw=lambda: None,
-                                _refresh=lambda: refreshed.append(1))
-        panel._flicker = lambda: ThronePanel._flicker(panel)
-        ThronePanel.show(panel)
-        self.assertEqual(refreshed, [1])
-        self.assertEqual(jobs, [], f"timers started on show: {jobs}")
-
 
 class PhoneStatic(unittest.TestCase):
     def test_no_infinite_animation_in_the_phone_view(self):
@@ -219,7 +207,7 @@ class IdleRepaints(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-3000:])
         for name in ("no no-op repaint over 50 idle frames", "no item re-created over 50 idle frames",
                      "no nameplate rewrite while the state stays", "the held room glow writes nothing",
-                     "a state change writes the plate once"):
+                     "a state change writes the plate once", "the throne tab starts no repeating timer"):
             self.assertIn(f"ok {name}", proc.stdout)
 
 

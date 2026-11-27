@@ -160,6 +160,18 @@ def main() -> None:
     count.on = False
     label = stage.host._inside[aid].lbl_id
     check("a state change writes the plate once", count.text.get(label, 0) <= 2, str(count.text.get(label, 0)))
+
+    from types import SimpleNamespace
+
+    from cli_avatars.app.throne_panel import ThronePanel
+
+    jobs, refreshed = [], []
+    canvas = SimpleNamespace(pack=lambda **_k: None, after=lambda ms, _fn: jobs.append(ms))
+    panel = SimpleNamespace(canvas=canvas, _live=False, _frames=[1, 2], _frame=0, _draw=lambda: None,
+                            _refresh=lambda: refreshed.append(1))
+    panel._flicker = lambda: ThronePanel._flicker(panel)
+    ThronePanel.show(panel)
+    check("the throne tab starts no repeating timer", refreshed == [1] and jobs == [], f"{refreshed} {jobs}")
     stage.root.destroy()
 
 

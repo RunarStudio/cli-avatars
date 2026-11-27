@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import time
 
-from cli_avatars.app import still
 from cli_avatars.app.dungeon_map import (
     client_rect_v,
     drop_on_dungeon,
@@ -19,7 +18,7 @@ from cli_avatars.app.dungeon_map import (
     virtual_from_canvas,
 )
 from cli_avatars.app.overlays import bind_avatar
-from cli_avatars.app.place_markers import draw_inside_sub_marks
+from cli_avatars.app.place_markers import begin_marks, draw_inside_sub_marks, settle
 from cli_avatars.app.place_store import (
     empty_file,
     forget,
@@ -270,7 +269,7 @@ class PlaceBook:
         if scene is None:
             return
         try:
-            still.pool(scene, "inside-sub").begin()
+            begin_marks(scene)
         except Exception:
             return
         now = self._now or time.time()
@@ -309,9 +308,8 @@ class PlaceBook:
                 self._paint_inside(scene, aid, (0.0, 0.0), photos, dragging, now, posed=True)
         room.paint_user(scene, photos, now)
         room.paint_marks(scene)
-        still.pool(scene, "inside-sub").end()
         try:
-            still.sink(scene, "floor")
+            settle(scene)
         except Exception:
             return
 

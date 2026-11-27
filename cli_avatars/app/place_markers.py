@@ -52,6 +52,18 @@ def bubble_photo(photos, room_scale: int, index: int):
     return photos.get(key, lambda: roster_frame(image, look, room_scale, False))
 
 
+def begin_marks(scene) -> None:
+    """A Dungeon frame starts: the ``inside-sub`` images are reused in order (a dead canvas raises)."""
+    scene.find_withtag("inside-sub")
+    still.pool(scene, "inside-sub").begin()
+
+
+def settle(scene) -> None:
+    """A Dungeon frame ends: unused ``inside-sub`` images go and the floor stays lowest."""
+    still.pool(scene, "inside-sub").end()
+    still.sink(scene, "floor")
+
+
 def draw_inside_sub_marks(scene, av, app) -> None:
     """Draw subagent sprites to the right of an inside parent. Tag: ``inside-sub``."""
     count = getattr(av.agent, "subagents", 0)
