@@ -1,4 +1,4 @@
-"""LEFTOVERS: at 1366 px the Settings update lines (the red PyInstaller reason) wrap."""
+"""LEFTOVERS: at 1366 px the Settings update lines (the red PyInstaller reason) and the Memory card lines wrap."""
 
 import subprocess  # noqa: TID251  # the Tk window runs in a child, like test_dock_tabs
 import sys
@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 class ClippedLines(unittest.TestCase):
-    def test_update_lines_wrap(self):
+    def test_update_and_memory_lines_wrap(self):
         root = Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory() as data:
             proc = subprocess.run(
@@ -18,7 +18,8 @@ class ClippedLines(unittest.TestCase):
         if proc.returncode == 77:
             self.skipTest("tkinter has no display")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        for name in ("both side panels open", "update lines shown", "every Settings update line reads in full"):
+        for name in ("both side panels open", "update lines shown", "every Settings update line reads in full",
+                     "memory cards shown", "every Memory card line reads in full", "cards grow to fit"):
             self.assertIn(f"ok {name}", proc.stdout)
 
 

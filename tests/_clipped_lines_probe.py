@@ -1,5 +1,6 @@
 """Child process for ``test_clipped_lines``: at 1366 x 768 with both side panels open, the Settings update lines
-(the red reason, a check result and its subjects) wrap and read in full. Made-up data; exit 77 without Tk.
+(the red reason, a check result and its subjects) and every Memory card line wrap and read in full. Made-up
+data; exit 77 without Tk.
 
     python tests/_clipped_lines_probe.py <repo root> <data dir>
 
@@ -22,11 +23,13 @@ except Exception:
 
 from bubbles import BubbleBoard  # noqa: E402
 from cli_avatars.app import config_screen, update_ui  # noqa: E402
+from cli_avatars.app import memory_notes as mn  # noqa: E402
 from cli_avatars.app.bootcheck import _ProbeHost  # noqa: E402
 from cli_avatars.app.dungeon_window import DungeonWindow  # noqa: E402
 from cli_avatars.update.check import PHASE_NEWS, CheckResult  # noqa: E402
 
 data = Path(sys.argv[2])
+notes = data / "notes" / "memory"
 
 
 def check(name: str, ok: bool, detail: object = "") -> None:
@@ -54,7 +57,20 @@ def clipped(parent, outer) -> list[str]:
     return out
 
 
+mn.create(notes)
+for cat, name, goal, status, nxt in (
+        ("Garden", "compost", "black gold by spring for the raised beds", "active and turning every Sunday",
+         "turn the heap and add the autumn leaves from the orchard path"),
+        ("Kitchen", "sourdough", "an open crumb with a crackling crust", "active, rye starter on the counter",
+         "feed the starter at 8 and again before bed")):
+    folder = notes / "Topics" / cat
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{name}.md").write_text(
+        f"---\ntype: topic\nname: {name}\ntopic: {cat}/{name}\nstatus: {status}\nupdated: 2026-02-10\n---\n"
+        f"Goal: {goal}\nStatus: {status}\nNext action: {nxt}\n", encoding="utf-8")
+
 host = _ProbeHost(root)
+host.config = {"memory": {"root": str(notes)}}
 host.scanner = SimpleNamespace(bubbles=BubbleBoard(), get_agents=lambda: {})
 host._chat_directory = lambda: data
 host._show_chat = lambda topic_id=None, address_id=None: None
@@ -84,5 +100,16 @@ check("update lines shown", any("PyInstaller" in t for t in texts) and any("Quie
 cut = clipped(panel, view._settings)
 check("every Settings update line reads in full", not cut, cut)
 
+view.show_center("memory")
+root.update()
+host._memory_panel.refresh(force=True)
+root.update()
+root.update()
+cards = host._memory_panel.cards
+check("memory cards shown", len(cards.winfo_children()) == 2, cards.winfo_children())
+cut = clipped(cards, view._memory)
+check("every Memory card line reads in full", not cut, cut)
+low = [c for c in cards.winfo_children() if c.winfo_height() < c.winfo_reqheight()]
+check("cards grow to fit", not low, [(c.winfo_height(), c.winfo_reqheight()) for c in low])
 root.destroy()
 print("done")

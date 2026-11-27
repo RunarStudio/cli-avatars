@@ -268,13 +268,13 @@ class MemoryPanel:
         on = topic.key == self.selected
         card = tk.Frame(self.cards, bg=CARD, highlightthickness=1, highlightbackground=EDGE_ON if on else EDGE)
         card.grid(row=i // 2, column=i % 2, sticky="nsew", padx=4, pady=4)
-        tk.Label(card, text=f"Next: {topic.next_action or '—'}", bg=CARD, fg=GOLD, font="DungeonText",
-                 anchor="w", justify="left", wraplength=260).pack(fill="x", padx=8, pady=(6, 0))
-        tk.Label(card, text=topic.key, bg=CARD, fg=INK, font="DungeonText", anchor="w").pack(fill="x", padx=8)
+        _wrap(tk.Label(card, text=f"Next: {topic.next_action or '—'}", bg=CARD, fg=GOLD, font="DungeonText",
+                       anchor="w")).pack(fill="x", padx=8, pady=(6, 0))
+        _wrap(tk.Label(card, text=topic.key, bg=CARD, fg=INK, font="DungeonText", anchor="w")).pack(fill="x", padx=8)
         bits = [b for b in (topic.goal and f"Goal: {topic.goal}", topic.status and f"Status: {topic.status}",
                             topic.meta.get("updated") and f"updated {topic.meta['updated']}") if b]
-        tk.Label(card, text=" · ".join(bits), bg=CARD, fg=DIM, font="DungeonBubble", anchor="w", justify="left",
-                 wraplength=260).pack(fill="x", padx=8)
+        _wrap(tk.Label(card, text=" · ".join(bits), bg=CARD, fg=DIM, font="DungeonBubble",
+                       anchor="w")).pack(fill="x", padx=8)
         row = tk.Frame(card, bg=CARD)
         row.pack(fill="x", padx=8, pady=(2, 6))
         if topic.meta.get("type", "").lower() in mn.TOPIC_TYPES:
@@ -292,6 +292,13 @@ class MemoryPanel:
         if feed is not None and model is not None:
             model.topics = tr.feed(self.app)
         self.refresh(force=True)
+
+
+def _wrap(label: tk.Label) -> tk.Label:
+    """A card line that wraps to the card's width, so the card grows instead of cutting it."""
+    label.config(justify="left", wraplength=160)
+    label.bind("<Configure>", lambda e: label.config(wraplength=max(60, e.width - 4)))
+    return label
 
 
 def _pins():
