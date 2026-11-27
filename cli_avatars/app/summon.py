@@ -90,7 +90,7 @@ def summon(app, ask_folder, event=None) -> tuple[bool, str]:
         return False, f"Confirm the {CLI_NAMES[cli]} binary first: pick {CLI_NAMES[cli]} in Chat, Use this binary."
     if cli != "claude" and template(config, cli) is None:
         return False, f"{CLI_NAMES[cli]}: no command set. Add chat.clis.{cli}.argv to config.json."
-    topic, folder = _topic(directory, ask_folder)
+    topic, folder = _topic(directory, ask_folder, config)
     if not topic:
         return False, folder
     try:
@@ -121,7 +121,7 @@ def summon(app, ask_folder, event=None) -> tuple[bool, str]:
     return True, f"Summoned: the main orchestrator is on the throne ({tiers.describe(rows['main'])})."
 
 
-def _topic(directory: Path | str, ask_folder) -> tuple[str, str]:
+def _topic(directory: Path | str, ask_folder, config=None) -> tuple[str, str]:
     """``(topic, "")`` when the remembered room still has a usable folder, else ``(topic, folder)`` from the dialog;
     ``("", why)`` when there is none."""
     from chat_window import room_tools
@@ -131,19 +131,29 @@ def _topic(directory: Path | str, ask_folder) -> tuple[str, str]:
 
     tools = room_tools()
     topic = remembered(directory)
+    picked = ""
     if topic:
         try:
             folder = load_room(directory, topic).working_dir
             if folder:
                 tools.validate_dir(folder)
                 return topic, ""
+            picked = _save_folder(config)
         except (tools.rejected, EventRejected, OSError):
             pass
-    picked = ask_folder()
+    picked = picked or ask_folder()
     if not picked:
         return "", "No folder picked."
     try:
         folder = tools.validate_dir(picked)
     except tools.rejected as exc:
         return "", f"Folder refused: {exc}"
-    return topic_slug(str(folder)), str(folder)
+    return topic or topic_slug(str(folder)), str(folder)
+
+
+def _save_folder(config) -> str:
+    """INSTALLDAY: the main room set up at first run, still without a folder, works in the save folder."""
+    from cli_avatars.app import first_run
+
+    folder = first_run.save_dir(config)
+    return "" if first_run.ensure_dir(folder) else str(folder)

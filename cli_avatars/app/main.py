@@ -222,6 +222,14 @@ def main(argv: Optional[list[str]] = None) -> int:
             old = 0
         if not ops.wait_for_exit(old):
             ops.log_line(data, f"pid {old} still running after 30 s; starting anyway")
+    from chat_window import room_tools
+    from cli_avatars.app import first_run, shell
+
+    try:
+        for note in first_run.run(data, shell.CONFIG_PATH, room_tools()):
+            ops.log_line(data, "first run: " + note)
+    except Exception as exc:
+        ops.log_crash(data, "first run", exc)
     try:
         app = OverlayApp()
     except Exception as exc:

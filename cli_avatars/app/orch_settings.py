@@ -98,7 +98,32 @@ def mount(app, parent) -> dict:
         parent.after(1200, lambda: save.config(text="Save", fg=FG))
 
     save.config(command=_save_folder)
-    return {"var": var, "chips": chips, "note": note, "entry": entry, "save": save, "where": where}
+    files = _files_row(app, parent, font)
+    return {"var": var, "chips": chips, "note": note, "entry": entry, "save": save, "where": where, **files}
+
+
+def _files_row(app, parent, font) -> dict:
+    """INSTALLDAY: Save chats and files in (``files.dir``), the folder new chats work and save in."""
+    from cli_avatars.app import first_run
+
+    tk.Label(parent, text="Save chats and files in", bg=BG, fg=FG, font=font, anchor="w").pack(fill="x", padx=12,
+                                                                                            pady=(8, 0))
+    row = tk.Frame(parent, bg=BG, pady=3)
+    row.pack(fill="x", padx=12)
+    entry = tk.Entry(row, bg=SEL, fg=FG, insertbackground=FG, font=font, relief="flat", width=10)
+    entry.insert(0, str(first_run.save_dir(getattr(app, "config", None))))
+    entry.pack(side="left", fill="x", expand=True)
+    save = tk.Button(row, text="Save", bg=SEL, fg=FG, activebackground="#334477", activeforeground="white", font=font,
+                     relief="flat", padx=8, cursor="hand2")
+    save.pack(side="left", padx=(6, 0))
+
+    def _save():
+        why = first_run.store_save_dir(app, entry.get())
+        save.config(text=why or "Saved", fg="#ff8866" if why else OK)
+        parent.after(2400, lambda: save.config(text="Save", fg=FG))
+
+    save.config(command=_save)
+    return {"files_entry": entry, "files_save": save}
 
 
 def _picked(app, cli: str, note) -> None:

@@ -39,10 +39,16 @@ def open_card(app, names=(), launch: bool = False) -> StartCard:
 
 def reopen(app) -> None:
     """The status-bar line: the last boot report, the setup rows checked again."""
+    from cli_avatars.app import onboarding
+
     found = open_card(app)
+    onboarding.tick_app(app, "settings")
     report = getattr(app, "_bootcheck_report", None)
-    for result in getattr(report, "checks", ()) or ():
+    checks = getattr(report, "checks", ()) or ()
+    for result in checks:
         found.boot(result)
+    if checks and all(result.status not in ("fail", "timeout") for result in checks):
+        found._fold_boot()
     found.check_setup()
 
 
@@ -61,12 +67,14 @@ class StartCard:
         self.card = kc.Card(app.root, "Start check", width=600, on_close=self._closed)
         body = self.card.body
         kc.note(body, "What the app needs at start. Rows turn ✓ when ready; a row that needs you has its fix here.")
-        kc.heading(body, "The app")
+        self.app_heading = kc.heading(body, "The app")
         self.boot_box = tk.Frame(body, bg=kc.PARCH)
         self.boot_box.pack(fill="x")
         kc.heading(body, "Setup")
         self.setup_box = tk.Frame(body, bg=kc.PARCH)
         self.setup_box.pack(fill="x")
+        self.save_row = self._save_folder(body)
+        self.bridge_row = self._bridge(body)
         foot = tk.Frame(body, bg=kc.PARCH)
         foot.pack(fill="x", pady=(8, 0))
         self.status = tk.Label(foot, text="Checking…", bg=kc.PARCH, fg=kc.SOFT, font="DungeonText", anchor="w")
@@ -75,6 +83,79 @@ class StartCard:
         kc.button(foot, "Details", self.details, bg=kc.WOOD).pack(side="right", padx=(4, 0))
         self._after(POLL_MS, self._drain)
         self._after(SPIN_MS, self._tick)
+
+    def _save_folder(self, body) -> dict:
+        """INSTALLDAY: Save chats and files in: the default prefilled, Browse… to change it, Save stores it."""
+        from cli_avatars.app import first_run
+
+        kc.heading(body, "Save chats and files in")
+        row = tk.Frame(body, bg=kc.PARCH)
+        row.pack(fill="x", padx=(30, 0))
+        shown = tk.Label(row, text=str(first_run.save_dir(getattr(self.app, "config", {}))), bg=kc.PAPER, fg=kc.INK,
+                         font="DungeonText", anchor="w", padx=4, width=36)
+        shown.pack(side="left", padx=(0, 4))
+        note = tk.Label(body, text="New chats work and save here. Pick your notes folder if you keep one.",
+                        bg=kc.PARCH, fg=kc.SOFT, font="DungeonBubble", anchor="w", justify="left", wraplength=520)
+        out = {"shown": shown, "note": note}
+        kc.button(row, "Browse…", lambda: self.browse_save(), bg=kc.WOOD).pack(side="left", padx=2)
+        kc.button(row, "Save", lambda: self.save_save()).pack(side="left", padx=2)
+        note.pack(fill="x", padx=(30, 0))
+        return out
+
+    def browse_save(self, ask=None) -> None:
+        picked = (ask or (lambda: filedialog.askdirectory(parent=self.app.root, title="Save chats and files in")))()
+        if picked:
+            self.save_row["shown"].config(text=picked)
+
+    def save_save(self) -> None:
+        from cli_avatars.app import first_run
+
+        why = first_run.store_save_dir(self.app, self.save_row["shown"].cget("text"))
+        self.save_row["note"].config(text=why or "Saved. Chats and files go here from now on.",
+                                     fg=kc.BAD_INK if why else kc.OK_INK)
+        if not why:
+            self._cue("filed")
+
+    def _bridge(self, body) -> dict:
+        """INSTALLDAY: the bot bridge, optional: its folder, Copy buttons, a paste-ready block and Test bridge."""
+        import bot_bridge
+
+        kc.heading(body, "Bot bridge (optional)")
+        folder = bot_bridge.root(self._directory(), getattr(self.app, "config", {}))
+        tk.Label(body, text="Your bots in another app answer through this folder. Paste the block into that app; "
+                 "skip this if you have none. Change the folder in Settings › Chat.", bg=kc.PARCH, fg=kc.SOFT,
+                 font="DungeonBubble", anchor="w", justify="left", wraplength=520).pack(fill="x", padx=(30, 0))
+        row = tk.Frame(body, bg=kc.PARCH)
+        row.pack(fill="x", padx=(30, 0), pady=(2, 0))
+        tk.Label(row, text=str(folder), bg=kc.PAPER, fg=kc.INK, font="DungeonText", anchor="w", padx=4,
+                 width=36).pack(side="left", padx=(0, 4))
+        status = tk.Label(body, text="", bg=kc.PARCH, fg=kc.SOFT, font="DungeonBubble", anchor="w")
+        out = {"folder": folder, "status": status}
+        for text, command in (("Copy folder", lambda: self.copy(str(folder), "Folder copied.")),
+                              ("Copy instructions", lambda: self.copy_instructions()),
+                              ("Test bridge", lambda: self.test_bridge())):
+            kc.button(row, text, command, bg=kc.WOOD).pack(side="left", padx=2)
+        status.pack(fill="x", padx=(30, 0))
+        return out
+
+    def copy(self, text: str, said: str) -> None:
+        try:
+            self.app.root.clipboard_clear()
+            self.app.root.clipboard_append(text)
+        except tk.TclError:
+            said = "Could not reach the clipboard."
+        self.bridge_row["status"].config(text=said, fg=kc.SOFT)
+
+    def copy_instructions(self) -> None:
+        from cli_avatars.app import bridge_setup
+
+        self.copy(bridge_setup.instructions(self.bridge_row["folder"]), "Copied: paste it in your bot app.")
+
+    def test_bridge(self) -> None:
+        from cli_avatars.app import bridge_setup
+
+        ok, said = bridge_setup.test(self.bridge_row["folder"])
+        self.bridge_row["status"].config(text=said, fg=kc.OK_INK if ok else kc.BAD_INK)
 
     def _closed(self) -> None:
         """At launch the first-run tour follows the card."""
@@ -156,16 +237,25 @@ class StartCard:
             return
         bad_boot = [k for k, r in self.rows.items() if r["status"] in ("fail", "timeout") and k not in self.setup]
         needs = [r for r in self.setup.values() if sc.needs_setup(r)]
+        if not bad_boot:
+            self._fold_boot()
         if needs or bad_boot:
             if self._saved:
                 self._cue("filed")
             self._saved = False
             self.status.config(text=f"{len(needs) + len(bad_boot)} need you. Fix them here, or Close.", fg=kc.BAD_INK)
             return
+        self._fold_boot()
         self.status.config(text="All set.", fg=kc.OK_INK)
         self._cue("ready" if not self._saved else "filed")
         if self._close_job is None:
             self._close_job = self._after(CLOSE_MS, self.card.close)
+
+    def _fold_boot(self) -> None:
+        """INSTALLDAY: every boot check passed: one line instead of the grid, so the setup steps fit."""
+        count = len([r for r in self.rows.values() if r["boot"]])
+        self.app_heading.config(text=f"The app ✓ all {count} checks ready")
+        self.boot_box.pack_forget()
 
     def _row(self, parent, key: str, label: str) -> dict:
         """A row: the mark, the label, the reason; boot rows sit two to a line, setup rows get a fix line."""

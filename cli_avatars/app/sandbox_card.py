@@ -11,6 +11,7 @@ import tkinter as tk
 
 import sandbox
 import text_fonts as fonts
+from cli_avatars.app import first_run
 from cli_avatars.app.sandbox_cues import cue
 
 STONE, STONE_HI, EMBER, RUNE, PAPER, INK, SOFT, WINE, GOLD, ERR = (
@@ -69,6 +70,8 @@ class SandboxSection:
         self.state = tk.Label(band, text="", bg=STONE, fg=EMBER, font="DungeonBubble")
         self.state.pack(side="right", padx=5)
         self.try_button = button(band, "⚠ Try it risky", self.try_it, WINE)
+        if not first_run.git_found():
+            self.try_button.config(state="disabled")
         self.line = tk.Frame(self.frame, bg=PAPER)
         tk.Label(self.line, text="branch", bg=PAPER, fg=SOFT, font="DungeonBubble").pack(side="left")
         button(self.line, "Copy", self.copy, STONE_HI).pack(side="right")
@@ -116,6 +119,8 @@ class SandboxSection:
     def try_it(self) -> None:
         if self.card is None:
             return
+        if not first_run.git_found():
+            return self._refused(first_run.git_missing())
         from registry.facade import Registry
 
         try:

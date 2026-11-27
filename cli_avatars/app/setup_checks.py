@@ -60,7 +60,16 @@ def needs_setup(row: SetupRow) -> bool:
 def setup_rows(directory, config, resolve) -> list[SetupRow]:
     """Every setup row, in card order. ``resolve`` is the runner's ``resolve_binary``."""
     return [*(cli_row(directory, config, cli, resolve) for cli in CHAT_CLIS), main_folder_row(directory),
-            *repo_rows(directory)]
+            *repo_rows(directory), git_row()]
+
+
+def git_row(which=None) -> SetupRow:
+    """INSTALLDAY: git is optional; without it Update and Try it risky stay off, with one plain line."""
+    from cli_avatars.app import first_run
+
+    if first_run.git_found(*(() if which is None else (which,))):
+        return SetupRow("git", "Git", "ok", "Ready")
+    return SetupRow("git", "Git", "warn", first_run.git_missing(), optional=True)
 
 
 def public(rows) -> list[dict]:
@@ -109,7 +118,9 @@ def main_folder_row(directory) -> SetupRow:
         folder = ""
     if folder and os.path.isdir(folder):
         return SetupRow("main_folder", label, "ok", f"Ready: {project_folder(folder)}")
-    name = project_folder(folder) if folder else topic
+    if not folder:
+        return SetupRow("main_folder", label, "ok", "Ready: works in the save folder")
+    name = project_folder(folder)
     return SetupRow("main_folder", label, "fail", f"Folder {name} is missing on disk. Pick where it is now.",
                     "folder")
 

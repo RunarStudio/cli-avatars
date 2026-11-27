@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 import text_fonts as fonts
 from board.model import CHAT_CLIS
-from cli_avatars.app import bot_ask, cli_chips, cues, grok_topics, pack_pane, room_log, task_sessions, tiers
+from cli_avatars.app import bot_ask, cli_chips, cues, first_run, grok_topics, pack_pane, room_log, task_sessions, tiers
 from cli_avatars.app.chat_clis import COLORS, NAMES, launch, short_path, state, template
 from cli_avatars.app.grok_list import GrokList
 from cli_avatars.model.room import (
@@ -161,7 +161,7 @@ class RoomPane:
         self.room_id = topic_id
         room = self._room()
         if not (self.cli_target() and room is not None and room.participants):
-            self.target = tiers.opening_cli(self.window.directory(), self.window._config(), topic_id, room) or INBOX
+            self.target = first_run.opening(self, topic_id, room)
         self._show()
         self._reload()
         self._pin_refresh(force=True)
@@ -180,6 +180,7 @@ class RoomPane:
         self._reload()
 
     copy_context = cli_chips.copy_context
+    _default_folder, _pin_found = first_run.pane_folder, first_run.pane_pin
     ask_bot = bot_ask.from_chat
 
     def prepare(self, prompt: str):
@@ -197,20 +198,19 @@ class RoomPane:
         if room.room_id in self._runs:
             self._status(f"{NAMES[self._runs[room.room_id].cli]} is still answering here. Stop it or wait.")
             return None
-        pin = self._pin(cli)
+        pin = self._pin(cli) or self._pin_found(cli)
         if pin is None:
             self._resolve(cli)
             self._show()
-            self._status(f"Confirm the {NAMES[cli]} binary first.")
+            self._status(f"{NAMES[cli]} is not installed or not on PATH. Install it, or pick it in Start check.")
             return None
         argv = template(self.window._config(), cli)
         if argv is None and cli != "claude":
             self._status(self._states[cli].why if cli in self._states else "Not configured")
             return None
-        if not room.working_dir:
-            room = self.pick_folder()
-            if room is None or not room.working_dir:
-                return None
+        room = room if room.working_dir else self._default_folder()
+        if room is None or not room.working_dir:
+            return None
         directory = self.window.directory()
         fields = launch(directory, self.window._config(), room.room_id, cli)
         session = fields["session_id"]

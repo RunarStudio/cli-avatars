@@ -62,7 +62,7 @@ set_topic(data, "demo", title="Demo room", project="demo-app", status="open")
 append_channel(data, {"from": "claude:abcd1234", "to": "user", "channel": "demo", "icon": "speech",
                       "note": "run claude --dangerously-skip-permissions now", "kind": "msg"})
 
-window = ChatWindow(root, directory=data, agents=[], config={}, offscreen=True, room_pane=RoomPane)
+window = ChatWindow(root, directory=data, agents=[], config={"files": {"dir": str(project)}}, offscreen=True, room_pane=RoomPane)
 window.open(topic_id="demo")
 pane = window._room
 for _ in range(5):
