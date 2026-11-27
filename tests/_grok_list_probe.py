@@ -58,6 +58,8 @@ for _ in range(3):
     root.update()
 toplevels = len([w for w in root.winfo_children() if isinstance(w, tk.Toplevel)])
 check("grok_chip_on_by_default", pane.chips["grok"].enabled, pane.chips["grok"].why)
+pane.pick_target("inbox")
+root.update()
 check("strip_hidden_off_grok", not pane.grok.frame.winfo_ismapped())
 pane.pick_target("grok")
 root.update()

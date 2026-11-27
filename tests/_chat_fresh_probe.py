@@ -49,7 +49,8 @@ dock.pack(side="right", fill="y")
 dock.pack_propagate(False)
 host = tk.Frame(dock)
 host.pack(fill="both", expand=True)
-window = ChatWindow(root, directory=data, agents=[], config={}, container=host, room_pane=RoomPane)
+window = ChatWindow(root, directory=data, agents=[], config={"files": {"dir": str(project)}}, container=host,
+                    room_pane=RoomPane)
 window.open()
 root.update()
 check("docked_entry_visible", window._entry.winfo_width() >= 120 and window._entry.winfo_ismapped(),
