@@ -79,6 +79,15 @@ class _Writes(unittest.TestCase):
             time.sleep(0.05)
         self.fail(f"no reply: {topic_messages(self.dir, topic)}")
 
+    def wait_done(self, topic="lantern", timeout=15):
+        """The turn ends when the CLI exits, after its reply shows; the session id is kept then."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not self.request(f"/api/chat/{topic}")[1].get("running"):
+                return
+            time.sleep(0.05)
+        self.fail("turn still running")
+
 
 class OffTests(_Writes):
     writes = False
@@ -131,6 +140,14 @@ class SendTests(_Writes):
         texts = [m["text"] for m in topic_messages(self.dir, "lantern")]
         self.assertEqual(texts[0], PROMPT[:240])
         self.assertTrue(any("reply" in t for t in texts))
+        self.wait_done()
+        self.assertEqual(load_room(self.dir, "lantern").session_id("claude"), SESSION)
+
+    def test_the_session_id_is_kept_when_the_cli_exits_after_its_reply(self):
+        (self.work / "fake-delay.txt").write_text("0.3")
+        self.assertEqual(self.request("/api/chat/lantern", "POST", {"text": "hi"})[0], 202)
+        self.wait_reply()
+        self.wait_done()
         self.assertEqual(load_room(self.dir, "lantern").session_id("claude"), SESSION)
 
     def test_second_send_while_running_is_refused(self):
