@@ -31,8 +31,10 @@ async function serve() {
   return { server, url };
 }
 
+// the map is up and the once-only how-to hint (PHONECLEAN) is closed: it covers the map and takes every tap
 async function ready(page) {
   await page.waitForFunction(() => state.scene && state.map && state.walkers.size >= 6);
+  if (await page.locator("#mapHintOk").isVisible()) await page.locator("#mapHintOk").click();
   await page.waitForTimeout(900);
 }
 
