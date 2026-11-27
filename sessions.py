@@ -38,6 +38,7 @@ _WAIT_TOOL = "AskUserQuestion"
 
 # Same thresholds the overlay scanner used before this split.
 STALE_AFTER = 900       # seconds; older session jsonl is treated as ended
+TAIL_MAX = 1 << 20      # bytes read at most to reach the start of the newest transcript line
 SUBAGENT_FRESH = 1800   # seconds; subagent jsonl newer than this still counts
 
 # TODO(Caine art): no Grok sheet yet. Hue-shift a built-in skin until one exists.
@@ -344,8 +345,15 @@ class ClaudeJsonlSource(SessionSource):
         try:
             with open(path, "rb") as f:
                 size = f.seek(0, 2)
-                f.seek(max(0, size - 4096))
-                lines = f.read().decode("utf-8", errors="ignore").splitlines()
+                window = 4096
+                while True:
+                    f.seek(max(0, size - window))
+                    data = f.read()
+                    # The newest line must be whole: a big tool result alone fills 4 KB and read as idle.
+                    if window >= size or window >= TAIL_MAX or b"\n" in data.rstrip(b"\n"):
+                        break
+                    window *= 4
+                lines = data.decode("utf-8", errors="ignore").splitlines()
             for line in reversed(lines[-30:]):
                 if _line_blocked(line):
                     # A wait is newer than an older tool call. A later tool,
