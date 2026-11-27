@@ -16,7 +16,8 @@ import zlib
 from pathlib import Path
 
 from cli_avatars.app import room_place as rp
-from cli_avatars.app.custom_rooms import APOTHECARY, APOTHECARY_RECT, SIZE_TILES, CustomRoom, door_cells, room_items
+from cli_avatars.app.boss_rooms import _opened
+from cli_avatars.app.custom_rooms import SIZE_TILES, CustomRoom, anchors, door_cells, room_items
 
 TOPIC, TASKS = "topic", "tasks"
 SKIN = "scribes-nook"
@@ -101,14 +102,17 @@ def extend(layout: dict | None, rows, taken) -> dict | None:
     for key, name, why in rows:
         if name.lower() in used:
             continue
-        found = next(((at, p, f) for at, rect in _anchors(out) for p in rp.points(rect)
+        found = next(((at, rect, p, f) for at, rect in anchors(out) for p in rp.points(rect)
                       if (f := rp.place(rect, p, SIZE_TILES["S"], taken))), None)
         if found is None:
             continue
-        at, point, placed = found
+        at, rect, point, placed = found
         room = CustomRoom(f"tp-{zlib.crc32(key.encode('utf-8')):08x}", name, "", "S", SKIN, at, point)
         taken += [placed.room, *placed.corridors]
-        items = room_items(room, placed, door_cells([room], {room.rid: placed}), _corridor)
+        doors = door_cells([room], {room.rid: placed})
+        items = room_items(room, placed, doors, _corridor)
+        if doors.get(at):
+            out = [_opened(r, rect, doors[at]) for r in out]
         for item in items:
             item.pop("custom", None)
             item["build"] = f"{TOPIC}~{key}"
@@ -116,16 +120,6 @@ def extend(layout: dict | None, rows, taken) -> dict | None:
         used.add(name.lower())
         out += items
     return dict(layout, rooms=out)
-
-
-def _anchors(rooms) -> list[tuple[str, tuple[int, int, int, int]]]:
-    """The Apothecary first, then every room already on the map, to hang a Topic room off."""
-    out = [(APOTHECARY, APOTHECARY_RECT)]
-    for room in rooms:
-        if room.get("name") and room.get("name") != APOTHECARY and not room.get("corridor") \
-                and isinstance(room.get("origin"), list) and isinstance(room.get("size"), list):
-            out.append((room["name"], (*room["origin"], *room["size"])))
-    return out
 
 
 def _rects_of(layout: dict, kind: str) -> list[tuple[int, int, int, int]]:

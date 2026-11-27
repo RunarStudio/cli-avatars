@@ -53,6 +53,16 @@ def place_rooms(rooms, reserved) -> tuple[dict[str, rp.Placement], CustomRoom | 
     return placed, None
 
 
+def anchors(rooms) -> list[tuple[str, rp.Rect]]:
+    """The Apothecary first, then every room already on the map, to hang a new room off."""
+    out = [(APOTHECARY, APOTHECARY_RECT)]
+    for room in rooms:
+        if room.get("name") and room.get("name") != APOTHECARY and not room.get("corridor") \
+                and isinstance(room.get("origin"), list) and isinstance(room.get("size"), list):
+            out.append((room["name"], (*room["origin"], *room["size"])))
+    return out
+
+
 def door_cells(rooms, placed) -> dict:
     """Door cells per owner (a room name, a rid or ``(rid, corridor index)``): ``"skin"`` on a built room."""
     doors: dict = {}

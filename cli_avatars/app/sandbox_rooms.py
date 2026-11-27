@@ -1,9 +1,10 @@
-"""SANDBOX on the Dungeon floor: each live sandbox is a small side chamber off the Apothecary. No Tk.
+"""SANDBOX on the Dungeon floor: each live sandbox is a small side chamber off the Apothecary or another room. No Tk.
 
-The chamber is an S room in the Ember Cistern skin on the nearest free east or south point (so the Apothecary's
-own walls never change), with a short corridor. ``sandbox_art`` stamps the cracks, the rune fence and the warning
-brazier on it; ``sandbox_view`` animates them. A chat running in the sandbox's worktree binds to the chamber like a
-session to its room: same CLI, same folder name. A promoted or binned sandbox stays ``OUT_S`` so it can animate out.
+The chamber is an S room in the Ember Cistern skin on the nearest free east or south point of the Apothecary, else
+off any room with space (an arch opens that room's wall), with a short corridor. ``sandbox_art`` stamps the cracks,
+the rune fence and the warning brazier on it; ``sandbox_view`` animates them. A chat running in the sandbox's
+worktree binds to the chamber like a session to its room: same CLI, same folder name. A promoted or binned sandbox
+stays ``OUT_S`` so it can animate out.
 """
 
 from __future__ import annotations
@@ -12,7 +13,16 @@ import time
 from pathlib import Path
 
 from cli_avatars.app import room_place as rp
-from cli_avatars.app.custom_rooms import APOTHECARY, APOTHECARY_RECT, SIZE_TILES, CustomRoom, door_cells, room_items
+from cli_avatars.app.boss_rooms import _opened
+from cli_avatars.app.custom_rooms import (
+    APOTHECARY,
+    APOTHECARY_RECT,
+    SIZE_TILES,
+    CustomRoom,
+    anchors,
+    door_cells,
+    room_items,
+)
 from cli_avatars.app.sandbox_art import KIND, OUT_S
 
 SKIN = "ember-cistern"
@@ -47,13 +57,19 @@ def extend(layout: dict | None, rows, taken) -> dict | None:
         return layout
     taken, out = list(taken), list(layout.get("rooms") or [])
     for sid, name, slug, state, ended in rows:
-        found = next(((p, f) for p in POINTS if (f := rp.place(APOTHECARY_RECT, p, SIZE_TILES["S"], taken))), None)
+        spots = [(APOTHECARY, APOTHECARY_RECT, p) for p in POINTS] + \
+            [(at, rect, p) for at, rect in anchors(out) for p in rp.points(rect)]
+        found = next(((at, rect, p, f) for at, rect, p in spots
+                      if (f := rp.place(rect, p, SIZE_TILES["S"], taken))), None)
         if found is None:
             continue
-        point, placed = found
-        room = CustomRoom(f"sb-{sid[:8]}", name, "", "S", SKIN, APOTHECARY, point)
+        at, rect, point, placed = found
+        room = CustomRoom(f"sb-{sid[:8]}", name, "", "S", SKIN, at, point)
         taken += [placed.room, *placed.corridors]
-        items = room_items(room, placed, door_cells([room], {room.rid: placed}), _corridor)
+        doors = door_cells([room], {room.rid: placed})
+        items = room_items(room, placed, doors, _corridor)
+        if doors.get(at):
+            out = [_opened(r, rect, doors[at]) for r in out]
         for item in items:
             item.pop("custom", None)
             item["build"] = f"{KIND}~{sid}"
