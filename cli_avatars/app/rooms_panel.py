@@ -11,7 +11,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import text_fonts as fonts
-from cli_avatars.app import orch_dock
+from cli_avatars.app import orch_dock, status_ink
 from cli_avatars.app.bots_ui import bot_signature, render_bot_sections
 from cli_avatars.app.toolbar_widgets import paint
 from cli_avatars.desktop.capabilities import HAS_PIL
@@ -21,7 +21,6 @@ from events import EventRejected
 from rooms import (
     build_rooms,
     config_with_rooms,
-    dot_color,
     fade_hex,
     fade_image,
     idle_thumbnail,
@@ -340,7 +339,7 @@ def _render_topic_card(self, parent, topic, decisions: int) -> None:
     dots.pack(fill="x", pady=(4, 0))
     for agent_id in members[:8]:
         _name, _skin, agent_status = self._member_face(str(agent_id))
-        tk.Label(dots, text="●", bg=bg, fg=dot_color(agent_status),
+        tk.Label(dots, text="●", bg=bg, fg=status_ink.colour(agent_status),
                  font=fonts.face(8), cursor="hand2").pack(side="left", padx=(0, 2))
     self._bind_topic_click(frame, topic_id)
 
@@ -391,7 +390,8 @@ def _render_orchestrator_dot(self, parent, card) -> None:
     ink = "#6a6a80" if card.dimmed else "#e8e6f4"
     row = tk.Frame(parent, bg=bg)
     row.pack(fill="x", padx=12, pady=1)
-    dot = fade_hex(card.dot) if card.dimmed else card.dot
+    dot = status_ink.colour(card.status)
+    dot = fade_hex(dot) if card.dimmed else dot
     tk.Label(row, text="●", bg=bg, fg=dot, font=fonts.face(10)).pack(side="left")
     tk.Label(row, text=card.name, bg=bg, fg=ink,
              font=fonts.face(9)).pack(side="left", padx=(4, 0))
@@ -399,7 +399,8 @@ def _render_orchestrator_dot(self, parent, card) -> None:
         tk.Label(row, text=card.mark, bg=bg, fg="#c6c6dc",
                  font=fonts.face(9)).pack(side="left", padx=(6, 0))
     for sub in card.subs:
-        sub_dot = fade_hex(sub.dot) if card.dimmed else sub.dot
+        sub_dot = status_ink.colour(sub.status)
+        sub_dot = fade_hex(sub_dot) if card.dimmed else sub_dot
         tk.Label(row, text="●", bg=bg, fg=sub_dot, font=fonts.face(8)).pack(side="left", padx=(6, 0))
     if card.warn:
         icon = self._room_warn(card.dimmed)
