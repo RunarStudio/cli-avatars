@@ -604,9 +604,10 @@ class ChatWindow:
             self._new_chat_btn.pack(side="right")
         self._status = tk.Label(
             foot, text="Stored locally. Nothing here runs.",
-            bg=BG, fg="#55556a", font=FONT_SMALL, anchor="w",
+            bg=BG, fg="#55556a", font=FONT_SMALL, anchor="w", justify="left",
         )
         self._status.pack(side="left", fill="x", expand=True)
+        self._status.bind("<Configure>", lambda e: e.widget.config(wraplength=max(120, e.width - 4)))
         if self._room_pane_factory is not None:
             if self._room is None:
                 self._room = self._room_pane_factory(self, room_tools())

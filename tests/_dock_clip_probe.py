@@ -139,6 +139,10 @@ cut = clipped(pane.grok.frame, view._right)
 check("Grok topics strip reads in full", not cut, cut)
 cut = clipped(pane._composer, view._right, skip=(host._chat_window._status,))  # the status line: chat_window.py
 check("every composer line reads in full", not cut, cut)
+status = host._chat_window._status
+cut = clipped(status.master, view._right)
+check("status hint reads in full", str(status.cget("text")).startswith("Enter runs Grok") and not cut,
+      (status.cget("text"), cut))
 
 view.show_center("tasks")
 root.update()
