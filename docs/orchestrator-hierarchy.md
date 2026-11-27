@@ -48,7 +48,8 @@ Each launch takes its tier from where it starts. A fresh session gets the tier's
 pack and task, before your prompt), naming who it delegates to and on which model. The app cannot pick a subagent's
 model itself: the task role tells the task chat which model to ask for. The chip (crown, banner, scroll, spark) with
 model and effort shows on the composer's Run row and hangs under each room's door sign; the phone shows the same
-chips and a legend, read-only.
+chips and a legend, read-only. USAGE.1: a room's chip (Run row, door sign, phone map) shows the model and effort its
+CLI reported, `MODEL ?` until it names one; the legend and Settings keep the tier's setting ([usage.md](usage.md)).
 
 ## Pick model and effort in Settings (TIERS-SETTINGS.1)
 

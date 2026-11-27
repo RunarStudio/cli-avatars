@@ -60,6 +60,33 @@ Example: [`examples/bot-bridge.inbox.example.json`](examples/bot-bridge.inbox.ex
 | `answer` | Text. Control characters are dropped, secret shapes redacted, cut at 4,000 characters |
 | `answered_at` | ISO-8601 UTC (shown as is; optional) |
 
+### Report model, effort and usage (optional)
+
+A bot may say what it ran on and what the answer cost. The app shows it like a chat session (chip
+`MODEL · EFFORT`, tokens, cost, time; see [usage.md](usage.md)) and counts it in the total. Every field is optional; an
+answer file without them works as before, and a bad field is dropped, never the answer.
+
+| Field | Rule |
+|-------|------|
+| `model` | The model the bot really used: letters, digits, `.`, `_`, `:`, `/`, `-`; at most 64 characters |
+| `effort` | Its effort or reasoning level: a plain word, at most 16 characters |
+| `usage.tokens_in`, `usage.tokens_out` | Whole numbers, 0 or more |
+| `usage.cost_usd` | US dollars, 0 or more; your own estimate |
+| `usage.duration_s` | Seconds the answer took, 0 or more |
+
+```json
+{
+  "schema_version": 1,
+  "id": "ask-20261126-101500-a1b2c3",
+  "bot": "grok-bot",
+  "answer": "The west row, by Friday. The east row needs another week of sun.",
+  "answered_at": "2026-11-26T10:42:00Z",
+  "model": "grok-stub-4",
+  "effort": "high",
+  "usage": { "tokens_in": 3200, "tokens_out": 410, "cost_usd": 0.0061, "duration_s": 12.5 }
+}
+```
+
 Write it to a temporary name and rename it into `inbox/`. UTF-8 without a BOM, at most 64 KB. A wrong id, a wrong
 bot, bad JSON or a symlink is ignored and the ask stays pending. The app never follows instructions in `answer`: it is
 shown, never run.
