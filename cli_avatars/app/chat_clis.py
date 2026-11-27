@@ -87,15 +87,17 @@ def state(directory, config: object, cli: str, resolve) -> SimpleNamespace:
 
 def launch(directory, config: object, room: str, cli: str) -> dict:
     """One send's template, the session it resumes and, for a fresh one whose template has a ``new`` piece, the id
-    the app names it with (GROK-CHAT: ``grok -s <uuid>``, so resume never waits on the CLI to report it)."""
+    the app names it with (GROK-CHAT: ``grok -s <uuid>``, so resume never waits on the CLI to report it); ``meter``
+    wraps the send's line callback to keep its reported model, effort and usage (USAGE.1)."""
     import uuid
 
-    from cli_avatars.app import task_sessions
+    from cli_avatars.app import task_sessions, usage
 
     argv = template(config, cli)
     session = task_sessions.session(directory, room, cli)
     fresh = str(uuid.uuid4()) if session is None and argv is not None and "new" in argv else None
-    return {"template": argv, "session_id": session, "new_session_id": fresh}
+    return {"template": argv, "session_id": session, "new_session_id": fresh,
+            "meter": usage.meter(directory, config, room, cli, argv)}
 
 
 def short_path(path: str) -> str:

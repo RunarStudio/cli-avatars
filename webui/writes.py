@@ -259,7 +259,8 @@ class Actions:
         session = fields["session_id"]
         request = SimpleNamespace(room_id=topic, cli=cli, pin=pin, working_dir=room.working_dir,
                                   mode=room.permission_mode, session_id=session, topic_title=title,
-                                  open_cards=cards, on_line=on_line, on_done=on_done, template=fields["template"],
+                                  open_cards=cards, on_line=fields["meter"](on_line), on_done=on_done,
+                                  template=fields["template"],
                                   new_session_id=fields["new_session_id"],
                                   preamble=task_chats.preamble(self.directory, topic, fresh=session is None),
                                   **tiers.launch(self.directory, config, topic, cli, session is None))

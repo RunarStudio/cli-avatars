@@ -10,6 +10,7 @@ absolute: a sync folder). Answer text is data: sanitised, redacted, shown, never
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import secrets
@@ -29,6 +30,9 @@ CONTEXT_LIMIT = 1500
 FILE_LIMIT = 64_000
 MAX_FILES = 400
 PENDING, ANSWERED, STALE = "pending", "answered", "stale"
+REPORT_MODEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$")
+REPORT_EFFORT = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,15}$")
+REPORT_USAGE = ("tokens_in", "tokens_out", "cost_usd", "duration_s")
 
 
 def root(directory: Path | str, config: object) -> Path:
@@ -85,7 +89,8 @@ def listing(bridge: Path, *, card: str = "", room: str = "", project: str = "", 
         if any(value and body[key] != value for key, value in wanted.items()):
             continue
         answer = _read(bridge / "inbox", body["id"]) if body["status"] == ANSWERED else None
-        out.append(_row(body, _answer(answer, body), now))
+        text = _answer(answer, body)
+        out.append({**_row(body, text, now), "report": _report(answer) if text is not None else None})
     return sorted(out, key=lambda r: r["created"], reverse=True)
 
 
@@ -161,6 +166,22 @@ def _answer(raw: dict | None, body: dict) -> str | None:
         return None
     text = sanitize_text(redact(raw["answer"]), ANSWER_LIMIT).strip()
     return text or None
+
+
+def _report(raw: dict) -> dict:
+    """USAGE.1: the answer's optional ``model``, ``effort`` and ``usage``; a missing or bad field reads ``None``."""
+    def plain(key: str, pattern: re.Pattern) -> str | None:
+        value = raw.get(key)
+        return value if isinstance(value, str) and pattern.match(value) else None
+
+    def number(value: object) -> float | None:
+        ok = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        return value if ok and 0 <= value < 1e12 else None
+
+    numbers = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
+    effort = plain("effort", REPORT_EFFORT)
+    return {"model": plain("model", REPORT_MODEL), "effort": effort.lower() if effort else None,
+            **{key: number(numbers.get(key)) for key in REPORT_USAGE}}
 
 
 def _outbox(bridge: Path) -> list[dict]:

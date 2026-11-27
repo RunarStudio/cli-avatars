@@ -214,15 +214,23 @@ def chip(tier: str, rows: dict) -> dict:
 
 
 def room_chip(directory: Path | str, config: object, room: str) -> dict:
-    """The chip of the tier a launch from ``room`` takes, for the composer."""
-    return chip(tier_of(directory, room), table(config))
+    """The chip of the tier a launch from ``room`` takes, labelled with what its CLI last reported (USAGE.1)."""
+    from cli_avatars.app import usage
+
+    rows, tier = table(config), tier_of(directory, room)
+    return {**chip(tier, rows), "label": usage.label(usage.record(directory, room), rows[tier]["cli"])}
 
 
 def phone(directory: Path | str, config: object) -> dict:
-    """The phone's read-only view: is the main orchestrator open, and every tier's chip, CLI and job."""
+    """The phone's read-only view: is the main orchestrator open, every tier's chip, CLI and job, each room's
+    reported ``MODEL · EFFORT`` and the usage list (USAGE.1)."""
+    from cli_avatars.app import usage
+
     rows = table(config)
+    reported = {r["name"]: usage.label(r) for r in sorted(usage.session_rows(directory), key=lambda r: r["updated"])}
     return {"main": bool(main_sid(directory)),
-            "tiers": [{**chip(t, rows), "name": NAMES[t], "cli": rows[t]["cli"], "does": DOES[t]} for t in TIERS]}
+            "tiers": [{**chip(t, rows), "name": NAMES[t], "cli": rows[t]["cli"], "does": DOES[t]} for t in TIERS],
+            "rooms": reported, "usage": usage.phone(directory, config)}
 
 
 def refused(tier: str, model: str) -> str:

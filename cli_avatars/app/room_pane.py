@@ -226,8 +226,8 @@ class RoomPane:
             room_id=room.room_id, cli=cli, pin=pin, working_dir=room.working_dir, mode=room.permission_mode,
             session_id=session, topic_title=title, open_cards=cards, template=argv,
             preamble=task_chats.preamble(directory, room.room_id, fresh=session is None),
-            new_session_id=fields["new_session_id"], on_line=lambda line: run.events.put(("line", line)),
-            on_done=lambda result: run.events.put(("done", result)),
+            new_session_id=fields["new_session_id"], on_done=lambda result: run.events.put(("done", result)),
+            on_line=fields["meter"](lambda line: run.events.put(("line", line))),
             run=run, **tiers.launch(directory, self.window._config(), room.room_id, cli, session is None),
         )
 

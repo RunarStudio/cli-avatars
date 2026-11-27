@@ -123,15 +123,19 @@ def anchors(layout: dict | None, plan) -> dict[str, tuple[float, float]]:
     return out
 
 
-def tier_chips(layout: dict | None, config: object) -> dict[str, tuple]:
-    """Session topic to its tier chip (the throne is main, a simple room a topic), hashable for the photo cache."""
-    from cli_avatars.app import tiers
+def tier_chips(layout: dict | None, config: object, directory=None) -> dict[str, tuple]:
+    """Session topic to its tier chip (the throne is main, a simple room a topic), hashable for the photo cache;
+    with ``directory`` the label is what the room's CLI reported (USAGE.1)."""
+    from cli_avatars.app import tiers, usage
 
     rows = tiers.table(config)
     out = {}
     for room in (layout or {}).get("rooms") or []:
         if isinstance(room, dict) and room.get("session") and room.get("kind") and not room.get("corridor"):
-            chip = tiers.chip("main" if room.get("throne") else "topic", rows)
+            tier = "main" if room.get("throne") else "topic"
+            chip = tiers.chip(tier, rows)
+            if directory is not None:
+                chip["label"] = usage.label(usage.record(directory, room["session"]), rows[tier]["cli"])
             out[room["session"]] = tuple((k, tuple(v) if isinstance(v, list) else v) for k, v in chip.items())
     return out
 
@@ -166,7 +170,8 @@ class Signs:
             return
         cards = self.cards(book.app)
         scale = max(1, int(painter._scale))
-        chips = tier_chips(painter.layout, getattr(book.app, "config", None))
+        directory = getattr(book.app, "_chat_directory", None)
+        chips = tier_chips(painter.layout, getattr(book.app, "config", None), directory() if callable(directory) else None)
         for topic, (u, v) in spots.items():
             at = painter.to_canvas(u, v)
             if at is None:
