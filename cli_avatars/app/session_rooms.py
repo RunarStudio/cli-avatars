@@ -19,7 +19,7 @@ import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from cli_avatars.app import boss_rooms, custom_rooms, park, sandbox_rooms
+from cli_avatars.app import boss_rooms, custom_rooms, park, sandbox_rooms, topic_rooms
 from cli_avatars.app import room_place as rp
 from cli_avatars.app.custom_rooms import (
     APOTHECARY,
@@ -109,6 +109,7 @@ class SessionRooms:
             self.rooms, self.looks = load_custom(self.path)
         self._cache: tuple = (None, None)
         self.sandboxes, self.park_on, self.boss = (lambda now: ()), park.switch(self.path), boss_rooms.switch(self.path)
+        self.topics = topic_rooms.published
 
     def open(self, kind: str, cli: str, topic: str) -> str:
         """Add a session; ``""`` when its room is placed, else why not."""
@@ -143,14 +144,15 @@ class SessionRooms:
 
     def layout(self, now: float) -> dict | None:
         """The Apothecary, a room per live session, your rooms, the sandboxes; the same object while unchanged."""
-        extra, on, boss = self.sandboxes(now), self.park_on(now), self.boss(now)
+        extra, on, boss, topics = self.sandboxes(now), self.park_on(now), self.boss(now), self.topics(now)
         key = (tuple((s.sid, s.kind, s.cli, s.slot, s.skin, s.size) for s in self.live(now)),
-               tuple(self.rooms), json.dumps(self.looks, sort_keys=True), extra, on, boss)
+               tuple(self.rooms), json.dumps(self.looks, sort_keys=True), extra, on, boss, topics)
         if self._cache[0] != key:
             built = park.extend(build_layout(load_layout(), self.live(now), self.rooms, self.looks), self._taken(), on)
             built = boss_rooms.extend(built, self._taken(), boss)
-            self._cache = (key, sandbox_rooms.extend(built, extra, self._taken() + park.rects(built)
-                                                     + boss_rooms.rects(built)))
+            built = sandbox_rooms.extend(built, extra, self._taken() + park.rects(built) + boss_rooms.rects(built))
+            self._cache = (key, topic_rooms.extend(built, topics, self._taken() + park.rects(built)
+                                                   + boss_rooms.rects(built) + _rects_of(built, "sandbox")))
         return self._cache[1]
 
     def add_room(self, name: object, topic: object, size: object, skin: object, at: object, point: object) -> str:
@@ -282,6 +284,12 @@ class SessionRooms:
     def _save(self) -> None:
         if self.path is not None:
             save(self.path, [s for s in self.sessions if not s.closing], self.rooms, self.looks)
+
+
+def _rects_of(layout: dict | None, kind: str) -> list[tuple[int, int, int, int]]:
+    """The tile rects of ``kind`` rooms and their corridors already on ``layout``."""
+    return [(r["origin"][0], r["origin"][1], r["size"][0], r["size"][1]) for r in (layout or {}).get("rooms") or []
+            if isinstance(r, dict) and str(r.get("build", "")).startswith(f"{kind}~")]
 
 
 def build_layout(base: dict | None, sessions, rooms=(), looks=None) -> dict | None:
@@ -496,5 +504,6 @@ def model_for(app) -> SessionRooms:
         found = SessionRooms(path)
         if callable(getattr(app, "_chat_directory", None)):
             found.sandboxes = sandbox_rooms.feed(app._chat_directory)
+        found.topics = topic_rooms.feed(app)
         app._session_rooms = found
     return found
