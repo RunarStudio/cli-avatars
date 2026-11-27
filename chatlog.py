@@ -18,6 +18,7 @@ import os
 import stat
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -120,6 +121,14 @@ def format_clock(ts: float, localtime: Callable = time.localtime) -> str:
     except (TypeError, ValueError, OverflowError, OSError):
         return "--:--"
     return f"{moment.tm_hour:02d}:{moment.tm_min:02d}"
+
+
+def format_stamp(stamp: str, pattern: str = "%m-%d %H:%M") -> str:
+    """A stored UTC ``...Z`` stamp in local time; one that does not parse as stored."""
+    try:
+        return datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone().strftime(pattern)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return stamp
 
 
 def _id_part(sender: str) -> str:

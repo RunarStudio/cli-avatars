@@ -12,6 +12,7 @@ import tkinter as tk
 from pathlib import Path
 
 import text_fonts as fonts
+from chatlog import format_stamp
 from cli_avatars.app.update_bar import UpdateBar
 from cli_avatars.update import progress
 from cli_avatars.update.config import update_config
@@ -193,7 +194,7 @@ def _fill(app) -> None:
         state = read_state(app_data_dir())
     except OSError:
         state = {}
-    checked = state.get("last_checked") or "not yet"
+    checked = format_stamp(state.get("last_checked", ""), "%Y-%m-%d %H:%M") or "not yet"
     tk.Label(
         frame, text=f"  {version}  ·  {commit or 'no commit'}  ·  dev",
         bg=_BG, fg=_FG, font=fonts.face(10, "bold"), anchor="w",

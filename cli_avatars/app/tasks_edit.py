@@ -27,6 +27,7 @@ from board.model import (
     valid_assignee,
     valid_label,
 )
+from chatlog import format_stamp
 from events import EventRejected
 from registry.facade import Registry
 from topics import get_topic, valid_topic_id
@@ -260,7 +261,7 @@ def chat_rows(directory: Path | str, card: Mapping) -> list[dict]:
             lines = []
         said = [m for m in lines if m.get("icon") == "speech"] or lines
         last = str(said[-1].get("text") or "") if said else ""
-        rows.append({"room": chat["room"], "cli": chat["cli"], "started": chat["created"][5:16].replace("T", " "),
+        rows.append({"room": chat["room"], "cli": chat["cli"], "started": format_stamp(chat["created"]),
                      "last": (last if len(last) <= 80 else last[:79] + "…") or "no messages yet",
                      "pack": started_with(directory, chat["room"])})
     return rows
@@ -296,7 +297,7 @@ def history_lines(card: Mapping, limit: int = 8) -> list[str]:
     for event in reversed(card.get("history") or []):
         if event["kind"] == "summary":  # rewritten every chat turn; the card shows it on top
             continue
-        stamp = event["ts"][5:16].replace("T", " ")
+        stamp = format_stamp(event["ts"])
         what = _line(event)
         lines.append(f"{stamp} {what}" if event["kind"] == "commented" else f"{stamp} {event['actor']} {what}")
         if len(lines) == limit:
