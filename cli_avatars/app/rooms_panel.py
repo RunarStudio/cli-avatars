@@ -334,15 +334,12 @@ def _render_topic_card(self, parent, topic, decisions: int) -> None:
                     font=fonts.face(8), padx=4, cursor="hand2")
     chip.grid(row=0, column=1, sticky="nw", padx=(8, 0))
     head.columnconfigure(2, weight=1)
-    side = [chip]
     if decisions:
-        count = tk.Label(head, text=f"decisions {decisions}", bg=bg, fg="#9a98b8",
-                         font=fonts.face(8), cursor="hand2")
-        count.grid(row=0, column=3, sticky="ne", padx=(8, 0))
-        side.append(count)
+        tk.Label(head, text=f"decisions {decisions}", bg=bg, fg="#9a98b8", font=fonts.face(8),
+                 cursor="hand2").grid(row=0, column=3, sticky="ne", padx=(8, 0))
     # A narrow dock wraps the title instead of clipping the chip.
-    head.bind("<Configure>", lambda event: title.configure(
-        wraplength=max(1, event.width - sum(w.winfo_reqwidth() + 8 for w in side))))
+    head.bind("<Configure>", lambda event: title.configure(wraplength=max(
+        1, event.width - sum(w.winfo_reqwidth() + 8 for w in head.grid_slaves(row=0) if w is not title))))
     dots = tk.Frame(body, bg=bg)
     dots.pack(fill="x", pady=(4, 0))
     for agent_id in members[:8]:
