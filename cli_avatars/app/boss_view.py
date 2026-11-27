@@ -254,7 +254,7 @@ class BossView:
             title = f"BURN-DOWN - WEEK OF {monday.tm_mday} {time.strftime('%b', monday).upper()}"
             right = max(art.CHART_W * s + 8, x - (oni.size(stage) / 2 + 16) * s)
             self._image(scene, "chart", ("chart", week, days, title, s),
-                        (right, max(art.CHART_H * s + 8, foot - 6 * s)), "se", "chart")
+                        (right, max(art.CHART_H * s + 8, foot - 6 * s)), "se", False)
         self._drop(scene, keep)
         corner = (x - (oni.size(stage) / 2 + 16) * s, foot - oni.size(stage) * s)
         self._paint_list(scene, self.state if (self.listing or self.hot) else None, corner)
