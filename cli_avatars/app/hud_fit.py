@@ -6,7 +6,7 @@ inside. Nameplates go under the HUD and are seated clear of it (``nameplates.sea
 
 from __future__ import annotations
 
-from cli_avatars.app.nameplates import scene_bounds
+from cli_avatars.app.nameplates import scene_bounds, seat_inside
 
 SIGN, PLAQUE = "door-sign", "door-plaque"
 
@@ -57,3 +57,8 @@ def labels_under(scene, inside: dict) -> None:
         label = getattr(av, "lbl_id", None)
         if label is not None:
             scene.tag_lower(label, hud[0])
+
+
+def seat(book, scene, settled, spots, dragging) -> None:
+    """This frame's nameplates, seated clear of the HUD once it is pulled inside the view."""
+    seat_inside(scene, settled, spots, book.app._inside, dragging, keep_in_view(book, scene))

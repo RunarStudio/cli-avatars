@@ -158,3 +158,18 @@ def stack(book, scene, painter, dragging=None, building=()) -> None:
         return
     scene.tag_raise(OCCLUDER, "floor")
     restack(scene, floor_items(book, painter, dragging), occluders, ids)
+
+
+def settle(book, scene, dragging, now) -> None:
+    """End of a frame: the floor at the bottom, the standing pieces and moving things in depth order, labels under
+    the HUD."""
+    from cli_avatars.app.hud_fit import labels_under
+    from cli_avatars.app.room_build import build_for
+
+    scene.tag_lower("floor")
+    painter = getattr(scene, "_rooms_painter", None)
+    try:
+        stack(book, scene, painter, dragging, build_for(book).active(painter, now) if painter else ())
+        labels_under(scene, book.app._inside)
+    except Exception:
+        return
