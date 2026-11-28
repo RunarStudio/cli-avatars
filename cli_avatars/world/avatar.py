@@ -348,6 +348,8 @@ class Avatar:
             "mode": getattr(self, "_spr_mode", "none"),
             "photo": self._photo,
             "canvas": canvas,
+            "at": getattr(self, "_ink_at", None) if same else None,
+            "plate": getattr(self, "_ink_plate", None) if same else None,
         }
         self._paint(canvas, photos, ink, 0, 0)
         self._adopt(ink)
@@ -372,6 +374,7 @@ class Avatar:
         self._draw_sig = ink["sig"]
         self._spr_mode = ink["mode"]
         self._photo, self._spr_canvas = ink["photo"], ink["canvas"]
+        self._ink_at, self._ink_plate = ink.get("at"), ink.get("plate")
 
     def _drop_inks(self, keep: set) -> None:
         inks = getattr(self, "_inks", None) or {}
@@ -422,10 +425,12 @@ class Avatar:
                 canvas.delete(ink["spr"])
                 ink["spr"] = None
             ink["mode"] = "image"
-            ink["photo"] = photo
+            shown, ink["photo"] = ink["photo"], photo
             if ink["spr"]:
-                canvas.coords(ink["spr"], px, py)
-                canvas.itemconfig(ink["spr"], image=ink["photo"])
+                if ink.get("at") != (px, py):
+                    canvas.coords(ink["spr"], px, py)
+                if shown is not photo:
+                    canvas.itemconfig(ink["spr"], image=photo)
             else:
                 ink["spr"] = canvas.create_image(px, py, image=ink["photo"], anchor="nw")
         else:
@@ -449,16 +454,20 @@ class Avatar:
         else:
             lx = px + self.aw // 2
             ly = py - 14
+        plate = (lx, ly, label, fill)
         if ink["lbl"]:
-            canvas.coords(ink["lbl"], lx, ly)
-            canvas.itemconfig(ink["lbl"], text=label, fill=fill)
+            old = ink.get("plate") or (None,) * 4
+            if old[:2] != plate[:2]:
+                canvas.coords(ink["lbl"], lx, ly)
+            if old[2:] != plate[2:]:  # the status sweep rewrites the text in between
+                canvas.itemconfig(ink["lbl"], text=label, fill=fill)
         else:
             ink["lbl"] = canvas.create_text(
                 lx, ly, text=label,
                 font="DungeonF7b",
                 fill=fill,
                 justify="center")
-        ink["sig"] = sig
+        ink["sig"], ink["at"], ink["plate"] = sig, (px, py), plate
 
     def plate_text(self) -> str:
         """The nameplate. A spring child is just the name. The rest is status, tool, and count."""

@@ -10,9 +10,8 @@
   background: radial-gradient(circle at 35% 30%, #4e3d66, #3a2c4d 55%, #1c1426); box-shadow: 0 1px 0 #0b0811; }
 .repo-seal::after { content: "\16DF"; position: absolute; inset: 0; display: grid; place-items: center; font: 700 11px var(--mono); color: #5a4a72; }
 .repo-row.lit .repo-seal { background: radial-gradient(circle at 35% 30%, #ffc44a, #ff7a1e 55%, #a8340e);
-  box-shadow: 0 0 0 2px #ffcf4a44, 0 0 12px #ffcf4a99; animation: seal-glow 2.4s ease-in-out infinite; }
+  box-shadow: 0 0 0 2px #ffcf4a44, 0 0 12px #ffcf4a99; }
 .repo-row.lit .repo-seal::after { color: #fff0a0; }
-@keyframes seal-glow { 50% { box-shadow: 0 0 0 3px #ffcf4a33, 0 0 18px #ffcf4acc; } }
 .repo-name { color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repo-folder { font: 12px var(--mono); color: var(--dim); background: #211a2c; padding: 1px 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; order: 5; margin-left: 26px; max-width: calc(100% - 26px); }
@@ -28,4 +27,3 @@
 .repo-form[hidden] { display: none; }
 .repo-form input { font: inherit; color: var(--ink); background: #0d0a14; border: 0; box-shadow: inset 0 0 0 1px #33284a; padding: 8px; }
 .repo-form input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--torch); }
-@media (prefers-reduced-motion: reduce) { .repo-row.lit .repo-seal { animation: none; } }

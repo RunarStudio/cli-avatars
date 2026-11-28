@@ -5,7 +5,7 @@ from __future__ import annotations
 PALETTE = {
     "idle": "#9a98b8",
     "busy": "#4fd16a",
-    "thinking": "#a77bff",
+    "thinking": "#4a8cff",
     "subagent": "#2ec4b6",
     "blocked": "#ffb000",
     "error": "#ff5a5a",

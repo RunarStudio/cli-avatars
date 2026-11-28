@@ -19,8 +19,8 @@ function drawParkUnder(now) {
   if (!park) return;
   const t = now / 1000;
   ctx.save();
-  park.lamps.forEach(([x, y], i) => {
-    const k = 0.75 + 0.25 * Math.sin(t * 2.4 + i * 1.7);
+  park.lamps.forEach(([x, y]) => {
+    const k = 0.75;
     const g = ctx.createRadialGradient(x, y - 31, 0, x, y - 31, 16);
     g.addColorStop(0, `rgba(255,208,115,${0.32 * k})`);
     g.addColorStop(1, "rgba(255,208,115,0)");
@@ -33,7 +33,6 @@ function drawParkUnder(now) {
       const ph = parkHash(i, 3), a = Math.PI * 2 * (t / 4 + ph);
       const x = x0 + w * (0.2 + 0.6 * parkHash(i, 1)) + 9 * Math.sin(a + i);
       const y = y0 + 40 + (h - 40) * (0.2 + 0.6 * parkHash(i, 2)) - 14 + 5 * Math.sin(2 * a);
-      if (Math.sin(Math.PI * 2 * (t * 0.75 + ph)) < -0.2) continue;
       ctx.fillStyle = "rgba(190,240,120,.45)";
       ctx.fillRect(Math.round(x) - 1, Math.round(y), 3, 1);
       ctx.fillRect(Math.round(x), Math.round(y) - 1, 1, 3);
@@ -49,7 +48,7 @@ function drawParkUnder(now) {
       return w.a.idle === p.act && Math.hypot(at[0] - p.at[0], at[1] - p.at[1]) < 40;
     });
     if (!near) continue;
-    ctx.fillStyle = `rgba(255,208,115,${0.16 + 0.08 * Math.sin(t * 5)})`;
+    ctx.fillStyle = "rgba(255,208,115,0.16)";
     ctx.beginPath();
     ctx.ellipse(p.at[0], p.at[1], 15, 7, 0, 0, Math.PI * 2);
     ctx.fill();

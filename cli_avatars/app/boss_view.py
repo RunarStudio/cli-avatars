@@ -21,7 +21,7 @@ import time
 import backlog_boss
 import focus
 from cli_avatars.app import boss_art as art
-from cli_avatars.app import boss_dust, boss_rooms, crypt_view, cues
+from cli_avatars.app import boss_dust, boss_rooms, crypt_view, cues, still
 from cli_avatars.app import boss_oni as oni
 from cli_avatars.app import boss_room_art as room_art
 from cli_avatars.app.throttle import StoreThrottle
@@ -211,7 +211,7 @@ class BossView:
         self._bind(scene)
         s = max(1, int(painter._scale))
         stage, hp = self.state["stage"], self.shown_hp if self.shown_hp is not None else self.state["hp"]
-        glow = round((0.5 + 0.5 * math.sin(now * math.tau * 0.5)) * 7)
+        glow = 4
         bare = hp <= 0 and self.hit is None and now >= self._down_until
         keep = set() if bare else {"pit", "oni"}
         x, y = at
@@ -262,8 +262,8 @@ class BossView:
 
     def _raise(self, scene) -> None:
         try:
-            scene.tag_raise(TAG)
-            scene.tag_raise("boss-list")
+            still.lift(scene, TAG)
+            still.lift(scene, "boss-list")
         except Exception:
             return
 

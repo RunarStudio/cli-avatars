@@ -1,4 +1,4 @@
-"""SANDBOX on the Dungeon floor, each frame: a live chamber's cracks, runes and brazier flicker; a promoted one is
+"""SANDBOX on the Dungeon floor, each frame: a live chamber's cracks, runes and brazier glow steadily; a promoted one is
 sealed in gold and fades, a binned one drops through its trapdoor. ``Hall.place`` calls ``paint``; canvas items are
 made once and their images swapped only when the step changes, so nothing blinks. No window opens.
 """
@@ -13,7 +13,6 @@ from cli_avatars.app.room_build import BUILD_S
 from cli_avatars.app.sandbox_art import OUT_S, chambers
 
 TAG = "sandbox-fx"
-FLICKER_HZ = 6.0
 
 
 def view_for(book) -> "SandboxView":
@@ -79,7 +78,7 @@ class SandboxView:
         if born is not None and 0.0 <= now - born < BUILD_S:
             return None
         if chamber["state"] == "live":
-            return (id(painter.layout), chamber["sandbox"], "live", int(now * FLICKER_HZ) % sandbox_art.FLICKER, scale)
+            return (id(painter.layout), chamber["sandbox"], "live", 3, scale)
         step = int((now - chamber["ended"]) / OUT_S * sandbox_art.STEPS)
         kind = "seal" if chamber["state"] == "promoted" else "trapdoor"
         return (id(painter.layout), chamber["sandbox"], kind, min(sandbox_art.STEPS - 1, max(0, step)), scale)

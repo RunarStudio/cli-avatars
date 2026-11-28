@@ -48,7 +48,7 @@ While a task is in focus, an alert waits when it is for another task and came af
 - **Floor**: the focused task's room stays lit (the room of its topic: its session room, else a room built with that
   topic, else the Apothecary). Every other room and corridor goes under a cool dark veil, dithered, its torches
   snuffed to soot, a little light spilling from the lit room onto its neighbours. The lit room's torches burn brighter
-  with a warm flickering halo. Drawn in code from the room kit's own pixels (`focus_veil.py`); fades in over half a
+  with a steady warm halo. Drawn in code from the room kit's own pixels (`focus_veil.py`); fades in over half a
   second, out over a third.
 - **Banner**: a dark board with a gold rim and a lit candle, `FOCUS <task>`, a red wax seal with the number waiting,
   and a **Leave focus** button. Canvas items, no window.
@@ -59,7 +59,7 @@ While a task is in focus, an alert waits when it is for another task and came af
 ## Phone
 
 - The focus bar under the map bar: a candle, **Focus**, the task, the wax seal with **N waiting**, **Leave focus**.
-- The map: every room but the focused one under a dark veil (its walls cut out with it), a warm flicker in the lit
+- The map: every room but the focused one under a dark veil (its walls cut out with it), a steady warm light in the lit
   room; it fades in.
 - Tasks: the other tasks grey out in the list and on the Board; the focused one has a gold edge.
 - Live: the SSE event `focus` carries `{task, title, room, waiting}` whenever focus starts, ends or holds one more.

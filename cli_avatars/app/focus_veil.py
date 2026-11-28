@@ -2,7 +2,7 @@
 
 Drawn in code from the room kit's own pixels, as ``room_glow`` does: other rooms and corridors under a cool dark
 veil, dithered, their torches snuffed to soot, a little light spilling from the lit room onto its neighbours; the
-lit room's torches burn brighter with a warm flickering halo. The banner on top of the scene names the task, shows
+lit room's torches burn brighter with a steady warm halo. The banner on top of the scene names the task, shows
 a red wax seal with how many alerts wait, and holds **Leave focus**. All are canvas items made once and changed in
 place (images swap only when their key changes), so nothing blinks; no window opens.
 """
@@ -27,7 +27,7 @@ BANNER = "focus-banner"
 LEAVE = "focus-leave"
 FADE_IN, FADE_OUT = 0.5, 0.35
 STEPS = 4
-FLICKER = (1.0, 0.82, 0.94, 0.88)
+FLICKER = (1.0,)
 NIGHT = np.array((8.0, 10.0, 26.0), np.float32)
 SOOT = np.array((46.0, 36.0, 38.0), np.float32)
 WHITE_HOT = np.array((255.0, 250.0, 214.0), np.float32)
@@ -69,7 +69,7 @@ def _blur(m: np.ndarray, r: int) -> np.ndarray:
 
 
 def art(painter, room: str):
-    """At 1x: the veil over everything but ``room`` (full map size) and the lit room's flicker frames with their
+    """At 1x: the veil over everything but ``room`` (full map size) and the lit room's lit frames with their
     top-left. Cached on the painter until the map is composed again."""
     cache = painter.__dict__.setdefault("_focus_art", {})
     base = painter.base()
@@ -207,8 +207,7 @@ class Veil:
         step = math.ceil(level * STEPS)
         self._image(scene, painter, "veil", (id(veil), self.room, painter._scale, step), veil, (0, 0), step)
         if frames:
-            n = int(now * 7) % len(frames)
-            self._image(scene, painter, "light", (id(frames[n]), self.room, painter._scale, step), frames[n], at, step)
+            self._image(scene, painter, "light", (id(frames[0]), self.room, painter._scale, step), frames[0], at, step)
         if self._on:
             self._banner(app, scene, state, max(2, int(painter._scale)))
         else:

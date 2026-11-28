@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from cli_avatars.app import still
+
 OCCLUDER = "occluder"
 WALL_T = 0.15
 PILLAR = 0.5
@@ -109,10 +111,10 @@ def restack(scene, items, occluders, ids) -> None:
             bbox = scene.bbox(item)
             index = slot(box, bbox, occluders) if bbox else None
             if index is None:
-                scene.tag_raise(item, top)
+                still.above(scene, item, top)
                 top = item
             else:
-                scene.tag_lower(item, ids[index])
+                still.below(scene, item, ids[index])
         except Exception:
             continue
 
@@ -156,7 +158,7 @@ def stack(book, scene, painter, dragging=None, building=()) -> None:
     occluders, ids = painter.occluders()
     if not ids:
         return
-    scene.tag_raise(OCCLUDER, "floor")
+    still.above(scene, OCCLUDER, "floor")
     restack(scene, floor_items(book, painter, dragging), occluders, ids)
 
 
@@ -164,9 +166,10 @@ def settle(book, scene, dragging, now) -> None:
     """End of a frame: the floor at the bottom, the standing pieces and moving things in depth order, labels under
     the HUD."""
     from cli_avatars.app.hud_fit import labels_under
+    from cli_avatars.app.place_markers import settle as end_marks
     from cli_avatars.app.room_build import build_for
 
-    scene.tag_lower("floor")
+    end_marks(scene)
     painter = getattr(scene, "_rooms_painter", None)
     try:
         stack(book, scene, painter, dragging, build_for(book).active(painter, now) if painter else ())

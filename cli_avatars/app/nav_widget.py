@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import math
 
+from cli_avatars.app import still
+
 TAG = "nav"
 BOX_TAG = "nav-box"
 PX = 2
@@ -67,9 +69,9 @@ class NavWidget:
             scene.tag_bind(TAG, "<Enter>", lambda _e: scene.configure(cursor="hand2"))
             scene.tag_bind(TAG, "<Leave>", lambda _e: scene.configure(cursor=""))
         else:
-            scene.coords(self._item, x0, y0)
-        scene.coords(self._box, *view_box(self.thumb, base.size, painter._scale, painter._center, (width, height)))
-        scene.tag_raise(TAG)
+            still.move(scene, self._item, x0, y0)
+        still.move(scene, self._box, *view_box(self.thumb, base.size, painter._scale, painter._center, (width, height)))
+        still.lift(scene, TAG)
 
     def hit(self, x: float, y: float):
         """``minus``, ``plus``, ``fit``, ``("map", offset)`` (base px from the map's centre) or None."""

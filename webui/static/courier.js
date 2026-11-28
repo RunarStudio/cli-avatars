@@ -1,5 +1,5 @@
 // MESSENGER: news from another task's decision, read-only over SSE. The courier walks the map as a roster row
-// (sprite "courier"); when it arrives a wax seal flashes over the room, the room's card glows with a pulse and the
+// (sprite "courier"); when it arrives a wax seal flashes over the room, the room's card glows steadily and the
 // task card carries a "NEW FROM <room>" ribbon. A tap on the ribbon shows the decision and why it is news here.
 "use strict";
 
@@ -41,7 +41,7 @@ function drawCourierOver(now) {
   if (!state.scene || !state.scene.rooms) return;
   courierSeen(now);
   const rooms = new Map(state.scene.rooms.map((r) => [r.name, r]));
-  const pulse = 0.5 + 0.5 * Math.sin(now / 260);
+  const pulse = 0.5;
   const shown = new Set();
   for (const c of state.scene.couriers || []) {
     const r = rooms.get(c.room);
@@ -57,7 +57,7 @@ function drawCourierOver(now) {
   courierFlashes(now, rooms);
 }
 
-// the lit card at the origin: a warm pulse, parchment with a wax seal (the ribbon is on the list card)
+// the lit card at the origin: a steady warm glow, parchment with a wax seal (the ribbon is on the list card)
 function courierCard(pulse) {
   const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 26);
   glow.addColorStop(0, `rgba(255,206,110,${0.55 + 0.35 * pulse})`);

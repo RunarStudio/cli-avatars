@@ -311,7 +311,7 @@ function savedView() {
 function drawGlow(now) {
   const room = state.room && state.scene.rooms.find((r) => r.name === state.room);
   if (!room) return;
-  const pulse = 0.5 + 0.5 * Math.sin((now - state.glow) / 380);
+  const pulse = 0.5;
   const intro = Math.min(1, (now - state.glow) / 600);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -2111,7 +2111,7 @@ async function leaveFocus() {
 $("focusLeave").addEventListener("click", leaveFocus);
 
 // every room but the focused one under a cool dark veil, its outline cut out with the walls above it, and a
-// warm flicker of torchlight in the lit room; fades in over half a second
+// steady warm torchlight in the lit room; fades in over half a second
 function drawFocus(now) {
   const f = state.focus, room = f.task && state.scene.rooms.find((r) => r.name === f.room);
   if (!room) return;
@@ -2126,7 +2126,7 @@ function drawFocus(now) {
   ctx.fillStyle = `rgba(6,6,20,${0.7 * k})`;
   ctx.fill("evenodd");
   const cx = (p[0][0] + p[2][0]) / 2, cy = (p[0][1] + p[2][1]) / 2 - wall / 3;
-  const r = Math.max(p[1][0] - p[3][0], 40) * 0.6, flick = 0.85 + 0.15 * Math.sin(now / 90) * Math.sin(now / 37);
+  const r = Math.max(p[1][0] - p[3][0], 40) * 0.6, flick = 0.85;
   const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, r);
   g.addColorStop(0, `rgba(255,176,64,${0.16 * flick * k})`);
   g.addColorStop(1, "rgba(255,140,40,0)");

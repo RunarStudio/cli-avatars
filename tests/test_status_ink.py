@@ -162,7 +162,7 @@ class StatusInkTest(unittest.TestCase):
         item = canvas.items[marks.item("a1")]
         self.assertNotEqual(item["fill"], status_ink.colour("thinking"), "the pulse starts brighter")
         spent = canvas.run_timers()
-        self.assertTrue(500 <= spent <= 800, spent)
+        self.assertTrue(0 < spent <= 300, spent)
         self.assertEqual(item["fill"], status_ink.colour("thinking"))
         self.assertEqual(canvas.timers, {}, "the pulse timer stops")
         canvas.calls.clear()

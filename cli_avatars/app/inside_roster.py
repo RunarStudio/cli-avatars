@@ -13,6 +13,7 @@ import zlib
 from contextlib import contextmanager
 from dataclasses import replace
 
+from cli_avatars.app import still
 from cli_avatars.app.av_roster import (
     GROK,
     USER_ID,
@@ -466,7 +467,7 @@ class Hall:
                 photo = photos_for(self.book.app).get(("av1-need", scale), lambda: blocked_indicator(scale))
             x, y, _w, _h = place_blocked_mark((av.x + av.aw / 2.0 - 4.5 * scale, av.y, av.aw, av.ah), scale)
             try:
-                scene.create_image(x, y, image=photo, anchor="nw", tags=("inside-sub",))
+                still.pool(scene, "inside-sub").image(x, y, photo)
             except Exception:
                 return
 
