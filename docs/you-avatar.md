@@ -14,10 +14,10 @@ plain sprite at the Apothecary's centre that moved only by right-click > Move me
 
 | What | How |
 |------|-----|
-| Look | Drawn in code (`app/you_art.py`): crimson cloak, ermine collar, a small gold crown, a lantern on a staff with a flickering glow. Two idle and four walk frames. |
+| Look | Drawn in code (`app/you_art.py`): crimson cloak, ermine collar, a small gold crown, a lantern on a staff with a steady glow. Two idle and four walk frames. |
 | Start | The centre of the throne room while the main session is open, else the Apothecary. |
 | Click-to-walk | A click on the floor walks it there through the doors, like the agents (`Plan.route`). Drag still pans; a click on a courier, the boss, a plaque or the map control is theirs. |
-| Select | Click the keeper: a gold ring pulses under it. Click it again or press **Esc** to let go. |
+| Select | Click the keeper: a steady gold ring shows under it. Click it again or press **Esc** to let go. |
 | Keys | While selected, arrow keys and WASD walk it the way they point on screen; walls stop it, doors let it through. Not selected, the keys pan the camera as before (NAV.1). |
 | Camera | Follows it while it walks; zoom and pan are saved as before. |
 | Kept | Room and feet in `ui/you_avatar.json` (no paths); it comes back there after a restart. Move me to room still works. |

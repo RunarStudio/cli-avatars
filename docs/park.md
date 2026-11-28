@@ -10,7 +10,7 @@ out in a small night park. Work calls them back.
 - Drawn in code in the kit's pixel style: grass with tufts, a few flowers and glowing mushrooms, a stepping-stone
   path, low garden walls. Three dark stone sculptures (a hooded statue, a broken obelisk with runes, a crouching
   gargoyle), two stone benches, two straw training dummies, a weight rack, a sparring post, four lanterns. Lamp
-  halos breathe, the obelisk's runes pulse and fireflies drift over the grass.
+  halos and the obelisk's runes glow steadily and fireflies drift over the grass.
 - What an avatar does there: **sit** on a bench (two each), **hit** a dummy, **lift** at the rack, **spar** at the
   post, or **stroll** the loop around the lawn.
 

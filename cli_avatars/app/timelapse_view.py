@@ -18,7 +18,7 @@ import focus
 import text_fonts as fonts
 import timelapse
 from board.model import PERSON
-from cli_avatars.app import cues
+from cli_avatars.app import cues, still
 from cli_avatars.app import timelapse_art as art
 from cli_avatars.app import timelapse_ghosts as ghosts
 from cli_avatars.app.session_rooms import APOTHECARY
@@ -207,7 +207,7 @@ class Lapse:
             self._clear(scene)
             self._image(scene, "entry", ("entry", self._hot), lambda: art.entry(self._hot), 8, h - 8, "sw",
                         (TAG, ENTRY), K)
-            scene.tag_raise(ENTRY)
+            still.lift(scene, ENTRY)
             return
         self._drop(scene, "entry")
         clock = time.monotonic()

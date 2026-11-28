@@ -16,7 +16,7 @@ import sys
 import zlib
 
 import focus
-from cli_avatars.app import cues, idle_life, idle_props, park, task_route
+from cli_avatars.app import cues, idle_life, idle_props, park, still, task_route
 from cli_avatars.app.throttle import StoreThrottle
 
 FX, PROP, TABLE = "park-fx", "idle-prop", "task-table"
@@ -261,7 +261,7 @@ class LifeView:
         else:
             if self._keys.get(name) != key:
                 scene.itemconfigure(item, image=photo)
-            scene.coords(item, x, y)
+            still.move(scene, item, x, y)
         self._keys[name] = key
 
     def _photo(self, scene, key: tuple, extra):

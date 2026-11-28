@@ -18,7 +18,7 @@ from cli_avatars.app.dungeon_map import (
     virtual_from_canvas,
 )
 from cli_avatars.app.overlays import bind_avatar
-from cli_avatars.app.place_markers import draw_inside_sub_marks
+from cli_avatars.app.place_markers import begin_marks, draw_inside_sub_marks, settle
 from cli_avatars.app.place_store import (
     empty_file,
     forget,
@@ -269,7 +269,7 @@ class PlaceBook:
         if scene is None:
             return
         try:
-            scene.delete("inside-sub")
+            begin_marks(scene)
         except Exception:
             return
         now = self._now or time.time()
@@ -309,7 +309,7 @@ class PlaceBook:
         room.paint_user(scene, photos, now)
         room.paint_marks(scene)
         try:
-            scene.tag_lower("floor")
+            settle(scene)
         except Exception:
             return
 

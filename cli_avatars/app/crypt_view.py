@@ -14,7 +14,7 @@ import sys
 
 import focus
 from cli_avatars.app import boss_room_art as art
-from cli_avatars.app import boss_rooms, cues
+from cli_avatars.app import boss_rooms, cues, still
 
 TAG = "crypt"
 DROP_S = 0.5
@@ -140,9 +140,9 @@ class CryptView:
 
     def _raise(self, scene) -> None:
         try:
-            scene.tag_raise(TAG)
-            scene.tag_raise("crypt-skull")
-            scene.tag_raise("crypt-label")
+            still.lift(scene, TAG)
+            still.lift(scene, "crypt-skull")
+            still.lift(scene, "crypt-label")
         except Exception:
             return
 
@@ -159,7 +159,7 @@ class CryptView:
         elif self._keys.get(name) != key:
             scene.itemconfigure(item, image=photo)
         self._keys[name] = key
-        scene.coords(item, round(at[0]), round(at[1]))
+        still.move(scene, item, round(at[0]), round(at[1]))
 
     def _hover(self, card: str | None, leaving: str | None = None) -> None:
         if card is not None or self.hot == leaving:

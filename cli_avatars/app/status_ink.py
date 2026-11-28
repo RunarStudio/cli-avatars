@@ -2,7 +2,7 @@
 
 After the floor is drawn, ``sweep`` blanks each nameplate's status line and ``Marks`` writes the word over
 it in its state colour. A canvas write happens only when the word, its colour or the plate's spot changes; a
-state change brightens the word for ``PULSE_MS`` with a few ``after`` steps, then no timer is left.
+state change fades the word once from a light tint to its colour within ``PULSE_MS``, then no timer is left.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ from status_palette import PALETTE, colour  # noqa: F401  # the one palette, re-
 
 WORDS = {"blocked": "needs you"}
 FONT = "DungeonF7b"
-PULSE_MS = 600
-PULSE = (0.8, 0.6, 0.4, 0.2, 0.0)  # white share per step; the steps span PULSE_MS
+PULSE_MS = 300
+PULSE = (0.35, 0.15, 0.0)  # white share per step; the steps span PULSE_MS
 
 
 def word(status: str) -> str:

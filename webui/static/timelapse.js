@@ -198,7 +198,7 @@ function lapseTrail(steps, kind, now) {
       const t = k / 10;
       if (t > done) break;
       const [[x, y]] = lapseRouteAt(s.route, t), r = 1.4 + 1.6 * t;
-      ctx.globalAlpha = Math.max(0, Math.min(1, fade)) * (0.25 + 0.55 * t) * (0.8 + 0.2 * Math.sin(now / 240 + k));
+      ctx.globalAlpha = Math.max(0, Math.min(1, fade)) * (0.25 + 0.55 * t) * 0.8;
       ctx.beginPath();
       ctx.moveTo(x, y - r);
       ctx.lineTo(x + r, y);

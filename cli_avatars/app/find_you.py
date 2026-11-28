@@ -71,8 +71,8 @@ def waving(book, agents) -> set[str]:
 
 
 def advance(book, agents, now: float) -> None:
-    """Forget clicks on answered sessions and flash the closed arch while someone waits."""
+    """Forget clicks on answered sessions and hold the closed arch open while someone waits."""
     book._found = {aid for aid in book._found if _needing(agents, aid, _asking(book))}
     book._waving = waving(book, agents)
-    if book._waving and now >= book._arch_until + ARCH_FLASH_S:
-        book._arch_until = now + ARCH_FLASH_S
+    if book._waving:
+        book._arch_until = max(book._arch_until, now + ARCH_FLASH_S)

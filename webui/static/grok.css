@@ -17,10 +17,8 @@
 .grok-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .grok-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e8f2ff; }
 .grok-gem { flex: none; image-rendering: pixelated; width: 15px; height: 15px; }
-.grok-gem.answering, .grok-gem.busy { animation: grok-pulse 0.9s ease-in-out infinite; }
 .grok-meta { flex: none; color: #8a96b0; font-size: 11px; }
 .grok-last { margin: 4px 0 0 23px; color: var(--grok); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@keyframes grok-pulse { 50% { filter: drop-shadow(0 0 6px #cfe2ff) brightness(1.3); } }
 
 .grok-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 8px;
   background: linear-gradient(90deg, #142036, #10141f 70%); border: 2px solid var(--deep); box-shadow: inset 0 0 0 1px #2a3f66; }

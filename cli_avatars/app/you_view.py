@@ -347,7 +347,7 @@ class YouView:
         keep = {"keeper"}
         if self.selected:
             keep.add("ring")
-            self._image(scene, "ring", ("ring", scale, int(now * 4) % 4), (at[0], at[1]), "center")
+            self._image(scene, "ring", ("ring", scale), (at[0], at[1]), "center")
         self._image(scene, "keeper", ("keeper", frame, walking, scale, face < 0), (x0, y0), "nw")
         self._box = (x0 + 10 * scale, y0 + 2 * scale, x0 + 32 * scale, y0 + 38 * scale)
         user = getattr(hall, "user", None)
@@ -402,7 +402,7 @@ class YouView:
             if kind == "keeper":
                 image = art.keeper_frame(key[1], key[2], key[3], key[4])
             elif kind == "ring":
-                image = art.ring(key[1], key[2])
+                image = art.ring(key[1])
             elif kind == "badge":
                 image = art.badge(key[1], key[2])
             else:

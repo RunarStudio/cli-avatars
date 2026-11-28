@@ -308,8 +308,8 @@ def fx(layout_key: str, step: int, box: tuple, lamps: tuple, runes: tuple, flies
     image = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     px = image.load()
     t = step / FX_STEPS
-    for i, (lx, ly) in enumerate(lamps):
-        k = 0.75 + 0.25 * math.sin(math.tau * (t * 2 + i * 0.37))
+    for lx, ly in lamps:
+        k = 0.75
         cx, cy = lx - x0, ly - y0 - 31
         for y in range(max(0, int(cy - 11)), min(h, int(cy + 12))):
             for x in range(max(0, int(cx - 16)), min(w, int(cx + 17))):
@@ -319,7 +319,7 @@ def fx(layout_key: str, step: int, box: tuple, lamps: tuple, runes: tuple, flies
                     if a > 6:
                         px[x, y] = (*GLOW, a)
     for (rx, ry) in runes:
-        a = int(110 + 110 * math.sin(math.tau * t))
+        a = 110
         for dx, dy in ((0, 0), (1, 1), (0, 2), (-1, 1)):
             x, y = int(rx - x0 + dx), int(ry - y0 + dy)
             if 0 <= x < w and 0 <= y < h:
@@ -328,8 +328,7 @@ def fx(layout_key: str, step: int, box: tuple, lamps: tuple, runes: tuple, flies
         ang = math.tau * (t + phase)
         x = int(fx_ - x0 + 9 * math.sin(ang + i))
         y = int(fy - y0 - 14 + 5 * math.sin(2 * ang + i * 0.5))
-        lit = math.sin(math.tau * (t * 3 + phase)) > -0.2
-        if lit and 1 <= x < w - 1 and 1 <= y < h - 1:
+        if 1 <= x < w - 1 and 1 <= y < h - 1:
             px[x, y] = (230, 255, 170, 255)
             for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))[:size + 2]:
                 px[nx, ny] = (190, 240, 120, 120)

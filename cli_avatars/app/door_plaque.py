@@ -14,7 +14,7 @@ import sys
 
 import text_fonts as fonts
 from cli_avatars.app import art_words as words
-from cli_avatars.app import door_counts
+from cli_avatars.app import door_counts, still
 from cli_avatars.app.session_rooms import APOTHECARY
 from cli_avatars.app.throne_model import GOLD
 from cli_avatars.app.throne_px import Buf, t35, to_image, tone
@@ -236,7 +236,7 @@ class Plaques:
             else:
                 if self._keys.get(name) != key:
                     scene.itemconfigure(item, image=self._photo(scene, key))
-                scene.coords(item, x, y)
+                still.move(scene, item, x, y)
             self._keys[name] = key
         if self._tip is not None:
             self._place_tip(scene, self._tip[0], scale)
