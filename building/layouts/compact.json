@@ -24,7 +24,7 @@
         {"piece": "b23-antorcha-izq", "at": [0, 1]},
         {"piece": "b23-antorcha-izq", "at": [0, 6]},
         {"piece": "o10-atril-con-grimorio", "at": [4, 1]},
-        {"piece": "o16-estanteria", "at": [1, 1]},
+        {"piece": "o16-estanteria", "at": [0, 3]},
         {"piece": "o24-barril", "at": [9, 3]}
       ],
       "circle": {"piece": "o09-circulo-magico", "at": [2, 2], "spot": [2, 2]},
@@ -62,7 +62,7 @@
         {"piece": "b23-antorcha-izq", "at": [0, 1]},
         {"piece": "b23-antorcha-izq", "at": [0, 6]},
         {"piece": "o10-atril-con-grimorio", "at": [4, 1]},
-        {"piece": "o16-estanteria", "at": [1, 1]},
+        {"piece": "o16-estanteria", "at": [0, 3]},
         {"piece": "o24-barril", "at": [9, 3]}
       ],
       "circle": {"piece": "o09-circulo-magico", "at": [2, 2], "spot": [2, 2]},
@@ -92,7 +92,7 @@
         {"piece": "b11-muro-der-bajo", "at": [1, 0], "span": [5, 1]},
         {"piece": "b11-muro-der-bajo", "at": [7, 0], "span": [3, 1]},
         {"piece": "o10-atril-con-grimorio", "at": [4, 1]},
-        {"piece": "o16-estanteria", "at": [1, 1]},
+        {"piece": "o16-estanteria", "at": [0, 3]},
         {"piece": "o24-barril", "at": [9, 3]}
       ],
       "circle": {"piece": "o09-circulo-magico", "at": [2, 2], "spot": [2, 2]},
@@ -122,7 +122,7 @@
         {"piece": "b11-muro-der-bajo", "at": [1, 0], "span": [5, 1]},
         {"piece": "b11-muro-der-bajo", "at": [7, 0], "span": [3, 1]},
         {"piece": "o10-atril-con-grimorio", "at": [4, 1]},
-        {"piece": "o16-estanteria", "at": [1, 1]},
+        {"piece": "o16-estanteria", "at": [0, 3]},
         {"piece": "o24-barril", "at": [9, 3]}
       ],
       "circle": {"piece": "o09-circulo-magico", "at": [2, 2], "spot": [2, 2]},

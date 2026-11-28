@@ -12,6 +12,7 @@ from cli_avatars.app.room_floor import Plan, facing
 SEATS = 2
 DOOR_IN = (0.7, 1.4, 2.1)
 DOOR_GAP = 0.8
+WALL_FACE = 0.2
 BRAZIER = "o20-brasero"
 
 
@@ -35,19 +36,19 @@ def _cells(room: dict) -> set[tuple[int, int]]:
 
 
 def bench(room: dict, seats: int = SEATS) -> tuple[float, float] | None:
-    """Absolute tile of the bench's back left corner, ``seats`` tiles long along the back right wall."""
+    """Absolute tile of the bench's back left corner, ``seats`` tiles long, its back on the back right wall's face."""
     origin, size = room.get("origin"), room.get("size")
     if not (isinstance(origin, list) and isinstance(size, list)) or room.get("corridor") \
             or room.get("kind") in ("oni-pit", "crypt"):
         return None
     slot = (room.get("prop_slots") or {}).get("bench") if isinstance(room.get("prop_slots"), dict) else None
     if isinstance(slot, list) and len(slot) == 2:
-        return (origin[0] + slot[0], origin[1] + slot[1] + 0.1)
+        return (origin[0] + slot[0], origin[1] + (WALL_FACE if slot[1] == 1 else slot[1] + 0.1))
     used, width = _cells(room), size[0]
     seats = max(SEATS, seats)
     for u in range(width - 1 - seats, 0, -1):
         if all((u + i, 1) not in used for i in range(seats)):
-            return (origin[0] + u, origin[1] + 1.1)
+            return (origin[0] + u, origin[1] + WALL_FACE)
     return None
 
 

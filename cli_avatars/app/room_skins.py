@@ -157,7 +157,7 @@ def torch_items(skin: Skin, w: int, h: int, doors: dict) -> list[dict]:
 
 
 def prop_items(skin: Skin, w: int, h: int, doors: dict) -> list[dict]:
-    """Shelves on the left wall, a wide piece in the middle, small ones in the corners; never on a door tile."""
+    """Shelves against the left wall, a wide piece in the middle, small ones in the corners; never on a door tile."""
     lift = TORCH_LIFT[skin.wall]
     blocked = {(1, y) for (x, y) in doors if x == 0} | {(x, 1) for (x, y) in doors if y == 0}
     spots = [(w - 2, 2), (1, h - 2), (w - 2, h - 2), (2, 2)]
@@ -168,7 +168,9 @@ def prop_items(skin: Skin, w: int, h: int, doors: dict) -> list[dict]:
     out, shelf = [], 0
     for piece in pieces:
         if piece in _ON_WALL:
-            out.append(_item(piece, 1, 1 + shelf * 3))
+            y = 1 + shelf * 3
+            y += (0, y) in doors
+            out.append(_item(piece, 0, y))
             shelf += 1
         elif piece in _WIDE:
             n = wide.index(piece)
