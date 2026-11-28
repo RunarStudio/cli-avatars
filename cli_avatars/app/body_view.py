@@ -197,7 +197,8 @@ class BodyView:
                 benches[name] = (corner, max(spots.SEATS, len(sitters)))
                 first = (max(spots.SEATS, len(sitters)) - len(sitters)) / 2.0
                 for i, aid in enumerate(sitters):
-                    out[aid] = (name, plan.floor(name).clamp(*spots.seat(corner, first + i)), 1)
+                    seat = spots.seat(corner, first + i)
+                    out[aid] = (name, (plan.floor(name).clamp(*seat)[0], seat[1]), 1)
             for i, aid in enumerate(by_room.get((name, TAP), [])):
                 found = spots.door(plan, name, toward, i, room)
                 if found is not None:

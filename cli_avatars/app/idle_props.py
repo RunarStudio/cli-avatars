@@ -58,12 +58,15 @@ def project_room(room: dict) -> bool:
 
 
 def _used(room: dict) -> set[tuple[int, int]]:
-    """Tiles (relative) a piece of furniture stands on, with the throne's carpet and dais."""
+    """Tiles (relative) a piece of furniture, a desk or the circle covers, with the throne's carpet and dais."""
     out = set()
-    for item in room.get("structure") or []:
-        piece, at = item.get("piece"), item.get("at")
+    sizes = _footprints()
+    items = [*(room.get("structure") or []), *(room.get("desks") or []), room.get("circle")]
+    for item in items:
+        piece, at = (item.get("piece"), item.get("at")) if isinstance(item, dict) else (None, None)
         if isinstance(piece, str) and piece.startswith("o") and isinstance(at, list) and len(at) == 2:
-            out.add((at[0], at[1]))
+            w, h = sizes.get(piece, (1, 1))
+            out.update((at[0] + a, at[1] + b) for a in range(max(w, 1)) for b in range(max(h, 1)))
     if room.get("throne"):
         w = room["size"][0]
         out.update((u, v) for u in range(w) for v in range(3, 6))
@@ -99,7 +102,9 @@ class _Finder:
         return best[1]
 
     def _free(self, u: int, v: int, used, floor, kind: str) -> bool:
-        if (u, v) in self.taken or any((u + a, v + b) in used for a in (-1, 0, 1) for b in (-1, 0, 1)):
+        near = [(u + a, v + b) for a, b in ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1))]
+        seats = [(int(u + a // 1), int(v + b // 1)) for a, b in SPOTS[kind]]
+        if (u, v) in self.taken or any(cell in used for cell in near + seats):
             return False
         if any(abs(p[0] - u - 0.5) + abs(p[1] - v - 0.5) <= DOOR_CLEAR for p in self.points):
             return False
@@ -146,6 +151,18 @@ def _place(layout: dict | None, props: bool) -> tuple[dict[str, Obj], list[Obj]]
 
 
 _CACHE: dict = {}
+
+
+def _footprints() -> dict[str, tuple[int, int]]:
+    """Kit piece footprints from the manifest, read once."""
+    if "footprints" not in _CACHE:
+        from cli_avatars.app.dungeon_rooms import load_manifest
+
+        pieces = (load_manifest() or {}).get("pieces") or {}
+        _CACHE["footprints"] = {name: tuple(spec["footprint"]) for name, spec in pieces.items()
+                                if isinstance(spec, dict) and isinstance(spec.get("footprint"), list)
+                                and len(spec["footprint"]) == 2}
+    return _CACHE["footprints"]
 
 
 def _obj(oid: str, kind: str, room: str, cell: tuple[int, int], seats: int, act: str) -> Obj:

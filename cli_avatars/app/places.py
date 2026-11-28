@@ -18,7 +18,7 @@ from cli_avatars.app.dungeon_map import (
     virtual_from_canvas,
 )
 from cli_avatars.app.overlays import bind_avatar
-from cli_avatars.app.place_markers import begin_marks, draw_inside_sub_marks, settle
+from cli_avatars.app.place_markers import begin_marks, draw_inside_sub_marks
 from cli_avatars.app.place_store import (
     empty_file,
     forget,
@@ -298,9 +298,9 @@ class PlaceBook:
         build_for(self).paint(scene, getattr(scene, "_rooms_painter", None), now)
         glow_for(self).paint(scene, room, dragging, now)
         photos = canvas_photos(self.app)
-        from cli_avatars.app.nameplates import seat_inside
+        from cli_avatars.app import depth, hud_fit
 
-        seat_inside(scene, settled, spots, self.app._inside, dragging)
+        hud_fit.seat(self, scene, settled, spots, dragging)
         for aid in settled:
             self._paint_inside(scene, aid, spots.get(aid, (0.0, 0.0)), photos, dragging, now, posed=False)
         for aid in list(self._cross):
@@ -309,7 +309,7 @@ class PlaceBook:
         room.paint_user(scene, photos, now)
         room.paint_marks(scene)
         try:
-            settle(scene)
+            depth.settle(self, scene, dragging, now)
         except Exception:
             return
 

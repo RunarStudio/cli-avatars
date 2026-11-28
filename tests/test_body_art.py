@@ -104,14 +104,14 @@ class Props(unittest.TestCase):
 class Places(unittest.TestCase):
     def test_bench_on_the_back_wall_clear_of_objects(self):
         corner = spots.bench(ROOM)
-        self.assertAlmostEqual(corner[1], -2 + 1.1)
+        self.assertAlmostEqual(corner[1], -2 + spots.WALL_FACE)
         u = int(corner[0] - 14)
         self.assertTrue({(u, 1), (u + 1, 1)}.isdisjoint({(1, 1), (6, 1)}))
         self.assertGreaterEqual(u, 1)
         self.assertLessEqual(u + 1, 8)
 
     def test_a_bench_slot_wins_and_corridors_have_none(self):
-        self.assertEqual(spots.bench({**ROOM, "prop_slots": {"bench": [3, 1]}}), (17, -0.9))
+        self.assertEqual(spots.bench({**ROOM, "prop_slots": {"bench": [3, 1]}}), (17, -2 + spots.WALL_FACE))
         self.assertIsNone(spots.bench({**ROOM, "corridor": True}))
         self.assertIsNone(spots.bench({"name": "x"}))
 

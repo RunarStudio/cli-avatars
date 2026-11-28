@@ -37,10 +37,15 @@ def scene_bounds(scene) -> tuple[int, int, int, int] | None:
     return (0, 0, width, height)
 
 
-def seat_inside(scene, settled, spots, inside, dragging) -> None:
-    """Seat each inside nameplate above its sprite, kept on the floor."""
+def seat_inside(scene, settled, spots, inside, dragging, avoid=()) -> None:
+    """Seat each inside nameplate above its sprite, kept on the floor.
+
+    ROOM-ALIGN: a plate moves off the HUD boxes in ``avoid``; a standing avatar's also moves off the standing plates
+    seated before it (front avatars first). Walkers do not push plates, so none jumps while one passes.
+    """
     bounds = scene_bounds(scene)
-    for index, aid in enumerate(settled):
+    seated = []
+    for index, aid in sorted(enumerate(settled), key=lambda row: _feet_y(row, spots, inside), reverse=True):
         av = inside.get(aid)
         if av is None:
             continue
@@ -61,7 +66,52 @@ def seat_inside(scene, settled, spots, inside, dragging) -> None:
         # The sprite paints at int(x), int(y): anchor there too, or the offset flips by a pixel.
         left = int(x) + int(av.aw) // 2 - width // 2
         top = int(y) - 4 - height
+        still = av is not dragging and getattr(av, "_plate_at", None) == (int(x), int(y))
+        av._plate_at = (int(x), int(y))
+        if av is dragging:
+            left, top = _pick([(left, top)], width, height, bounds, [])
+        else:
+            options = _options(left, top, width, height, int(y) + int(av.ah))
+            left, top = _pick(options, width, height, bounds, [*avoid, *seated] if still else list(avoid))
+        av._label_box = (left, top, width, height)
+        if still:
+            seated.append((left, top, left + width, top + height))
+
+
+def _feet_y(row, spots, inside) -> float:
+    index, aid = row
+    av = inside.get(aid)
+    center = spots.get(aid) if isinstance(spots, dict) else None
+    if av is None or center is None:
+        return float("-inf")
+    return center[1] + av.ah / 2.0
+
+
+def _options(left: int, top: int, width: int, height: int, feet: int) -> list[tuple[int, int]]:
+    """Where a plate may go, nearest its head first: above, a row higher, under the feet, beside, higher still."""
+    step = height + 2
+    half = width // 2 + 2
+    return [(left, top), (left, top - step), (left, feet + 2), (left - half, top), (left + half, top),
+            (left, top - 2 * step), (left - half, top - step), (left + half, top - step), (left, top - 3 * step)]
+
+
+def _pick(options, width: int, height: int, bounds, taken) -> tuple[int, int]:
+    """The first option clear of ``taken`` boxes, else the one overlapping least; kept on the floor."""
+    best = None
+    for left, top in options:
         if bounds is not None:
             left = max(0, min(left, bounds[2] - width))
             top = max(0, min(top, bounds[3] - height))
-        av._label_box = (left, top, width, height)
+        box = (left, top, left + width, top + height)
+        hit = sum(_area(box, other) for other in taken)
+        if hit == 0:
+            return left, top
+        if best is None or hit < best[0]:
+            best = (hit, left, top)
+    return best[1], best[2]
+
+
+def _area(a, b) -> int:
+    w = min(a[2], b[2]) - max(a[0], b[0])
+    h = min(a[3], b[3]) - max(a[1], b[1])
+    return w * h if w > 0 and h > 0 else 0

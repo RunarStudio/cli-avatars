@@ -39,6 +39,30 @@ def sink(canvas, tag: str) -> None:
         canvas.tag_lower(tag)
 
 
+def above(canvas, tag: str, ref) -> None:
+    """``canvas.tag_raise(tag, ref)`` unless ``tag``'s items already sit right above ``ref``."""
+    if not _placed(canvas, tag, ref, True):
+        canvas.tag_raise(tag, ref)
+
+
+def below(canvas, tag, ref) -> None:
+    """``canvas.tag_lower(tag, ref)`` unless ``tag``'s items already sit right under ``ref``."""
+    if not _placed(canvas, tag, ref, False):
+        canvas.tag_lower(tag, ref)
+
+
+def _placed(canvas, tag, ref, after: bool) -> bool:
+    if not hasattr(canvas, "find_all"):  # a display list that cannot be read: write as asked
+        return False
+    mine, refs = canvas.find_withtag(tag), canvas.find_withtag(ref)
+    if not mine or not refs or set(mine) & set(refs):
+        return False
+    order = list(canvas.find_all() or ())
+    rest = [item for item in order if item not in set(mine)]
+    at = rest.index(refs[-1]) + 1 if after else rest.index(refs[0])
+    return rest[:at] + list(mine) + rest[at:] == order
+
+
 class Pool:
     """Images under one tag reused frame to frame: ``begin``, ``image`` per mark, ``end`` drops the rest."""
 

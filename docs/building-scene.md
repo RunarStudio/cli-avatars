@@ -55,7 +55,7 @@ The building light uses the same table with the building state.
 | Screen position | `px = X0 + (x - y) * 16`, `py = Y0 + (x + y) * 8 - floor * FLOOR_Z * 16`, for the north vertex of tile `(x, y)`. |
 | Anchor | The sprite pixel that lands on the bottom-centre (south vertex) of the piece's footprint. Light pieces use the centre of their tile instead. |
 | Footprint | `[w, h]` tiles; `w` runs along `x`, `h` along `y`. A piece at `at` covers `at.x .. at.x+w-1` and `at.y .. at.y+h-1`. |
-| Painter's order | Floor and rock pieces of a floor first. Then everything else, sorted by `x + y` (building coordinates, back to front), then `floor`, then the kit category rank. |
+| Painter's order | Floor and rock pieces of a floor first. Then everything else, sorted by `x + y` (building coordinates, back to front), then `floor`, then the kit category rank. ROOM-ALIGN (Tk renderer): one key for pieces, idle objects and avatars, the foot point (row `x + y`, then column `x - y`); standing pieces are also drawn as items over the floor and a moving item goes under the first one it stands behind (`cli_avatars/app/depth.py`). |
 | Scale | Draw at 1×, then scale by an integer factor (default 2×) with nearest-neighbour. No smoothing, no fractional scale. |
 | Actors | Main avatars 40×40, subagents 32×32 (unchanged). Bottom-centre of the frame on the centre of the actor's tile. |
 

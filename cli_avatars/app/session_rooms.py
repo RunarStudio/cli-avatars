@@ -364,17 +364,17 @@ _ROOM_WALLS = {"corner": "b12-esquina", "wall_r": "b09-muro-der", "wall_l": "b08
                "door_l": "b13-arco-izq"}
 _SIMPLE_LOOKS = (
     dict(_ROOM_WALLS, floor="b02-losa-clara", props=(
-        ("o16-estanteria", (1, 1)), ("o10-atril-con-grimorio", (4, 1)), ("o14-mesa-con-vela", (5, 4)),
+        ("o16-estanteria", (0, 1)), ("o10-atril-con-grimorio", (4, 1)), ("o14-mesa-con-vela", (5, 4)),
         ("o14-mesa-con-vela", (7, 4)), ("o11-bola-de-cristal", (2, 5)), ("o27-caja-de-madera", (9, 6)))),
     dict(_ROOM_WALLS, floor="b01-losa", props=(
-        ("o30-estante-de-pociones", (1, 1)), ("o12-caldero", (3, 3)), ("o14-mesa-con-vela", (6, 2)),
+        ("o30-estante-de-pociones", (0, 1)), ("o12-caldero", (3, 3)), ("o14-mesa-con-vela", (6, 2)),
         ("o13-mesa-larga", (6, 5)), ("o24-barril", (9, 2)), ("o26-pila-de-barriles", (9, 6)))),
     dict(_ROOM_WALLS, floor="b03-losa-oscura", props=(
-        ("o16-estanteria", (1, 1)), ("o16-estanteria", (2, 1)), ("o15-banco", (5, 3)),
+        ("o16-estanteria", (0, 1)), ("o16-estanteria", (0, 3)), ("o15-banco", (5, 3)),
         ("o14-mesa-con-vela", (3, 5)), ("o02-cofre", (8, 1)), ("o29-botella-azul", (8, 6)))),
 )
 _THRONE_LOOK = dict(_ROOM_WALLS, floor="b03-losa-oscura", corner="b25-pilar", props=(
-    ("o20-brasero", (6, 2)), ("o20-brasero", (6, 8)), ("o16-estanteria", (12, 1)),
+    ("o20-brasero", (6, 2)), ("o20-brasero", (6, 8)), ("o16-estanteria", (12, 0)),
     ("o11-bola-de-cristal", (10, 1)), ("o02-cofre", (12, 8))))
 
 
