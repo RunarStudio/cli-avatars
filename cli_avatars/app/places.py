@@ -298,9 +298,10 @@ class PlaceBook:
         build_for(self).paint(scene, getattr(scene, "_rooms_painter", None), now)
         glow_for(self).paint(scene, room, dragging, now)
         photos = canvas_photos(self.app)
+        from cli_avatars.app.hud_fit import keep_in_view, labels_under
         from cli_avatars.app.nameplates import seat_inside
 
-        seat_inside(scene, settled, spots, self.app._inside, dragging)
+        seat_inside(scene, settled, spots, self.app._inside, dragging, keep_in_view(self, scene))
         for aid in settled:
             self._paint_inside(scene, aid, spots.get(aid, (0.0, 0.0)), photos, dragging, now, posed=False)
         for aid in list(self._cross):
@@ -310,6 +311,14 @@ class PlaceBook:
         room.paint_marks(scene)
         try:
             scene.tag_lower("floor")
+        except Exception:
+            return
+        from cli_avatars.app.depth import stack
+
+        painter = getattr(scene, "_rooms_painter", None)
+        try:
+            stack(self, scene, painter, dragging, build_for(self).active(painter, now) if painter else ())
+            labels_under(scene, self.app._inside)
         except Exception:
             return
 

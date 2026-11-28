@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 from bundle_paths import asset_path
+from cli_avatars.app import depth as dp
 
 LAYOUT_NAME = "compact"
 TILE_HALF_W = 16
@@ -89,7 +90,7 @@ def placements(layout: dict, manifest: dict) -> list[tuple]:
     pieces = manifest["pieces"]
     found = []
     seq = 0
-    for room in layout["rooms"][:MAX_ROOMS]:
+    for index, room in enumerate(layout["rooms"][:MAX_ROOMS]):
         if not isinstance(room, dict):
             continue
         origin = _cell(room.get("origin"))
@@ -114,10 +115,10 @@ def placements(layout: dict, manifest: dict) -> list[tuple]:
             for du in range(0, span[0], step_u):
                 for dv in range(0, span[1], step_v):
                     u, v = origin[0] + at[0] + du, origin[1] + at[1] + dv
-                    depth = u + v + max(fw, 1) + max(fh, 1) - 2
+                    row, col = dp.key(u + max(fw, 1) - 1, v + max(fh, 1) - 1)
                     if (fw, fh) == (0, 0):
-                        depth += 0.5
-                    key = (floor, rank > 0, depth, rank, u, seq, lift)
+                        row += 0.5
+                    key = (floor, rank > 0, row, rank, col, seq, index, lift)
                     found.append((key, name, u, v, floor))
     found.sort(key=lambda row: row[0])
     return found
@@ -143,6 +144,8 @@ def compose(layout: dict, manifest: dict, open_image=None):
     pieces = manifest["pieces"]
     cache: dict[str, object] = {}
     stamps = []
+    standing = []
+    rooms = layout["rooms"]
     for key, name, u, v, floor in placements(layout, manifest):
         spec = pieces[name]
         rel = spec.get("file")
@@ -159,6 +162,9 @@ def compose(layout: dict, manifest: dict, open_image=None):
             continue
         ax, ay = _anchor_point(spec, u, v, floor)
         stamps.append((img, ax - anchor[0], ay - anchor[1] - key[-1]))
+        room = rooms[key[-2]]
+        if floor == 0 and dp.standing(spec) and not _stamped(room):
+            standing.append((len(stamps) - 1, dp.piece_box(name, spec, u, v), build_key(room) or room.get("name")))
     if not stamps:
         return None
     left = min(x for _img, x, _y in stamps)
@@ -169,7 +175,14 @@ def compose(layout: dict, manifest: dict, open_image=None):
     for img, x, y in stamps:
         out.alpha_composite(img, (x - left, y - top))
     out.info["origin"] = (left, top)
+    out.info["occluders"] = [(stamps[i][0], stamps[i][1] - left, stamps[i][2] - top, box, owner)
+                             for i, box, owner in standing]
     return out
+
+
+def _stamped(room: dict) -> bool:
+    """Rooms whose art is painted over the kit after composing (throne, park, sandbox) keep their pieces flat."""
+    return bool(room.get("throne")) or room.get("kind") in ("park", "sandbox")
 
 
 def fit_scale(image_size: tuple[int, int], box: tuple[int, int]) -> int:
@@ -195,6 +208,9 @@ class RoomsPainter:
         self._scale = 0
         self._photo = None
         self._item = None
+        self._occ = None
+        self._occ_ids: list[int] = []
+        self._occ_hidden: set = set()
 
     def base(self):
         if self._base is None and not self._failed:
@@ -221,7 +237,7 @@ class RoomsPainter:
         if layout is self.layout:
             return False
         old = _sessions(self.layout)
-        self._base, self._failed, self._photo = None, False, None
+        self._base, self._failed, self._photo, self._occ = None, False, None, None
         self.__dict__.pop("_glow_art", None)
         self.base()
         if old is not None:
@@ -256,7 +272,54 @@ class RoomsPainter:
         else:
             canvas.coords(self._item, *self._center)
         canvas.tag_lower("rooms")
+        self._paint_occluders(canvas, base, scale)
         return True
+
+    def _paint_occluders(self, canvas, base, scale: int) -> None:
+        """ROOM-ALIGN: each standing piece again as its own item over the floor image, in paint order."""
+        found = base.info.get("occluders") or []
+        x0 = self._center[0] - (base.width * scale) // 2
+        y0 = self._center[1] - (base.height * scale) // 2
+        if self._occ is None or self._occ[0] != scale or not canvas.find_withtag(dp.OCCLUDER):
+            from PIL import Image, ImageTk
+
+            canvas.delete(dp.OCCLUDER)
+            photos: dict[int, object] = {}
+            self._occ_ids, self._occ_hidden = [], set()
+            for img, x, y, _box, _owner in found:
+                if id(img) not in photos:
+                    shown = img if scale == 1 else img.resize((img.width * scale, img.height * scale), Image.NEAREST)
+                    photos[id(img)] = ImageTk.PhotoImage(shown, master=canvas)
+                self._occ_ids.append(canvas.create_image(x0 + x * scale, y0 + y * scale, image=photos[id(img)],
+                                                         anchor="nw", tags=(dp.OCCLUDER,)))
+            self._occ = (scale, x0, y0, photos)
+        elif (x0, y0) != self._occ[1:3]:
+            canvas.move(dp.OCCLUDER, x0 - self._occ[1], y0 - self._occ[2])
+            self._occ = (scale, x0, y0, self._occ[3])
+        if self._occ_ids:
+            canvas.tag_raise(dp.OCCLUDER, "rooms")
+
+    def occluders(self):
+        """``([(box, canvas bbox)], [canvas id])`` of the standing pieces in paint order; empty before painting."""
+        base = self._base
+        if base is None or self._occ is None:
+            return [], []
+        scale, x0, y0, _photos = self._occ
+        rows = [(box, (x0 + x * scale, y0 + y * scale, x0 + (x + img.width) * scale, y0 + (y + img.height) * scale))
+                for img, x, y, box, _owner in base.info.get("occluders") or []]
+        shown = [(row, item) for row, item, (*_r, owner) in zip(rows, self._occ_ids, base.info["occluders"])
+                 if owner not in self._occ_hidden]
+        return [row for row, _item in shown], [item for _row, item in shown]
+
+    def hold_back(self, canvas, owners: set) -> None:
+        """Hide the standing pieces of rooms still building in (``room_build`` draws them rising)."""
+        owners = set(owners)
+        if owners == self._occ_hidden or self._base is None or self._occ is None:
+            return
+        for item, (*_r, owner) in zip(self._occ_ids, self._base.info.get("occluders") or []):
+            if (owner in owners) != (owner in self._occ_hidden):
+                canvas.itemconfigure(item, state="hidden" if owner in owners else "normal")
+        self._occ_hidden = owners
 
     def view(self, box: tuple[int, int], camera=None) -> int:
         """Scale for a ``box`` canvas; sets the image centre. NAV.1's camera when given, else fit and centred."""
