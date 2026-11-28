@@ -122,8 +122,9 @@ class Stage:
 
     def rooms(self) -> list[str]:
         layout = self.scene._rooms_painter.layout or {}
-        names = [r["name"] for r in layout.get("rooms") or [] if isinstance(r, dict) and r.get("name")]
-        return [n for n in names if not re.fullmatch(r"north|east|south|west|.*-\d+", n, re.I)]
+        rooms = [r for r in layout.get("rooms") or [] if isinstance(r, dict) and not r.get("corridor")]
+        names = [r["name"] for r in rooms if r.get("name")]
+        return [n for n in names if not re.fullmatch(r".*-\d+", n)]
 
     def grab(self) -> Image.Image:
         self.root.update()
